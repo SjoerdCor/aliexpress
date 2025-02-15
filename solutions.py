@@ -6,6 +6,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.styles import numbers
 
 from problemsolver import get_satisfaction_integral
+import datareader
 
 
 class SolutionAnalyzer:
@@ -19,19 +20,17 @@ class SolutionAnalyzer:
         self,
         prob: pulp.LpProblem,
         preferences: pd.DataFrame,
-        old_preferences: pd.DataFrame,
         input_sheet: pd.DataFrame,
     ):
         self.prob = prob
         self.preferences = preferences
-        self.old_preferences = old_preferences
         self.input_sheet = input_sheet
+
         self.groepsindeling = self._get_outcome()
+        # The following calculations build upon eachother
+        self.satisfied_constraints = self._calculate_satisfied_constraints()
         self.ll_performance = self._calculate_performance_per_leerling()
         self.solution_performance = self._calculate_solution_performance()
-        self.satisfied_preferences_original_index = (
-            self.determine_satisfied_wishes_leerlingindex()
-        )
 
     def _get_outcome(self) -> pd.DataFrame:
         """
@@ -136,8 +135,7 @@ class SolutionAnalyzer:
             The output of calculate_satisfied_constraints
         """
         df = (
-            self._calculate_satisfied_constraints()
-            .groupby("ll")
+            self.satisfied_constraints.groupby("ll")
             .agg(
                 NrPreferences=("Satisfied", "count"),
                 AccountedPreferences=("Satisfied", "sum"),
@@ -221,7 +219,7 @@ class SolutionAnalyzer:
         ).to_dict("records")[0]
         return solution_performance
 
-    def determine_satisfied_wishes_leerlingindex(self) -> pd.DataFrame:
+    def _determine_satisfied_wishes_leerlingindex(self) -> pd.DataFrame:
         """Get the satisfied wishes, but change the index so that it matches the input
 
         This is useful so that we can match the original file whether a wish is satisfied
@@ -242,40 +240,52 @@ class SolutionAnalyzer:
         -------
         df
         """
-
+        preferences_incl_liever_niet = datareader.toggle_negative_weights(
+            self.preferences
+        )
         mapping = {}
         for i in range(len(self.preferences)):
             if self.preferences.index[i][1] == "Graag met":
                 mapping[self.preferences.reset_index("TypeWens").index[i]] = (
-                    self.old_preferences.index[i]
+                    preferences_incl_liever_niet.index[i]
                 )
 
         df = pd.DataFrame(mapping, index=["Leerling", "TypeWens", "Nr"]).transpose()
         df.index.names = ["ll", "Nr"]
 
-        satisfied_constraints = self._calculate_satisfied_constraints()
         df = (
-            df.join(satisfied_constraints)
+            df.join(self.satisfied_constraints)
             .reset_index(drop=True)
             .set_index(["Leerling", "TypeWens", "Nr"])
         )
         return df
 
-    def _display_satisfied_preferences(self):
+    @staticmethod
+    def _display_satisfied_preferences(
+        df: pd.DataFrame, satisfied_preferences_original_index: pd.DataFrame
+    ) -> pd.DataFrame:
         """
         Determine the background property based on whether a wish is satisfied
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            DataFrame that contains the right index and columns
+        satisfied_preferences_original_index : pd.DataFrame
+            DataFrame that contains wether the preference is satisfied. Index in long-form
+
         """
         df_style = pd.DataFrame(
             "background-color: white",
-            index=self.input_sheet.index,
-            columns=self.input_sheet.columns,
+            index=df.index,
+            columns=df.columns,
         )
 
         for idx in df_style.index:
             for col in df_style.columns:
                 original_idx = (idx, col[0], col[1])
                 try:
-                    if self.satisfied_preferences_original_index.loc[
+                    if satisfied_preferences_original_index.loc[
                         original_idx, "Satisfied"
                     ]:
                         df_style.loc[idx, col] = "background-color: green"
@@ -294,8 +304,13 @@ class SolutionAnalyzer:
         pd.DataFrame
             Style DataFrame for optimal clarity
         """
+        satisfied_preferences_original_index = (
+            self._determine_satisfied_wishes_leerlingindex()
+        )
         return self.input_sheet.style.apply(
-            self._display_satisfied_preferences, axis=None
+            self._display_satisfied_preferences,
+            axis=None,
+            satisfied_preferences_original_index=satisfied_preferences_original_index,
         )
 
     @staticmethod

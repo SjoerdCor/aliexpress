@@ -5,7 +5,20 @@ import pandas as pd
 
 
 def toggle_negative_weights(df: pd.DataFrame) -> pd.DataFrame:
-    """Adjusts 'Liever niet met'/'Graag met' category by negating weight and renaming."""
+    """Adjusts 'Liever niet met'/'Graag met' category by negating weight and renaming.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        A dataframe containing preferences in long-form, with right indexes
+        annd Gewicht as column
+
+    Returns
+    -------
+        pd.DataFrame
+            Of the same shape, but with negated Gewicht and TypeWens
+    """
+    df = df.reset_index()
 
     mask = df["Gewicht"] < 0
     df.loc[mask, "Gewicht"] = -df["Gewicht"]
