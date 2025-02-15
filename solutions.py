@@ -40,7 +40,7 @@ class SolutionAnalyzer:
             if v.value() == 1 and v.name.startswith("group")
         ]
         df = pd.DataFrame(chosen_groups)
-        df[["Naam", "Group"]] = df[0].str.extract("group_\('(.*)',_'(.*)'\)")
+        df[["Naam", "Group"]] = df[0].str.extract(r"group_\('(.*)',_'(.*)'\)")
         return df.drop(columns=[0])
 
     def display_groepsindeling(self):
@@ -77,7 +77,7 @@ class SolutionAnalyzer:
         series = pd.Series(constraints, name=name)
         ix = (
             series.index.to_series()
-            .str.extract(f"{name}_\('(?P<ll>.*)',_(?P<Nr>.*)\)")
+            .str.extract(rf"{name}_\('(?P<ll>.*)',_(?P<Nr>.*)\)")
             .set_index(["ll", "Nr"])
             .index
         )
@@ -285,7 +285,9 @@ class SolutionAnalyzer:
             )
 
     def to_excel(self):
+        # https://github.com/PyCQA/pylint/issues/3060 pylint: disable=abstract-class-instantiated
         with pd.ExcelWriter("groepsindeling2.xlsx", engine="openpyxl") as writer:
+
             self.display_groepsindeling().to_excel(
                 writer, "Groepsindeling", index=False
             )
