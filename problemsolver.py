@@ -10,6 +10,7 @@ M = 1_000_000  # A very big number, so that constraints are never larger than 1
 EPS = 0.001  # A small number to correct for numerical inaccuracies
 
 
+# TODO: fix naming. voorkeuren, wishes ==> preferences. leerlingen/ll ==> students. etc.
 def powerset(iterable):
     "powerset([1,2,3]) --> () (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)"
     s = list(iterable)
@@ -244,6 +245,7 @@ class ProblemSolver:
         # The following link provides the bitwise operators as inequalities for a
         # LP-problem. XNOR, NAND and AND are used in this case
         # https://yetanothermathprogrammingconsultant.blogspot.com/2022/06/xnor-as-linear-inequalities.html
+        # TODO: move the bitwise operators to a different module
         for i, row in graag_met.iterrows():
             ll, nr = i
             if row["Waarde"] not in self.groepen:
