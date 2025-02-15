@@ -4,6 +4,20 @@ import warnings
 import pandas as pd
 
 
+def toggle_negative_weights(df: pd.DataFrame) -> pd.DataFrame:
+    """Adjusts 'Liever niet met'/'Graag met' category by negating weight and renaming."""
+
+    mask = df["Gewicht"] < 0
+    df.loc[mask, "Gewicht"] = -df["Gewicht"]
+    df.loc[mask, "TypeWens"] = df.loc[mask, "TypeWens"].map(
+        {"Graag met": "Liever niet met", "Liever niet met": "Graag met"}
+    )
+
+    df["Nr"] = df.groupby(["Leerling", "TypeWens"]).cumcount() + 1
+    df = df.set_index(["Leerling", "TypeWens", "Nr"])
+    return df
+
+
 class VoorkeurenProcessor:
     """Read and transform the input sheet to a workable DataFrame"""
 
@@ -70,16 +84,6 @@ class VoorkeurenProcessor:
             except KeyError:
                 warnings.warn(f"No entries found for wish type '{wishtype}'")
 
-    def handle_liever_niet(self) -> None:
-        """Adjusts 'Liever niet met' category by negating weight and renaming."""
-        df = self.df.reset_index()
-        mask = df["TypeWens"] == "Liever niet met"
-        df.loc[mask, "Gewicht"] = -df["Gewicht"]
-        df.loc[mask, "TypeWens"] = "Graag met"
-
-        df["Nr"] = df.groupby(["Leerling", "TypeWens"]).cumcount() + 1
-        self.df = df.set_index(["Leerling", "TypeWens", "Nr"])
-
     def process(self, all_to_groups: list) -> pd.DataFrame:
         """Runs the full processing pipeline.
 
@@ -93,7 +97,7 @@ class VoorkeurenProcessor:
 
         self.restructure()
         self.validate(all_to_groups)
-        self.handle_liever_niet()
+        self.df = toggle_negative_weights(self.df)
         return self.df
 
     def get_students_per_old_group(self) -> dict:
