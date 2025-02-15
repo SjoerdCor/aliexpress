@@ -301,8 +301,7 @@ class ProblemSolver:
                 group = row["Waarde"]
                 self.prob += self.in_group[(ll, group)] >= satisfied[i]
                 self.prob += self.in_group[(ll, group)] <= satisfied[i]
-
-            return satisfied
+        return satisfied
 
     def calculate_optimization_targets(self, satisfied):
         graag_met = self.voorkeuren.xs("Graag met", level="TypeWens")
