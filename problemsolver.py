@@ -135,6 +135,7 @@ class ProblemSolver:
         optimize="llsatisfaction",
     ):
         self.voorkeuren = voorkeuren
+        # TODO: now, the leerlingen is input as a DF (which is wrong). Bugfix!
         self.leerlingen = leerlingen
         self.leerlingen_per_obgroep = leerling_per_obgroep
         self.groepen = groepen
@@ -214,10 +215,10 @@ class ProblemSolver:
         self._constraint_not_in_forbidden_group()
 
     def add_variables_which_preferences_satisfied(self):
-
         graag_met = self.voorkeuren.xs("Graag met", level="TypeWens")
         weights = graag_met["Gewicht"].to_dict()
 
+        # TODO: think deep whether this mean "satisfied" or "in same group"
         satisfied = pulp.LpVariable.dicts(
             "Satisfied", graag_met.index.to_list(), cat="Binary"
         )
