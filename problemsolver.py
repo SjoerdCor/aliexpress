@@ -63,7 +63,7 @@ def get_satisfaction_integral(x_a: float, x_b: float) -> float:
     -------
         The added satisfaction score of the leerling
     """
-    # TODO: In principle, we should probably only specify the satisfaction function and
+    # In principle, we should probably only specify the satisfaction function and
     # then have this just be a numerical integration for optimal flexibility, but since
     # this flexibility isn't required yet, we're using a analytical integration.
 
@@ -140,8 +140,6 @@ class ProblemSolver:
         self.max_kliekje = max_kliekje
         self.max_diff_n_ll_per_group = max_diff_n_ll_per_group
         self.optimize = optimize
-        # TODO: the attribute below can be moved to function scope!
-        self.added_satisfaction = calculate_added_satisfaction(self.voorkeuren)
         self.prob = pulp.LpProblem("leerlingindeling", pulp.LpMaximize)
         self.in_group = self._define_variables()
 
@@ -216,7 +214,6 @@ class ProblemSolver:
         graag_met = self.voorkeuren.xs("Graag met", level="TypeWens")
         weights = graag_met["Gewicht"].to_dict()
 
-        # TODO: think deep whether this mean "satisfied" or "in same group"
         satisfied = pulp.LpVariable.dicts(
             "Satisfied", graag_met.index.to_list(), cat="Binary"
         )
@@ -264,7 +261,6 @@ class ProblemSolver:
                         )  # allebei in deze groep ==> satisfied = 1
 
                     else:
-
                         # This is the NAND variant, for when two leerlingen shout _not_ be in the same group
                         self.prob += (
                             satisfied_per_group[(ll, nr, gr)]
@@ -308,14 +304,14 @@ class ProblemSolver:
         weighted_satisfied = pulp.LpVariable.dicts(
             "WeightedSatisfied", graag_met.index.to_list(), cat="Continuous"
         )
-
-        for key, value in weights.items():
-            if value > 0:
-                true_satisfied = satisfied[key]
+        for key, weight in weights.items():
+            if weight > 0:
+                # Weight is positive: you get points for getting it right
+                self.prob += weighted_satisfied[key] == (satisfied[key] * weight)
             else:
-                true_satisfied = 1 - satisfied[key]
-            self.prob += weighted_satisfied[key] == (true_satisfied * weights[key])
-
+                # Weight is negative: you get deduction if you do it wrong
+                self.prob += weighted_satisfied[key] == ((1 - satisfied[key]) * weight)
+        added_satisfaction = calculate_added_satisfaction(self.voorkeuren)
         satisfaction_per_ll = pulp.LpVariable.dict(
             "LLSatisfaction", self.leerlingen, cat="Continuous"
         )
@@ -333,7 +329,7 @@ class ProblemSolver:
         )
         ww_satisfied_per_ll = pulp.LpVariable.dicts(
             "llassignedweights",
-            itertools.product(self.leerlingen, self.added_satisfaction.keys()),
+            itertools.product(self.leerlingen, added_satisfaction.keys()),
             cat="Binary",
         )
 
@@ -359,7 +355,7 @@ class ProblemSolver:
                     n_satisfied_per_ll[(ll, i)] >= (n_satisfied - (i - 1) - EPS) / M
                 )  # M ensures the constraint is never larger than 1
 
-            for n_ww in self.added_satisfaction:
+            for n_ww in added_satisfaction:
                 if n_ww > 0:
                     # ww_satisfied_per_ll(i) for each leerling is 0 if less than `weights` are satisfied
                     self.prob += (
@@ -380,7 +376,7 @@ class ProblemSolver:
 
             satisfaction_per_ll[ll] = sum(
                 val * ww_satisfied_per_ll[(ll, n_ww)]
-                for n_ww, val in self.added_satisfaction.items()
+                for n_ww, val in added_satisfaction.items()
             )
         optimization_targets = {
             "n_wishes": pulp.lpSum(satisfied),
