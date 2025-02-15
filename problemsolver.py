@@ -127,7 +127,6 @@ class ProblemSolver:
     def __init__(
         self,
         voorkeuren: pd.DataFrame,
-        leerlingen,
         leerling_per_obgroep,
         groepen,
         max_kliekje=5,
@@ -135,9 +134,8 @@ class ProblemSolver:
         optimize="llsatisfaction",
     ):
         self.voorkeuren = voorkeuren
-        # TODO: now, the leerlingen is input as a DF (which is wrong). Bugfix!
-        self.leerlingen = leerlingen
         self.leerlingen_per_obgroep = leerling_per_obgroep
+        self.leerlingen = sum(self.leerlingen_per_obgroep.values(), [])
         self.groepen = groepen
         self.max_kliekje = max_kliekje
         self.max_diff_n_ll_per_group = max_diff_n_ll_per_group
@@ -150,12 +148,12 @@ class ProblemSolver:
     def _define_variables(self):
         return pulp.LpVariable.dicts(
             "group",
-            itertools.product(self.leerlingen.index, self.groepen),
+            itertools.product(self.leerlingen, self.groepen),
             cat="Binary",
         )
 
     def _constraint_student_to_exactly_one_group(self):
-        for ll in self.leerlingen.index:
+        for ll in self.leerlingen:
             self.prob += (
                 pulp.lpSum([self.in_group[(ll, gr)] for gr in self.groepen]) == 1
             )
@@ -173,7 +171,7 @@ class ProblemSolver:
         for mbgroep in self.groepen:
 
             self.prob += new_students_in_group[mbgroep] == pulp.lpSum(
-                [self.in_group[(ll, mbgroep)] for ll in self.leerlingen.index]
+                [self.in_group[(ll, mbgroep)] for ll in self.leerlingen]
             )
 
             self.prob += new_students_in_group[mbgroep] <= max_in_group
@@ -319,7 +317,7 @@ class ProblemSolver:
             self.prob += weighted_satisfied[key] == (true_satisfied * weights[key])
 
         satisfaction_per_ll = pulp.LpVariable.dict(
-            "LLSatisfaction", self.leerlingen.index, cat="Continuous"
+            "LLSatisfaction", self.leerlingen, cat="Continuous"
         )
 
         n_wishes_max = (
@@ -330,18 +328,16 @@ class ProblemSolver:
         # Per ll whether at least i preferences are satisfied
         n_satisfied_per_ll = pulp.LpVariable.dicts(
             "llassignedprefs",
-            itertools.product(
-                self.leerlingen.index, (i for i in range(1, n_wishes_max + 1))
-            ),
+            itertools.product(self.leerlingen, (i for i in range(1, n_wishes_max + 1))),
             cat="Binary",
         )
         ww_satisfied_per_ll = pulp.LpVariable.dicts(
             "llassignedweights",
-            itertools.product(self.leerlingen.index, self.added_satisfaction.keys()),
+            itertools.product(self.leerlingen, self.added_satisfaction.keys()),
             cat="Binary",
         )
 
-        for ll in self.leerlingen.index:
+        for ll in self.leerlingen:
             ll_prefs = []
             ll_weighted = []
             for i in range(1, n_wishes_max + 1):
