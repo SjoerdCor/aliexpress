@@ -1,3 +1,5 @@
+"""Class to create a report about the solution that was found"""
+
 import pandas as pd
 import pulp
 from openpyxl.utils import get_column_letter
@@ -7,6 +9,12 @@ from problemsolver import get_satisfaction_integral
 
 
 class SolutionAnalyzer:
+    """Create a report about the solution found to the Linear Programming problem
+
+    Which students were put together, how satisfied is everybody, which preferences
+    were fulfilled, etc.
+    """
+
     def __init__(
         self,
         prob: pulp.LpProblem,
@@ -61,12 +69,20 @@ class SolutionAnalyzer:
         """
         Extract (accounted) preferences from problem to a series
 
-        Will extract leerling name and preference number as index, and whether accounted for as value
+        Will extract leerling name and preference number as index, and whether accounted
+        for as value
+
         Parameters
         ----------
         name: str
             The beginning of the variable name, will also be the name of the Series
         not_in_name: str
+            substring that can not appear in the variable name
+
+        Returns
+        -------
+        pd.Series
+            the values of the variables
 
         """
         constraints = {
@@ -147,7 +163,14 @@ class SolutionAnalyzer:
         )
         return df
 
-    def display_leerling_performance(self):
+    def display_leerling_performance(self) -> pd.DataFrame:
+        """Show the satisfaction per student as styled DataFrame
+
+        Returns
+        -------
+        pd.DataFrame
+            Table with information per student. Styled for optimal clarity
+        """
         cols = {
             "RelativeSatisfaction": "Tevredenheid",
             "AccountedPreferences": "Aantal gehonoreerde wensen",
@@ -263,7 +286,14 @@ class SolutionAnalyzer:
 
         return df_style
 
-    def display_satisfied_preferences(self):
+    def display_satisfied_preferences(self) -> pd.DataFrame:
+        """Display which preferences were satisfied and which werent in the original format
+
+        Returns
+        -------
+        pd.DataFrame
+            Style DataFrame for optimal clarity
+        """
         return self.input_sheet.style.apply(
             self._display_satisfied_preferences, axis=None
         )
@@ -283,7 +313,18 @@ class SolutionAnalyzer:
                 adjusted_width
             )
 
-    def to_excel(self):
+    def to_excel(self) -> None:
+        """Put the most important outcomes of the solution in an Excel file
+
+        Uses the three most important outcomes:
+        - The acutal groepsindeling
+        - The satisfaction per student
+        - Which preferences were accounted for
+
+        Each outcome is styled and shown in its own worksheet
+        The solution metrics are not shown - they are probably too abstract for the
+        end user
+        """
         # https://github.com/PyCQA/pylint/issues/3060 pylint: disable=abstract-class-instantiated
         with pd.ExcelWriter("groepsindeling2.xlsx", engine="openpyxl") as writer:
 
