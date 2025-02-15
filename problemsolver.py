@@ -1,3 +1,7 @@
+"""Module which implements the problem as a Linear Programming problem in pulp and
+implements different optimization targets (also known as satisfaction metrics).
+"""
+
 import itertools
 import pandas as pd
 import pulp
@@ -203,6 +207,7 @@ class ProblemSolver:
             self.prob += self.in_group[(ll, gr)] == 0
 
     def add_constraints(self):
+        """Add all hard constraints via the functions per constraint"""
         self._constraint_student_to_exactly_one_group()
 
         self._constraint_equal_new_students()
@@ -210,7 +215,15 @@ class ProblemSolver:
 
         self._constraint_not_in_forbidden_group()
 
-    def add_variables_which_preferences_satisfied(self):
+    def add_variables_which_preferences_satisfied(self) -> dict:
+        """Add all preferences to the LP-problem, so we can optimize how many we can fulfill
+
+        Returns
+        -------
+        dict
+            Dictionary of type pulp.LpVariable.dicts
+            Contains for each preference wether it is satisfied or not
+        """
         graag_met = self.voorkeuren.xs("Graag met", level="TypeWens")
         weights = graag_met["Gewicht"].to_dict()
 
@@ -228,13 +241,16 @@ class ProblemSolver:
             "Satisfied_per_group", pref_per_group, cat="Binary"
         )
 
+        # The following link provides the bitwise operators as inequalities for a
+        # LP-problem. XNOR, NAND and AND are used in this case
+        # https://yetanothermathprogrammingconsultant.blogspot.com/2022/06/xnor-as-linear-inequalities.html
         for i, row in graag_met.iterrows():
             ll, nr = i
             if row["Waarde"] not in self.groepen:
                 other_ll = row["Waarde"]
                 for gr in self.groepen:
                     if weights[i] > 0:
-                        # Matching preferences are an XNOR problem, see https://yetanothermathprogrammingconsultant.blogspot.com/2022/06/xnor-as-linear-inequalities.html
+                        # Matching preferences are an XNOR problem,
                         self.prob += (
                             satisfied_per_group[(ll, nr, gr)]
                             >= 1
@@ -261,7 +277,8 @@ class ProblemSolver:
                         )  # allebei in deze groep ==> satisfied = 1
 
                     else:
-                        # This is the NAND variant, for when two leerlingen shout _not_ be in the same group
+                        # This is the NAND variant, for when two leerlingen shout _not_
+                        # be in the same group
                         self.prob += (
                             satisfied_per_group[(ll, nr, gr)]
                             >= 1 - self.in_group[(ll, gr)]
@@ -278,8 +295,9 @@ class ProblemSolver:
                             - self.in_group[(other_ll, gr)]
                         )  # allebei in deze groep ==> satisfied = 0
 
-                    # The total preference is only satisfied if it is at least correct for this group
-                    # AND definition: see https://yetanothermathprogrammingconsultant.blogspot.com/2022/06/xnor-as-linear-inequalities.html
+                    # Using the AND-definition. The total preference is only satisfied
+                    # if it is at least correct for this group
+                    # https://yetanothermathprogrammingconsultant.blogspot.com/2022/06/xnor-as-linear-inequalities.html
                     self.prob += satisfied[i] <= satisfied_per_group[(ll, nr, gr)]
 
                 # The preference is satisfied if it is correct for every group
@@ -297,7 +315,25 @@ class ProblemSolver:
                 self.prob += self.in_group[(ll, group)] <= satisfied[i]
         return satisfied
 
-    def calculate_optimization_targets(self, satisfied):
+    def calculate_optimization_targets(self, satisfied: dict) -> dict:
+        """Calculate the variables which can be directly optimized
+
+        For each option of the class, this calculates the variable from the underlying
+        (possibly weighted) preferences or satisfaction
+
+        Parameters
+        ----------
+        satisfied : dict
+            Dictionary of type pulp.LpVariable.dicts
+            Contains for each preference wether it is satisfied or not
+
+        Returns
+        -------
+        dict
+            Keys the possible optimization strategies of the class
+            Values the LpVariables which sum the underlying (satisfied) preferences
+
+        """
         graag_met = self.voorkeuren.xs("Graag met", level="TypeWens")
         weights = graag_met["Gewicht"].to_dict()
 
@@ -347,21 +383,25 @@ class ProblemSolver:
 
             for i in range(1, n_wishes_max + 1):
                 # n_satisfied(i) for each leerling is 0 if less than `i` preferences are satisfied
-                self.prob += (
-                    n_satisfied_per_ll[(ll, i)] <= n_satisfied / i
-                )  # The division works because n_true_per_ll is binary, so can never be larger than 1
+                # The division works because n_true_per_ll is binary, so can never be larger than 1
+                self.prob += n_satisfied_per_ll[(ll, i)] <= n_satisfied / i
                 # n_satisfied(i) for each leerling is 1 if at least i preferences are satisfied
+                # M ensures the constraint is never larger than 1
                 self.prob += (
                     n_satisfied_per_ll[(ll, i)] >= (n_satisfied - (i - 1) - EPS) / M
-                )  # M ensures the constraint is never larger than 1
+                )
 
             for n_ww in added_satisfaction:
                 if n_ww > 0:
-                    # ww_satisfied_per_ll(i) for each leerling is 0 if less than `weights` are satisfied
+                    # ww_satisfied_per_ll(i) for each leerling is 0 if less than `weights`
+                    # are satisfied
+                    # The division works because ww_satisfied_per_ll is binary,so can
+                    # never be larger than 1
                     self.prob += (
                         ww_satisfied_per_ll[(ll, n_ww)] <= ww_satisfied / n_ww + EPS
-                    )  # The division works because ww_satisfied_per_ll is binary, so can never be larger than 1
-                    # ww_satisfied_per_ll(i) for each leerling is 1 if at least n_ww preferences are satisfied
+                    )
+                    # ww_satisfied_per_ll(i) for each leerling is 1 if at least n_ww
+                    # preferences are satisfied
                     self.prob += (
                         ww_satisfied_per_ll[(ll, n_ww)]
                         >= (ww_satisfied - (n_ww - EPS)) / M
@@ -385,7 +425,20 @@ class ProblemSolver:
         }
         return optimization_targets
 
-    def solve(self, optimization_targets):
+    def solve(self, optimization_targets: dict) -> None:
+        """Mathematically solve the problem
+
+        Parameters
+        ----------
+        optimization_targets : dict
+            Dictionary containing the possible optimization targets. Which one is chosen
+            depends on the class setup
+
+        Raises
+        ------
+        RuntimeError
+            If the problem is infeasible
+        """
         self.prob += optimization_targets[self.optimize]
 
         self.prob.solve()
@@ -394,7 +447,14 @@ class ProblemSolver:
                 f"Could not solve LP-problem, status {pulp.LpStatus[self.prob.status]!r}"
             )
 
-    def run(self):
+    def run(self) -> pulp.LpProblem:
+        """Set up and solve the LpProblem
+
+        Returns
+        -------
+        pulp.LpProblem
+            The solved LpProblem
+        """
         self.add_constraints()
         satisfied = self.add_variables_which_preferences_satisfied()
         optimization_targets = self.calculate_optimization_targets(satisfied)
