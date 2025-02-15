@@ -238,11 +238,10 @@ class SolutionAnalyzer:
         )
         return df
 
-    def _display_satisfied_preferences(self, old_preferences):
+    def _display_satisfied_preferences(self):
         """
         Determine the background property based on whether a wish is satisfied
         """
-        # TODO: fix unused parameter
         df_style = pd.DataFrame(
             "background-color: white",
             index=self.input_sheet.index,
