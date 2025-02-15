@@ -95,3 +95,21 @@ class VoorkeurenProcessor:
         self.validate(all_to_groups)
         self.handle_liever_niet()
         return self.df
+
+    def get_students_per_old_group(self) -> dict:
+        """Get per group the current student names
+
+        Returns
+        -------
+        dict
+            Per group the current student names
+        """
+        return (
+            self.input["Stamgroep"]
+            .squeeze()
+            .rename("Stamgroep")
+            .reset_index()
+            .groupby("Stamgroep")["Leerling"]
+            .agg(list)
+            .to_dict()
+        )
