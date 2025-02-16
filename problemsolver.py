@@ -256,7 +256,7 @@ class ProblemSolver:
                     for gr in self.groepen:
                         # Matching preferences are an XNOR problem: if for every group
                         # either both or none are in them, they are in the same group
-                        satisfied_per_group[(ll, nr, gr)] = pulp_logical.xnor(
+                        satisfied_per_group[(ll, nr, gr)] = pulp_logical.XNOR(
                             self.prob,
                             self.in_group[(ll, gr)],
                             self.in_group[(other_ll, gr)],
@@ -265,15 +265,13 @@ class ProblemSolver:
                     group_vars = [
                         satisfied_per_group[(ll, nr, gr)] for gr in self.groepen
                     ]
-                    pulp_logical.and_constraint(
-                        self.prob, *group_vars, result_var=satisfied[i]
-                    )
+                    pulp_logical.AND(self.prob, *group_vars, result_var=satisfied[i])
 
                 else:
                     for gr in self.groepen:
                         # This is the NAND variant, for when two leerlingen shout _not_
                         # be in the same group
-                        satisfied_per_group[(ll, nr, gr)] = pulp_logical.nand(
+                        satisfied_per_group[(ll, nr, gr)] = pulp_logical.NAND(
                             self.prob,
                             self.in_group[(ll, gr)],
                             self.in_group[(other_ll, gr)],
@@ -282,9 +280,7 @@ class ProblemSolver:
                     group_vars = [
                         satisfied_per_group[(ll, nr, gr)] for gr in self.groepen
                     ]
-                    pulp_logical.and_constraint(
-                        self.prob, *group_vars, result_var=satisfied[i]
-                    )
+                    pulp_logical.AND(self.prob, *group_vars, result_var=satisfied[i])
             else:
                 group = row["Waarde"]
                 self.prob += self.in_group[(ll, group)] >= satisfied[i]

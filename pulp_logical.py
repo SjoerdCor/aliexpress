@@ -3,7 +3,7 @@
 import pulp
 
 
-def and_constraint(prob, *pulp_vars, result_var=None):
+def AND(prob, *pulp_vars, result_var=None):
     """Applies an AND constraint in PuLP for multiple variables and returns the result variable."""
 
     if result_var is None:
@@ -16,7 +16,7 @@ def and_constraint(prob, *pulp_vars, result_var=None):
     return result_var
 
 
-def xnor(
+def XNOR(
     prob: pulp.pulp.LpProblem, var1: pulp.pulp.LpVariable, var2: pulp.pulp.LpVariable
 ) -> pulp.pulp.LpVariable:
     """Applies an XNOR constraint in PuLP to var1 and 2
@@ -44,7 +44,7 @@ def xnor(
     return result_var
 
 
-def nand(
+def NAND(
     prob: pulp.pulp.LpProblem, var1: pulp.pulp.LpVariable, var2: pulp.pulp.LpVariable
 ) -> pulp.pulp.LpVariable:
     """Applies a NAND constraint
