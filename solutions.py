@@ -29,7 +29,7 @@ class SolutionAnalyzer:
         self.groepsindeling = self._get_outcome()
         # The following calculations build upon eachother
         self.satisfied_constraints = self._calculate_satisfied_constraints()
-        self.ll_performance = self._calculate_performance_per_leerling()
+        self.student_performance = self._calculate_performance_per_student()
         self.solution_performance = self._calculate_solution_performance()
 
     def _get_outcome(self) -> pd.DataFrame:
@@ -52,7 +52,7 @@ class SolutionAnalyzer:
 
     def display_groepsindeling(self):
         """
-        Transform DataFrame so that leerlingen are grouped by the group in which they are placed
+        Transform DataFrame so that students are grouped by the group in which they are placed
         """
         df = (
             self.groepsindeling.assign(
@@ -68,7 +68,7 @@ class SolutionAnalyzer:
         """
         Extract (accounted) preferences from problem to a series
 
-        Will extract leerling name and preference number as index, and whether accounted
+        Will extract student name and preference number as index, and whether accounted
         for as value
 
         Parameters
@@ -92,8 +92,8 @@ class SolutionAnalyzer:
         series = pd.Series(constraints, name=name)
         ix = (
             series.index.to_series()
-            .str.extract(rf"{name}_\('(?P<ll>.*)',_(?P<Nr>.*)\)")
-            .set_index(["ll", "Nr"])
+            .str.extract(rf"{name}_\('(?P<student>.*)',_(?P<Nr>.*)\)")
+            .set_index(["student", "Nr"])
             .index
         )
 
@@ -123,9 +123,9 @@ class SolutionAnalyzer:
         df.index = df.index.set_levels(pd.to_numeric(df.index.levels[1]), level=1)
         return df
 
-    def _calculate_performance_per_leerling(self):
+    def _calculate_performance_per_student(self):
         """
-        Calculate basic performance metrics per leerling
+        Calculate basic performance metrics per student
 
         Performance is better when more preferences are more accommodated
 
@@ -135,7 +135,7 @@ class SolutionAnalyzer:
             The output of calculate_satisfied_constraints
         """
         df = (
-            self.satisfied_constraints.groupby("ll")
+            self.satisfied_constraints.groupby("student")
             .agg(
                 NrPreferences=("Satisfied", "count"),
                 AccountedPreferences=("Satisfied", "sum"),
@@ -161,7 +161,7 @@ class SolutionAnalyzer:
         )
         return df
 
-    def display_leerling_performance(self) -> pd.DataFrame:
+    def display_student_performance(self) -> pd.DataFrame:
         """Show the satisfaction per student as styled DataFrame
 
         Returns
@@ -175,7 +175,7 @@ class SolutionAnalyzer:
             "NrPreferences": "Aantal wensen",
         }
         return (
-            self.ll_performance.rename_axis("Leerling")
+            self.student_performance.rename_axis("Leerling")
             .loc[:, list(cols.keys())]
             .rename(columns=cols)
             .style.background_gradient(
@@ -187,11 +187,6 @@ class SolutionAnalyzer:
     def _calculate_solution_performance(self):
         """
         Calculate the performance of the general model
-
-        Parameters
-        ----------
-        ll_performance: pd.DataFrame
-            The output of calculate_performance_per_leerling
         """
         cols = [
             "NrPreferences",
@@ -202,7 +197,7 @@ class SolutionAnalyzer:
             "ActualSatisfaction",
         ]
         solution_performance = (
-            self.ll_performance[cols]
+            self.student_performance[cols]
             .sum()
             .to_frame()
             .transpose()
@@ -219,22 +214,11 @@ class SolutionAnalyzer:
         ).to_dict("records")[0]
         return solution_performance
 
-    def _determine_satisfied_wishes_leerlingindex(self) -> pd.DataFrame:
-        """Get the satisfied wishes, but change the index so that it matches the input
+    def _determine_satisfied_preferences_studentindex(self) -> pd.DataFrame:
+        """Get the satisfied preferences, but change the index so that it matches the input
 
-        This is useful so that we can match the original file whether a wish is satisfied
+        This is useful so that we can match the original file whether a preference is satisfied
         And is used in coloring the output
-
-        Parameters
-        ----------
-        voorkeuren : pd.DataFrame
-            The DataFrame that has the voorkeuren with altered index
-
-        voorkeuren_old : _type_
-            The DataFrame that has the wishes and is used as input value
-
-        satisfied_constraints : pd.DataFrame
-            Whether the a constraint (with index belonging to `voorkeuren`) is satisfied
 
         Returns
         -------
@@ -251,7 +235,7 @@ class SolutionAnalyzer:
                 )
 
         df = pd.DataFrame(mapping, index=["Leerling", "TypeWens", "Nr"]).transpose()
-        df.index.names = ["ll", "Nr"]
+        df.index.names = ["student", "Nr"]
 
         df = (
             df.join(self.satisfied_constraints)
@@ -305,7 +289,7 @@ class SolutionAnalyzer:
             Style DataFrame for optimal clarity
         """
         satisfied_preferences_original_index = (
-            self._determine_satisfied_wishes_leerlingindex()
+            self._determine_satisfied_preferences_studentindex()
         )
         return self.input_sheet.style.apply(
             self._display_satisfied_preferences,
@@ -347,7 +331,7 @@ class SolutionAnalyzer:
                 writer, "Groepsindeling", index=False
             )
 
-            self.display_leerling_performance().to_excel(writer, "Leerlingtevredenheid")
+            self.display_student_performance().to_excel(writer, "Leerlingtevredenheid")
             sheet = writer.book.worksheets[1]
             for cell in sheet["B"]:
                 cell.number_format = numbers.FORMAT_PERCENTAGE
