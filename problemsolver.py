@@ -252,17 +252,23 @@ class ProblemSolver:
             ll, nr = i
             if row["Waarde"] not in self.groepen:
                 other_ll = row["Waarde"]
-                for gr in self.groepen:
-                    if weights[i] > 0:
+                if weights[i] > 0:
+                    for gr in self.groepen:
                         # Matching preferences are an XNOR problem: if for every group
                         # either both or none are in them, they are in the same group
-
                         satisfied_per_group[(ll, nr, gr)] = pbo.xnor(
                             self.prob,
                             self.in_group[(ll, gr)],
                             self.in_group[(other_ll, gr)],
                         )
-                    else:
+                    # The preference is satisfied if it is correct for every group
+                    group_vars = [
+                        satisfied_per_group[(ll, nr, gr)] for gr in self.groepen
+                    ]
+                    satisfied[i] = pbo.and_constraint(self.prob, *group_vars)
+
+                else:
+                    for gr in self.groepen:
                         # This is the NAND variant, for when two leerlingen shout _not_
                         # be in the same group
                         satisfied_per_group[(ll, nr, gr)] = pbo.nand(
@@ -270,21 +276,12 @@ class ProblemSolver:
                             self.in_group[(ll, gr)],
                             self.in_group[(other_ll, gr)],
                         )
+                    # The preference is satisfied if it is correct for every group
+                    group_vars = [
+                        satisfied_per_group[(ll, nr, gr)] for gr in self.groepen
+                    ]
+                    satisfied[i] = pbo.and_constraint(self.prob, *group_vars)
 
-                    # Using the AND-definition. The total preference is only satisfied
-                    # if it is at least correct for this group
-                    # https://yetanothermathprogrammingconsultant.blogspot.com/2022/06/xnor-as-linear-inequalities.html
-                    self.prob += satisfied[i] <= satisfied_per_group[(ll, nr, gr)]
-
-                # The preference is satisfied if it is correct for every group
-                self.prob += (
-                    satisfied[i]
-                    >= pulp.lpSum(
-                        [satisfied_per_group[(ll, nr, gr)] for gr in self.groepen]
-                    )
-                    - len(self.groepen)
-                    + 1
-                )
             else:
                 group = row["Waarde"]
                 self.prob += self.in_group[(ll, group)] >= satisfied[i]
