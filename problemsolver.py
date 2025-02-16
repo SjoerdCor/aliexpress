@@ -6,7 +6,7 @@ import itertools
 import pandas as pd
 import pulp
 
-import pulp_bitwise_operations as pbo
+import pulp_logical
 
 M = 1_000_000  # A very big number, so that constraints are never larger than 1
 EPS = 0.001  # A small number to correct for numerical inaccuracies
@@ -256,7 +256,7 @@ class ProblemSolver:
                     for gr in self.groepen:
                         # Matching preferences are an XNOR problem: if for every group
                         # either both or none are in them, they are in the same group
-                        satisfied_per_group[(ll, nr, gr)] = pbo.xnor(
+                        satisfied_per_group[(ll, nr, gr)] = pulp_logical.xnor(
                             self.prob,
                             self.in_group[(ll, gr)],
                             self.in_group[(other_ll, gr)],
@@ -265,13 +265,15 @@ class ProblemSolver:
                     group_vars = [
                         satisfied_per_group[(ll, nr, gr)] for gr in self.groepen
                     ]
-                    pbo.and_constraint(self.prob, *group_vars, result_var=satisfied[i])
+                    pulp_logical.and_constraint(
+                        self.prob, *group_vars, result_var=satisfied[i]
+                    )
 
                 else:
                     for gr in self.groepen:
                         # This is the NAND variant, for when two leerlingen shout _not_
                         # be in the same group
-                        satisfied_per_group[(ll, nr, gr)] = pbo.nand(
+                        satisfied_per_group[(ll, nr, gr)] = pulp_logical.nand(
                             self.prob,
                             self.in_group[(ll, gr)],
                             self.in_group[(other_ll, gr)],
@@ -280,7 +282,9 @@ class ProblemSolver:
                     group_vars = [
                         satisfied_per_group[(ll, nr, gr)] for gr in self.groepen
                     ]
-                    pbo.and_constraint(self.prob, *group_vars, result_var=satisfied[i])
+                    pulp_logical.and_constraint(
+                        self.prob, *group_vars, result_var=satisfied[i]
+                    )
             else:
                 group = row["Waarde"]
                 self.prob += self.in_group[(ll, group)] >= satisfied[i]
