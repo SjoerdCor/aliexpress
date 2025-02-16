@@ -1,15 +1,40 @@
 """Defines helper functions that implement the important bitwise operations in PuLP"""
 
+import functools
 import pulp
 
 
+def prepare_logical_operations(func):
+    """Decorator to validate that all *vars are binary variables and create result_var if needed."""
+
+    @functools.wraps(func)
+    def wrapper(prob, *pulp_vars, result_var=None):
+        for var in pulp_vars:
+            if not isinstance(var, pulp.LpVariable):
+                raise ValueError(
+                    f"Variable {var} is not a PuLP variable but {type(var)}"
+                )
+            if var.cat != pulp.LpBinary and not (
+                var.cat == pulp.LpInteger and var.lowBound == 0 and var.upBound == 1
+            ):
+                print(var.cat, var.lowBound, var.upBound)
+                raise ValueError(f"Variable {var} is not a binary, but {var.cat}")
+
+        if result_var is None:
+            result_var = pulp.LpVariable(
+                f"{func.__name__}_" + "_".join([v.name for v in pulp_vars]),
+                cat="binary",
+            )
+
+        return func(prob, *pulp_vars, result_var=result_var)
+
+    return wrapper
+
+
+# pylint: disable=invalid-name; capitals to distinguis from builtins
+@prepare_logical_operations
 def AND(prob, *pulp_vars, result_var=None):
     """Applies an AND constraint in PuLP for multiple variables and returns the result variable."""
-
-    if result_var is None:
-        result_var = pulp.LpVariable(
-            "and_" + "_".join([v.name for v in pulp_vars]), cat="Binary"
-        )
     for var in pulp_vars:
         prob += result_var <= var
     prob += result_var >= pulp.lpSum(pulp_vars) - (len(pulp_vars) - 1)
