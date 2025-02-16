@@ -265,21 +265,11 @@ class ProblemSolver:
                     else:
                         # This is the NAND variant, for when two leerlingen shout _not_
                         # be in the same group
-                        self.prob += (
-                            satisfied_per_group[(ll, nr, gr)]
-                            >= 1 - self.in_group[(ll, gr)]
-                        )  # Als ll niet in deze groep: geen probleem (satisfied = 1)
-                        self.prob += (
-                            satisfied_per_group[(ll, nr, gr)]
-                            >= 1 - self.in_group[(other_ll, gr)]
-                        )  # Als andere ll niet in groep, geen probleem (satisfied = 1)
-
-                        self.prob += (
-                            satisfied_per_group[(ll, nr, gr)]
-                            <= 2
-                            - self.in_group[(ll, gr)]
-                            - self.in_group[(other_ll, gr)]
-                        )  # allebei in deze groep ==> satisfied = 0
+                        satisfied_per_group[(ll, nr, gr)] = pbo.nand(
+                            self.prob,
+                            self.in_group[(ll, gr)],
+                            self.in_group[(other_ll, gr)],
+                        )
 
                     # Using the AND-definition. The total preference is only satisfied
                     # if it is at least correct for this group
