@@ -4,7 +4,7 @@ import warnings
 import pandas as pd
 
 
-def toggle_negative_weights(df: pd.DataFrame) -> pd.DataFrame:
+def toggle_negative_weights(df: pd.DataFrame, mask="Gewicht") -> pd.DataFrame:
     """Adjusts 'Liever niet met'/'Graag met' category by negating weight and renaming.
 
     Parameters
@@ -19,8 +19,11 @@ def toggle_negative_weights(df: pd.DataFrame) -> pd.DataFrame:
             Of the same shape, but with negated Gewicht and TypeWens
     """
     df = df.reset_index()
-
-    mask = df["Gewicht"] < 0
+    # TODO: Make this more readable
+    if mask == "Gewicht":
+        mask = df["Gewicht"] < 0
+    elif mask == "Liever niet met":
+        mask = df["TypeWens"] == "Liever niet met"
     df.loc[mask, "Gewicht"] = -df["Gewicht"]
     df.loc[mask, "TypeWens"] = df.loc[mask, "TypeWens"].map(
         {"Graag met": "Liever niet met", "Liever niet met": "Graag met"}
@@ -110,7 +113,7 @@ class VoorkeurenProcessor:
 
         self.restructure()
         self.validate(all_to_groups)
-        self.df = toggle_negative_weights(self.df)
+        self.df = toggle_negative_weights(self.df, mask="Liever niet met")
         return self.df
 
     def get_students_per_old_group(self) -> dict:

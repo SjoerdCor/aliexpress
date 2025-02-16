@@ -241,7 +241,7 @@ class SolutionAnalyzer:
         df
         """
         preferences_incl_liever_niet = datareader.toggle_negative_weights(
-            self.preferences
+            self.preferences, mask="Gewicht"
         )
         mapping = {}
         for i in range(len(self.preferences)):
