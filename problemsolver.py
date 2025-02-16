@@ -12,7 +12,6 @@ M = 1_000_000  # A very big number, so that constraints are never larger than 1
 EPS = 0.001  # A small number to correct for numerical inaccuracies
 
 
-# TODO: fix naming. voorkeuren, wishes ==> preferences. leerlingen/ll ==> students. etc.
 def powerset(iterable):
     "powerset([1,2,3]) --> () (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)"
     s = list(iterable)
@@ -101,7 +100,7 @@ def calculate_added_satisfaction(preferences) -> dict:
 
 class ProblemSolver:
     """
-    Create a problem to distribute student over groepen
+    Create a problem to distribute students over groups
 
     Parameters
     ----------
@@ -111,11 +110,11 @@ class ProblemSolver:
         Waarde is then a column with either a Student or Group name. In combination with
         Niet In only a Group name is allowed
 
-    students_per_obgroep : dict
+    students_per_group_from : dict
         Key: the name of the previous group. Value: list of students
 
-    groepen: Iterable
-        An interable containing all names of the groepen to which students can be sent
+    groups_to: Iterable
+        An interable containing all names of the groups to which students can be sent
 
     max_kliekje, int (default = 5)
         The number of students that can go to the same group
@@ -133,16 +132,16 @@ class ProblemSolver:
     def __init__(
         self,
         preferences: pd.DataFrame,
-        students_per_obgroep,
-        groepen,
+        students_per_group_from,
+        groups_to,
         max_kliekje=5,
         max_diff_n_students_per_group=3,
         optimize="studentsatisfaction",
     ):
         self.preferences = preferences
-        self.students_per_obgroep = students_per_obgroep
-        self.students = sum(self.students_per_obgroep.values(), [])
-        self.groepen = groepen
+        self.students_per_group_from = students_per_group_from
+        self.students = sum(self.students_per_group_from.values(), [])
+        self.groups_to = groups_to
         self.max_kliekje = max_kliekje
         self.max_diff_n_students_per_group = max_diff_n_students_per_group
         self.optimize = optimize
@@ -152,54 +151,56 @@ class ProblemSolver:
     def _define_variables(self):
         return pulp.LpVariable.dicts(
             "group",
-            itertools.product(self.students, self.groepen),
+            itertools.product(self.students, self.groups_to),
             cat="Binary",
         )
 
     def _constraint_student_to_exactly_one_group(self):
         for student in self.students:
             self.prob += (
-                pulp.lpSum([self.in_group[(student, gr)] for gr in self.groepen]) == 1
+                pulp.lpSum([self.in_group[(student, gr)] for gr in self.groups_to]) == 1
             )
 
     def _constraint_equal_new_students(self):
         """ "Every group can have a max number of students from an earlier group (no kliekjes)"""
-        avg_new_per_group = len(self.students) / len(self.groepen)
+        avg_new_per_group = len(self.students) / len(self.groups_to)
         min_in_group = int(avg_new_per_group - self.max_diff_n_students_per_group / 2)
         max_in_group = int(avg_new_per_group + self.max_diff_n_students_per_group / 2)
 
         new_students_in_group = pulp.LpVariable.dict(
-            "new_students_in_group", self.groepen, cat="Integer"
+            "new_students_in_group", self.groups_to, cat="Integer"
         )
 
-        for mbgroep in self.groepen:
+        for group_to in self.groups_to:
 
-            self.prob += new_students_in_group[mbgroep] == pulp.lpSum(
-                [self.in_group[(student, mbgroep)] for student in self.students]
+            self.prob += new_students_in_group[group_to] == pulp.lpSum(
+                [self.in_group[(student, group_to)] for student in self.students]
             )
 
-            self.prob += new_students_in_group[mbgroep] <= max_in_group
-            self.prob += new_students_in_group[mbgroep] >= min_in_group
+            self.prob += new_students_in_group[group_to] <= max_in_group
+            self.prob += new_students_in_group[group_to] >= min_in_group
 
     def _constraint_equal_students_from_previous_group(self):
         """Every group can have a max number of students from an earlier group (no kliekjes)"""
-        obgroepen = list(self.students_per_obgroep.keys())
+        groups_from = list(self.students_per_group_from.keys())
         from_group_to_group = pulp.LpVariable.dicts(
             "from_group_to_group",
-            itertools.product(obgroepen, self.groepen),
+            itertools.product(groups_from, self.groups_to),
             cat="Integer",
         )
 
-        for mbgroep in self.groepen:
-            for obgroep in obgroepen:
-                self.prob += from_group_to_group[(obgroep, mbgroep)] == pulp.lpSum(
+        for group_to in self.groups_to:
+            for group_from in groups_from:
+                self.prob += from_group_to_group[(group_from, group_to)] == pulp.lpSum(
                     [
-                        self.in_group[(student, mbgroep)]
-                        for student in self.students_per_obgroep[obgroep]
+                        self.in_group[(student, group_to)]
+                        for student in self.students_per_group_from[group_from]
                     ]
                 )
 
-                self.prob += from_group_to_group[(obgroep, mbgroep)] <= self.max_kliekje
+                self.prob += (
+                    from_group_to_group[(group_from, group_to)] <= self.max_kliekje
+                )
 
     def _constraint_not_in_forbidden_group(self):
         """Some students can not move int other groups (e.g. a brother/sister is already there)"""
@@ -237,7 +238,7 @@ class ProblemSolver:
         pref_per_group = list(
             itertools.chain(
                 *[
-                    [(student, nr, gr) for gr in self.groepen]
+                    [(student, nr, gr) for gr in self.groups_to]
                     for student, nr in graag_met.index
                 ]
             )
@@ -248,10 +249,10 @@ class ProblemSolver:
 
         for i, row in graag_met.iterrows():
             student, nr = i
-            if row["Waarde"] not in self.groepen:
+            if row["Waarde"] not in self.groups_to:
                 other_student = row["Waarde"]
                 if weights[i] > 0:
-                    for gr in self.groepen:
+                    for gr in self.groups_to:
                         # Matching preferences are an XNOR problem: if for every group
                         # either both or none are in them, they are in the same group
                         satisfied_per_group[(student, nr, gr)] = pulp_logical.XNOR(
@@ -261,12 +262,12 @@ class ProblemSolver:
                         )
                     # The preference is satisfied if it is correct for every group
                     group_vars = [
-                        satisfied_per_group[(student, nr, gr)] for gr in self.groepen
+                        satisfied_per_group[(student, nr, gr)] for gr in self.groups_to
                     ]
                     pulp_logical.AND(self.prob, *group_vars, result_var=satisfied[i])
 
                 else:
-                    for gr in self.groepen:
+                    for gr in self.groups_to:
                         # This is the NAND variant, for when two students should _not_
                         # be in the same group
                         satisfied_per_group[(student, nr, gr)] = pulp_logical.NAND(
@@ -276,7 +277,7 @@ class ProblemSolver:
                         )
                     # The preference is satisfied if it is correct for every group
                     group_vars = [
-                        satisfied_per_group[(student, nr, gr)] for gr in self.groepen
+                        satisfied_per_group[(student, nr, gr)] for gr in self.groups_to
                     ]
                     pulp_logical.AND(self.prob, *group_vars, result_var=satisfied[i])
             else:
@@ -355,7 +356,8 @@ class ProblemSolver:
 
             for i in range(1, n_preferences_max + 1):
                 # n_satisfied(i) for each student is 0 if less than `i` preferences are satisfied
-                # The division works because n_true_per_student is binary, so can never be larger than 1
+                # The division works because n_true_per_student is binary, so can never
+                # be larger than 1
                 self.prob += n_satisfied_per_student[(student, i)] <= n_satisfied / i
                 # n_satisfied(i) for each student is 1 if at least i preferences are satisfied
                 # M ensures the constraint is never larger than 1
@@ -368,7 +370,7 @@ class ProblemSolver:
                 if n_wp > 0:
                     # wp_satisfied_per_student(i) for each student is 0 if less than `weights`
                     # are satisfied
-                    # The division works because wp_satisfied_per_student is binary,so can
+                    # The division works because wp_satisfied_per_student is binary, so can
                     # never be larger than 1
                     self.prob += (
                         wp_satisfied_per_student[(student, n_wp)]
