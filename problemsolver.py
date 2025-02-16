@@ -265,7 +265,7 @@ class ProblemSolver:
                     group_vars = [
                         satisfied_per_group[(ll, nr, gr)] for gr in self.groepen
                     ]
-                    satisfied[i] = pbo.and_constraint(self.prob, *group_vars)
+                    pbo.and_constraint(self.prob, *group_vars, result_var=satisfied[i])
 
                 else:
                     for gr in self.groepen:
@@ -280,8 +280,7 @@ class ProblemSolver:
                     group_vars = [
                         satisfied_per_group[(ll, nr, gr)] for gr in self.groepen
                     ]
-                    satisfied[i] = pbo.and_constraint(self.prob, *group_vars)
-
+                    pbo.and_constraint(self.prob, *group_vars, result_var=satisfied[i])
             else:
                 group = row["Waarde"]
                 self.prob += self.in_group[(ll, group)] >= satisfied[i]

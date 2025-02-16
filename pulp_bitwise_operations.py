@@ -3,11 +3,13 @@
 import pulp
 
 
-def and_constraint(prob, *pulp_vars):
+def and_constraint(prob, *pulp_vars, result_var=None):
     """Applies an AND constraint in PuLP for multiple variables and returns the result variable."""
-    result_var = pulp.LpVariable(
-        "and_" + "_".join([v.name for v in pulp_vars]), cat="Binary"
-    )
+
+    if result_var is None:
+        result_var = pulp.LpVariable(
+            "and_" + "_".join([v.name for v in pulp_vars]), cat="Binary"
+        )
     for var in pulp_vars:
         prob += result_var <= var
     prob += result_var >= pulp.lpSum(pulp_vars) - (len(pulp_vars) - 1)
