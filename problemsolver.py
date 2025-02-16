@@ -244,10 +244,6 @@ class ProblemSolver:
             "Satisfied_per_group", pref_per_group, cat="Binary"
         )
 
-        # The following link provides the bitwise operators as inequalities for a
-        # LP-problem. XNOR, NAND and AND are used in this case
-        # https://yetanothermathprogrammingconsultant.blogspot.com/2022/06/xnor-as-linear-inequalities.html
-        # TODO: move the bitwise operators to a different module
         for i, row in graag_met.iterrows():
             ll, nr = i
             if row["Waarde"] not in self.groepen:
