@@ -6,6 +6,8 @@ import itertools
 import pandas as pd
 import pulp
 
+import pulp_bitwise_operations as pbo
+
 M = 1_000_000  # A very big number, so that constraints are never larger than 1
 EPS = 0.001  # A small number to correct for numerical inaccuracies
 
@@ -252,32 +254,14 @@ class ProblemSolver:
                 other_ll = row["Waarde"]
                 for gr in self.groepen:
                     if weights[i] > 0:
-                        # Matching preferences are an XNOR problem,
-                        self.prob += (
-                            satisfied_per_group[(ll, nr, gr)]
-                            >= 1
-                            - self.in_group[(ll, gr)]
-                            - self.in_group[(other_ll, gr)]
-                        )  # Allebei niet in deze groep ==> satisfied = 1
-                        self.prob += (
-                            satisfied_per_group[(ll, nr, gr)]
-                            <= 1
-                            + self.in_group[(ll, gr)]
-                            - self.in_group[(other_ll, gr)]
-                        )  # ll niet in groep, ander wel ==> satisfied = 0
-                        self.prob += (
-                            satisfied_per_group[(ll, nr, gr)]
-                            <= 1
-                            - self.in_group[(ll, gr)]
-                            + self.in_group[(other_ll, gr)]
-                        )  # ll in groep, ander niet ==> satisfied = 0
-                        self.prob += (
-                            satisfied_per_group[(ll, nr, gr)]
-                            >= self.in_group[(ll, gr)]
-                            + self.in_group[(other_ll, gr)]
-                            - 1
-                        )  # allebei in deze groep ==> satisfied = 1
+                        # Matching preferences are an XNOR problem: if for every group
+                        # either both or none are in them, they are in the same group
 
+                        satisfied_per_group[(ll, nr, gr)] = pbo.xnor(
+                            self.prob,
+                            self.in_group[(ll, gr)],
+                            self.in_group[(other_ll, gr)],
+                        )
                     else:
                         # This is the NAND variant, for when two leerlingen shout _not_
                         # be in the same group
