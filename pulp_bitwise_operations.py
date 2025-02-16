@@ -3,6 +3,17 @@
 import pulp
 
 
+def and_constraint(prob, *pulp_vars):
+    """Applies an AND constraint in PuLP for multiple variables and returns the result variable."""
+    result_var = pulp.LpVariable(
+        "and_" + "_".join([v.name for v in pulp_vars]), cat="Binary"
+    )
+    for var in pulp_vars:
+        prob += result_var <= var
+    prob += result_var >= pulp.lpSum(pulp_vars) - (len(pulp_vars) - 1)
+    return result_var
+
+
 def xnor(
     prob: pulp.pulp.LpProblem, var1: pulp.pulp.LpVariable, var2: pulp.pulp.LpVariable
 ) -> pulp.pulp.LpVariable:
