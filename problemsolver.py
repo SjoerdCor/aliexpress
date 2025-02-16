@@ -26,9 +26,9 @@ def all_unique_sums(iterable):
     return {sum(l) for l in powerset(iterable)}
 
 
-def get_possible_weighted_wishes(voorkeuren: pd.DataFrame) -> set:
+def get_possible_weighted_preferences(preferences: pd.DataFrame) -> set:
     """
-    Get all the possible number of weighted wishes
+    Get all the possible number of weighted preferences
 
     This will be used to know for which values a satisfaction score must be calculated
     and which dictionary values must be calculated per leerling. By minimizing this number,
@@ -36,35 +36,35 @@ def get_possible_weighted_wishes(voorkeuren: pd.DataFrame) -> set:
 
     Parameters
     ----------
-    voorkeuren: pd.DataFrame
+    preferences: pd.DataFrame
         The DataFrame containing the preferences of the leerlingen, must have a MultiIndex
         with levels ("Leerling", "TypeWens") with columns ("Waarde" & "Gewicht")
     """
-    unique_weighted_wishes_per_ll = (
-        voorkeuren.xs("Graag met", level="TypeWens")
+    unique_weighted_preferences_per_ll = (
+        preferences.xs("Graag met", level="TypeWens")
         .groupby("Leerling")["Gewicht"]
         .apply(all_unique_sums)
     )
 
-    unique_weighted_wishes = set()
-    for ww in unique_weighted_wishes_per_ll:
-        unique_weighted_wishes.update(ww)
-    return unique_weighted_wishes
+    unique_weighted_preferences = set()
+    for wp in unique_weighted_preferences_per_ll:
+        unique_weighted_preferences.update(wp)
+    return unique_weighted_preferences
 
 
 def get_satisfaction_integral(x_a: float, x_b: float) -> float:
     """
-    Calculate the extra satisfaction from granting x_b wishes instead of x_a
+    Calculate the extra satisfaction from granting x_b preferences instead of x_a
 
     This is the (scaled) integral of 0.5**x. This satisfaction function ensures everybody
-    first gets their first wish, then everybody their second wish, etc.
+    first gets their first preference, then everybody their second preference, etc.
 
     Parameters
     ----------
     x_a: float
-        The number of (weighted) wishes as the basic satisfaction of the leerling
+        The number of (weighted) preferences as the basic satisfaction of the leerling
     x_b: float
-        The number of (weighted) wishes as the goal satisfaction of the leerling
+        The number of (weighted) preferences as the goal satisfaction of the leerling
 
     Returns
     -------
@@ -77,25 +77,25 @@ def get_satisfaction_integral(x_a: float, x_b: float) -> float:
     return (-(0.5**x_b)) - (-(0.5**x_a))
 
 
-def calculate_added_satisfaction(voorkeuren) -> dict:
+def calculate_added_satisfaction(preferences) -> dict:
     """
-    Calculate the score of getting all possible weighted_wishes values accounted for
+    Calculate the score of getting all possible weighted preferences values accounted for
     """
 
-    possible_weighted_wishes = get_possible_weighted_wishes(voorkeuren)
+    possible_weighted_preferences = get_possible_weighted_preferences(preferences)
 
     # Sorting is important since we're going to difference!
-    positive_values = sorted(v for v in possible_weighted_wishes if v >= 0)
+    positive_values = sorted(v for v in possible_weighted_preferences if v >= 0)
     negative_values = sorted(
-        (v for v in possible_weighted_wishes if v <= 0), reverse=True
+        (v for v in possible_weighted_preferences if v <= 0), reverse=True
     )
 
     preference_value = {}
     for values in (negative_values, positive_values):
         # The 0 value is deliberately not taken into account!
         # This would lead to ZeroDivisionErrors
-        for last_ww, ww in zip(values[:-1], values[1:]):
-            preference_value[ww] = get_satisfaction_integral(last_ww, ww)
+        for last_wp, wp in zip(values[:-1], values[1:]):
+            preference_value[wp] = get_satisfaction_integral(last_wp, wp)
     return preference_value
 
 
@@ -105,16 +105,15 @@ class ProblemSolver:
 
     Parameters
     ----------
-    voorkeuren: pd.DataFrame
+    preferences: pd.DataFrame
         A DataFrame with as MultiIndex with (Leerling, Type, Nr) and a value, where
         Leerling is the Name, Type is either "Graag met", "Niet in" or "Liever niet"
         Waarde is then a column with either a Leerling or Group name. In combination with
         Niet In only a Group name is allowed
 
-    leerlingen: Iterable
-        An Iterable containing all names of the leerlingen
     leerling_per_obgroep : dict
         Key: the name of the previous group. Value: list of students
+
     groepen: Iterable
         An interable containing all names of the groepen to which leerlingen can be sent
 
@@ -128,19 +127,19 @@ class ProblemSolver:
     optimize, str (default = "llsatisfaction")
         What to optimize for: "llsatisfaction" (basically, the least happy student
         is the most happy),
-        "n_wishes" or "weighted_wishes"
+        "n_preferences" or "weighted_preferences"
     """
 
     def __init__(
         self,
-        voorkeuren: pd.DataFrame,
+        preferences: pd.DataFrame,
         leerling_per_obgroep,
         groepen,
         max_kliekje=5,
         max_diff_n_ll_per_group=3,
         optimize="llsatisfaction",
     ):
-        self.voorkeuren = voorkeuren
+        self.preferences = preferences
         self.leerlingen_per_obgroep = leerling_per_obgroep
         self.leerlingen = sum(self.leerlingen_per_obgroep.values(), [])
         self.groepen = groepen
@@ -204,7 +203,7 @@ class ProblemSolver:
 
     def _constraint_not_in_forbidden_group(self):
         """Some students can not move int other groups (e.g. a brother/sister is already there)"""
-        for i, row in self.voorkeuren.query('TypeWens == "Niet in"').iterrows():
+        for i, row in self.preferences.query('TypeWens == "Niet in"').iterrows():
             ll, _, _ = i
             gr = row["Waarde"]
             self.prob += self.in_group[(ll, gr)] == 0
@@ -227,7 +226,7 @@ class ProblemSolver:
             Dictionary of type pulp.LpVariable.dicts
             Contains for each preference wether it is satisfied or not
         """
-        graag_met = self.voorkeuren.xs("Graag met", level="TypeWens")
+        graag_met = self.preferences.xs("Graag met", level="TypeWens")
         weights = graag_met["Gewicht"].to_dict()
 
         satisfied = pulp.LpVariable.dicts(
@@ -302,7 +301,7 @@ class ProblemSolver:
             Values the LpVariables which sum the underlying (satisfied) preferences
 
         """
-        graag_met = self.voorkeuren.xs("Graag met", level="TypeWens")
+        graag_met = self.preferences.xs("Graag met", level="TypeWens")
         weights = graag_met["Gewicht"].to_dict()
 
         weighted_satisfied = pulp.LpVariable.dicts(
@@ -315,23 +314,25 @@ class ProblemSolver:
             else:
                 # Weight is negative: you get deduction if you do it wrong
                 self.prob += weighted_satisfied[key] == ((1 - satisfied[key]) * weight)
-        added_satisfaction = calculate_added_satisfaction(self.voorkeuren)
+        added_satisfaction = calculate_added_satisfaction(self.preferences)
         satisfaction_per_ll = pulp.LpVariable.dict(
             "LLSatisfaction", self.leerlingen, cat="Continuous"
         )
 
-        n_wishes_max = (
-            self.voorkeuren.xs("Graag met", level="TypeWens")
+        n_preferences_max = (
+            self.preferences.xs("Graag met", level="TypeWens")
             .index.get_level_values("Nr")
             .max()
         )
         # Per ll whether at least i preferences are satisfied
         n_satisfied_per_ll = pulp.LpVariable.dicts(
             "llassignedprefs",
-            itertools.product(self.leerlingen, (i for i in range(1, n_wishes_max + 1))),
+            itertools.product(
+                self.leerlingen, (i for i in range(1, n_preferences_max + 1))
+            ),
             cat="Binary",
         )
-        ww_satisfied_per_ll = pulp.LpVariable.dicts(
+        wp_satisfied_per_ll = pulp.LpVariable.dicts(
             "llassignedweights",
             itertools.product(self.leerlingen, added_satisfaction.keys()),
             cat="Binary",
@@ -340,16 +341,16 @@ class ProblemSolver:
         for ll in self.leerlingen:
             ll_prefs = []
             ll_weighted = []
-            for i in range(1, n_wishes_max + 1):
+            for i in range(1, n_preferences_max + 1):
                 try:
                     ll_prefs.append(satisfied[(ll, i)])
                     ll_weighted.append(weighted_satisfied[(ll, i)])
                 except KeyError:
                     break
             n_satisfied = pulp.lpSum(ll_prefs)
-            ww_satisfied = pulp.lpSum(ll_weighted)
+            wp_satisfied = pulp.lpSum(ll_weighted)
 
-            for i in range(1, n_wishes_max + 1):
+            for i in range(1, n_preferences_max + 1):
                 # n_satisfied(i) for each leerling is 0 if less than `i` preferences are satisfied
                 # The division works because n_true_per_ll is binary, so can never be larger than 1
                 self.prob += n_satisfied_per_ll[(ll, i)] <= n_satisfied / i
@@ -359,36 +360,36 @@ class ProblemSolver:
                     n_satisfied_per_ll[(ll, i)] >= (n_satisfied - (i - 1) - EPS) / M
                 )
 
-            for n_ww in added_satisfaction:
-                if n_ww > 0:
-                    # ww_satisfied_per_ll(i) for each leerling is 0 if less than `weights`
+            for n_wp in added_satisfaction:
+                if n_wp > 0:
+                    # wp_satisfied_per_ll(i) for each leerling is 0 if less than `weights`
                     # are satisfied
-                    # The division works because ww_satisfied_per_ll is binary,so can
+                    # The division works because wp_satisfied_per_ll is binary,so can
                     # never be larger than 1
                     self.prob += (
-                        ww_satisfied_per_ll[(ll, n_ww)] <= ww_satisfied / n_ww + EPS
+                        wp_satisfied_per_ll[(ll, n_wp)] <= wp_satisfied / n_wp + EPS
                     )
-                    # ww_satisfied_per_ll(i) for each leerling is 1 if at least n_ww
+                    # wp_satisfied_per_ll(i) for each leerling is 1 if at least n_wp
                     # preferences are satisfied
                     self.prob += (
-                        ww_satisfied_per_ll[(ll, n_ww)]
-                        >= (ww_satisfied - (n_ww - EPS)) / M
+                        wp_satisfied_per_ll[(ll, n_wp)]
+                        >= (wp_satisfied - (n_wp - EPS)) / M
                     )  # M ensures the constraint is never larger than 1
                 else:
                     self.prob += (
-                        ww_satisfied_per_ll[(ll, n_ww)] >= ww_satisfied / n_ww - EPS
+                        wp_satisfied_per_ll[(ll, n_wp)] >= wp_satisfied / n_wp - EPS
                     )
-                    self.prob += ww_satisfied_per_ll[(ll, n_ww)] <= (
-                        ww_satisfied - (n_ww + EPS) / M
+                    self.prob += wp_satisfied_per_ll[(ll, n_wp)] <= (
+                        wp_satisfied - (n_wp + EPS) / M
                     )
 
             satisfaction_per_ll[ll] = sum(
-                val * ww_satisfied_per_ll[(ll, n_ww)]
-                for n_ww, val in added_satisfaction.items()
+                val * wp_satisfied_per_ll[(ll, n_wp)]
+                for n_wp, val in added_satisfaction.items()
             )
         optimization_targets = {
-            "n_wishes": pulp.lpSum(satisfied),
-            "weighted_wishes": pulp.lpSum(weighted_satisfied),
+            "n_preferences": pulp.lpSum(satisfied),
+            "weighted_preferences": pulp.lpSum(weighted_satisfied),
             "llsatisfaction": pulp.lpSum(satisfaction_per_ll),
         }
         return optimization_targets
