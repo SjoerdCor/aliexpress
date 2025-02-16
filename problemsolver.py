@@ -31,23 +31,23 @@ def get_possible_weighted_preferences(preferences: pd.DataFrame) -> set:
     Get all the possible number of weighted preferences
 
     This will be used to know for which values a satisfaction score must be calculated
-    and which dictionary values must be calculated per leerling. By minimizing this number,
+    and which dictionary values must be calculated per student. By minimizing this number,
     we make the problem calculation as fast as possible, while allowing for arbitrary precision
 
     Parameters
     ----------
     preferences: pd.DataFrame
-        The DataFrame containing the preferences of the leerlingen, must have a MultiIndex
+        The DataFrame containing the preferences of the students, must have a MultiIndex
         with levels ("Leerling", "TypeWens") with columns ("Waarde" & "Gewicht")
     """
-    unique_weighted_preferences_per_ll = (
+    unique_weighted_preferences_per_student = (
         preferences.xs("Graag met", level="TypeWens")
         .groupby("Leerling")["Gewicht"]
         .apply(all_unique_sums)
     )
 
     unique_weighted_preferences = set()
-    for wp in unique_weighted_preferences_per_ll:
+    for wp in unique_weighted_preferences_per_student:
         unique_weighted_preferences.update(wp)
     return unique_weighted_preferences
 
@@ -62,13 +62,13 @@ def get_satisfaction_integral(x_a: float, x_b: float) -> float:
     Parameters
     ----------
     x_a: float
-        The number of (weighted) preferences as the basic satisfaction of the leerling
+        The number of (weighted) preferences as the basic satisfaction of the student
     x_b: float
-        The number of (weighted) preferences as the goal satisfaction of the leerling
+        The number of (weighted) preferences as the goal satisfaction of the student
 
     Returns
     -------
-        The added satisfaction score of the leerling
+        The added satisfaction score of the student
     """
     # In principle, we should probably only specify the satisfaction function and
     # then have this just be a numerical integration for optimal flexibility, but since
@@ -101,31 +101,31 @@ def calculate_added_satisfaction(preferences) -> dict:
 
 class ProblemSolver:
     """
-    Create a problem to distribute leerlingen over groepen
+    Create a problem to distribute student over groepen
 
     Parameters
     ----------
     preferences: pd.DataFrame
         A DataFrame with as MultiIndex with (Leerling, Type, Nr) and a value, where
         Leerling is the Name, Type is either "Graag met", "Niet in" or "Liever niet"
-        Waarde is then a column with either a Leerling or Group name. In combination with
+        Waarde is then a column with either a Student or Group name. In combination with
         Niet In only a Group name is allowed
 
-    leerling_per_obgroep : dict
+    students_per_obgroep : dict
         Key: the name of the previous group. Value: list of students
 
     groepen: Iterable
-        An interable containing all names of the groepen to which leerlingen can be sent
+        An interable containing all names of the groepen to which students can be sent
 
     max_kliekje, int (default = 5)
-        The number of leerlingen that can go to the same group
+        The number of students that can go to the same group
 
-    max_diff_n_ll_per_group, float (default = 3)
-        The maximum difference between assigned leerlingen to the largest group
+    max_diff_n_students_per_group, float (default = 3)
+        The maximum difference between assigned students to the largest group
         and the smallest group
 
-    optimize, str (default = "llsatisfaction")
-        What to optimize for: "llsatisfaction" (basically, the least happy student
+    optimize, str (default = "studentsatisfaction")
+        What to optimize for: "studentsatisfaction" (basically, the least happy student
         is the most happy),
         "n_preferences" or "weighted_preferences"
     """
@@ -133,40 +133,40 @@ class ProblemSolver:
     def __init__(
         self,
         preferences: pd.DataFrame,
-        leerling_per_obgroep,
+        students_per_obgroep,
         groepen,
         max_kliekje=5,
-        max_diff_n_ll_per_group=3,
-        optimize="llsatisfaction",
+        max_diff_n_students_per_group=3,
+        optimize="studentsatisfaction",
     ):
         self.preferences = preferences
-        self.leerlingen_per_obgroep = leerling_per_obgroep
-        self.leerlingen = sum(self.leerlingen_per_obgroep.values(), [])
+        self.students_per_obgroep = students_per_obgroep
+        self.students = sum(self.students_per_obgroep.values(), [])
         self.groepen = groepen
         self.max_kliekje = max_kliekje
-        self.max_diff_n_ll_per_group = max_diff_n_ll_per_group
+        self.max_diff_n_students_per_group = max_diff_n_students_per_group
         self.optimize = optimize
-        self.prob = pulp.LpProblem("leerlingindeling", pulp.LpMaximize)
+        self.prob = pulp.LpProblem("studentdistribution", pulp.LpMaximize)
         self.in_group = self._define_variables()
 
     def _define_variables(self):
         return pulp.LpVariable.dicts(
             "group",
-            itertools.product(self.leerlingen, self.groepen),
+            itertools.product(self.students, self.groepen),
             cat="Binary",
         )
 
     def _constraint_student_to_exactly_one_group(self):
-        for ll in self.leerlingen:
+        for student in self.students:
             self.prob += (
-                pulp.lpSum([self.in_group[(ll, gr)] for gr in self.groepen]) == 1
+                pulp.lpSum([self.in_group[(student, gr)] for gr in self.groepen]) == 1
             )
 
     def _constraint_equal_new_students(self):
         """ "Every group can have a max number of students from an earlier group (no kliekjes)"""
-        avg_new_per_group = len(self.leerlingen) / len(self.groepen)
-        min_in_group = int(avg_new_per_group - self.max_diff_n_ll_per_group / 2)
-        max_in_group = int(avg_new_per_group + self.max_diff_n_ll_per_group / 2)
+        avg_new_per_group = len(self.students) / len(self.groepen)
+        min_in_group = int(avg_new_per_group - self.max_diff_n_students_per_group / 2)
+        max_in_group = int(avg_new_per_group + self.max_diff_n_students_per_group / 2)
 
         new_students_in_group = pulp.LpVariable.dict(
             "new_students_in_group", self.groepen, cat="Integer"
@@ -175,7 +175,7 @@ class ProblemSolver:
         for mbgroep in self.groepen:
 
             self.prob += new_students_in_group[mbgroep] == pulp.lpSum(
-                [self.in_group[(ll, mbgroep)] for ll in self.leerlingen]
+                [self.in_group[(student, mbgroep)] for student in self.students]
             )
 
             self.prob += new_students_in_group[mbgroep] <= max_in_group
@@ -183,7 +183,7 @@ class ProblemSolver:
 
     def _constraint_equal_students_from_previous_group(self):
         """Every group can have a max number of students from an earlier group (no kliekjes)"""
-        obgroepen = list(self.leerlingen_per_obgroep.keys())
+        obgroepen = list(self.students_per_obgroep.keys())
         from_group_to_group = pulp.LpVariable.dicts(
             "from_group_to_group",
             itertools.product(obgroepen, self.groepen),
@@ -194,8 +194,8 @@ class ProblemSolver:
             for obgroep in obgroepen:
                 self.prob += from_group_to_group[(obgroep, mbgroep)] == pulp.lpSum(
                     [
-                        self.in_group[(ll, mbgroep)]
-                        for ll in self.leerlingen_per_obgroep[obgroep]
+                        self.in_group[(student, mbgroep)]
+                        for student in self.students_per_obgroep[obgroep]
                     ]
                 )
 
@@ -204,9 +204,9 @@ class ProblemSolver:
     def _constraint_not_in_forbidden_group(self):
         """Some students can not move int other groups (e.g. a brother/sister is already there)"""
         for i, row in self.preferences.query('TypeWens == "Niet in"').iterrows():
-            ll, _, _ = i
+            student, _, _ = i
             gr = row["Waarde"]
-            self.prob += self.in_group[(ll, gr)] == 0
+            self.prob += self.in_group[(student, gr)] == 0
 
     def add_constraints(self):
         """Add all hard constraints via the functions per constraint"""
@@ -236,7 +236,10 @@ class ProblemSolver:
         # group. This can then be combined to check whether that tis true for all groups
         pref_per_group = list(
             itertools.chain(
-                *[[(ll, nr, gr) for gr in self.groepen] for ll, nr in graag_met.index]
+                *[
+                    [(student, nr, gr) for gr in self.groepen]
+                    for student, nr in graag_met.index
+                ]
             )
         )
         satisfied_per_group = pulp.LpVariable.dicts(
@@ -244,42 +247,42 @@ class ProblemSolver:
         )
 
         for i, row in graag_met.iterrows():
-            ll, nr = i
+            student, nr = i
             if row["Waarde"] not in self.groepen:
-                other_ll = row["Waarde"]
+                other_student = row["Waarde"]
                 if weights[i] > 0:
                     for gr in self.groepen:
                         # Matching preferences are an XNOR problem: if for every group
                         # either both or none are in them, they are in the same group
-                        satisfied_per_group[(ll, nr, gr)] = pulp_logical.XNOR(
+                        satisfied_per_group[(student, nr, gr)] = pulp_logical.XNOR(
                             self.prob,
-                            self.in_group[(ll, gr)],
-                            self.in_group[(other_ll, gr)],
+                            self.in_group[(student, gr)],
+                            self.in_group[(other_student, gr)],
                         )
                     # The preference is satisfied if it is correct for every group
                     group_vars = [
-                        satisfied_per_group[(ll, nr, gr)] for gr in self.groepen
+                        satisfied_per_group[(student, nr, gr)] for gr in self.groepen
                     ]
                     pulp_logical.AND(self.prob, *group_vars, result_var=satisfied[i])
 
                 else:
                     for gr in self.groepen:
-                        # This is the NAND variant, for when two leerlingen shout _not_
+                        # This is the NAND variant, for when two students should _not_
                         # be in the same group
-                        satisfied_per_group[(ll, nr, gr)] = pulp_logical.NAND(
+                        satisfied_per_group[(student, nr, gr)] = pulp_logical.NAND(
                             self.prob,
-                            self.in_group[(ll, gr)],
-                            self.in_group[(other_ll, gr)],
+                            self.in_group[(student, gr)],
+                            self.in_group[(other_student, gr)],
                         )
                     # The preference is satisfied if it is correct for every group
                     group_vars = [
-                        satisfied_per_group[(ll, nr, gr)] for gr in self.groepen
+                        satisfied_per_group[(student, nr, gr)] for gr in self.groepen
                     ]
                     pulp_logical.AND(self.prob, *group_vars, result_var=satisfied[i])
             else:
                 group = row["Waarde"]
-                self.prob += self.in_group[(ll, group)] >= satisfied[i]
-                self.prob += self.in_group[(ll, group)] <= satisfied[i]
+                self.prob += self.in_group[(student, group)] >= satisfied[i]
+                self.prob += self.in_group[(student, group)] <= satisfied[i]
         return satisfied
 
     def calculate_optimization_targets(self, satisfied: dict) -> dict:
@@ -315,8 +318,8 @@ class ProblemSolver:
                 # Weight is negative: you get deduction if you do it wrong
                 self.prob += weighted_satisfied[key] == ((1 - satisfied[key]) * weight)
         added_satisfaction = calculate_added_satisfaction(self.preferences)
-        satisfaction_per_ll = pulp.LpVariable.dict(
-            "LLSatisfaction", self.leerlingen, cat="Continuous"
+        satisfaction_per_student = pulp.LpVariable.dict(
+            "studentsatisfaction", self.students, cat="Continuous"
         )
 
         n_preferences_max = (
@@ -324,73 +327,76 @@ class ProblemSolver:
             .index.get_level_values("Nr")
             .max()
         )
-        # Per ll whether at least i preferences are satisfied
-        n_satisfied_per_ll = pulp.LpVariable.dicts(
-            "llassignedprefs",
+        # Per student whether at least i preferences are satisfied
+        n_satisfied_per_student = pulp.LpVariable.dicts(
+            "studentassignedprefs",
             itertools.product(
-                self.leerlingen, (i for i in range(1, n_preferences_max + 1))
+                self.students, (i for i in range(1, n_preferences_max + 1))
             ),
             cat="Binary",
         )
-        wp_satisfied_per_ll = pulp.LpVariable.dicts(
-            "llassignedweights",
-            itertools.product(self.leerlingen, added_satisfaction.keys()),
+        wp_satisfied_per_student = pulp.LpVariable.dicts(
+            "studentassignedweights",
+            itertools.product(self.students, added_satisfaction.keys()),
             cat="Binary",
         )
 
-        for ll in self.leerlingen:
-            ll_prefs = []
-            ll_weighted = []
+        for student in self.students:
+            student_prefs = []
+            student_weighted = []
             for i in range(1, n_preferences_max + 1):
                 try:
-                    ll_prefs.append(satisfied[(ll, i)])
-                    ll_weighted.append(weighted_satisfied[(ll, i)])
+                    student_prefs.append(satisfied[(student, i)])
+                    student_weighted.append(weighted_satisfied[(student, i)])
                 except KeyError:
                     break
-            n_satisfied = pulp.lpSum(ll_prefs)
-            wp_satisfied = pulp.lpSum(ll_weighted)
+            n_satisfied = pulp.lpSum(student_prefs)
+            wp_satisfied = pulp.lpSum(student_weighted)
 
             for i in range(1, n_preferences_max + 1):
-                # n_satisfied(i) for each leerling is 0 if less than `i` preferences are satisfied
-                # The division works because n_true_per_ll is binary, so can never be larger than 1
-                self.prob += n_satisfied_per_ll[(ll, i)] <= n_satisfied / i
-                # n_satisfied(i) for each leerling is 1 if at least i preferences are satisfied
+                # n_satisfied(i) for each student is 0 if less than `i` preferences are satisfied
+                # The division works because n_true_per_student is binary, so can never be larger than 1
+                self.prob += n_satisfied_per_student[(student, i)] <= n_satisfied / i
+                # n_satisfied(i) for each student is 1 if at least i preferences are satisfied
                 # M ensures the constraint is never larger than 1
                 self.prob += (
-                    n_satisfied_per_ll[(ll, i)] >= (n_satisfied - (i - 1) - EPS) / M
+                    n_satisfied_per_student[(student, i)]
+                    >= (n_satisfied - (i - 1) - EPS) / M
                 )
 
             for n_wp in added_satisfaction:
                 if n_wp > 0:
-                    # wp_satisfied_per_ll(i) for each leerling is 0 if less than `weights`
+                    # wp_satisfied_per_student(i) for each student is 0 if less than `weights`
                     # are satisfied
-                    # The division works because wp_satisfied_per_ll is binary,so can
+                    # The division works because wp_satisfied_per_student is binary,so can
                     # never be larger than 1
                     self.prob += (
-                        wp_satisfied_per_ll[(ll, n_wp)] <= wp_satisfied / n_wp + EPS
+                        wp_satisfied_per_student[(student, n_wp)]
+                        <= wp_satisfied / n_wp + EPS
                     )
-                    # wp_satisfied_per_ll(i) for each leerling is 1 if at least n_wp
+                    # wp_satisfied_per_student(i) for each student is 1 if at least n_wp
                     # preferences are satisfied
                     self.prob += (
-                        wp_satisfied_per_ll[(ll, n_wp)]
+                        wp_satisfied_per_student[(student, n_wp)]
                         >= (wp_satisfied - (n_wp - EPS)) / M
                     )  # M ensures the constraint is never larger than 1
                 else:
                     self.prob += (
-                        wp_satisfied_per_ll[(ll, n_wp)] >= wp_satisfied / n_wp - EPS
+                        wp_satisfied_per_student[(student, n_wp)]
+                        >= wp_satisfied / n_wp - EPS
                     )
-                    self.prob += wp_satisfied_per_ll[(ll, n_wp)] <= (
+                    self.prob += wp_satisfied_per_student[(student, n_wp)] <= (
                         wp_satisfied - (n_wp + EPS) / M
                     )
 
-            satisfaction_per_ll[ll] = sum(
-                val * wp_satisfied_per_ll[(ll, n_wp)]
+            satisfaction_per_student[student] = sum(
+                val * wp_satisfied_per_student[(student, n_wp)]
                 for n_wp, val in added_satisfaction.items()
             )
         optimization_targets = {
             "n_preferences": pulp.lpSum(satisfied),
             "weighted_preferences": pulp.lpSum(weighted_satisfied),
-            "llsatisfaction": pulp.lpSum(satisfaction_per_ll),
+            "studentsatisfaction": pulp.lpSum(satisfaction_per_student),
         }
         return optimization_targets
 
