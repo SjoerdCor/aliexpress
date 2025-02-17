@@ -249,9 +249,10 @@ class ProblemSolver:
 
         for i, row in graag_met.iterrows():
             student, nr = i
-            if row["Waarde"] not in self.groups_to:
-                other_student = row["Waarde"]
-                if weights[i] > 0:
+            if weights[i] > 0:
+                if row["Waarde"] not in self.groups_to:
+                    other_student = row["Waarde"]
+
                     for gr in self.groups_to:
                         # Matching preferences are an XNOR problem: if for every group
                         # either both or none are in them, they are in the same group
@@ -265,8 +266,14 @@ class ProblemSolver:
                         satisfied_per_group[(student, nr, gr)] for gr in self.groups_to
                     ]
                     pulp_logical.AND(self.prob, *group_vars, result_var=satisfied[i])
-
                 else:
+                    group = row["Waarde"]
+                    self.prob += satisfied[i] == self.in_group[(student, group)]
+
+            else:
+                if row["Waarde"] not in self.groups_to:
+                    other_student = row["Waarde"]
+
                     for gr in self.groups_to:
                         # This is the NAND variant, for when two students should _not_
                         # be in the same group
@@ -280,10 +287,9 @@ class ProblemSolver:
                         satisfied_per_group[(student, nr, gr)] for gr in self.groups_to
                     ]
                     pulp_logical.AND(self.prob, *group_vars, result_var=satisfied[i])
-            else:
-                group = row["Waarde"]
-                self.prob += self.in_group[(student, group)] >= satisfied[i]
-                self.prob += self.in_group[(student, group)] <= satisfied[i]
+                else:
+                    group = row["Waarde"]
+                    self.prob += satisfied[i] == 1 - self.in_group[(student, group)]
         return satisfied
 
     def calculate_optimization_targets(self, satisfied: dict) -> dict:
