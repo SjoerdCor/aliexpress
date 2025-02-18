@@ -8,8 +8,37 @@ import pulp
 
 import pulp_logical
 
-M = 1_000_000  # A very big number, so that constraints are never larger than 1
-EPS = 0.001  # A small number to correct for numerical inaccuracies
+
+def _apply_threshold_constraints(prob, value, thresholds, threshold_vars):
+    """
+    Adds threshold-based indicator constraints to a PuLP problem.
+
+    This function ensures that each binary variable in `threshold_vars` correctly
+    tracks whether `value` has met or exceeded a given threshold. It enforces
+    logical conditions using big-M constraints to approximate indicator behavior.
+
+    Parameters
+    ----------
+    prob : pulp.LpProblem
+        The linear programming problem to which constraints are added.
+    value : pulp.LpVariable
+        The continuous decision variable being compared to thresholds.
+    thresholds : iterable of float
+        The threshold values that determine activation of binary variables.
+    threshold_vars : dict of {float: pulp.LpVariable}
+        A dictionary mapping each threshold to a corresponding binary variable.
+    """
+
+    M = 1_000_000  # A very big number, so that constraints are never larger than 1
+    EPS = 0.001  # A small number to correct for numerical inaccuracies
+
+    for threshold in thresholds:
+        if threshold > 0:
+            prob += threshold_vars[threshold] <= value / threshold + EPS
+            prob += threshold_vars[threshold] >= (value - (threshold - EPS)) / M
+        else:
+            prob += threshold_vars[threshold] >= value / threshold - EPS
+            prob += threshold_vars[threshold] <= (value - (threshold + EPS)) / M
 
 
 def powerset(iterable):
@@ -300,7 +329,68 @@ class ProblemSolver:
                 self.add_preference_undesirable(satisfied[i], student, row["Waarde"])
         return satisfied
 
-    def calculate_optimization_targets(self, satisfied: dict) -> dict:
+    def _calculate_n_satisfied_optimization(self, satisfied: dict) -> pulp.LpVariable:
+        """Calculate the total number of satisfied preferences."""
+        return pulp.lpSum(satisfied)
+
+    def _calculate_weighted_preferences(self, satisfied: dict) -> pulp.LpVariable:
+        """Calculate the weighted sum of satisfied preferences."""
+        graag_met = self.preferences.xs("Graag met", level="TypeWens")
+        weights = graag_met["Gewicht"].to_dict()
+        weighted_satisfied = pulp.LpVariable.dicts(
+            "WeightedSatisfied", graag_met.index.to_list(), cat="Continuous"
+        )
+
+        for key, weight in weights.items():
+            if weight > 0:
+                # Weight is positive: you get points for getting it right
+                self.prob += weighted_satisfied[key] == (satisfied[key] * weight)
+            else:
+                # Weight is negative: you get deduction if you do it wrong
+                self.prob += weighted_satisfied[key] == ((1 - satisfied[key]) * weight)
+
+        return weighted_satisfied
+
+    def _calculate_weighted_preference_optimization(
+        self, satisfied: dict
+    ) -> pulp.LpVariable:
+        weighted_satisfied = self._calculate_weighted_preferences(satisfied)
+        return pulp.lpSum(weighted_satisfied)
+
+    def _calculate_student_satisfaction(self, satisfied: dict) -> pulp.LpVariable:
+        added_satisfaction = calculate_added_satisfaction(self.preferences)
+        satisfaction_per_student = pulp.LpVariable.dict(
+            "studentsatisfaction", self.students, cat="Continuous"
+        )
+        weighted_satisfied = self._calculate_weighted_preferences(satisfied)
+
+        for student in self.students:
+            student_weighted = [
+                weighted_satisfied.get((student, i), 0)
+                for i in range(1, len(added_satisfaction) + 1)
+            ]
+            wp_satisfied = pulp.lpSum(student_weighted)
+
+            wp_satisfied_per_student = pulp.LpVariable.dicts(
+                f"{student}_weighted_preferences_accountend",
+                added_satisfaction.keys(),
+                cat="Binary",
+            )
+
+            _apply_threshold_constraints(
+                self.prob,
+                wp_satisfied,
+                added_satisfaction.keys(),
+                wp_satisfied_per_student,
+            )
+
+            satisfaction_per_student[student] = pulp.lpSum(
+                val * wp_satisfied_per_student[n_wp]
+                for n_wp, val in added_satisfaction.items()
+            )
+        return pulp.lpSum(satisfaction_per_student)
+
+    def set_optimization_target(self, satisfied: dict) -> None:
         """Calculate the variables which can be directly optimized
 
         For each option of the class, this calculates the variable from the underlying
@@ -319,104 +409,16 @@ class ProblemSolver:
             Values the LpVariables which sum the underlying (satisfied) preferences
 
         """
-        graag_met = self.preferences.xs("Graag met", level="TypeWens")
-        weights = graag_met["Gewicht"].to_dict()
-
-        weighted_satisfied = pulp.LpVariable.dicts(
-            "WeightedSatisfied", graag_met.index.to_list(), cat="Continuous"
-        )
-        for key, weight in weights.items():
-            if weight > 0:
-                # Weight is positive: you get points for getting it right
-                self.prob += weighted_satisfied[key] == (satisfied[key] * weight)
-            else:
-                # Weight is negative: you get deduction if you do it wrong
-                self.prob += weighted_satisfied[key] == ((1 - satisfied[key]) * weight)
-        added_satisfaction = calculate_added_satisfaction(self.preferences)
-        satisfaction_per_student = pulp.LpVariable.dict(
-            "studentsatisfaction", self.students, cat="Continuous"
-        )
-
-        n_preferences_max = (
-            self.preferences.xs("Graag met", level="TypeWens")
-            .index.get_level_values("Nr")
-            .max()
-        )
-        # Per student whether at least i preferences are satisfied
-        n_satisfied_per_student = pulp.LpVariable.dicts(
-            "studentassignedprefs",
-            itertools.product(
-                self.students, (i for i in range(1, n_preferences_max + 1))
-            ),
-            cat="Binary",
-        )
-        wp_satisfied_per_student = pulp.LpVariable.dicts(
-            "studentassignedweights",
-            itertools.product(self.students, added_satisfaction.keys()),
-            cat="Binary",
-        )
-
-        for student in self.students:
-            student_prefs = []
-            student_weighted = []
-            for i in range(1, n_preferences_max + 1):
-                try:
-                    student_prefs.append(satisfied[(student, i)])
-                    student_weighted.append(weighted_satisfied[(student, i)])
-                except KeyError:
-                    break
-            n_satisfied = pulp.lpSum(student_prefs)
-            wp_satisfied = pulp.lpSum(student_weighted)
-
-            for i in range(1, n_preferences_max + 1):
-                # n_satisfied(i) for each student is 0 if less than `i` preferences are satisfied
-                # The division works because n_true_per_student is binary, so can never
-                # be larger than 1
-                self.prob += n_satisfied_per_student[(student, i)] <= n_satisfied / i
-                # n_satisfied(i) for each student is 1 if at least i preferences are satisfied
-                # M ensures the constraint is never larger than 1
-                self.prob += (
-                    n_satisfied_per_student[(student, i)]
-                    >= (n_satisfied - (i - 1) - EPS) / M
-                )
-
-            for n_wp in added_satisfaction:
-                if n_wp > 0:
-                    # wp_satisfied_per_student(i) for each student is 0 if less than `weights`
-                    # are satisfied
-                    # The division works because wp_satisfied_per_student is binary, so can
-                    # never be larger than 1
-                    self.prob += (
-                        wp_satisfied_per_student[(student, n_wp)]
-                        <= wp_satisfied / n_wp + EPS
-                    )
-                    # wp_satisfied_per_student(i) for each student is 1 if at least n_wp
-                    # preferences are satisfied
-                    self.prob += (
-                        wp_satisfied_per_student[(student, n_wp)]
-                        >= (wp_satisfied - (n_wp - EPS)) / M
-                    )  # M ensures the constraint is never larger than 1
-                else:
-                    self.prob += (
-                        wp_satisfied_per_student[(student, n_wp)]
-                        >= wp_satisfied / n_wp - EPS
-                    )
-                    self.prob += wp_satisfied_per_student[(student, n_wp)] <= (
-                        wp_satisfied - (n_wp + EPS) / M
-                    )
-
-            satisfaction_per_student[student] = sum(
-                val * wp_satisfied_per_student[(student, n_wp)]
-                for n_wp, val in added_satisfaction.items()
-            )
-        optimization_targets = {
-            "n_preferences": pulp.lpSum(satisfied),
-            "weighted_preferences": pulp.lpSum(weighted_satisfied),
-            "studentsatisfaction": pulp.lpSum(satisfaction_per_student),
+        optimization_funcs = {
+            "n_preferences": self._calculate_n_satisfied_optimization,
+            "weighted_preferences": self._calculate_weighted_preference_optimization,
+            "studentsatisfaction": self._calculate_student_satisfaction,
         }
-        return optimization_targets
+        optimization_func = optimization_funcs[self.optimize]
+        optimization_target = optimization_func(satisfied)
+        self.prob += optimization_target
 
-    def solve(self, optimization_targets: dict) -> None:
+    def solve(self) -> None:
         """Mathematically solve the problem
 
         Parameters
@@ -430,8 +432,6 @@ class ProblemSolver:
         RuntimeError
             If the problem is infeasible
         """
-        self.prob += optimization_targets[self.optimize]
-
         self.prob.solve()
         if pulp.LpStatus[self.prob.status] != "Optimal":
             raise RuntimeError(
@@ -448,6 +448,6 @@ class ProblemSolver:
         """
         self.add_constraints()
         satisfied = self.add_variables_which_preferences_satisfied()
-        optimization_targets = self.calculate_optimization_targets(satisfied)
-        self.solve(optimization_targets)
+        self.set_optimization_target(satisfied)
+        self.solve()
         return self.prob
