@@ -247,62 +247,34 @@ class ProblemSolver:
 
         self._constraint_not_in_forbidden_group()
 
-    def add_preference_undesirable(self, satisfied, student, other):
-        """Add decision variable where student does not want to be with other
+    def _add_variable_in_same_group(
+        self, student1: str, student2: str
+    ) -> pulp.LpVariable:
+        """Returns variable that contains wether student1 and student2 are in the same group
 
         Parameters
         ----------
-        satisfied : pulp.LpVar
-            The decision variable that holds this preference
-        student : str
-            The name of the student which holds this preference
-        other : str
-            group name or fellow student that the first student wants to be with/in
+        student1 : str
+            Name of the first student
+        student2 : str
+            Name of the second student
+
+        Returns
+        -------
+        pulp.LpVariable
+            The variable that contains whether the two students are in the same group
         """
-        if other in self.groups_to:
-            self.prob += satisfied == 1 - self.in_group[(student, other)]
-
-        else:
-            group_vars = []
-            for gr in self.groups_to:
-                # This is the NAND variant, for when two students should _not_
-                # be in the same group
-                satisfied_per_group = pulp_logical.NAND(
-                    self.prob,
-                    self.in_group[(student, gr)],
-                    self.in_group[(other, gr)],
-                )
-                group_vars.append(satisfied_per_group)
-            # The preference is satisfied if it is correct for every group
-            pulp_logical.AND(self.prob, *group_vars, result_var=satisfied)
-
-    def add_preference_desirable(self, satisfied, student, other):
-        """Add preferences to the problem if the student wants to be with other
-
-        Parameters
-        ----------
-        satisfied : pulp.LpVar
-            The decision variable that holds this preference
-        student : str
-            The name of the student which holds this preference
-        other : str
-            group name or fellow student that the first student wants to be with/in
-        """
-        if other in self.groups_to:
-            self.prob += satisfied == self.in_group[(student, other)]
-        else:
-            group_vars = []
-            for gr in self.groups_to:
-                # Matching preferences are an XNOR problem: if for every group
-                # either both or none are in them, they are in the same group
-                satisfied_per_group = pulp_logical.XNOR(
-                    self.prob,
-                    self.in_group[(student, gr)],
-                    self.in_group[(other, gr)],
-                )
-                group_vars.append(satisfied_per_group)
-            # The preference is satisfied if it is correct for every group
-            pulp_logical.AND(self.prob, *group_vars, result_var=satisfied)
+        group_vars = []
+        for gr in self.groups_to:
+            # Together in one group
+            satisfied_per_group = pulp_logical.AND(
+                self.prob,
+                self.in_group[(student1, gr)],
+                self.in_group[(student2, gr)],
+            )
+            group_vars.append(satisfied_per_group)
+        # Theyare in the same group if it is correct for one group
+        return pulp_logical.OR(self.prob, *group_vars)
 
     def add_variables_which_preferences_satisfied(self) -> dict:
         """Add all preferences to the LP-problem, so we can optimize how many we can fulfill
@@ -314,19 +286,22 @@ class ProblemSolver:
             Contains for each preference wether it is satisfied or not
         """
         graag_met = self.preferences.xs("Graag met", level="TypeWens")
-        weights = graag_met["Gewicht"].to_dict()
-
         satisfied = pulp.LpVariable.dicts(
             "Satisfied", graag_met.index.to_list(), cat="Binary"
         )
 
-        for i, row in graag_met.iterrows():
-            student, _ = i
-            if weights[i] > 0:
-                self.add_preference_desirable(satisfied[i], student, row["Waarde"])
-
+        for key, row in graag_met.iterrows():
+            student, _ = key
+            other = row["Waarde"]
+            if other in self.groups_to:
+                in_same_group = self.in_group[(student, other)]
             else:
-                self.add_preference_undesirable(satisfied[i], student, row["Waarde"])
+                in_same_group = self._add_variable_in_same_group(student, other)
+
+            if row["Gewicht"] > 0:
+                self.prob += satisfied[key] == in_same_group
+            else:
+                self.prob += satisfied[key] == 1 - in_same_group
         return satisfied
 
     def _calculate_n_satisfied_optimization(self, satisfied: dict) -> pulp.LpVariable:
