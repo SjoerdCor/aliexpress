@@ -338,3 +338,6 @@ class SolutionAnalyzer:
             self._autoscale_column_width(sheet)
 
             self.display_satisfied_preferences().to_excel(writer, "VervuldeWensen")
+
+    def get_hash(self) -> int:
+        return hash(tuple(self._get_outcome().sort_values("Naam")["Group"]))
