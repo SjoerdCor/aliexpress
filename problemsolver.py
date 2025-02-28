@@ -145,7 +145,7 @@ class ProblemSolver:
     groups_to: Iterable
         An interable containing all names of the groups to which students can be sent
 
-    max_kliekje, int (default = 5)
+    max_clique, int (default = 5)
         The number of students that can go to the same group
 
     max_diff_n_students_per_group, float (default = 3)
@@ -163,7 +163,7 @@ class ProblemSolver:
         preferences: pd.DataFrame,
         students_per_group_from,
         groups_to,
-        max_kliekje=5,
+        max_clique=5,
         max_diff_n_students_per_group=3,
         optimize="studentsatisfaction",
     ):
@@ -171,7 +171,7 @@ class ProblemSolver:
         self.students_per_group_from = students_per_group_from
         self.students = sum(self.students_per_group_from.values(), [])
         self.groups_to = groups_to
-        self.max_kliekje = max_kliekje
+        self.max_clique = max_clique
         self.max_diff_n_students_per_group = max_diff_n_students_per_group
         self.optimize = optimize
         self.prob = pulp.LpProblem("studentdistribution", pulp.LpMaximize)
@@ -191,7 +191,7 @@ class ProblemSolver:
             )
 
     def _constraint_equal_new_students(self):
-        """ "Every group can have a max number of students from an earlier group (no kliekjes)"""
+        """Every group should have an approximately equal number of new students"""
         avg_new_per_group = len(self.students) / len(self.groups_to)
         min_in_group = int(avg_new_per_group - self.max_diff_n_students_per_group / 2)
         max_in_group = int(avg_new_per_group + self.max_diff_n_students_per_group / 2)
@@ -210,7 +210,7 @@ class ProblemSolver:
             self.prob += new_students_in_group[group_to] >= min_in_group
 
     def _constraint_equal_students_from_previous_group(self):
-        """Every group can have a max number of students from an earlier group (no kliekjes)"""
+        """Every group can have a max number of students from an earlier group (no cliques)"""
         groups_from = list(self.students_per_group_from.keys())
         from_group_to_group = pulp.LpVariable.dicts(
             "from_group_to_group",
@@ -228,7 +228,7 @@ class ProblemSolver:
                 )
 
                 self.prob += (
-                    from_group_to_group[(group_from, group_to)] <= self.max_kliekje
+                    from_group_to_group[(group_from, group_to)] <= self.max_clique
                 )
 
     def _constraint_not_in_forbidden_group(self):
