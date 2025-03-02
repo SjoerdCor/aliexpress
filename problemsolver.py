@@ -153,9 +153,10 @@ class ProblemSolver:
         and the smallest group
 
     optimize, str (default = "studentsatisfaction")
-        What to optimize for: "studentsatisfaction" (basically, the least happy student
-        is the most happy),
-        "n_preferences" or "weighted_preferences"
+        What to optimize for: "studentsatisfaction" (total satisfaction of the students,
+        where satisfaction is dominated by getting at least 1 preferences),
+        "least_satisfied" (formally, the least satisfied student), "n_preferences"
+        or "weighted_preferences"
     """
 
     def __init__(
@@ -363,7 +364,20 @@ class ProblemSolver:
                 val * wp_satisfied_per_student[n_wp]
                 for n_wp, val in added_satisfaction.items()
             )
+        return satisfaction_per_student
+
+    def _calculate_total_student_satisfaction(self, satisfied: dict) -> pulp.LpVariable:
+        satisfaction_per_student = self._calculate_student_satisfaction(satisfied)
         return pulp.lpSum(satisfaction_per_student)
+
+    def _least_satisfied_student(self, satisfied: dict) -> pulp.LpVariable:
+        satisfaction_per_student = self._calculate_student_satisfaction(satisfied)
+
+        minimal_satisfaction = pulp.LpVariable("MinimalSatisfaction")
+        for satisfaction in satisfaction_per_student.values():
+            self.prob += minimal_satisfaction <= satisfaction
+        M = 1_000_000  # Large enough so min dominates sum
+        return M * minimal_satisfaction + pulp.lpSum(satisfaction_per_student.values())
 
     def set_optimization_target(self, satisfied: dict) -> None:
         """Calculate the variables which can be directly optimized
@@ -387,7 +401,8 @@ class ProblemSolver:
         optimization_funcs = {
             "n_preferences": self._calculate_n_satisfied_optimization,
             "weighted_preferences": self._calculate_weighted_preference_optimization,
-            "studentsatisfaction": self._calculate_student_satisfaction,
+            "studentsatisfaction": self._calculate_total_student_satisfaction,
+            "least_satisfied": self._least_satisfied_student,
         }
         optimization_func = optimization_funcs[self.optimize]
         optimization_target = optimization_func(satisfied)
