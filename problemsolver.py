@@ -143,8 +143,10 @@ class ProblemSolver:
         Each student as key, and as value a dictionary that contains at least the
         "Stamgroep" and "Jongen/meisje". Used to make balanced new groups
 
-    groups_to: Iterable
-        An interable containing all names of the groups to which students can be sent
+    groups_to: dict
+        A dictionary that contains the groups to which the students can be sent as keys,
+        and as values a dictionary with characteristics: the number of boys and the
+        number of girls
 
     max_clique, int (default = 5)
         The number of students that can go to the same group
@@ -163,8 +165,8 @@ class ProblemSolver:
     def __init__(
         self,
         preferences: pd.DataFrame,
-        students,
-        groups_to,
+        students: dict,
+        groups_to: dict,
         max_clique=5,
         max_diff_n_students_per_group=3,
         max_imbalance_boys_girls=2,
@@ -183,7 +185,7 @@ class ProblemSolver:
     def _define_variables(self):
         return pulp.LpVariable.dicts(
             "group",
-            itertools.product(self.students.keys(), self.groups_to),
+            itertools.product(self.students.keys(), self.groups_to.keys()),
             cat="Binary",
         )
 
@@ -200,7 +202,7 @@ class ProblemSolver:
         max_in_group = int(avg_new_per_group + self.max_diff_n_students_per_group / 2)
 
         new_students_in_group = pulp.LpVariable.dict(
-            "new_students_in_group", self.groups_to, cat="Integer"
+            "new_students_in_group", self.groups_to.keys(), cat="Integer"
         )
 
         for group_to in self.groups_to:
@@ -217,7 +219,7 @@ class ProblemSolver:
         groups_from = {self.students[student]["Stamgroep"] for student in self.students}
         from_group_to_group = pulp.LpVariable.dicts(
             "from_group_to_group",
-            itertools.product(groups_from, self.groups_to),
+            itertools.product(groups_from, self.groups_to.keys()),
             cat="Integer",
         )
 
@@ -237,10 +239,10 @@ class ProblemSolver:
 
     def _constraint_equal_boys_girls(self):
         boys_to_group = pulp.LpVariable.dicts(
-            "boys_to_group", self.groups_to, cat="Integer"
+            "boys_to_group", self.groups_to.keys(), cat="Integer"
         )
         girls_to_group = pulp.LpVariable.dicts(
-            "girls_to_group", self.groups_to, cat="Integer"
+            "girls_to_group", self.groups_to.keys(), cat="Integer"
         )
 
         for group_to in self.groups_to:
