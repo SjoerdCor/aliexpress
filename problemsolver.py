@@ -163,7 +163,7 @@ class ProblemSolver:
         self,
         preferences: pd.DataFrame,
         students_per_group_from,
-        students_info,
+        students,
         groups_to,
         max_clique=5,
         max_diff_n_students_per_group=3,
@@ -173,9 +173,7 @@ class ProblemSolver:
         self.preferences = preferences
         # TODO: remove students_per_group_from
         self.students_per_group_from = students_per_group_from
-        self.students_info = students_info
-        # TODO: remove this and rename students_info to students
-        self.students = list(self.students_info.keys())
+        self.students = students
         self.groups_to = groups_to
         self.max_clique = max_clique
         self.max_diff_n_students_per_group = max_diff_n_students_per_group
@@ -187,7 +185,7 @@ class ProblemSolver:
     def _define_variables(self):
         return pulp.LpVariable.dicts(
             "group",
-            itertools.product(self.students, self.groups_to),
+            itertools.product(self.students.keys(), self.groups_to),
             cat="Binary",
         )
 
@@ -246,22 +244,19 @@ class ProblemSolver:
             "girls_to_group", self.groups_to, cat="Integer"
         )
 
-        print("Groups:", self.groups_to)
-        print("Students:", list(self.students_info.keys()))
-
         for group_to in self.groups_to:
             self.prob += boys_to_group[group_to] == pulp.lpSum(
                 [
                     self.in_group[(student, group_to)]
-                    for student in self.students_info
-                    if self.students_info[student]["Jongen/meisje"] == "Jongen"
+                    for student in self.students
+                    if self.students[student]["Jongen/meisje"] == "Jongen"
                 ]
             )
             self.prob += girls_to_group[group_to] == pulp.lpSum(
                 [
                     self.in_group[(student, group_to)]
-                    for student in self.students_info
-                    if self.students_info[student]["Jongen/meisje"] == "Meisje"
+                    for student in self.students
+                    if self.students[student]["Jongen/meisje"] == "Meisje"
                 ]
             )
             self.prob += (
@@ -378,7 +373,7 @@ class ProblemSolver:
     def _calculate_student_satisfaction(self, satisfied: dict) -> pulp.LpVariable:
         added_satisfaction = calculate_added_satisfaction(self.preferences)
         satisfaction_per_student = pulp.LpVariable.dict(
-            "studentsatisfaction", self.students, cat="Continuous"
+            "studentsatisfaction", self.students.keys(), cat="Continuous"
         )
         weighted_satisfied = self._calculate_weighted_preferences(satisfied)
 
