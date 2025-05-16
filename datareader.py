@@ -67,7 +67,7 @@ class VoorkeurenProcessor:
         if df.index.duplicated().any():
             raise RuntimeError("Non-unique leerlingen detected in input data.")
 
-        incorrect = ~self.input["Jongen/meisje"].isin(["Jongen", "Meisje"]).squeeze()
+        incorrect = ~df["Jongen/meisje"].isin(["Jongen", "Meisje"]).squeeze()
         if incorrect.any():
             raise ValueError(
                 f"Wrong or unknown geslacht for {incorrect[incorrect].index.tolist()}"
