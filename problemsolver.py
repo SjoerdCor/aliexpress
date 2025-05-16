@@ -169,6 +169,7 @@ class ProblemSolver:
         groups_to: dict,
         max_clique=5,
         max_diff_n_students_per_group=3,
+        max_diff_n_students=4,
         max_imbalance_boys_girls=2,
         optimize="studentsatisfaction",
     ):
@@ -177,6 +178,7 @@ class ProblemSolver:
         self.groups_to = groups_to
         self.max_clique = max_clique
         self.max_diff_n_students_per_group = max_diff_n_students_per_group
+        self.max_diff_n_students = max_diff_n_students
         self.max_imbalance_boys_girls = max_imbalance_boys_girls
         self.optimize = optimize
         self.prob = pulp.LpProblem("studentdistribution", pulp.LpMaximize)
@@ -213,6 +215,33 @@ class ProblemSolver:
 
             self.prob += new_students_in_group[group_to] <= max_in_group
             self.prob += new_students_in_group[group_to] >= min_in_group
+
+    def _constraint_equal_total_students(self):
+        current_per_group = {
+            gr: self.groups_to[gr]["Jongens"] + self.groups_to[gr]["Meisjes"]
+            for gr in self.groups_to
+        }
+        avg_per_group = (len(self.students) + sum(current_per_group.values())) / len(
+            current_per_group
+        )
+        min_in_group = int(avg_per_group - self.max_diff_n_students / 2)
+        max_in_group = int(avg_per_group + self.max_diff_n_students / 2)
+        print(min_in_group, avg_per_group, max_in_group)
+        total_in_group = pulp.LpVariable.dict(
+            "total_in_group", self.groups_to.keys(), cat="Integer"
+        )
+
+        for group_to in self.groups_to:
+
+            self.prob += total_in_group[group_to] == (
+                pulp.lpSum(
+                    [self.in_group[(student, group_to)] for student in self.students]
+                )
+                + current_per_group[group_to]
+            )
+
+            self.prob += total_in_group[group_to] <= max_in_group
+            self.prob += total_in_group[group_to] >= min_in_group
 
     def _constraint_equal_students_from_previous_group(self):
         """Every group can have a max number of students from an earlier group (no cliques)"""
@@ -279,12 +308,12 @@ class ProblemSolver:
     def add_constraints(self):
         """Add all hard constraints via the functions per constraint"""
         self._constraint_student_to_exactly_one_group()
+        self._constraint_not_in_forbidden_group()
 
         self._constraint_equal_new_students()
+        self._constraint_equal_total_students()
         self._constraint_equal_students_from_previous_group()
         self._constraint_equal_boys_girls()
-
-        self._constraint_not_in_forbidden_group()
 
     def _add_variable_in_same_group(
         self, student1: str, student2: str
