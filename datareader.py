@@ -116,6 +116,19 @@ class VoorkeurenProcessor:
         self.df = toggle_negative_weights(self.df, mask="Liever niet met")
         return self.df
 
+    def get_students_meta_info(self) -> dict:
+        """Get all meta information about each student
+
+        This can be useful to balance new groups
+
+        Returns
+        -------
+        dict
+            Per student all known information
+        """
+        meta_info_cols = ["Jongen/meisje", "Stamgroep"]
+        return self.input[meta_info_cols].droplevel([1, 2], "columns").to_dict("index")
+
     def get_students_per_old_group(self) -> dict:
         """Get per group the current student names
 
