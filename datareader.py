@@ -138,21 +138,3 @@ class VoorkeurenProcessor:
         """
         meta_info_cols = ["Jongen/meisje", "Stamgroep"]
         return self.input[meta_info_cols].droplevel([1, 2], "columns").to_dict("index")
-
-    def get_students_per_old_group(self) -> dict:
-        """Get per group the current student names
-
-        Returns
-        -------
-        dict
-            Per group the current student names
-        """
-        return (
-            self.input["Stamgroep"]
-            .squeeze()
-            .rename("Stamgroep")
-            .reset_index()
-            .groupby("Stamgroep")["Leerling"]
-            .agg(list)
-            .to_dict()
-        )

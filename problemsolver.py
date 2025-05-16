@@ -139,8 +139,9 @@ class ProblemSolver:
         Waarde is then a column with either a Student or Group name. In combination with
         Niet In only a Group name is allowed
 
-    students_per_group_from : dict
-        Key: the name of the previous group. Value: list of students
+    students : dict
+        Each student as key, and as value a dictionary that contains at least the
+        "Stamgroep" and "Jongen/meisje". Used to make balanced new groups
 
     groups_to: Iterable
         An interable containing all names of the groups to which students can be sent
@@ -162,7 +163,6 @@ class ProblemSolver:
     def __init__(
         self,
         preferences: pd.DataFrame,
-        students_per_group_from,
         students,
         groups_to,
         max_clique=5,
@@ -171,8 +171,6 @@ class ProblemSolver:
         optimize="studentsatisfaction",
     ):
         self.preferences = preferences
-        # TODO: remove students_per_group_from
-        self.students_per_group_from = students_per_group_from
         self.students = students
         self.groups_to = groups_to
         self.max_clique = max_clique
@@ -216,7 +214,7 @@ class ProblemSolver:
 
     def _constraint_equal_students_from_previous_group(self):
         """Every group can have a max number of students from an earlier group (no cliques)"""
-        groups_from = list(self.students_per_group_from.keys())
+        groups_from = {self.students[student]["Stamgroep"] for student in self.students}
         from_group_to_group = pulp.LpVariable.dicts(
             "from_group_to_group",
             itertools.product(groups_from, self.groups_to),
@@ -228,7 +226,8 @@ class ProblemSolver:
                 self.prob += from_group_to_group[(group_from, group_to)] == pulp.lpSum(
                     [
                         self.in_group[(student, group_to)]
-                        for student in self.students_per_group_from[group_from]
+                        for student in self.students
+                        if self.students[student]["Stamgroep"] == group_from
                     ]
                 )
 
