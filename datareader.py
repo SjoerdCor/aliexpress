@@ -59,15 +59,25 @@ class VoorkeurenProcessor:
 
         df = df.iloc[3:]
 
+        self._validate_input(df)
+
+        return df
+
+    def _validate_input(self, df):
         if df.index.duplicated().any():
             raise RuntimeError("Non-unique leerlingen detected in input data.")
-        return df
+
+        incorrect = ~self.input["Jongen/meisje"].isin(["Jongen", "Meisje"]).squeeze()
+        if incorrect.any():
+            raise ValueError(
+                f"Wrong or unknown geslacht for {incorrect[incorrect].index.tolist()}"
+            )
 
     def restructure(self) -> None:
         """Restructures voorkeuren DataFrame from wide to long format with default values."""
         self.df = self.df.stack(["TypeWens", "Nr"]).fillna({"Gewicht": 1})
 
-    def validate(self, all_to_groups=None) -> None:
+    def validate_preferences(self, all_to_groups=None) -> None:
         """Validates voorkeuren DataFrame structure and values."""
         if self.df.index.names != ["Leerling", "TypeWens", "Nr"]:
             raise ValueError(
@@ -112,7 +122,7 @@ class VoorkeurenProcessor:
         """
 
         self.restructure()
-        self.validate(all_to_groups)
+        self.validate_preferences(all_to_groups)
         self.df = toggle_negative_weights(self.df, mask="Liever niet met")
         return self.df
 
