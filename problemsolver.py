@@ -226,7 +226,6 @@ class ProblemSolver:
         )
         min_in_group = int(avg_per_group - self.max_diff_n_students / 2)
         max_in_group = int(avg_per_group + self.max_diff_n_students / 2)
-        print(min_in_group, avg_per_group, max_in_group)
         total_in_group = pulp.LpVariable.dict(
             "total_in_group", self.groups_to.keys(), cat="Integer"
         )
@@ -298,6 +297,44 @@ class ProblemSolver:
                 <= self.max_imbalance_boys_girls
             )
 
+    def _constraint_balanced_boys_girls_total(self):
+        boys_in_group = pulp.LpVariable.dicts(
+            "boys_in_group", self.groups_to.keys(), cat="Integer"
+        )
+        girls_in_group = pulp.LpVariable.dicts(
+            "girls_in_group", self.groups_to.keys(), cat="Integer"
+        )
+
+        for group_to, n_boys_girls in self.groups_to.items():
+            self.prob += boys_in_group[group_to] == (
+                n_boys_girls["Jongens"]
+                + pulp.lpSum(
+                    [
+                        self.in_group[(student, group_to)]
+                        for student in self.students
+                        if self.students[student]["Jongen/meisje"] == "Jongen"
+                    ]
+                )
+            )
+            self.prob += girls_in_group[group_to] == (
+                n_boys_girls["Meisjes"]
+                + pulp.lpSum(
+                    [
+                        self.in_group[(student, group_to)]
+                        for student in self.students
+                        if self.students[student]["Jongen/meisje"] == "Meisje"
+                    ]
+                )
+            )
+            self.prob += (
+                girls_in_group[group_to] - boys_in_group[group_to]
+                <= self.max_imbalance_boys_girls
+            )
+            self.prob += (
+                boys_in_group[group_to] - girls_in_group[group_to]
+                <= self.max_imbalance_boys_girls
+            )
+
     def _constraint_not_in_forbidden_group(self):
         """Some students can not move int other groups (e.g. a brother/sister is already there)"""
         for i, row in self.preferences.query('TypeWens == "Niet in"').iterrows():
@@ -314,6 +351,7 @@ class ProblemSolver:
         self._constraint_equal_total_students()
         self._constraint_equal_students_from_previous_group()
         self._constraint_equal_boys_girls()
+        self._constraint_balanced_boys_girls_total()
 
     def _add_variable_in_same_group(
         self, student1: str, student2: str
