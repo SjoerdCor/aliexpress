@@ -161,3 +161,4 @@ cython_debug/
 
 *.xlsx
 *.pptx
+!voorkeuren.xlsx
