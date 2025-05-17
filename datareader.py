@@ -75,7 +75,16 @@ class VoorkeurenProcessor:
 
     def restructure(self) -> None:
         """Restructures voorkeuren DataFrame from wide to long format with default values."""
-        self.df = self.df.stack(["TypeWens", "Nr"]).fillna({"Gewicht": 1})
+        student_info_cols = ["Jongen/meisje", "Stamgroep"]
+        self.df = (
+            self.df.drop(
+                columns=self.df.columns[
+                    self.df.columns.get_level_values(0).isin(student_info_cols)
+                ]
+            )
+            .stack(["TypeWens", "Nr"])
+            .fillna({"Gewicht": 1})
+        )
 
     def validate_preferences(self, all_to_groups=None) -> None:
         """Validates voorkeuren DataFrame structure and values."""
@@ -83,9 +92,11 @@ class VoorkeurenProcessor:
             raise ValueError(
                 "Invalid index names. Expected ['Leerling', 'TypeWens', 'Nr']."
             )
-
-        if list(self.df.columns) != ["Gewicht", "Waarde"]:
-            raise ValueError("Invalid columns! Expected ['Gewicht', 'Waarde'].")
+        expected = {"Gewicht", "Waarde"}
+        if set(self.df.columns) != expected:
+            raise ValueError(
+                f"Invalid columns! Expected {sorted(expected)}, got {sorted(self.df.columns)}"
+            )
 
         if (self.df["Gewicht"] <= 0).any():
             raise ValueError("All 'Gewicht' values must be positive.")
