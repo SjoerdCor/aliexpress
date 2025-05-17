@@ -151,11 +151,14 @@ class ProblemSolver:
     max_clique, int (default = 5)
         The number of students that can go to the same group
 
-    max_diff_n_students_per_group, float (default = 3)
+    max_diff_n_students_year, float (default = 2)
         The maximum difference between assigned students to the largest group
         and the smallest group
 
-    max_imbalance_boys_girls, float (default = 2)
+    max_diff_n_students_total, float (default = 3)
+        The maximum difference between largest group and the smallest group (in total)
+
+    max_imbalance_boys_girls_year, float (default = 2)
         The maximum difference between number of boys and girls in each year in a group
 
     max_imbalance_boys_girls_total, float (default = 3)
@@ -174,9 +177,9 @@ class ProblemSolver:
         students: dict,
         groups_to: dict,
         max_clique=5,
-        max_diff_n_students_per_group=3,
-        max_diff_n_students=4,
-        max_imbalance_boys_girls=2,
+        max_diff_n_students_year=2,
+        max_diff_n_students_total=3,
+        max_imbalance_boys_girls_year=2,
         max_imbalance_boys_girls_total=3,
         optimize="studentsatisfaction",
     ):
@@ -184,9 +187,9 @@ class ProblemSolver:
         self.students = students
         self.groups_to = groups_to
         self.max_clique = max_clique
-        self.max_diff_n_students_per_group = max_diff_n_students_per_group
-        self.max_diff_n_students = max_diff_n_students
-        self.max_imbalance_boys_girls = max_imbalance_boys_girls
+        self.max_diff_n_students_year = max_diff_n_students_year
+        self.max_diff_n_students_total = max_diff_n_students_total
+        self.max_imbalance_boys_girls_year = max_imbalance_boys_girls_year
         self.max_imbalance_boys_girls_total = max_imbalance_boys_girls_total
         self.optimize = optimize
         self.prob = pulp.LpProblem("studentdistribution", pulp.LpMaximize)
@@ -208,8 +211,8 @@ class ProblemSolver:
     def _constraint_equal_new_students(self):
         """Every group should have an approximately equal number of new students"""
         avg_new_per_group = len(self.students) / len(self.groups_to)
-        min_in_group = int(avg_new_per_group - self.max_diff_n_students_per_group / 2)
-        max_in_group = int(avg_new_per_group + self.max_diff_n_students_per_group / 2)
+        min_in_group = int(avg_new_per_group - self.max_diff_n_students_year / 2)
+        max_in_group = int(avg_new_per_group + self.max_diff_n_students_year / 2)
 
         new_students_in_group = pulp.LpVariable.dict(
             "new_students_in_group", self.groups_to.keys(), cat="Integer"
@@ -232,8 +235,8 @@ class ProblemSolver:
         avg_per_group = (len(self.students) + sum(current_per_group.values())) / len(
             current_per_group
         )
-        min_in_group = int(avg_per_group - self.max_diff_n_students / 2)
-        max_in_group = int(avg_per_group + self.max_diff_n_students / 2)
+        min_in_group = int(avg_per_group - self.max_diff_n_students_total / 2)
+        max_in_group = int(avg_per_group + self.max_diff_n_students_total / 2)
         total_in_group = pulp.LpVariable.dict(
             "total_in_group", self.groups_to.keys(), cat="Integer"
         )
@@ -298,11 +301,11 @@ class ProblemSolver:
             )
             self.prob += (
                 girls_to_group[group_to] - boys_to_group[group_to]
-                <= self.max_imbalance_boys_girls
+                <= self.max_imbalance_boys_girls_year
             )
             self.prob += (
                 boys_to_group[group_to] - girls_to_group[group_to]
-                <= self.max_imbalance_boys_girls
+                <= self.max_imbalance_boys_girls_year
             )
 
     def _constraint_balanced_boys_girls_total(self):
