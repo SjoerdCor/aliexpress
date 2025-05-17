@@ -155,6 +155,9 @@ class ProblemSolver:
         The maximum difference between assigned students to the largest group
         and the smallest group
 
+    max_imbalance_boys_girls, float (default = 2)
+        The maximum difference between boys and girls in each year in a group
+
     optimize, str (default = "studentsatisfaction")
         What to optimize for: "studentsatisfaction" (total satisfaction of the students,
         where satisfaction is dominated by getting at least 1 preferences),
