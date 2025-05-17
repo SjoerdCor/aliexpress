@@ -156,7 +156,10 @@ class ProblemSolver:
         and the smallest group
 
     max_imbalance_boys_girls, float (default = 2)
-        The maximum difference between boys and girls in each year in a group
+        The maximum difference between number of boys and girls in each year in a group
+
+    max_imbalance_boys_girls_total, float (default = 3)
+        The maximum difference between number of boys and girls in the total group
 
     optimize, str (default = "studentsatisfaction")
         What to optimize for: "studentsatisfaction" (total satisfaction of the students,
@@ -174,6 +177,7 @@ class ProblemSolver:
         max_diff_n_students_per_group=3,
         max_diff_n_students=4,
         max_imbalance_boys_girls=2,
+        max_imbalance_boys_girls_total=3,
         optimize="studentsatisfaction",
     ):
         self.preferences = preferences
@@ -183,6 +187,7 @@ class ProblemSolver:
         self.max_diff_n_students_per_group = max_diff_n_students_per_group
         self.max_diff_n_students = max_diff_n_students
         self.max_imbalance_boys_girls = max_imbalance_boys_girls
+        self.max_imbalance_boys_girls_total = max_imbalance_boys_girls_total
         self.optimize = optimize
         self.prob = pulp.LpProblem("studentdistribution", pulp.LpMaximize)
         self.in_group = self._define_variables()
@@ -331,11 +336,11 @@ class ProblemSolver:
             )
             self.prob += (
                 girls_in_group[group_to] - boys_in_group[group_to]
-                <= self.max_imbalance_boys_girls
+                <= self.max_imbalance_boys_girls_total
             )
             self.prob += (
                 boys_in_group[group_to] - girls_in_group[group_to]
-                <= self.max_imbalance_boys_girls
+                <= self.max_imbalance_boys_girls_total
             )
 
     def _constraint_not_in_forbidden_group(self):
