@@ -39,8 +39,14 @@ class VoorkeurenProcessor:
 
     def __init__(self, filename: str = "voorkeuren.xlsx"):
         self.filename = filename
-        self.input = self._read_voorkeuren()
+        self.input = self._read_voorkeuren().pipe(self.clean_input)
         self.df = self.input.copy()
+
+    @staticmethod
+    def clean_str(x):
+        if isinstance(x, str):
+            return x.strip().title().replace(" ", "")
+        return x
 
     def _read_voorkeuren(self) -> pd.DataFrame:
         """Reads and processes the voorkeuren file into a structured DataFrame."""
@@ -61,6 +67,15 @@ class VoorkeurenProcessor:
 
         self._validate_input(df)
 
+        return df
+
+    def clean_input(self, df):
+        df.index = df.index.map(self.clean_str)
+
+        # Clean each column
+        for col in df.columns:
+            if df[col].dtype == "object":
+                df[col] = df[col].apply(self.clean_str)
         return df
 
     def _validate_input(self, df):
