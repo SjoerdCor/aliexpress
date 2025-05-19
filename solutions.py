@@ -171,8 +171,8 @@ class SolutionAnalyzer:
         """
         cols = {
             "RelativeSatisfaction": "Tevredenheid",
-            "AccountedPreferences": "Aantal gehonoreerde wensen",
-            "NrPreferences": "Aantal wensen",
+            "AccountedWeightedPreferences": "Aantal gehonoreerde wensen",
+            "NrWeightedPreferences": "Aantal wensen",
         }
         return (
             self.student_performance.rename_axis("Leerling")
@@ -181,7 +181,13 @@ class SolutionAnalyzer:
             .style.background_gradient(
                 "RdYlGn", vmin=0, vmax=1, subset=["Tevredenheid"]
             )
-            .format({"Tevredenheid": "{:.2%}"})
+            .format(
+                {
+                    "Tevredenheid": "{:.2%}",
+                    "Aantal gehonoreerde wensen": "{:.1f}",
+                    "Aantal wensen": "{:.1f}",
+                }
+            )
         )
 
     def _calculate_solution_performance(self):
