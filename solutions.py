@@ -318,7 +318,7 @@ class SolutionAnalyzer:
                 adjusted_width
             )
 
-    def to_excel(self) -> None:
+    def to_excel(self, fname: str) -> None:
         """Put the most important outcomes of the solution in an Excel file
 
         Uses the three most important outcomes:
@@ -329,9 +329,14 @@ class SolutionAnalyzer:
         Each outcome is styled and shown in its own worksheet
         The solution metrics are not shown - they are probably too abstract for the
         end user
+
+        Parameters
+        ----------
+        fname : str
+            The filename to save to
         """
         # https://github.com/PyCQA/pylint/issues/3060 pylint: disable=abstract-class-instantiated
-        with pd.ExcelWriter("groepsindeling2.xlsx", engine="openpyxl") as writer:
+        with pd.ExcelWriter(fname, engine="openpyxl") as writer:
 
             self.display_groepsindeling().to_excel(
                 writer, "Groepsindeling", index=False
