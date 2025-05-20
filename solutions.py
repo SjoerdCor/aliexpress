@@ -27,6 +27,7 @@ class SolutionAnalyzer:
         self.input_sheet = input_sheet
 
         self.groepsindeling = self._get_outcome()
+        self.group_report = self._calculate_group_report()
         # The following calculations build upon eachother
         self.satisfied_constraints = self._calculate_satisfied_constraints()
         self.student_performance = self._calculate_performance_per_student()
@@ -62,6 +63,30 @@ class SolutionAnalyzer:
             .unstack("Group", fill_value="")
         )
         return df
+
+    def _calculate_group_report(self) -> pd.DataFrame:
+        distribution = {}
+        for geslacht in "Jongen", "Meisje":
+            sex = "boys" if geslacht == "Jongen" else "girls"
+            for gedeelte in "Totaal", "Jaarlaag":
+                part = "in" if gedeelte == "Totaal" else "to"
+                for group in self.groepsindeling["Group"].unique():
+                    varname = f"{sex}_{part}_group_{group}"
+                    distribution[(group, gedeelte, geslacht)] = (
+                        self.prob.variablesDict()[varname].value()
+                    )
+
+        df_group_report = (
+            pd.Series(distribution)
+            .unstack()
+            .assign(
+                VerschilJongensMeisjes=lambda df: (df["Jongen"] - df["Meisje"]).abs(),
+                Groepsgrootte=lambda df: df["Jongen"] + df["Meisje"],
+            )
+            .astype(int)
+        )
+
+        return df_group_report
 
     @staticmethod
     def _probvars_to_series(prob, name: str, not_in_name: str) -> pd.Series:
@@ -341,6 +366,7 @@ class SolutionAnalyzer:
             self.display_groepsindeling().to_excel(
                 writer, "Groepsindeling", index=False
             )
+            self.group_report.to_excel(writer, "Klassenoverzicht")
 
             self.display_student_performance().to_excel(writer, "Leerlingtevredenheid")
             sheet = writer.book.worksheets[1]
