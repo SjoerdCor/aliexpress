@@ -100,7 +100,8 @@ class VoorkeurenProcessor:
                     self.df.columns.get_level_values(0).isin(student_info_cols)
                 ]
             )
-            .stack(["TypeWens", "Nr"])
+            .stack(["TypeWens", "Nr"], future_stack=True)
+            .dropna(subset="Waarde")
             .fillna({"Gewicht": 1})
         )
 
