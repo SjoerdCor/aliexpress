@@ -56,8 +56,9 @@ class VoorkeurenProcessor:
                 "Leerling"
             )
 
-        df.iloc[0] = df.iloc[0].ffill()
-        df.iloc[1] = df.iloc[1].ffill()
+        with pd.option_context("future.no_silent_downcasting", True):
+            df.iloc[0] = df.iloc[0].ffill().infer_objects(copy=False)
+            df.iloc[1] = df.iloc[1].ffill().infer_objects(copy=False)
         df.iloc[2] = df.iloc[2].replace(
             {"Naam (leerling of stamgroep)": "Waarde", "Stamgroep": "Waarde"},
         )
