@@ -3,7 +3,7 @@
 import pandas as pd
 import pulp
 from openpyxl.utils import get_column_letter
-from openpyxl.styles import numbers
+from openpyxl.styles import numbers, Alignment
 
 from problemsolver import get_satisfaction_integral
 import datareader
@@ -384,10 +384,8 @@ class SolutionAnalyzer:
         # https://github.com/PyCQA/pylint/issues/3060 pylint: disable=abstract-class-instantiated
         with pd.ExcelWriter(fname, engine="openpyxl") as writer:
             groepsindeling = self.display_groepsindeling()
-            groepsindeling.iloc[:-1].to_excel(
-                writer, sheet_name="Data", index=False, startrow=0
-            )
-            sheet = writer.sheets["Data"]
+            groepsindeling.iloc[:-1].to_excel(writer, sheet_name="Groepsindeling")
+            sheet = writer.sheets["Groepsindeling"]
 
             row = (
                 len(groepsindeling) + len(groepsindeling.columns.levels) + 1
@@ -403,6 +401,7 @@ class SolutionAnalyzer:
                 sheet.cell(row=row, column=col_index).value = groepsindeling.loc[
                     "Groepsgrootte", (group, "Jongen")
                 ]
+                sheet.cell(row=row, column=col_index).alignment = Alignment("center")
                 col_index += 2
 
             self.group_report.to_excel(writer, "Klassenoverzicht")
