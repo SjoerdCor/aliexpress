@@ -56,6 +56,9 @@ class SolutionAnalyzer:
     def display_groepsindeling(self):
         """
         Transform DataFrame so that students are grouped by the group in which they are placed
+
+        They are sorted by original Stamgroep. Below each new group, the number of jongens/meisjes
+        and the total group size are shown
         """
 
         df_student_info = pd.DataFrame.from_dict(
@@ -63,6 +66,7 @@ class SolutionAnalyzer:
         ).reset_index(names="Naam")
         df = (
             self.groepsindeling.merge(df_student_info)
+            .sort_values(["Jongen/meisje", "Stamgroep"])
             .assign(
                 Naam=lambda df: df["Naam"] + " (" + df["Stamgroep"].str[:3] + ")",
                 nr=lambda df: df.groupby(["Group", "Jongen/meisje"]).cumcount().add(1),
