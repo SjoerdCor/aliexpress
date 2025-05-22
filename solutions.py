@@ -21,10 +21,12 @@ class SolutionAnalyzer:
         prob: pulp.LpProblem,
         preferences: pd.DataFrame,
         input_sheet: pd.DataFrame,
+        students_info: dict,
     ):
         self.prob = prob
         self.preferences = preferences
         self.input_sheet = input_sheet
+        self.students_info = students_info
 
         self.groepsindeling = self._get_outcome()
         self.group_report = self._calculate_group_report()
@@ -55,13 +57,32 @@ class SolutionAnalyzer:
         """
         Transform DataFrame so that students are grouped by the group in which they are placed
         """
+
+        df_student_info = pd.DataFrame.from_dict(
+            self.students_info, orient="index"
+        ).reset_index(names="Naam")
         df = (
-            self.groepsindeling.assign(
-                nr=lambda df: df.groupby("Group").cumcount().add(1)
+            self.groepsindeling.merge(df_student_info)
+            .assign(
+                Naam=lambda df: df["Naam"] + " (" + df["Stamgroep"].str[:3] + ")",
+                nr=lambda df: df.groupby(["Group", "Jongen/meisje"]).cumcount().add(1),
             )
-            .set_index(["Group", "nr"])["Naam"]
-            .unstack("Group", fill_value="")
+            .set_index(["Group", "nr", "Jongen/meisje"])["Naam"]
+            .unstack(["Group", "Jongen/meisje"], fill_value="")
+            .sort_index(axis="columns")
         )
+
+        # The double transpose works around a concat error for MultiIndex
+        df = pd.concat(
+            [df.transpose(), df.apply(lambda col: (col != "")).sum().rename("#")],
+            axis="columns",
+        ).transpose()
+
+        for group in df.columns.levels[0]:
+            df.loc["Groepsgrootte", (group, "Jongen")] = self.group_report.loc[
+                (group, "Totaal"), "Groepsgrootte"
+            ]
+
         return df
 
     def _calculate_group_report(self) -> pd.DataFrame:
@@ -362,10 +383,28 @@ class SolutionAnalyzer:
         """
         # https://github.com/PyCQA/pylint/issues/3060 pylint: disable=abstract-class-instantiated
         with pd.ExcelWriter(fname, engine="openpyxl") as writer:
-
-            self.display_groepsindeling().to_excel(
-                writer, "Groepsindeling", index=False
+            groepsindeling = self.display_groepsindeling()
+            groepsindeling.iloc[:-1].to_excel(
+                writer, sheet_name="Data", index=False, startrow=0
             )
+            sheet = writer.sheets["Data"]
+
+            row = (
+                len(groepsindeling) + len(groepsindeling.columns.levels) + 1
+            )  # Excel is 1-based + header
+            col_index = 2  # Start bij kolom B in Excel (A is index)
+            for group in groepsindeling.columns.levels[0]:
+                sheet.merge_cells(
+                    start_row=row,
+                    start_column=col_index,
+                    end_row=row,
+                    end_column=col_index + 1,
+                )
+                sheet.cell(row=row, column=col_index).value = groepsindeling.loc[
+                    "Groepsgrootte", (group, "Jongen")
+                ]
+                col_index += 2
+
             self.group_report.to_excel(writer, "Klassenoverzicht")
 
             self.display_student_performance().to_excel(writer, "Leerlingtevredenheid")
