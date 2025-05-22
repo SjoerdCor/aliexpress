@@ -383,26 +383,7 @@ class SolutionAnalyzer:
         """
         # https://github.com/PyCQA/pylint/issues/3060 pylint: disable=abstract-class-instantiated
         with pd.ExcelWriter(fname, engine="openpyxl") as writer:
-            groepsindeling = self.display_groepsindeling()
-            groepsindeling.iloc[:-1].to_excel(writer, sheet_name="Groepsindeling")
-            sheet = writer.sheets["Groepsindeling"]
-
-            row = (
-                len(groepsindeling) + len(groepsindeling.columns.levels) + 1
-            )  # Excel is 1-based + header
-            col_index = 2  # Start bij kolom B in Excel (A is index)
-            for group in groepsindeling.columns.levels[0]:
-                sheet.merge_cells(
-                    start_row=row,
-                    start_column=col_index,
-                    end_row=row,
-                    end_column=col_index + 1,
-                )
-                sheet.cell(row=row, column=col_index).value = groepsindeling.loc[
-                    "Groepsgrootte", (group, "Jongen")
-                ]
-                sheet.cell(row=row, column=col_index).alignment = Alignment("center")
-                col_index += 2
+            self._write_groepsindeling(writer)
 
             self.group_report.to_excel(writer, "Klassenoverzicht")
 
@@ -413,6 +394,29 @@ class SolutionAnalyzer:
             self._autoscale_column_width(sheet)
 
             self.display_satisfied_preferences().to_excel(writer, "VervuldeWensen")
+
+    def _write_groepsindeling(self, writer):
+        groepsindeling = self.display_groepsindeling()
+        groepsindeling.iloc[:-1].to_excel(writer, sheet_name="Groepsindeling")
+        sheet = writer.sheets["Groepsindeling"]
+
+        row = (
+            len(groepsindeling) + len(groepsindeling.columns.levels) + 1
+        )  # Excel is 1-based + header
+        col_index = 2  # Start bij kolom B in Excel (A is index)
+        for group in groepsindeling.columns.levels[0]:
+            sheet.merge_cells(
+                start_row=row,
+                start_column=col_index,
+                end_row=row,
+                end_column=col_index + 1,
+            )
+            sheet.cell(row=row, column=col_index).value = groepsindeling.loc[
+                "Groepsgrootte", (group, "Jongen")
+            ]
+            sheet.cell(row=row, column=col_index).alignment = Alignment("center")
+            col_index += 2
+        self._autoscale_column_width(sheet)
 
     def get_hash(self) -> int:
         return hash(tuple(self._get_outcome().sort_values("Naam")["Group"]))
