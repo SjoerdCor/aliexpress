@@ -50,9 +50,11 @@ class VoorkeurenProcessor:
 
     def _read_voorkeuren(self) -> pd.DataFrame:
         """Reads and processes the voorkeuren file into a structured DataFrame."""
-        df = pd.read_excel(self.filename, header=None, index_col=0).rename_axis(
-            "Leerling"
-        )
+        with warnings.catch_warnings(action="ignore", category=UserWarning):
+            # The data validation in the input sheet gives a UserWarning
+            df = pd.read_excel(self.filename, header=None, index_col=0).rename_axis(
+                "Leerling"
+            )
 
         df.iloc[0] = df.iloc[0].ffill()
         df.iloc[1] = df.iloc[1].ffill()
