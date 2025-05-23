@@ -48,7 +48,7 @@ class SolutionAnalyzer:
         chosen_groups = [
             var.name
             for name, var in self.prob_vars.items()
-            if var.value() == 1 and name.startswith("group")
+            if round(var.value()) == 1 and name.startswith("group")
         ]
         df = pd.DataFrame(chosen_groups)
         df[["Naam", "Group"]] = df[0].str.extract(r"group_\('(.*)',_'(.*)'\)")
