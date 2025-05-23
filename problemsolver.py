@@ -538,7 +538,9 @@ class ProblemSolver:
         RuntimeError
             If the problem is infeasible
         """
-        solver = pulp.PULP_CBC_CMD(logPath="debug.txt")
+
+        solver = pulp.PULP_CBC_CMD(logPath="solver.log")
+
         self.prob.solve(solver)
         if pulp.LpStatus[self.prob.status] != "Optimal":
             raise RuntimeError(

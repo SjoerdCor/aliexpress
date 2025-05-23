@@ -164,4 +164,4 @@ cython_debug/
 !voorkeuren.xlsx
 !groepen.xlsx
 
-debug.txt
+solver.log
