@@ -3,6 +3,8 @@ implements different optimization targets (also known as satisfaction metrics).
 """
 
 import itertools
+import warnings
+
 import pandas as pd
 import pulp
 
@@ -480,6 +482,19 @@ class ProblemSolver:
                 val * wp_satisfied_per_student[n_wp]
                 for n_wp, val in added_satisfaction.items()
             )
+
+            # Add base satisfaction if no positive preferences, so maxmin optimizes
+            # for student with actual preferences
+            with warnings.catch_warnings(
+                action="ignore", category=pd.errors.PerformanceWarning
+            ):
+                if (
+                    self.preferences.loc[(student, "Graag met")]
+                    .query("Gewicht > 0")
+                    .empty
+                ):
+                    satisfaction_per_student[student] += 1
+
         return satisfaction_per_student
 
     def _calculate_total_student_satisfaction(self, satisfied: dict) -> pulp.LpVariable:
