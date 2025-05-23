@@ -425,4 +425,5 @@ class SolutionAnalyzer:
         self._autoscale_column_width(sheet)
 
     def get_hash(self) -> int:
+        "Give unique code for groepsindeling"
         return hash(tuple(self._get_outcome().sort_values("Naam")["Group"]))
