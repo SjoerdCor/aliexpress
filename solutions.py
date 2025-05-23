@@ -18,11 +18,12 @@ class SolutionAnalyzer:
 
     def __init__(
         self,
-        prob_vars: pulp.LpProblem,
+        fname,
         preferences: pd.DataFrame,
         input_sheet: pd.DataFrame,
         students_info: dict,
     ):
+        prob_vars, _ = pulp.LpProblem.from_json(fname)
         self.prob_vars = prob_vars
         self.preferences = preferences
         self.input_sheet = input_sheet
