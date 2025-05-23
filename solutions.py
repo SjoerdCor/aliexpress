@@ -402,18 +402,22 @@ class SolutionAnalyzer:
         # https://github.com/PyCQA/pylint/issues/3060 pylint: disable=abstract-class-instantiated
         with pd.ExcelWriter(fname, engine="openpyxl") as writer:
             self._write_groepsindeling(writer)
-            self.group_report.to_excel(writer, "Klassenoverzicht")
+            self.group_report.to_excel(writer, sheet_name="Klassenoverzicht")
             self.display_transition_matrix().to_excel(
                 writer, sheet_name="Overgangsmatrix"
             )
 
-            self.display_student_performance().to_excel(writer, "Leerlingtevredenheid")
+            self.display_student_performance().to_excel(
+                writer, sheet_name="Leerlingtevredenheid"
+            )
             sheet = writer.book.worksheets[1]
             for cell in sheet["B"]:
                 cell.number_format = numbers.FORMAT_PERCENTAGE
             self._autoscale_column_width(sheet)
 
-            self.display_satisfied_preferences().to_excel(writer, "VervuldeWensen")
+            self.display_satisfied_preferences().to_excel(
+                writer, sheet_name="VervuldeWensen"
+            )
 
     def _write_groepsindeling(self, writer):
         groepsindeling = self.display_groepsindeling()
