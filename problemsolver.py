@@ -3,6 +3,7 @@ implements different optimization targets (also known as satisfaction metrics).
 """
 
 import itertools
+import os
 import warnings
 
 import pandas as pd
@@ -554,7 +555,7 @@ class ProblemSolver:
             If the problem is infeasible
         """
 
-        solver = pulp.PULP_CBC_CMD(logPath="solver.log", msg=False)
+        solver = pulp.PULP_CBC_CMD(logPath="solver.log", msg=False, timeLimit=30)
 
         self.prob.solve(solver)
         if pulp.LpStatus[self.prob.status] != "Optimal":
@@ -575,3 +576,28 @@ class ProblemSolver:
         self.set_optimization_target(satisfied)
         self.solve()
         return self.prob
+
+    def save(self, fname: str, overwrite=False) -> None:
+        """
+        Save variables and model to a json file
+
+        Parameters
+        ----------
+
+        fname : str
+            The file name to write to
+        overwrite : bool
+            Whether to allow overwriting previous solution file
+
+        Raises
+        ------
+            FileExistsError
+            If overwrite isn't allowed, but file exists
+        """
+        if not overwrite and os.path.exists(fname):
+            raise FileExistsError(
+                f"The file '{fname}' already exists. Operation aborted."
+            )
+        if pulp.LpStatus[self.prob.status] != "Optimal":
+            warnings.warn("Writing non-optimal solution")
+        self.prob.to_json(fname)
