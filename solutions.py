@@ -23,8 +23,8 @@ class SolutionAnalyzer:
         input_sheet: pd.DataFrame,
         students_info: dict,
     ):
-        prob_vars, _ = pulp.LpProblem.from_json(fname)
-        self.prob_vars = prob_vars
+        self.fname = fname
+        self.prob_vars, _ = pulp.LpProblem.from_json(fname)
         self.preferences = preferences
         self.input_sheet = input_sheet
         self.students_info = students_info
@@ -371,7 +371,7 @@ class SolutionAnalyzer:
                 adjusted_width
             )
 
-    def to_excel(self, fname: str) -> None:
+    def to_excel(self, fname=None) -> None:
         """Put the most important outcomes of the solution in an Excel file
 
         Uses the three most important outcomes:
@@ -386,8 +386,10 @@ class SolutionAnalyzer:
         Parameters
         ----------
         fname : str
-            The filename to save to
+            The filename to save to. By default the name of the json that was loaded
         """
+        if fname is None:
+            fname = self.fname.replace("json", "xlsx")
         # https://github.com/PyCQA/pylint/issues/3060 pylint: disable=abstract-class-instantiated
         with pd.ExcelWriter(fname, engine="openpyxl") as writer:
             self._write_groepsindeling(writer)
