@@ -34,6 +34,13 @@ def toggle_negative_weights(df: pd.DataFrame, mask="Gewicht") -> pd.DataFrame:
     return df
 
 
+def clean_name(x):
+    """Clean spaces and capitals in names"""
+    if isinstance(x, str):
+        return x.strip().title().replace(" ", "")
+    return x
+
+
 class VoorkeurenProcessor:
     """Read and transform the input sheet to a workable DataFrame"""
 
@@ -41,12 +48,6 @@ class VoorkeurenProcessor:
         self.filename = filename
         self.input = self._read_voorkeuren().pipe(self.clean_input)
         self.df = self.input.copy()
-
-    @staticmethod
-    def clean_str(x):
-        if isinstance(x, str):
-            return x.strip().title().replace(" ", "")
-        return x
 
     def _read_voorkeuren(self) -> pd.DataFrame:
         """Reads and processes the voorkeuren file into a structured DataFrame."""
@@ -73,12 +74,12 @@ class VoorkeurenProcessor:
         return df
 
     def clean_input(self, df):
-        df.index = df.index.map(self.clean_str)
+        df.index = df.index.map(clean_name)
 
         # Clean each column
         for col in df.columns:
             if df[col].dtype == "object":
-                df[col] = df[col].apply(self.clean_str)
+                df[col] = df[col].apply(clean_name)
         return df
 
     def _validate_input(self, df):
@@ -178,7 +179,7 @@ def read_not_together(filename: str) -> list:
         result.append(
             {
                 "Max_aantal_samen": row["Max aantal samen"],
-                "group": set(row.filter(like="Leerling").dropna()),
+                "group": set(row.filter(like="Leerling").dropna().apply(clean_name)),
             }
         )
     return result
