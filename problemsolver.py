@@ -158,6 +158,10 @@ class ProblemSolver:
     max_clique, int (default = 5)
         The number of students that can go to the same group
 
+    max_clique_sex, int (default = 3)
+        The number of students from an original group of the same sex that can go
+        to the same group
+
     max_diff_n_students_year, float (default = 2)
         The maximum difference between assigned students to the largest group
         and the smallest group
@@ -194,6 +198,7 @@ class ProblemSolver:
         groups_to: dict,
         not_together: list[dict],
         max_clique=5,
+        max_clique_sex=3,
         max_diff_n_students_year=2,
         max_diff_n_students_total=3,
         max_imbalance_boys_girls_year=2,
@@ -207,6 +212,7 @@ class ProblemSolver:
         self._validate_not_together_students_exist()
 
         self.max_clique = max_clique
+        self.max_clique_sex = max_clique_sex
         self.max_diff_n_students_year = max_diff_n_students_year
         self.max_diff_n_students_total = max_diff_n_students_total
         self.max_imbalance_boys_girls_year = max_imbalance_boys_girls_year
@@ -295,6 +301,24 @@ class ProblemSolver:
                 self.prob += (
                     from_group_to_group[(group_from, group_to)] <= self.max_clique
                 )
+
+    def _constraint_clique_sex_group(self):
+        """Every group can have a max number of students of the samen sex
+        from an earlier group (no cliques)"""
+        groups_from = {self.students[student]["Stamgroep"] for student in self.students}
+        sexes = {self.students[student]["Jongen/meisje"] for student in self.students}
+
+        for group_to in self.groups_to:
+            for group_from in groups_from:
+                for sex in sexes:
+                    this_clique = [
+                        self.in_group[(student, group_to)]
+                        for student in self.students
+                        if self.students[student]["Stamgroep"] == group_from
+                        and self.students[student]["Jongen/meisje"] == sex
+                    ]
+
+                    self.prob += pulp.lpSum(this_clique) <= self.max_clique_sex
 
     def _constraint_equal_boys_girls(self):
         boys_to_group = pulp.LpVariable.dicts(
@@ -407,6 +431,7 @@ class ProblemSolver:
         self._constraint_balanced_boys_girls_total()
         self._constraint_not_together()
         self._constraint_minimal_satisfaction()
+        self._constraint_clique_sex_group()
 
     def _add_variable_in_same_group(
         self, student1: str, student2: str
