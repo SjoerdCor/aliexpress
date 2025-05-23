@@ -484,17 +484,20 @@ class ProblemSolver:
                 for n_wp, val in added_satisfaction.items()
             )
 
-            # Add base satisfaction if no positive preferences, so maxmin optimizes
-            # for student with actual preferences
             with warnings.catch_warnings(
                 action="ignore", category=pd.errors.PerformanceWarning
             ):
-                if (
-                    self.preferences.loc[(student, "Graag met")]
-                    .query("Gewicht > 0")
-                    .empty
-                ):
+                positive_preferences = self.preferences.loc[
+                    (student, "Graag met")
+                ].query("Gewicht > 0")
+                if positive_preferences.empty:
+                    # Add base satisfaction if no positive preferences, so maxmin optimizes
+                    # for student with actual preferences
                     satisfaction_per_student[student] += 1
+                else:
+                    max_wishes = positive_preferences["Gewicht"].sum()
+                    max_satisfaction = get_satisfaction_integral(0, max_wishes)
+                    satisfaction_per_student[student] /= max_satisfaction
 
         return satisfaction_per_student
 
