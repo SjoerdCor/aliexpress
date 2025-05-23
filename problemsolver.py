@@ -177,6 +177,15 @@ class ProblemSolver:
         or "weighted_preferences"
     """
 
+    def _validate_not_together_students_exist(self):
+        for i, rule in enumerate(self.not_together, start=1):
+            group = rule["group"]
+            for student in group:
+                if student not in self.students:
+                    raise ValueError(
+                        f"Student {student!r} from group {i} in not together not found as student"
+                    )
+
     def __init__(
         self,
         preferences: pd.DataFrame,
@@ -194,7 +203,8 @@ class ProblemSolver:
         self.students = students
         self.groups_to = groups_to
         self.not_together = not_together
-        # TODO: validate not_together groups against student names
+        self._validate_not_together_students_exist()
+
         self.max_clique = max_clique
         self.max_diff_n_students_year = max_diff_n_students_year
         self.max_diff_n_students_total = max_diff_n_students_total
