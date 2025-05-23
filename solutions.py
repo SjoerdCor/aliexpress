@@ -54,6 +54,13 @@ class SolutionAnalyzer:
         df[["Naam", "Group"]] = df[0].str.extract(r"group_\('(.*)',_'(.*)'\)")
         return df.drop(columns=[0])
 
+    def display_transition_matrix(self):
+        df_student_info = pd.DataFrame.from_dict(
+            self.students_info, orient="index"
+        ).reset_index(names="Naam")
+        df = self.groepsindeling.merge(df_student_info)
+        return pd.crosstab(df["Stamgroep"], df["Group"])
+
     def display_groepsindeling(self):
         """
         Transform DataFrame so that students are grouped by the group in which they are placed
