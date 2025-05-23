@@ -18,12 +18,12 @@ class SolutionAnalyzer:
 
     def __init__(
         self,
-        prob: pulp.LpProblem,
+        prob_vars: pulp.LpProblem,
         preferences: pd.DataFrame,
         input_sheet: pd.DataFrame,
         students_info: dict,
     ):
-        self.prob = prob
+        self.prob_vars = prob_vars
         self.preferences = preferences
         self.input_sheet = input_sheet
         self.students_info = students_info
@@ -45,9 +45,9 @@ class SolutionAnalyzer:
             The result of prob.variables()
         """
         chosen_groups = [
-            v.name
-            for v in self.prob.variables()
-            if v.value() == 1 and v.name.startswith("group")
+            var.name
+            for name, var in self.prob_vars.items()
+            if var.value() == 1 and name.startswith("group")
         ]
         df = pd.DataFrame(chosen_groups)
         df[["Naam", "Group"]] = df[0].str.extract(r"group_\('(.*)',_'(.*)'\)")
@@ -97,9 +97,9 @@ class SolutionAnalyzer:
                 part = "in" if gedeelte == "Totaal" else "to"
                 for group in self.groepsindeling["Group"].unique():
                     varname = f"{sex}_{part}_group_{group}"
-                    distribution[(group, gedeelte, geslacht)] = (
-                        self.prob.variablesDict()[varname].value()
-                    )
+                    distribution[(group, gedeelte, geslacht)] = self.prob_vars[
+                        varname
+                    ].value()
 
         df_group_report = (
             pd.Series(distribution)
@@ -114,7 +114,7 @@ class SolutionAnalyzer:
         return df_group_report
 
     @staticmethod
-    def _probvars_to_series(prob, name: str, not_in_name: str) -> pd.Series:
+    def _probvars_to_series(prob_vars: dict, name: str, not_in_name: str) -> pd.Series:
         """
         Extract (accounted) preferences from problem to a series
 
@@ -123,6 +123,8 @@ class SolutionAnalyzer:
 
         Parameters
         ----------
+        prob_vars : dict
+            Dictionary with name as key and LpVar as value
         name: str
             The beginning of the variable name, will also be the name of the Series
         not_in_name: str
@@ -135,9 +137,9 @@ class SolutionAnalyzer:
 
         """
         constraints = {
-            v.name: v.value()
-            for v in prob.variables()
-            if v.name.startswith(name) and not not_in_name in v.name
+            varname: var.value()
+            for varname, var in prob_vars.items()
+            if varname.startswith(name) and not not_in_name in varname
         }
         series = pd.Series(constraints, name=name)
         ix = (
@@ -164,10 +166,10 @@ class SolutionAnalyzer:
             pd.DataFrame with Satisfied and WeightedSatisfied preferences
         """
         satisfied = self._probvars_to_series(
-            self.prob, "Satisfied", "per_group"
+            self.prob_vars, "Satisfied", "per_group"
         ).astype("boolean")
         weighted_satisfied = self._probvars_to_series(
-            self.prob, "WeightedSatisfied", "per_group"
+            self.prob_vars, "WeightedSatisfied", "per_group"
         )
         df = pd.concat([satisfied, weighted_satisfied], axis="columns")
         df.index = df.index.set_levels(pd.to_numeric(df.index.levels[1]), level=1)
