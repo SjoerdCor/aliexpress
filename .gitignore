@@ -163,5 +163,6 @@ cython_debug/
 *.pptx
 !voorkeuren.xlsx
 !groepen.xlsx
+!niet_samen.xlsx
 
 solver.log

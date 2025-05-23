@@ -150,6 +150,9 @@ class ProblemSolver:
         A dictionary that contains the groups to which the students can be sent as keys,
         and as values a dictionary with characteristics: the number of boys and the
         number of girls
+    not_together: list[dict]
+        A list where each element is a dictionary containing a group of students and
+        a max_aantal_samen, defining how many can at most be together in a new group
 
     max_clique, int (default = 5)
         The number of students that can go to the same group
@@ -179,6 +182,7 @@ class ProblemSolver:
         preferences: pd.DataFrame,
         students: dict,
         groups_to: dict,
+        not_together: list[dict],
         max_clique=5,
         max_diff_n_students_year=2,
         max_diff_n_students_total=3,
@@ -189,6 +193,8 @@ class ProblemSolver:
         self.preferences = preferences
         self.students = students
         self.groups_to = groups_to
+        self.not_together = not_together
+        # TODO: validate not_together groups against student names
         self.max_clique = max_clique
         self.max_diff_n_students_year = max_diff_n_students_year
         self.max_diff_n_students_total = max_diff_n_students_total
@@ -356,6 +362,21 @@ class ProblemSolver:
             gr = row["Waarde"]
             self.prob += self.in_group[(student, gr)] == 0
 
+    def _constraint_not_together(self):
+        """Enforces constraint of difficult students not being together"""
+        for dct in self.not_together:
+            for group_to in self.groups_to:
+                self.prob += (
+                    pulp.lpSum(
+                        [
+                            self.in_group[(student, group_to)]
+                            for student in self.students
+                            if student in dct["group"]
+                        ]
+                    )
+                    <= dct["Max_aantal_samen"]
+                )
+
     def add_constraints(self):
         """Add all hard constraints via the functions per constraint"""
         self._constraint_student_to_exactly_one_group()
@@ -366,6 +387,7 @@ class ProblemSolver:
         self._constraint_equal_students_from_previous_group()
         self._constraint_equal_boys_girls()
         self._constraint_balanced_boys_girls_total()
+        self._constraint_not_together()
 
     def _add_variable_in_same_group(
         self, student1: str, student2: str

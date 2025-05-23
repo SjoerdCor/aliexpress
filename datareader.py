@@ -168,3 +168,17 @@ class VoorkeurenProcessor:
         """
         meta_info_cols = ["Jongen/meisje", "Stamgroep"]
         return self.input[meta_info_cols].droplevel([1, 2], "columns").to_dict("index")
+
+
+def read_not_together(filename: str) -> list:
+    """Reads the preferences for students who should not be togeter (in large groups)"""
+    df_not_together = pd.read_excel(filename)
+    result = []
+    for _, row in df_not_together.iterrows():
+        result.append(
+            {
+                "Max_aantal_samen": row["Max aantal samen"],
+                "group": set(row.filter(like="Leerling").dropna()),
+            }
+        )
+    return result
