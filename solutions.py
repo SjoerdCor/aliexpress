@@ -402,8 +402,10 @@ class SolutionAnalyzer:
         # https://github.com/PyCQA/pylint/issues/3060 pylint: disable=abstract-class-instantiated
         with pd.ExcelWriter(fname, engine="openpyxl") as writer:
             self._write_groepsindeling(writer)
-
             self.group_report.to_excel(writer, "Klassenoverzicht")
+            self.display_transition_matrix().to_excel(
+                writer, sheet_name="Overgangsmatrix"
+            )
 
             self.display_student_performance().to_excel(writer, "Leerlingtevredenheid")
             sheet = writer.book.worksheets[1]
