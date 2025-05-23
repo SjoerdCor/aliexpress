@@ -3,6 +3,7 @@ implements different optimization targets (also known as satisfaction metrics).
 """
 
 import itertools
+import math
 import os
 import warnings
 
@@ -212,13 +213,13 @@ class ProblemSolver:
         self.max_imbalance_boys_girls_total = max_imbalance_boys_girls_total
         self.optimize = optimize
         self.prob = pulp.LpProblem("studentdistribution", pulp.LpMaximize)
-        self.in_group = self._define_variables()
-
-    def _define_variables(self):
-        return pulp.LpVariable.dicts(
+        self.in_group = pulp.LpVariable.dicts(
             "group",
             itertools.product(self.students.keys(), self.groups_to.keys()),
             cat="Binary",
+        )
+        self.studentsatisfaction = pulp.LpVariable.dict(
+            "studentsatisfaction", self.students.keys(), cat="Continuous"
         )
 
     def _constraint_student_to_exactly_one_group(self):
@@ -387,6 +388,13 @@ class ProblemSolver:
                     <= dct["Max_aantal_samen"]
                 )
 
+    def _constraint_minimal_satisfaction(self):
+        for student, info in self.students.items():
+            if not math.isnan(info["MinimaleTevredenheid"]):
+                self.prob += (
+                    self.studentsatisfaction[student] >= info["MinimaleTevredenheid"]
+                ), f"MinimalSatisfaction{student}"
+
     def add_constraints(self):
         """Add all hard constraints via the functions per constraint"""
         self._constraint_student_to_exactly_one_group()
@@ -398,6 +406,7 @@ class ProblemSolver:
         self._constraint_equal_boys_girls()
         self._constraint_balanced_boys_girls_total()
         self._constraint_not_together()
+        self._constraint_minimal_satisfaction()
 
     def _add_variable_in_same_group(
         self, student1: str, student2: str
@@ -486,9 +495,6 @@ class ProblemSolver:
 
     def _calculate_student_satisfaction(self, satisfied: dict) -> pulp.LpVariable:
         added_satisfaction = calculate_added_satisfaction(self.preferences)
-        satisfaction_per_student = pulp.LpVariable.dict(
-            "studentsatisfaction", self.students.keys(), cat="Continuous"
-        )
         weighted_satisfied = self._calculate_weighted_preferences(satisfied)
 
         for student in self.students:
@@ -511,7 +517,7 @@ class ProblemSolver:
                 wp_satisfied_per_student,
             )
 
-            satisfaction_per_student[student] = pulp.lpSum(
+            satisfaction_current_student = pulp.lpSum(
                 val * wp_satisfied_per_student[n_wp]
                 for n_wp, val in added_satisfaction.items()
             )
@@ -525,26 +531,28 @@ class ProblemSolver:
                 if positive_preferences.empty:
                     # Add base satisfaction if no positive preferences, so maxmin optimizes
                     # for student with actual preferences
-                    satisfaction_per_student[student] += 1
+                    satisfaction_current_student += 1
                 else:
                     max_wishes = positive_preferences["Gewicht"].sum()
                     max_satisfaction = get_satisfaction_integral(0, max_wishes)
-                    satisfaction_per_student[student] /= max_satisfaction
-
-        return satisfaction_per_student
+                    satisfaction_current_student /= max_satisfaction
+            self.prob += (
+                self.studentsatisfaction[student] == satisfaction_current_student
+            )
+        return self.studentsatisfaction
 
     def _calculate_total_student_satisfaction(self, satisfied: dict) -> pulp.LpVariable:
-        satisfaction_per_student = self._calculate_student_satisfaction(satisfied)
-        return pulp.lpSum(satisfaction_per_student)
+        self._calculate_student_satisfaction(satisfied)
+        return pulp.lpSum(self.studentsatisfaction)
 
     def _least_satisfied_student(self, satisfied: dict) -> pulp.LpVariable:
-        satisfaction_per_student = self._calculate_student_satisfaction(satisfied)
+        self._calculate_student_satisfaction(satisfied)
 
         minimal_satisfaction = pulp.LpVariable("MinimalSatisfaction")
-        for satisfaction in satisfaction_per_student.values():
+        for satisfaction in self.studentsatisfaction.values():
             self.prob += minimal_satisfaction <= satisfaction
         M = 1_000_000  # Large enough so min dominates sum
-        return M * minimal_satisfaction + pulp.lpSum(satisfaction_per_student.values())
+        return M * minimal_satisfaction + pulp.lpSum(self.studentsatisfaction.values())
 
     def set_optimization_target(self, satisfied: dict) -> None:
         """Calculate the variables which can be directly optimized

@@ -44,6 +44,8 @@ def clean_name(x):
 class VoorkeurenProcessor:
     """Read and transform the input sheet to a workable DataFrame"""
 
+    student_info_cols = ["MinimaleTevredenheid", "Jongen/meisje", "Stamgroep"]
+
     def __init__(self, filename: str = "voorkeuren.xlsx"):
         self.filename = filename
         self.input = self._read_voorkeuren().pipe(self.clean_input)
@@ -94,11 +96,10 @@ class VoorkeurenProcessor:
 
     def restructure(self) -> None:
         """Restructures voorkeuren DataFrame from wide to long format with default values."""
-        student_info_cols = ["Jongen/meisje", "Stamgroep"]
         self.df = (
             self.df.drop(
                 columns=self.df.columns[
-                    self.df.columns.get_level_values(0).isin(student_info_cols)
+                    self.df.columns.get_level_values(0).isin(self.student_info_cols)
                 ]
             )
             .stack(["TypeWens", "Nr"], future_stack=True)
@@ -167,8 +168,11 @@ class VoorkeurenProcessor:
         dict
             Per student all known information
         """
-        meta_info_cols = ["Jongen/meisje", "Stamgroep"]
-        return self.input[meta_info_cols].droplevel([1, 2], "columns").to_dict("index")
+        return (
+            self.input[self.student_info_cols]
+            .droplevel([1, 2], "columns")
+            .to_dict("index")
+        )
 
 
 def read_not_together(filename: str) -> list:
