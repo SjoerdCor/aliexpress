@@ -555,7 +555,11 @@ class ProblemSolver:
             If the problem is infeasible
         """
 
-        solver = pulp.PULP_CBC_CMD(logPath="solver.log", msg=False, timeLimit=30)
+        kwargs = {"logPath": "solver.log", "msg": False}
+        if pulp.HiGHS_CMD().available():
+            solver = pulp.HiGHS_CMD(**kwargs, gapRel=0)
+        else:
+            solver = pulp.PULP_CBC_CMD(**kwargs)
 
         self.prob.solve(solver)
         if pulp.LpStatus[self.prob.status] != "Optimal":

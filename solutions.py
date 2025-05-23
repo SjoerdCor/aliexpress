@@ -166,9 +166,11 @@ class SolutionAnalyzer:
         -------
             pd.DataFrame with Satisfied and WeightedSatisfied preferences
         """
-        satisfied = self._probvars_to_series(
-            self.prob_vars, "Satisfied", "per_group"
-        ).astype("boolean")
+        satisfied = (
+            self._probvars_to_series(self.prob_vars, "Satisfied", "per_group")
+            .astype(int)  # Floats must be converted to int before boolean accepts them
+            .astype("boolean")
+        )
         weighted_satisfied = self._probvars_to_series(
             self.prob_vars, "WeightedSatisfied", "per_group"
         )
