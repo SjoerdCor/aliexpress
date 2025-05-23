@@ -554,7 +554,7 @@ class ProblemSolver:
             If the problem is infeasible
         """
 
-        solver = pulp.PULP_CBC_CMD(logPath="solver.log")
+        solver = pulp.PULP_CBC_CMD(logPath="solver.log", msg=False)
 
         self.prob.solve(solver)
         if pulp.LpStatus[self.prob.status] != "Optimal":
