@@ -609,7 +609,16 @@ class ProblemSolver:
         optimization_target = optimization_func(satisfied)
         self.prob += optimization_target
 
-    def _constraint_not_solution(self, solution):
+    def _constraint_not_solution(self, solution, distance=1):
+        """Add constraint that solution is not allowed
+
+        Parameters
+        ----------
+        solution : dictionary
+            of shape .in_group, with fixed values
+        distance : int, optional
+            how many values must at least be different, by default 1
+        """
         self.prob += (
             pulp.lpSum(
                 [
@@ -617,7 +626,7 @@ class ProblemSolver:
                     for key in solution.keys()
                 ]
             )
-            >= 1
+            >= distance
         )
 
     def solve(self, solutions_to_ignore=None) -> None:
@@ -625,9 +634,11 @@ class ProblemSolver:
 
         Parameters
         ----------
-        solutions_to_ignore : Iterable
-            Iterable of dictionaries for solutions which should not be allowed (e.g. because
-            they are already known). Should be dictionaries with key (student, group) and value 0 or 1
+        solutions_to_ignore : Iterable of tuples
+            Iterable of 2-tuples. First element must be a dictionary for solutions which
+            should not be allowed (e.g. because they are already known). Should be
+            dictionaries with key (student, group) and value 0 or . The second element
+            must be an int that declares the distance
 
         Raises
         ------
@@ -635,8 +646,8 @@ class ProblemSolver:
             If the problem is infeasible
         """
         if solutions_to_ignore is not None:
-            for solution in solutions_to_ignore:
-                self._constraint_not_solution(solution)
+            for solution, dist in solutions_to_ignore:
+                self._constraint_not_solution(solution, distance=dist)
 
         kwargs = {"logPath": "solver.log", "msg": False}
         if pulp.HiGHS_CMD().available():
@@ -653,37 +664,46 @@ class ProblemSolver:
             {k: round(v.value()) for k, v in self.in_group.items()}
         )
 
-    def run(self, fname=None, overwrite=False, n_solutions=1) -> pulp.LpProblem:
+    def run(
+        self, filename=None, overwrite=False, n_solutions=1, distance=1
+    ) -> pulp.LpProblem:
         """Set up and solve the LpProblem
 
         Parameters
         ----------
-        fname : str
+        filename : str
             Optional. If given, save each solution to this file. If multiple solutions
             each will be written to their own file
         overwrite : bool
             Whether to allow overwriting previous solution file
-
         n_solutions : int, (default = 1)
             The number of solutions to find.
+        distance : int
+            The distance that must be held from each known solution
 
         Returns
         -------
         pulp.LpProblem
             The solved LpProblem
         """
-        self.add_constraints()
-        satisfied = self.add_variables_which_preferences_satisfied()
-        self.set_optimization_target(satisfied)
+        if not self.prob.constraints and self.prob.objective is None:
+            self.add_constraints()
+            satisfied = self.add_variables_which_preferences_satisfied()
+            self.set_optimization_target(satisfied)
 
         for i in range(n_solutions):
+            solutions_to_ignore = [(sol, distance) for sol in self.known_solutions]
             try:
-                self.solve(solutions_to_ignore=self.known_solutions)
+                self.solve(solutions_to_ignore=solutions_to_ignore)
             except RuntimeError as e:
                 raise RuntimeError(f"Failed to find {i + 1} solution(s)") from e
-            if fname is not None:
-                if n_solutions > 1:
-                    fname = fname.replace(".json", f"_{i + 1}.json")
+            if filename is not None:
+                if n_solutions == 1:
+                    fname = filename
+                else:
+                    fname = filename.replace(
+                        ".json", f"_{len(self.known_solutions)}.json"
+                    )
                 self.save(fname, overwrite=overwrite)
         return self.prob
 
