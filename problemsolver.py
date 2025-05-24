@@ -698,12 +698,7 @@ class ProblemSolver:
             except RuntimeError as e:
                 raise RuntimeError(f"Failed to find {i + 1} solution(s)") from e
             if filename is not None:
-                if n_solutions == 1:
-                    fname = filename
-                else:
-                    fname = filename.replace(
-                        ".json", f"_{len(self.known_solutions)}.json"
-                    )
+                fname = filename.replace(".json", f"_{len(self.known_solutions)}.json")
                 self.save(fname, overwrite=overwrite)
         return self.prob
 
