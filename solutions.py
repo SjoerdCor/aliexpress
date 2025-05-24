@@ -105,9 +105,9 @@ class SolutionAnalyzer:
                 part = "in" if gedeelte == "Totaal" else "to"
                 for group in self.groepsindeling["Group"].unique():
                     varname = f"{sex}_{part}_group_{group}"
-                    distribution[(group, gedeelte, geslacht)] = self.prob_vars[
-                        varname
-                    ].value()
+                    distribution[(group, gedeelte, geslacht)] = round(
+                        self.prob_vars[varname].value()
+                    )
 
         df_group_report = (
             pd.Series(distribution)
