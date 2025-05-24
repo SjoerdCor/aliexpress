@@ -227,6 +227,7 @@ class ProblemSolver:
         self.studentsatisfaction = pulp.LpVariable.dict(
             "studentsatisfaction", self.students.keys(), cat="Continuous"
         )
+        self.known_solutions = []
 
     def _constraint_student_to_exactly_one_group(self):
         for student in self.students:
@@ -648,9 +649,23 @@ class ProblemSolver:
             raise RuntimeError(
                 f"Could not solve LP-problem, status {pulp.LpStatus[self.prob.status]!r}"
             )
+        self.known_solutions.append(
+            {k: round(v.value()) for k, v in self.in_group.items()}
+        )
 
-    def run(self) -> pulp.LpProblem:
+    def run(self, fname=None, overwrite=False, n_solutions=1) -> pulp.LpProblem:
         """Set up and solve the LpProblem
+
+        Parameters
+        ----------
+        fname : str
+            Optional. If given, save each solution to this file. If multiple solutions
+            each will be written to their own file
+        overwrite : bool
+            Whether to allow overwriting previous solution file
+
+        n_solutions : int, (default = 1)
+            The number of solutions to find.
 
         Returns
         -------
@@ -660,7 +675,16 @@ class ProblemSolver:
         self.add_constraints()
         satisfied = self.add_variables_which_preferences_satisfied()
         self.set_optimization_target(satisfied)
-        self.solve()
+
+        for i in range(n_solutions):
+            try:
+                self.solve(solutions_to_ignore=self.known_solutions)
+            except RuntimeError as e:
+                raise RuntimeError(f"Failed to find {i + 1} solution(s)") from e
+            if fname is not None:
+                if n_solutions > 1:
+                    fname = fname.replace(".json", f"_{i + 1}.json")
+                self.save(fname, overwrite=overwrite)
         return self.prob
 
     def save(self, fname: str, overwrite=False) -> None:
@@ -674,7 +698,6 @@ class ProblemSolver:
             The file name to write to
         overwrite : bool
             Whether to allow overwriting previous solution file
-
         Raises
         ------
             FileExistsError
