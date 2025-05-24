@@ -608,20 +608,34 @@ class ProblemSolver:
         optimization_target = optimization_func(satisfied)
         self.prob += optimization_target
 
-    def solve(self) -> None:
+    def _constraint_not_solution(self, solution):
+        self.prob += (
+            pulp.lpSum(
+                [
+                    self.in_group[key] if solution[key] == 0 else 1 - self.in_group[key]
+                    for key in solution.keys()
+                ]
+            )
+            >= 1
+        )
+
+    def solve(self, solutions_to_ignore=None) -> None:
         """Mathematically solve the problem
 
         Parameters
         ----------
-        optimization_targets : dict
-            Dictionary containing the possible optimization targets. Which one is chosen
-            depends on the class setup
+        solutions_to_ignore : Iterable
+            Iterable of dictionaries for solutions which should not be allowed (e.g. because
+            they are already known). Should be dictionaries with key (student, group) and value 0 or 1
 
         Raises
         ------
         RuntimeError
             If the problem is infeasible
         """
+        if solutions_to_ignore is not None:
+            for solution in solutions_to_ignore:
+                self._constraint_not_solution(solution)
 
         kwargs = {"logPath": "solver.log", "msg": False}
         if pulp.HiGHS_CMD().available():
