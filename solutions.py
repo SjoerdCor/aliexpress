@@ -445,3 +445,41 @@ class SolutionAnalyzer:
     def get_hash(self) -> int:
         "Give unique code for groepsindeling"
         return hash(tuple(self._get_outcome().sort_values("Naam")["Group"]))
+
+    def compare_to(self, other):
+        """Compares this solution to another
+
+        Parameters
+        ----------
+        other : SolutionAnalyzer object
+            Other solution to be compared
+        """
+        diffs_groepsindeling = (
+            self.groepsindeling.set_index("Naam")
+            .join(
+                other.groepsindeling.set_index("Naam"),
+                how="left",
+                lsuffix="_this",
+                rsuffix="_other",
+            )
+            .query("Group_this != Group_other")
+        )
+
+        for i, row in diffs_groepsindeling.iterrows():
+            print(f"{i}:\t{row['Group_this']} --> {row['Group_other']}")
+        print("\n" + "-" * 30 + "\n")
+        diffs_satisfaction = (
+            self.student_performance[["RelativeSatisfaction"]]
+            .join(
+                other.student_performance[["RelativeSatisfaction"]],
+                how="left",
+                lsuffix="_this",
+                rsuffix="_other",
+            )
+            .query("RelativeSatisfaction_this != RelativeSatisfaction_other")
+        )
+
+        for i, row in diffs_satisfaction.iterrows():
+            print(
+                f"{i}:\t{row['RelativeSatisfaction_this']:.1%} --> {row['RelativeSatisfaction_other']:.1%}"
+            )
