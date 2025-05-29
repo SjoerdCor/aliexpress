@@ -230,6 +230,19 @@ class ProblemSolver:
         )
         self.known_solutions = []
 
+    def get_solution_name(self):
+        """Create name from config to identify the solution"""
+        attrs = [
+            self.optimize,
+            self.max_clique,
+            self.max_clique_sex,
+            self.max_diff_n_students_total,
+            self.max_diff_n_students_year,
+            self.max_imbalance_boys_girls_total,
+            self.max_imbalance_boys_girls_year,
+        ]
+        return "".join(str(s) for s in attrs)
+
     def _constraint_student_to_exactly_one_group(self):
         for student in self.students:
             self.prob += (
@@ -764,15 +777,14 @@ class ProblemSolver:
         )
 
     def run(
-        self, filename=None, overwrite=False, n_solutions=1, distance=1
+        self, save=True, overwrite=False, n_solutions=1, distance=1
     ) -> pulp.LpProblem:
         """Set up and solve the LpProblem
 
         Parameters
         ----------
-        filename : str
-            Optional. If given, save each solution to this file. If multiple solutions
-            each will be written to their own file
+        save : bool (default = True)
+            Whether to save the outcomes
         overwrite : bool
             Whether to allow overwriting previous solution file
         n_solutions : int, (default = 1)
@@ -789,6 +801,8 @@ class ProblemSolver:
             raise NotImplementedError(
                 "Can not generate multiple solutions for lexmaxmin"
             )
+        if save:
+            os.makedirs(self.get_solution_name(), exist_ok=True)
         if not self.prob.constraints and self.prob.objective is None:
             self.add_constraints()
             satisfied = self.add_variables_which_preferences_satisfied()
@@ -800,8 +814,8 @@ class ProblemSolver:
                 self.solve(solutions_to_ignore=solutions_to_ignore)
             except RuntimeError as e:
                 raise RuntimeError(f"Failed to find {i + 1} solution(s)") from e
-            if filename is not None:
-                fname = filename.replace(".json", f"_{len(self.known_solutions)}.json")
+            if save:
+                fname = os.path.join(self.get_solution_name(), f"{i+1}.json")
                 self.save(fname, overwrite=overwrite)
         return self.prob
 
