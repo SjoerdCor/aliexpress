@@ -175,7 +175,7 @@ class SolutionAnalyzer:
         """
         satisfied = (
             self._probvars_to_series(self.prob_vars, "Satisfied", "per_group")
-            .astype(int)  # Floats must be converted to int before boolean accepts them
+            .round()  # Clean up numerical issues
             .astype("boolean")
         )
         weighted_satisfied = self._probvars_to_series(
