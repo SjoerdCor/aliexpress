@@ -410,7 +410,7 @@ class SolutionAnalyzer:
             self.display_student_performance().to_excel(
                 writer, sheet_name="Leerlingtevredenheid"
             )
-            sheet = writer.book.worksheets[1]
+            sheet = writer.book.worksheets[-1]
             for cell in sheet["B"]:
                 cell.number_format = numbers.FORMAT_PERCENTAGE
             self._autoscale_column_width(sheet)
@@ -418,6 +418,9 @@ class SolutionAnalyzer:
             self.display_satisfied_preferences().to_excel(
                 writer, sheet_name="VervuldeWensen"
             )
+            sheet = writer.book.worksheets[-1]
+            for cell in sheet["B"]:
+                cell.number_format = numbers.FORMAT_PERCENTAGE
 
     def _write_groepsindeling(self, writer):
         groepsindeling = self.display_groepsindeling()
