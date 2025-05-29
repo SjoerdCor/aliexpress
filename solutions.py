@@ -483,3 +483,13 @@ class SolutionAnalyzer:
             print(
                 f"{i}:\t{row['RelativeSatisfaction_this']:.1%} --> {row['RelativeSatisfaction_other']:.1%}"
             )
+
+    def show_all(self, to_excel=True):
+        """Show all views of the outcome. Only works in Jupyter notebooks"""
+        display(self.display_groepsindeling())
+        display(self.group_report)
+        display(self.display_student_performance())
+        display(self.display_transition_matrix())
+        display(self.display_satisfied_preferences())
+        if to_excel:
+            self.to_excel()
