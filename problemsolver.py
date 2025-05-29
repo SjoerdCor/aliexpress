@@ -783,6 +783,10 @@ class ProblemSolver:
         pulp.LpProblem
             The solved LpProblem
         """
+        if self.optimize == "lexmaxmin" and n_solutions > 1:
+            raise NotImplementedError(
+                "Can not generate multiple solutions for lexmaxmin"
+            )
         if not self.prob.constraints and self.prob.objective is None:
             self.add_constraints()
             satisfied = self.add_variables_which_preferences_satisfied()
