@@ -159,10 +159,5 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-*.xlsx
 *.pptx
-!voorkeuren.xlsx
-!groepen.xlsx
-!niet_samen.xlsx
-
 solver.log
