@@ -815,7 +815,9 @@ class ProblemSolver:
             except RuntimeError as e:
                 raise RuntimeError(f"Failed to find {i + 1} solution(s)") from e
             if save:
-                fname = os.path.join(self.get_solution_name(), f"{i+1}.json")
+                fname = os.path.join(
+                    self.get_solution_name(), f"{len(self.known_solutions)}.json"
+                )
                 self.save(fname, overwrite=overwrite)
         return self.prob
 
