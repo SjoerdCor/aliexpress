@@ -2,6 +2,7 @@
 name = "ali-express"
 version = "0.1.0"
 description = "Calculates the ideal distribution of students"
+readme = "README.MD"
 authors = [{ name = "Sjoerd Cornelissen"}]
 requires-python = ">=3.11"
 
