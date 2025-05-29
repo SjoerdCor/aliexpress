@@ -16,8 +16,8 @@ ALI Express automatically takes into account many criteria of both group balance
 
 ## How to use
 1. Fill out all the three input sheets: 
-  1. `voorkeuren.xlsx` for the preferences of the students,
-  1. `groepen.xlsx` for the current groups and
-  1. `niet_samen.xlsx` for which students should not be together (possibly in large combination)
+    * `voorkeuren.xlsx` for the preferences of the students,
+    * `groepen.xlsx` for the current groups and
+    * `niet_samen.xlsx` for which students should not be together (possibly in large combination)
 1. Run ALI Express using `leerlingindeling.ipynb`
 1. Look at the outgoing excel in the folder
