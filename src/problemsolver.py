@@ -599,7 +599,7 @@ class ProblemSolver:
             although the last levels are usually very quick, when the solution is already
             fixed. Too high might result in an Infeasible problem
         """
-        M = 10
+        M = 100
         eps = 1e-6
         solver = self._get_solver()
 
@@ -634,6 +634,8 @@ class ProblemSolver:
                         self.studentsatisfaction[student]
                         >= m_val * has_this_level[student] - eps
                     ), f"MinimalSatisfaction_{student}_{level}"
+
+            # TODO remove this
             if level > 0:
                 self.prob.solve(solver)
 
