@@ -13,7 +13,9 @@ import pulp
 import pulp_logical
 
 
-def _apply_threshold_constraints(prob, value, thresholds, threshold_vars):
+def _apply_threshold_constraints(
+    prob, value, thresholds, threshold_vars, M=1_000_000, eps=1e-6
+):
     """
     Adds threshold-based indicator constraints to a PuLP problem.
 
@@ -33,16 +35,15 @@ def _apply_threshold_constraints(prob, value, thresholds, threshold_vars):
         A dictionary mapping each threshold to a corresponding binary variable.
     """
 
-    M = 1_000_000  # A very big number, so that constraints are never larger than 1
-    EPS = 0.001  # A small number to correct for numerical inaccuracies
-
+    # M = 100  # A very big number, so that constraints are never larger than 1
+    # EPS = 1e-6  # A small number to correct for numerical inaccuracies
     for threshold in thresholds:
         if threshold > 0:
-            prob += threshold_vars[threshold] <= value / threshold + EPS
-            prob += threshold_vars[threshold] >= (value - (threshold - EPS)) / M
+            prob += threshold_vars[threshold] <= value * (1 / threshold) + eps
+            prob += threshold_vars[threshold] >= (value - (threshold - eps)) / M
         else:
-            prob += threshold_vars[threshold] >= value / threshold - EPS
-            prob += threshold_vars[threshold] <= (value - (threshold + EPS)) / M
+            prob += threshold_vars[threshold] >= value * (1 / threshold) - eps
+            prob += threshold_vars[threshold] <= (value - (threshold + eps)) / M
 
 
 def powerset(iterable):
@@ -541,6 +542,7 @@ class ProblemSolver:
                 wp_satisfied,
                 added_satisfaction.keys(),
                 wp_satisfied_per_student,
+                eps=1e-3,  # Necessary to run lexmaxmin without errors; I dont know why
             )
 
             satisfaction_current_student = pulp.lpSum(
@@ -580,6 +582,105 @@ class ProblemSolver:
         M = 1_000_000  # Large enough so min dominates sum
         return M * minimal_satisfaction + pulp.lpSum(self.studentsatisfaction.values())
 
+    def _lex_max_min(self, satisfied: dict, n_levels=10) -> pulp.LpVariable:
+        """
+        Solve the approximate lexmaxmin problem for student satisfaction
+
+        Uses an iterative solve, making use of the fact that student satisfaction is
+        often plateaud: there are multiple students at the same level. Level by level,
+        first the next lowest plateau is determined, and then the number of students
+        on that plateau. When each number is found, it is then added as a constraint and
+        continues solving. Total student satisfaction is the ultimate tie breaker
+
+        Parameters
+        ----------
+        n_levels : int
+            The number of plateaus to use. Higher means more precision, but slightly slower,
+            although the last levels are usually very quick, when the solution is already
+            fixed. Too high might result in an Infeasible problem
+        """
+        M = 10
+        eps = 1e-6
+        solver = self._get_solver()
+
+        self._calculate_student_satisfaction(satisfied)
+        for level in range(n_levels):
+
+            # Step 1: maximize minimal satisfaction
+            minimal_satisfaction = pulp.LpVariable(f"MinimalSatisfaction_{level}")
+            if level == 0:
+                for satisfaction in self.studentsatisfaction.values():
+                    self.prob += minimal_satisfaction <= satisfaction
+            else:
+                self.prob += minimal_satisfaction >= m_val + eps
+                for student, satisfaction in self.studentsatisfaction.items():
+                    self.prob += (
+                        minimal_satisfaction
+                        <= satisfaction + (1 - has_this_level[student]) * M + eps
+                    ), f"MinimalSatisfactionLT{student}_{level}"
+
+            self.prob.sense = pulp.LpMaximize
+            self.prob.setObjective(minimal_satisfaction)
+            self.prob.solve(solver)
+            m_val = minimal_satisfaction.value()
+            print(f"Level {level}, step 1 done, {m_val}")
+            # Add as constraint
+            if level == 0:
+                for student in self.students:
+                    self.prob += self.studentsatisfaction[student] >= m_val
+            else:
+                for student in self.students:
+                    self.prob += (
+                        self.studentsatisfaction[student]
+                        >= m_val * has_this_level[student] - eps
+                    ), f"MinimalSatisfaction_{student}_{level}"
+            if level > 0:
+                self.prob.solve(solver)
+
+            # Step 2: minimize its occurrence
+            has_this_level = pulp.LpVariable.dicts(
+                f"HasThisLevel_{level}", self.students.keys(), cat="Binary"
+            )
+            delta = 1e-5
+            for student in self.students:
+                has_this_level_student = pulp.LpVariable.dicts(
+                    f"HasLevel_{level}_{student}", [m_val + delta], cat="Binary"
+                )
+                _apply_threshold_constraints(
+                    self.prob,
+                    self.studentsatisfaction[student],
+                    [m_val + delta],
+                    has_this_level_student,
+                    M=100,
+                )
+                self.prob += (
+                    has_this_level[student] == has_this_level_student[m_val + delta]
+                )
+            self.prob.sense = pulp.LpMaximize
+            self.prob.setObjective(pulp.lpSum(has_this_level.values()))
+            self.prob.solve(solver)
+
+            count_at_level = sum(
+                1
+                for student in self.students
+                if pulp.value(has_this_level[student]) > 0.5
+            )
+
+            print(f"Level {level}, step 2 done, {count_at_level}")
+
+            # Add as constraint
+            self.prob += pulp.lpSum(has_this_level.values()) == count_at_level
+
+        return pulp.lpSum(self.studentsatisfaction.values())
+
+    def _get_solver(self):
+        kwargs = {"logPath": "solver.log", "msg": False}
+        if pulp.HiGHS_CMD().available():
+            solver = pulp.HiGHS_CMD(**kwargs, gapRel=0)
+        else:
+            solver = pulp.PULP_CBC_CMD(**kwargs)
+        return solver
+
     def set_optimization_target(self, satisfied: dict) -> None:
         """Calculate the variables which can be directly optimized
 
@@ -604,6 +705,7 @@ class ProblemSolver:
             "weighted_preferences": self._calculate_weighted_preference_optimization,
             "studentsatisfaction": self._calculate_total_student_satisfaction,
             "least_satisfied": self._least_satisfied_student,
+            "lexmaxmin": self._lex_max_min,
         }
         optimization_func = optimization_funcs[self.optimize]
         optimization_target = optimization_func(satisfied)
@@ -649,12 +751,7 @@ class ProblemSolver:
             for solution, dist in solutions_to_ignore:
                 self._constraint_not_solution(solution, distance=dist)
 
-        kwargs = {"logPath": "solver.log", "msg": False}
-        if pulp.HiGHS_CMD().available():
-            solver = pulp.HiGHS_CMD(**kwargs, gapRel=0)
-        else:
-            solver = pulp.PULP_CBC_CMD(**kwargs)
-
+        solver = self._get_solver()
         self.prob.solve(solver)
         if pulp.LpStatus[self.prob.status] != "Optimal":
             raise RuntimeError(
