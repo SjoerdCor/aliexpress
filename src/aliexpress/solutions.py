@@ -5,8 +5,8 @@ import pulp
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import numbers, Alignment
 
-from problemsolver import get_satisfaction_integral
-import datareader
+from .problemsolver import get_satisfaction_integral
+from . import datareader
 
 
 class SolutionAnalyzer:

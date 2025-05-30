@@ -10,7 +10,7 @@ import warnings
 import pandas as pd
 import pulp
 
-import pulp_logical
+from . import pulp_logical
 
 
 def _apply_threshold_constraints(
