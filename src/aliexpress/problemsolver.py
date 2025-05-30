@@ -3,6 +3,7 @@ implements different optimization targets (also known as satisfaction metrics).
 """
 
 import itertools
+import logging
 import math
 import os
 import warnings
@@ -11,6 +12,22 @@ import pandas as pd
 import pulp
 
 from . import pulp_logical
+
+
+def setup_logger():
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.DEBUG)
+
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.DEBUG)
+
+    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+    return logger
+
+
+logger = setup_logger()
 
 
 def _apply_threshold_constraints(
@@ -634,7 +651,7 @@ class ProblemSolver:
             self.prob.setObjective(minimal_satisfaction)
             self.prob.solve(solver)
             m_val = minimal_satisfaction.value()
-            print(f"Level {level}, step 1 done, {m_val}")
+            logger.debug(f"Level {level}, step 1 done, {m_val}")
             # Add as constraint
             if level == 0:
                 for student in self.students:
@@ -679,7 +696,7 @@ class ProblemSolver:
                 if pulp.value(has_this_level[student]) > 0.5
             )
 
-            print(f"Level {level}, step 2 done, {count_at_level}")
+            logger.debug(f"Level {level}, step 2 done, {count_at_level}")
 
             # Add as constraint
             self.prob += pulp.lpSum(has_this_level.values()) == count_at_level
