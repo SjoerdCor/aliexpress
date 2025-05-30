@@ -11,6 +11,7 @@ FILE_NOT_TOGETHER = "niet_samen.xlsx"
 
 
 def jsons_to_excel(folder, preferences, input_sheet, students_info):
+    """Write all solution-jsons in folder to comprehensible excel overview"""
     for file in os.listdir(folder):
         if file.endswith(".json"):
             fname = os.path.join(folder, file)
@@ -20,7 +21,11 @@ def jsons_to_excel(folder, preferences, input_sheet, students_info):
             sa.to_excel()
 
 
-def distribute_students():
+def distribute_students(**kwargs):
+    """Distribute all students with preferences over all groups to
+
+    Kwargs are passed to problemsolver
+    """
     groups_to = pd.read_excel(FILE_GROUPS_TO, index_col=0).to_dict(orient="index")
     processor = datareader.VoorkeurenProcessor(FILE_PREFERENCES)
     preferences = processor.process(all_to_groups=list(groups_to.keys()))
@@ -34,14 +39,15 @@ def distribute_students():
     print(df_students[["Jongen/meisje"]].value_counts())
     print(df_students["Stamgroep"].value_counts())
 
+    defaults_problemsolver = {"max_imbalance_boys_girls_total": 6}
+    kwargs_problemsolver = {**defaults_problemsolver, **kwargs}
     ps_lexmaxmin = problemsolver.ProblemSolver(
         preferences,
         students_info,
         groups_to,
         not_together,
-        max_clique=4,
-        max_imbalance_boys_girls_total=6,
         optimize="lexmaxmin",
+        **kwargs_problemsolver,
     )
 
     ps_lexmaxmin.run(overwrite=True)
@@ -55,9 +61,8 @@ def distribute_students():
         students_info,
         groups_to,
         not_together,
-        max_clique=4,
-        max_imbalance_boys_girls_total=6,
         optimize="least_satisfied",
+        **kwargs_problemsolver,
     )
 
     ps_least_satisfied.run(n_solutions=2, overwrite=True)
