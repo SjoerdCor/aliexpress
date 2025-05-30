@@ -54,11 +54,17 @@ def distribute_students(**kwargs):
     logger.info("All files read")
 
     df_groups_to = pd.DataFrame.from_dict(groups_to, orient="index")
-    logger.info(df_groups_to.assign(Totaal=lambda df: df.sum("columns")))
+    logger.info(
+        "Current groups:\n%s", df_groups_to.assign(Totaal=lambda df: df.sum("columns"))
+    )
 
     df_students = pd.DataFrame.from_dict(students_info, orient="index")
-    logger.info("\n", df_students[["Jongen/meisje"]].value_counts())
-    logger.info("\n", df_students["Stamgroep"].value_counts())
+
+    logger.info(
+        "Current boy/girl distribution:\n%s",
+        df_students[["Jongen/meisje"]].value_counts(),
+    )
+    logger.info("Coming from groups:\n%s", df_students["Stamgroep"].value_counts())
 
     defaults_problemsolver = {"max_imbalance_boys_girls_total": 6}
     kwargs_problemsolver = {**defaults_problemsolver, **kwargs}
@@ -113,7 +119,6 @@ def distribute_students(**kwargs):
 def main():
     parser = argparse.ArgumentParser(description="Distribute student.")
 
-    # Add known or expected arguments here:
     parser.add_argument(
         "--max_clique",
         type=int,
