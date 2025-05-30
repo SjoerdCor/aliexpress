@@ -1,3 +1,4 @@
+import argparse
 import logging
 import os
 
@@ -109,5 +110,53 @@ def distribute_students(**kwargs):
     logger.info("Done!")
 
 
+def main():
+    parser = argparse.ArgumentParser(description="Distribute student.")
+
+    # Add known or expected arguments here:
+    parser.add_argument(
+        "--max_clique",
+        type=int,
+        default=5,
+        help="The number of students that can go to the same group (default = 5)",
+    )
+    parser.add_argument(
+        "--max_clique_sex",
+        type=int,
+        default=3,
+        help="The number of students from an original group of the same sex that can go to the same group (default = 3)",
+    )
+    parser.add_argument(
+        "--max_diff_n_students_year",
+        type=int,
+        default=2,
+        help="The maximum difference between assigned students to the largest group and the smallest group (default = 2)",
+    )
+    parser.add_argument(
+        "--max_diff_n_students_total",
+        type=int,
+        default=3,
+        help="The maximum difference between largest group and the smallest group in total (default = 3)",
+    )
+
+    parser.add_argument(
+        "--max_imbalance_boys_girls_year",
+        type=int,
+        default=2,
+        help="The maximum difference between number of boys and girls in each year in a group (default = 2)",
+    )
+
+    parser.add_argument(
+        "--max_imbalance_boys_girls_total",
+        type=int,
+        default=3,
+        help="The maximum difference between number of boys and girls in the total group (default = 3)",
+    )
+
+    args = parser.parse_args()
+    kwargs = vars(args)
+    distribute_students(**kwargs)
+
+
 if __name__ == "__main__":
-    distribute_students()
+    main()
