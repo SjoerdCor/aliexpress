@@ -35,8 +35,6 @@ def _apply_threshold_constraints(
         A dictionary mapping each threshold to a corresponding binary variable.
     """
 
-    # M = 100  # A very big number, so that constraints are never larger than 1
-    # EPS = 1e-6  # A small number to correct for numerical inaccuracies
     for threshold in thresholds:
         if threshold > 0:
             prob += threshold_vars[threshold] <= value * (1 / threshold) + eps
@@ -648,9 +646,9 @@ class ProblemSolver:
                         >= m_val * has_this_level[student] - eps
                     ), f"MinimalSatisfaction_{student}_{level}"
 
-            # TODO remove this
-            if level > 0:
-                self.prob.solve(solver)
+            # Useful for debugging - usually from numerical errors
+            # if level > 0:
+            #     self.prob.solve(solver)
 
             # Step 2: minimize its occurrence
             has_this_level = pulp.LpVariable.dicts(
