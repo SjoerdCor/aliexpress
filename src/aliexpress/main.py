@@ -1,5 +1,8 @@
+import logging
 import os
+
 import pandas as pd
+
 
 from . import datareader
 from . import problemsolver
@@ -8,6 +11,22 @@ from . import solutions
 FILE_PREFERENCES = "voorkeuren.xlsx"
 FILE_GROUPS_TO = "groepen.xlsx"
 FILE_NOT_TOGETHER = "niet_samen.xlsx"
+
+
+def setup_logger():
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+
+    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+    return logger
+
+
+logger = setup_logger()
 
 
 def jsons_to_excel(folder, preferences, input_sheet, students_info):
@@ -31,13 +50,14 @@ def distribute_students(**kwargs):
     preferences = processor.process(all_to_groups=list(groups_to.keys()))
     students_info = processor.get_students_meta_info()
     not_together = datareader.read_not_together(FILE_NOT_TOGETHER)
+    logger.info("All files read")
 
     df_groups_to = pd.DataFrame.from_dict(groups_to, orient="index")
-    print(df_groups_to.assign(Totaal=lambda df: df.sum("columns")))
+    logger.info(df_groups_to.assign(Totaal=lambda df: df.sum("columns")))
 
     df_students = pd.DataFrame.from_dict(students_info, orient="index")
-    print(df_students[["Jongen/meisje"]].value_counts())
-    print(df_students["Stamgroep"].value_counts())
+    logger.info("\n", df_students[["Jongen/meisje"]].value_counts())
+    logger.info("\n", df_students["Stamgroep"].value_counts())
 
     defaults_problemsolver = {"max_imbalance_boys_girls_total": 6}
     kwargs_problemsolver = {**defaults_problemsolver, **kwargs}
@@ -50,12 +70,14 @@ def distribute_students(**kwargs):
         **kwargs_problemsolver,
     )
 
+    logger.info("Finding first solution... lexmaxmin")
     ps_lexmaxmin.run(overwrite=True)
     jsons_to_excel(
         ps_lexmaxmin.get_solution_name(), preferences, processor.input, students_info
     )
-    print("Lexmaxmin done!")
+    logger.info("Lexmaxmin done!")
 
+    logger.info("Finding 2 solutions... least satisfied")
     ps_least_satisfied = problemsolver.ProblemSolver(
         preferences,
         students_info,
@@ -72,8 +94,9 @@ def distribute_students(**kwargs):
         processor.input,
         students_info,
     )
-    print("Least satisfied: 2 solutions found")
+    logger.info("Least satisfied: 2 solutions found")
 
+    logger.info("Finding different solution...")
     ps_least_satisfied.run(distance=10, overwrite=True)
     jsons_to_excel(
         ps_least_satisfied.get_solution_name(),
@@ -81,9 +104,9 @@ def distribute_students(**kwargs):
         processor.input,
         students_info,
     )
-    print("Least satisfied: different solution found")
+    logger.info("Least satisfied: different solution found")
 
-    print("Done!")
+    logger.info("Done!")
 
 
 if __name__ == "__main__":
