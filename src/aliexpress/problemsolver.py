@@ -275,59 +275,39 @@ class ProblemSolver:
             upBound=None if incl_slack else 0,
             cat="Integer",
         )
-
-        avg_new_per_group = len(self.students) / len(self.groups_to)
-        min_in_group = pulp.LpVariable("min_in_group_year", lowBound=0, cat="Integer")
-        epsilon = 1e-5
-        expr = avg_new_per_group - (self.max_diff_n_students_year + slack_var) / 2
-        prob += min_in_group <= expr
-        prob += min_in_group >= expr - 1 + epsilon
-
-        max_in_group = pulp.LpVariable("max_in_group_year", lowBound=0, cat="Integer")
-        expr = avg_new_per_group + (self.max_diff_n_students_year + slack_var) / 2
-        prob += max_in_group <= expr
-        prob += max_in_group >= expr - 1 + epsilon
+        min_in_group_year = pulp.LpVariable("min_in_group_year", cat="Integer")
+        max_in_group_year = pulp.LpVariable("max_in_group_year", cat="Integer")
 
         new_students_in_group = pulp.LpVariable.dict(
             "new_students_in_group", self.groups_to.keys(), cat="Integer"
         )
 
         for group_to in self.groups_to:
-
             prob += new_students_in_group[group_to] == pulp.lpSum(
                 [self.in_group[(student, group_to)] for student in self.students]
             )
 
-            prob += new_students_in_group[group_to] <= max_in_group
-            prob += new_students_in_group[group_to] >= min_in_group
+            prob += new_students_in_group[group_to] <= max_in_group_year
+            prob += new_students_in_group[group_to] >= min_in_group_year
+        prob += (
+            max_in_group_year - min_in_group_year
+            <= self.max_diff_n_students_year + slack_var
+        )
 
     def _constraint_equal_total_students(self, prob, incl_slack=True):
         current_per_group = {
             gr: self.groups_to[gr]["Jongens"] + self.groups_to[gr]["Meisjes"]
             for gr in self.groups_to
         }
+
         slack_var = pulp.LpVariable(
             "SLACK_diff_n_students_total",
             lowBound=0,
             upBound=None if incl_slack else 0,
             cat="Integer",
         )
-
-        avg_per_group = (len(self.students) + sum(current_per_group.values())) / len(
-            current_per_group
-        )
-
-        min_in_group = pulp.LpVariable("min_in_group_total", lowBound=0, cat="Integer")
-        epsilon = 1e-5
-        expr = avg_per_group - (self.max_diff_n_students_total + slack_var) / 2
-        prob += min_in_group <= expr
-        prob += min_in_group >= expr - 1 + epsilon
-
-        max_in_group = pulp.LpVariable("max_in_group_total", lowBound=0, cat="Integer")
-        expr = avg_per_group + (self.max_diff_n_students_total + slack_var) / 2
-        prob += max_in_group <= expr
-        prob += max_in_group >= expr - 1 + epsilon
-
+        min_in_group_total = pulp.LpVariable("min_in_group_total", cat="Integer")
+        max_in_group_total = pulp.LpVariable("max_in_group_total", cat="Integer")
         total_in_group = pulp.LpVariable.dict(
             "total_in_group", self.groups_to.keys(), cat="Integer"
         )
@@ -341,8 +321,12 @@ class ProblemSolver:
                 + current_per_group[group_to]
             )
 
-            prob += total_in_group[group_to] <= max_in_group
-            prob += total_in_group[group_to] >= min_in_group
+            prob += total_in_group[group_to] <= max_in_group_total
+            prob += total_in_group[group_to] >= min_in_group_total
+        prob += (
+            max_in_group_total - min_in_group_total
+            <= self.max_diff_n_students_total + slack_var
+        )
 
     def _constraint_equal_students_from_previous_group(self, prob, incl_slack=False):
         """Every group can have a max number of students from an earlier group (no cliques)"""
@@ -520,9 +504,9 @@ class ProblemSolver:
         """Add constraints to force good class balance in next groups"""
         self._constraint_equal_new_students(prob, incl_slack)
         self._constraint_equal_total_students(prob, incl_slack)
-        self._constraint_equal_students_from_previous_group(prob, incl_slack)
         self._constraint_equal_boys_girls(prob, incl_slack)
         self._constraint_balanced_boys_girls_total(prob, incl_slack)
+        self._constraint_equal_students_from_previous_group(prob, incl_slack)
         self._constraint_clique_sex_group(prob, incl_slack)
 
     def add_satisfaction_constraints(self, prob):
