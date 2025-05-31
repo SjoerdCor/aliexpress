@@ -1,6 +1,9 @@
 """Read and transform the input sheet to a workable DataFrame"""
 
+import math
+from typing import Iterable
 import warnings
+
 import pandas as pd
 
 
@@ -175,15 +178,42 @@ class VoorkeurenProcessor:
         )
 
 
-def read_not_together(filename: str) -> list:
+def read_not_together(filename: str, students: Iterable, n_groups: int) -> list:
     """Reads the preferences for students who should not be togeter (in large groups)"""
     df_not_together = pd.read_excel(filename)
     result = []
-    for _, row in df_not_together.iterrows():
+
+    def _validate(group, max_aantal_samen, students, n_groups):
+        duplicated = group.duplicated()
+        if duplicated.any():
+            raise ValueError(
+                f"Duplicated students on row {i + 1}:\n {group[duplicated]}"
+            )
+
+        known_students = group.isin(students)
+        if not known_students.all():
+            raise ValueError(
+                f"Unknown students on row {i + 1}:\n{group[~known_students]}"
+            )
+
+        if len(group) / max_aantal_samen > n_groups:
+            msg = (
+                f"Cannot divide {len(group)} students over {n_groups} groups in "
+                f"subgroups of max size {max_aantal_samen}. Must be at least "
+                f"{math.ceil(len(group) / n_groups)} (row {i + 1})"
+            )
+            raise ValueError(msg)
+
+    for i, row in df_not_together.iterrows():
+        group = row.filter(like="Leerling").dropna().apply(clean_name)
+        max_aantal_samen = row["Max aantal samen"]
+
+        _validate(group, max_aantal_samen, students, n_groups)
+
         result.append(
             {
-                "Max_aantal_samen": row["Max aantal samen"],
-                "group": set(row.filter(like="Leerling").dropna().apply(clean_name)),
+                "Max_aantal_samen": max_aantal_samen,
+                "group": set(group),
             }
         )
     return result

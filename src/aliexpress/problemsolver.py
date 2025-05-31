@@ -245,6 +245,8 @@ class ProblemSolver:
         )
         self.known_solutions = []
 
+        self.calculate_feasibility()
+
     def get_solution_name(self):
         """Create name from config to identify the solution"""
         attrs = [
@@ -258,17 +260,33 @@ class ProblemSolver:
         ]
         return "".join(str(s) for s in attrs)
 
-    def _constraint_student_to_exactly_one_group(self):
+    def _constraint_student_to_exactly_one_group(self, prob):
         for student in self.students:
-            self.prob += (
+            prob += (
                 pulp.lpSum([self.in_group[(student, gr)] for gr in self.groups_to]) == 1
             )
 
-    def _constraint_equal_new_students(self):
+    def _constraint_equal_new_students(self, prob, incl_slack=True):
         """Every group should have an approximately equal number of new students"""
+
+        slack_var = pulp.LpVariable(
+            "SLACK_diff_n_students_year",
+            lowBound=0,
+            upBound=None if incl_slack else 0,
+            cat="Integer",
+        )
+
         avg_new_per_group = len(self.students) / len(self.groups_to)
-        min_in_group = int(avg_new_per_group - self.max_diff_n_students_year / 2)
-        max_in_group = int(avg_new_per_group + self.max_diff_n_students_year / 2)
+        min_in_group = pulp.LpVariable("min_in_group_year", lowBound=0, cat="Integer")
+        epsilon = 1e-5
+        expr = avg_new_per_group - (self.max_diff_n_students_year + slack_var) / 2
+        prob += min_in_group <= expr
+        prob += min_in_group >= expr - 1 + epsilon
+
+        max_in_group = pulp.LpVariable("max_in_group_year", lowBound=0, cat="Integer")
+        expr = avg_new_per_group + (self.max_diff_n_students_year + slack_var) / 2
+        prob += max_in_group <= expr
+        prob += max_in_group >= expr - 1 + epsilon
 
         new_students_in_group = pulp.LpVariable.dict(
             "new_students_in_group", self.groups_to.keys(), cat="Integer"
@@ -276,40 +294,57 @@ class ProblemSolver:
 
         for group_to in self.groups_to:
 
-            self.prob += new_students_in_group[group_to] == pulp.lpSum(
+            prob += new_students_in_group[group_to] == pulp.lpSum(
                 [self.in_group[(student, group_to)] for student in self.students]
             )
 
-            self.prob += new_students_in_group[group_to] <= max_in_group
-            self.prob += new_students_in_group[group_to] >= min_in_group
+            prob += new_students_in_group[group_to] <= max_in_group
+            prob += new_students_in_group[group_to] >= min_in_group
 
-    def _constraint_equal_total_students(self):
+    def _constraint_equal_total_students(self, prob, incl_slack=True):
         current_per_group = {
             gr: self.groups_to[gr]["Jongens"] + self.groups_to[gr]["Meisjes"]
             for gr in self.groups_to
         }
+        slack_var = pulp.LpVariable(
+            "SLACK_diff_n_students_total",
+            lowBound=0,
+            upBound=None if incl_slack else 0,
+            cat="Integer",
+        )
+
         avg_per_group = (len(self.students) + sum(current_per_group.values())) / len(
             current_per_group
         )
-        min_in_group = int(avg_per_group - self.max_diff_n_students_total / 2)
-        max_in_group = int(avg_per_group + self.max_diff_n_students_total / 2)
+
+        min_in_group = pulp.LpVariable("min_in_group_total", lowBound=0, cat="Integer")
+        epsilon = 1e-5
+        expr = avg_per_group - (self.max_diff_n_students_total + slack_var) / 2
+        prob += min_in_group <= expr
+        prob += min_in_group >= expr - 1 + epsilon
+
+        max_in_group = pulp.LpVariable("max_in_group_total", lowBound=0, cat="Integer")
+        expr = avg_per_group + (self.max_diff_n_students_total + slack_var) / 2
+        prob += max_in_group <= expr
+        prob += max_in_group >= expr - 1 + epsilon
+
         total_in_group = pulp.LpVariable.dict(
             "total_in_group", self.groups_to.keys(), cat="Integer"
         )
 
         for group_to in self.groups_to:
 
-            self.prob += total_in_group[group_to] == (
+            prob += total_in_group[group_to] == (
                 pulp.lpSum(
                     [self.in_group[(student, group_to)] for student in self.students]
                 )
                 + current_per_group[group_to]
             )
 
-            self.prob += total_in_group[group_to] <= max_in_group
-            self.prob += total_in_group[group_to] >= min_in_group
+            prob += total_in_group[group_to] <= max_in_group
+            prob += total_in_group[group_to] >= min_in_group
 
-    def _constraint_equal_students_from_previous_group(self):
+    def _constraint_equal_students_from_previous_group(self, prob, incl_slack=False):
         """Every group can have a max number of students from an earlier group (no cliques)"""
         groups_from = {self.students[student]["Stamgroep"] for student in self.students}
         from_group_to_group = pulp.LpVariable.dicts(
@@ -317,10 +352,16 @@ class ProblemSolver:
             itertools.product(groups_from, self.groups_to.keys()),
             cat="Integer",
         )
+        slack_var = pulp.LpVariable(
+            "SLACK_max_clique",
+            lowBound=0,
+            upBound=None if incl_slack else 0,
+            cat="Integer",
+        )
 
         for group_to in self.groups_to:
             for group_from in groups_from:
-                self.prob += from_group_to_group[(group_from, group_to)] == pulp.lpSum(
+                prob += from_group_to_group[(group_from, group_to)] == pulp.lpSum(
                     [
                         self.in_group[(student, group_to)]
                         for student in self.students
@@ -328,15 +369,22 @@ class ProblemSolver:
                     ]
                 )
 
-                self.prob += (
-                    from_group_to_group[(group_from, group_to)] <= self.max_clique
+                prob += (
+                    from_group_to_group[(group_from, group_to)]
+                    <= self.max_clique + slack_var
                 )
 
-    def _constraint_clique_sex_group(self):
+    def _constraint_clique_sex_group(self, prob, incl_slack=False):
         """Every group can have a max number of students of the samen sex
         from an earlier group (no cliques)"""
         groups_from = {self.students[student]["Stamgroep"] for student in self.students}
         sexes = {self.students[student]["Jongen/meisje"] for student in self.students}
+        slack_var = pulp.LpVariable(
+            "SLACK_max_clique_sex",
+            lowBound=0,
+            upBound=None if incl_slack else 0,
+            cat="Integer",
+        )
 
         for group_to in self.groups_to:
             for group_from in groups_from:
@@ -348,9 +396,9 @@ class ProblemSolver:
                         and self.students[student]["Jongen/meisje"] == sex
                     ]
 
-                    self.prob += pulp.lpSum(this_clique) <= self.max_clique_sex
+                    prob += pulp.lpSum(this_clique) <= self.max_clique_sex + slack_var
 
-    def _constraint_equal_boys_girls(self):
+    def _constraint_equal_boys_girls(self, prob, incl_slack=False):
         boys_to_group = pulp.LpVariable.dicts(
             "boys_to_group", self.groups_to.keys(), cat="Integer"
         )
@@ -358,31 +406,38 @@ class ProblemSolver:
             "girls_to_group", self.groups_to.keys(), cat="Integer"
         )
 
+        slack_var = pulp.LpVariable(
+            "SLACK_balanced_boys_girls_year",
+            lowBound=0,
+            upBound=None if incl_slack else 0,
+            cat="Integer",
+        )
+
         for group_to in self.groups_to:
-            self.prob += boys_to_group[group_to] == pulp.lpSum(
+            prob += boys_to_group[group_to] == pulp.lpSum(
                 [
                     self.in_group[(student, group_to)]
                     for student in self.students
                     if self.students[student]["Jongen/meisje"] == "Jongen"
                 ]
             )
-            self.prob += girls_to_group[group_to] == pulp.lpSum(
+            prob += girls_to_group[group_to] == pulp.lpSum(
                 [
                     self.in_group[(student, group_to)]
                     for student in self.students
                     if self.students[student]["Jongen/meisje"] == "Meisje"
                 ]
             )
-            self.prob += (
+            prob += (
                 girls_to_group[group_to] - boys_to_group[group_to]
-                <= self.max_imbalance_boys_girls_year
+                <= self.max_imbalance_boys_girls_year + slack_var
             )
-            self.prob += (
+            prob += (
                 boys_to_group[group_to] - girls_to_group[group_to]
-                <= self.max_imbalance_boys_girls_year
+                <= self.max_imbalance_boys_girls_year + slack_var
             )
 
-    def _constraint_balanced_boys_girls_total(self):
+    def _constraint_balanced_boys_girls_total(self, prob, incl_slack=False):
         boys_in_group = pulp.LpVariable.dicts(
             "boys_in_group", self.groups_to.keys(), cat="Integer"
         )
@@ -390,8 +445,15 @@ class ProblemSolver:
             "girls_in_group", self.groups_to.keys(), cat="Integer"
         )
 
+        slack_var = pulp.LpVariable(
+            "SLACK_balanced_boys_girls_total",
+            lowBound=0,
+            upBound=None if incl_slack else 0,
+            cat="Integer",
+        )
+
         for group_to, n_boys_girls in self.groups_to.items():
-            self.prob += boys_in_group[group_to] == (
+            prob += boys_in_group[group_to] == (
                 n_boys_girls["Jongens"]
                 + pulp.lpSum(
                     [
@@ -401,7 +463,7 @@ class ProblemSolver:
                     ]
                 )
             )
-            self.prob += girls_in_group[group_to] == (
+            prob += girls_in_group[group_to] == (
                 n_boys_girls["Meisjes"]
                 + pulp.lpSum(
                     [
@@ -411,27 +473,27 @@ class ProblemSolver:
                     ]
                 )
             )
-            self.prob += (
+            prob += (
                 girls_in_group[group_to] - boys_in_group[group_to]
-                <= self.max_imbalance_boys_girls_total
+                <= self.max_imbalance_boys_girls_total + slack_var
             )
-            self.prob += (
+            prob += (
                 boys_in_group[group_to] - girls_in_group[group_to]
-                <= self.max_imbalance_boys_girls_total
+                <= self.max_imbalance_boys_girls_total + slack_var
             )
 
-    def _constraint_not_in_forbidden_group(self):
+    def _constraint_not_in_forbidden_group(self, prob):
         """Some students can not move int other groups (e.g. a brother/sister is already there)"""
         for i, row in self.preferences.query('TypeWens == "Niet in"').iterrows():
             student, _, _ = i
             gr = row["Waarde"]
-            self.prob += self.in_group[(student, gr)] == 0
+            prob += self.in_group[(student, gr)] == 0
 
-    def _constraint_not_together(self):
+    def _constraint_not_together(self, prob):
         """Enforces constraint of difficult students not being together"""
         for dct in self.not_together:
             for group_to in self.groups_to:
-                self.prob += (
+                prob += (
                     pulp.lpSum(
                         [
                             self.in_group[(student, group_to)]
@@ -442,26 +504,74 @@ class ProblemSolver:
                     <= dct["Max_aantal_samen"]
                 )
 
-    def _constraint_minimal_satisfaction(self):
+    def _constraint_minimal_satisfaction(self, prob):
         for student, info in self.students.items():
             if not math.isnan(info["MinimaleTevredenheid"]):
-                self.prob += (
+                prob += (
                     self.studentsatisfaction[student] >= info["MinimaleTevredenheid"]
                 ), f"MinimalSatisfaction{student}"
 
-    def add_constraints(self):
-        """Add all hard constraints via the functions per constraint"""
-        self._constraint_student_to_exactly_one_group()
-        self._constraint_not_in_forbidden_group()
+    def add_fundamental_constraints(self, prob):
+        """Add constraints fundamental to a solution"""
+        self._constraint_student_to_exactly_one_group(prob)
+        self._constraint_not_in_forbidden_group(prob)
 
-        self._constraint_equal_new_students()
-        self._constraint_equal_total_students()
-        self._constraint_equal_students_from_previous_group()
-        self._constraint_equal_boys_girls()
-        self._constraint_balanced_boys_girls_total()
-        self._constraint_not_together()
-        self._constraint_minimal_satisfaction()
-        self._constraint_clique_sex_group()
+    def add_class_balance_constraints(self, prob, incl_slack=False):
+        """Add constraints to force good class balance in next groups"""
+        self._constraint_equal_new_students(prob, incl_slack)
+        self._constraint_equal_total_students(prob, incl_slack)
+        self._constraint_equal_students_from_previous_group(prob, incl_slack)
+        self._constraint_equal_boys_girls(prob, incl_slack)
+        self._constraint_balanced_boys_girls_total(prob, incl_slack)
+        self._constraint_clique_sex_group(prob, incl_slack)
+
+    def add_satisfaction_constraints(self, prob):
+        """Add constraints about social dynamics"""
+        self._constraint_not_together(prob)
+        self._constraint_minimal_satisfaction(prob)
+
+    def add_constraints(self, prob=None, incl_slack=False):
+        """Add all hard constraints via the functions per constraint"""
+
+        prob = prob or self.prob
+        self.add_fundamental_constraints(prob)
+        self.add_class_balance_constraints(prob, incl_slack)
+        self.add_satisfaction_constraints(prob)
+
+    def calculate_feasibility(self) -> pulp.LpProblem:
+        """Calculates whether the constraints for class imbalance are feasible
+
+        Takes current groups and students into account, and suggests smallest possible
+        relaxation.
+
+        Returns
+        -------
+        pulp.LpProblem
+            The relaxation problem, for further inspection
+        """
+        feas_prob = pulp.LpProblem("MinimumRelaxationFeasibility", pulp.LpMinimize)
+
+        self.add_fundamental_constraints(feas_prob)
+        self.add_class_balance_constraints(feas_prob, incl_slack=True)
+
+        slack_vars = [v for v in feas_prob.variables() if "SLACK" in v.name]
+        solver = self._get_solver()
+
+        feas_prob.setObjective(pulp.lpSum(slack_vars))
+        feas_prob.solve(solver=solver)
+
+        if feas_prob.objective.value() == 0:
+            logger.info("Problem feasible. Continue")
+        else:
+            msg = (
+                "Problem infeasible. Consider changing variables to make it possible:\n"
+            )
+            for v in slack_vars:
+                if v.value() > 0:
+                    msg += f'{v.name.lstrip("SLACK_")}: +{round(v.value())}\n'
+            logger.error(msg)
+            raise RuntimeError(msg)
+        return feas_prob
 
     def _add_variable_in_same_group(
         self, student1: str, student2: str

@@ -50,7 +50,9 @@ def distribute_students(**kwargs):
     processor = datareader.VoorkeurenProcessor(FILE_PREFERENCES)
     preferences = processor.process(all_to_groups=list(groups_to.keys()))
     students_info = processor.get_students_meta_info()
-    not_together = datareader.read_not_together(FILE_NOT_TOGETHER)
+    not_together = datareader.read_not_together(
+        FILE_NOT_TOGETHER, students_info.keys(), len(groups_to)
+    )
     logger.info("All files read")
 
     df_groups_to = pd.DataFrame.from_dict(groups_to, orient="index")
