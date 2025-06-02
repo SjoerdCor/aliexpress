@@ -78,6 +78,9 @@ def distribute_students(**kwargs):
         optimize="lexmaxmin",
         **kwargs_problemsolver,
     )
+    feas_prob = ps_lexmaxmin.calculate_feasibility()
+    if feas_prob.objective.value() > 0:
+        raise RuntimeError("Can not solve the problem for this class imbalance")
 
     logger.info("Finding first solution... lexmaxmin")
     ps_lexmaxmin.run(overwrite=True)

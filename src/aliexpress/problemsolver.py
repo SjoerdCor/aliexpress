@@ -554,7 +554,6 @@ class ProblemSolver:
                 if v.value() > 0:
                     msg += f'{v.name.lstrip("SLACK_")}: +{round(v.value())}\n'
             logger.error(msg)
-            raise RuntimeError(msg)
         return feas_prob
 
     def _add_variable_in_same_group(
