@@ -17,10 +17,10 @@ os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 @app.route("/", methods=["GET", "POST"])
 def upload_files():
     if request.method == "POST":
-        file1 = request.files["file1"]
-        file2 = request.files["file2"]
-        file3 = request.files["file3"]
-        output_file = distribute_students_once(file1, file2, file3)
+        preferences = request.files["preferences"]
+        groups_to = request.files["groups_to"]
+        not_together = request.files["not_together"]
+        output_file = distribute_students_once(preferences, groups_to, not_together)
         file_id = str(uuid.uuid4())
         temp_storage[file_id] = output_file
 
