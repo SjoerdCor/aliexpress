@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Bestanden{% endblock %}
+{% block header %}Upload 3 Bestanden{% endblock %}
+
+{% block content %}
+<form method="post" enctype="multipart/form-data">
+    <label>Bestand 1:</label><br>
+    <input type="file" name="file1" required><br><br>
+
+    <label>Bestand 2:</label><br>
+    <input type="file" name="file2" required><br><br>
+
+    <label>Bestand 3:</label><br>
+    <input type="file" name="file3" required><br><br>
+
+    <input type="submit" value="Verwerken">
+</form>
+{% endblock %}

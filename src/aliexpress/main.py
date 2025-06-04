@@ -1,9 +1,10 @@
 import argparse
+from io import BytesIO
 import logging
 import os
+import tempfile
 
 import pandas as pd
-
 
 from . import datareader
 from . import problemsolver
@@ -41,7 +42,79 @@ def jsons_to_excel(folder, preferences, input_sheet, students_info):
             sa.to_excel()
 
 
-def distribute_students(**kwargs):
+def distribute_students_once(
+    path_preferences=FILE_PREFERENCES,
+    path_groups_to=FILE_GROUPS_TO,
+    path_not_together=FILE_NOT_TOGETHER,
+    **kwargs,
+):
+    """Distribute all students with preferences over all groups with lexmaxmin
+
+    Kwargs are passed to problemsolver
+    """
+    groups_to = pd.read_excel(path_groups_to, index_col=0).to_dict(orient="index")
+    processor = datareader.VoorkeurenProcessor(path_preferences)
+    preferences = processor.process(all_to_groups=list(groups_to.keys()))
+    students_info = processor.get_students_meta_info()
+    not_together = datareader.read_not_together(
+        path_not_together, students_info.keys(), len(groups_to)
+    )
+    logger.info("All files read")
+
+    df_groups_to = pd.DataFrame.from_dict(groups_to, orient="index")
+    logger.info(
+        "Current groups:\n%s", df_groups_to.assign(Totaal=lambda df: df.sum("columns"))
+    )
+
+    df_students = pd.DataFrame.from_dict(students_info, orient="index")
+
+    logger.info(
+        "Current boy/girl distribution:\n%s",
+        df_students[["Jongen/meisje"]].value_counts(),
+    )
+    logger.info("Coming from groups:\n%s", df_students["Stamgroep"].value_counts())
+
+    defaults_problemsolver = {
+        "max_imbalance_boys_girls_total": 5,
+        "max_clique": 4,
+        "max_diff_n_students_total": 1,
+    }
+    kwargs_problemsolver = {**defaults_problemsolver, **kwargs}
+
+    ps_lexmaxmin = problemsolver.ProblemSolver(
+        preferences,
+        students_info,
+        groups_to,
+        not_together,
+        optimize="lexmaxmin",
+        **kwargs_problemsolver,
+    )
+    feas_prob = ps_lexmaxmin.calculate_feasibility()
+    if feas_prob.objective.value() > 0:
+        raise RuntimeError("Can not solve the problem for this class imbalance")
+
+    logger.info("Finding first solution... lexmaxmin")
+    ps_lexmaxmin.run(save=False)
+    logger.info("Found solution")
+
+    with tempfile.NamedTemporaryFile(mode="w+", suffix=".json", delete=False) as tmp:
+        ps_lexmaxmin.prob.toJson(tmp.name)
+        tmp.flush()
+        sa = solutions.SolutionAnalyzer(
+            tmp.name, preferences, processor.input, students_info
+        )
+    logger.info("Lexmaxmin done!")
+
+    output = BytesIO()
+    sa.to_excel(output)
+    output.seek(0)
+    logger.info("Done!")
+    return output
+
+
+def distribute_students(
+    **kwargs,
+):
     """Distribute all students with preferences over all groups to
 
     Kwargs are passed to problemsolver
