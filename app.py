@@ -20,7 +20,33 @@ def upload_files():
         preferences = request.files["preferences"]
         groups_to = request.files["groups_to"]
         not_together = request.files["not_together"]
-        output_file = distribute_students_once(preferences, groups_to, not_together)
+
+        try:
+            max_diff_n_students_total = int(request.form["max_diff_n_students_total"])
+            max_diff_n_students_year = int(request.form["max_diff_n_students_year"])
+            max_imbalance_boys_girls_total = int(
+                request.form["max_imbalance_boys_girls_total"]
+            )
+            max_imbalance_boys_girls_year = int(
+                request.form["max_imbalance_boys_girls_year"]
+            )
+            max_clique = int(request.form["max_clique"])
+            max_clique_sex = int(request.form["max_clique_sex"])
+        except (KeyError, ValueError):
+            return "Alle parameters moeten positieve gehele getallen zijn", 400
+
+        kwargs = {
+            "max_diff_n_students_total": max_diff_n_students_total,
+            "max_diff_n_students_year": max_diff_n_students_year,
+            "max_imbalance_boys_girls_total": max_imbalance_boys_girls_total,
+            "max_imbalance_boys_girls_year": max_imbalance_boys_girls_year,
+            "max_clique": max_clique,
+            "max_clique_sex": max_clique_sex,
+        }
+
+        output_file = distribute_students_once(
+            preferences, groups_to, not_together, **kwargs
+        )
         file_id = str(uuid.uuid4())
         temp_storage[file_id] = output_file
 

@@ -14,6 +14,27 @@
     <label>Niet samen</label><br>
     <input type="file" name="not_together" accept=".xlsx" required><br><br>
 
+    <hr>
+    <label>Maximale verschil totale groepsgrootte:</label>
+    <input type="number" name="max_diff_n_students_total" min="1" value="2" required><br>
+
+    <label>Maximale verschil groepsgrootte nieuwe jaarlaag:</label>
+    <input type="number" name="max_diff_n_students_year" min="1" value="1" required><br>
+
+    <label>Maximale verschil jongens/meisjes totale groep</label>
+    <input type="number" name="max_imbalance_boys_girls_total" min="1" value="3" required><br>
+
+    <label>Maximale verschil jongens/meisjes nieuwe jaarlaag:</label>
+    <input type="number" name="max_imbalance_boys_girls_year" min="1" value="2" required><br>
+
+    <label>Maximale groep vanuit eerdere groep:</label>
+    <input type="number" name="max_clique" min="1" value="4" required><br>
+
+    <label>Maximaal groep jongens/meisjes vanuit eerdere groep:</label>
+    <input type="number" name="max_clique_sex" min="1" value="3" required><br>
+
+    <br>
+
     <input type="submit" value="Verwerken">
 </form>
 {% endblock %}
