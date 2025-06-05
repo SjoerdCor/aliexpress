@@ -12,7 +12,7 @@ body {
 	background-color: #ffffff;
 	border-radius: 20px;
 	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-	width: 400px;
+	width: 600px;
 	padding: 40px 50px;
 	display: flex;
 	flex-direction: column;
@@ -141,3 +141,23 @@ button:hover {
 	background-color: rgba(256, 256, 256);
 	text-align: center;
 }
+
+  .form-group {
+    display: flex;
+    align-items: center;
+    border: 1px solid #ccc;
+    padding: 8px;
+    margin-bottom: 10px;
+    border-radius: 4px;
+  }
+
+  .form-group label {
+    width: 450px;
+    margin-right: 10px;
+  }
+
+  .form-group input {
+    padding: 4px 6px;
+    width: 40px;
+
+  }

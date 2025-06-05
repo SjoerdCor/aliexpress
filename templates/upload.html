@@ -14,25 +14,42 @@
     <label>Niet samen</label><br>
     <input type="file" name="not_together" accept=".xlsx" required><br><br>
 
-    <hr>
-    <label>Maximale verschil totale groepsgrootte:</label>
-    <input type="number" name="max_diff_n_students_total" min="1" value="2" required><br>
+    <fieldset>
+        <div class="form-group">
 
-    <label>Maximale verschil groepsgrootte nieuwe jaarlaag:</label>
-    <input type="number" name="max_diff_n_students_year" min="1" value="1" required><br>
+            <label for="max_diff_n_students_total">Maximale verschil totale groepsgrootte:</label>
+            <input type="number" id=max_diff_n_students_total" name="max_diff_n_students_total" min="1" value="2"
+                size="4" maxlength="2" required><br>
+        </div>
+        <div class="form-group">
 
-    <label>Maximale verschil jongens/meisjes totale groep</label>
-    <input type="number" name="max_imbalance_boys_girls_total" min="1" value="3" required><br>
+            <label for="max_diff_n_students_year">Maximale verschil groepsgrootte nieuwe jaarlaag:</label>
+            <input type="number" id="max_diff_n_students_year" name="max_diff_n_students_year" min="1" value="1"
+                required><br>
+        </div>
+        <div class="form-group">
 
-    <label>Maximale verschil jongens/meisjes nieuwe jaarlaag:</label>
-    <input type="number" name="max_imbalance_boys_girls_year" min="1" value="2" required><br>
+            <label for="max_imbalance_boys_girls_total">Maximale verschil jongens/meisjes totale groep</label>
+            <input type="number" id="max_imbalance_boys_girls_total" name="max_imbalance_boys_girls_total" min="1"
+                value="3" required><br>
+        </div>
+        <div class="form-group">
 
-    <label>Maximale groep vanuit eerdere groep:</label>
-    <input type="number" name="max_clique" min="1" value="4" required><br>
+            <label for="max_imbalance_boys_girls_year">Maximale verschil jongens/meisjes nieuwe jaarlaag:</label>
+            <input type="number" id="max_imbalance_boys_girls_year" name="max_imbalance_boys_girls_year" min="1"
+                value="2" required><br>
+        </div>
+        <div class="form-group">
 
-    <label>Maximaal groep jongens/meisjes vanuit eerdere groep:</label>
-    <input type="number" name="max_clique_sex" min="1" value="3" required><br>
+            <label for="max_clique">Maximale groep vanuit eerdere groep:</label>
+            <input type="number" id="max_clique" name="max_clique" min="1" value="4" required><br>
+        </div>
+        <div class="form-group">
 
+            <label for="max_clique_sex">Maximaal groep jongens/meisjes vanuit eerdere groep:</label>
+            <input type="number" id="max_clique_sex" name="max_clique_sex" min="1" value="3" required><br>
+        </div>
+    </fieldset>
     <br>
 
     <input type="submit" value="Verwerken">
