@@ -8,6 +8,17 @@
 </head>
 
 <body>
+    {% with messages = get_flashed_messages(with_categories=True) %}
+    {% if messages %}
+    {% for category, msg in messages %}
+    <div class="flash-message {{ category }}">
+        <span class="closebtn" onclick="this.parentElement.style.display='none';">&times;</span>
+        {{ msg }}
+    </div>
+    {% endfor %}
+    {% endif %}
+    {% endwith %}
+
     <div class="container">
         <h1>{% block header %}{% endblock %}</h1>
         {% block content %}{% endblock %}

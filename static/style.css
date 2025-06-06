@@ -161,3 +161,41 @@ button:hover {
     width: 40px;
 
   }
+
+  .flash-message {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    max-width: 1000px;
+    z-index: 1000;
+    padding: 15px 20px;
+    margin: 10px auto;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: white;
+}
+
+.flash-message.success {
+    color: #155724;
+    background-color: #d4edda;
+    border-color: #c3e6cb;
+}
+
+.flash-message.error {
+    color: #721c24;
+    background-color: #f8d7da;
+    border-color: #f5c6cb;
+}
+.closebtn {
+    position: absolute;
+    top: 5px;
+    right: 10px;
+    color: black;
+    font-size: 20px;
+    cursor: pointer;
+}
