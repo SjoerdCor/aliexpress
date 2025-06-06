@@ -1,3 +1,9 @@
-<h2>Groepsindeling klaar!</h2>
+{% extends "base.html" %}
+
+{% block title %}ALI-Express{% endblock %}
+{% block header %}Groepsindeling klaar!{% endblock %}
+
+{% block content %}
 <p>Je kunt de groepsindeling hier downloaden:</p>
 <a href="{{ url_for('download', file_id=file_id) }}" class="btn btn-primary">Download groepsindeling</a>
+{% endblock %}
