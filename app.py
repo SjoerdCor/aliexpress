@@ -3,15 +3,23 @@ import os
 import uuid
 
 import webbrowser
+from dotenv import load_dotenv
 
 from src.aliexpress.main import distribute_students_once
 
-temp_storage = {}
+load_dotenv()
+
+env = os.getenv("FLASK_ENV", "production")
+if env == "development":
+    from src.aliexpress.appconfig import DevelopmentConfig as ConfigClass
+else:
+    from src.aliexpress.appconfig import ProductionConfig as ConfigClass
 
 app = Flask(__name__)
+app.config.from_object(ConfigClass)
+
+
 temp_storage = {}
-app.config["UPLOAD_FOLDER"] = "uploads"
-os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
 
 @app.route("/", methods=["GET", "POST"])
