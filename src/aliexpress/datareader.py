@@ -96,10 +96,37 @@ class VoorkeurenProcessor:
         return df
 
     def _validate_input(self, df):
-
+        expected_columns = pd.MultiIndex.from_tuples(
+            [
+                ("MinimaleTevredenheid", pd.NA, pd.NA),
+                ("Jongen/meisje", pd.NA, pd.NA),
+                ("Stamgroep", pd.NA, pd.NA),
+                ("Graag met", 1.0, "Waarde"),
+                ("Graag met", 1.0, "Gewicht"),
+                ("Graag met", 2.0, "Waarde"),
+                ("Graag met", 2.0, "Gewicht"),
+                ("Graag met", 3.0, "Waarde"),
+                ("Graag met", 3.0, "Gewicht"),
+                ("Graag met", 4.0, "Waarde"),
+                ("Graag met", 4.0, "Gewicht"),
+                ("Graag met", 5.0, "Waarde"),
+                ("Graag met", 5.0, "Gewicht"),
+                ("Liever niet met", 1.0, "Waarde"),
+                ("Liever niet met", 1.0, "Gewicht"),
+                ("Niet in", 1.0, "Waarde"),
+                ("Niet in", 2.0, "Waarde"),
+            ],
+            names=["TypeWens", "Nr", "TypeWaarde"],
+        )
+        try:
+            pd.testing.assert_index_equal(df.columns, expected_columns)
+        except AssertionError as e:
+            raise ValidationError(
+                code="wrong_columns_preferences",
+                technical_message="Preferences excel has wrong columns",
+            ) from e
         duplicated = df.index[df.index.duplicated()].unique().tolist()
         if duplicated:
-            # \n is not allowed in f-strings
             raise ValidationError(
                 code="duplicate_students_preferences",
                 context={"duplicated": ",".join(duplicated)},
@@ -213,9 +240,32 @@ class VoorkeurenProcessor:
 def read_not_together(filename: str, students: Iterable, n_groups: int) -> list:
     """Reads the preferences for students who should not be togeter (in large groups)"""
     df_not_together = pd.read_excel(filename)
+    expected_cols = [
+        "Max aantal samen",
+        "Leerling 1",
+        "Leerling 2",
+        "Leerling 3",
+        "Leerling 4",
+        "Leerling 5",
+        "Leerling 6",
+        "Leerling 7",
+        "Leerling 8",
+        "Leerling 9",
+        "Leerling 10",
+        "Leerling 11",
+        "Leerling 12",
+    ]
+    try:
+        pd.testing.assert_index_equal(pd.Index(expected_cols), df_not_together.columns)
+    except AssertionError as e:
+        raise ValidationError(
+            "wrong_columns_not_together",
+            technical_message="Not together excel has wrong columns",
+        ) from e
     result = []
 
     def _validate(group, max_aantal_samen, students, n_groups):
+        # TODO: validate group not empty
         duplicated = group.duplicated()
         if duplicated.any():
             raise ValidationError(
@@ -268,3 +318,18 @@ def read_not_together(filename: str, students: Iterable, n_groups: int) -> list:
             }
         )
     return result
+
+
+def read_groups_excel(path_groups_to) -> dict:
+    """Reads the information about the groups to from excel to dict"""
+    df = pd.read_excel(path_groups_to)
+    expected_columns = ["Groepen", "Jongens", "Meisjes"]
+
+    try:
+        pd.testing.assert_index_equal(df.columns, pd.Index(expected_columns))
+    except AssertionError as e:
+        raise ValidationError(
+            code="wrong_columns_groups_to",
+            technical_message="groups excel has wrong columns",
+        ) from e
+    return df.set_index("Groepen").to_dict(orient="index")

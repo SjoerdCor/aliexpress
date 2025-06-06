@@ -52,7 +52,7 @@ def distribute_students_once(
 
     Kwargs are passed to problemsolver
     """
-    groups_to = pd.read_excel(path_groups_to, index_col=0).to_dict(orient="index")
+    groups_to = datareader.read_groups_excel(path_groups_to)
     processor = datareader.VoorkeurenProcessor(path_preferences)
     preferences = processor.process(all_to_groups=list(groups_to.keys()))
     students_info = processor.get_students_meta_info()

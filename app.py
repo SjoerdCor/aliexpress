@@ -68,6 +68,18 @@ FRIENDLY_TEMPLATES = {
         "bij {n_students} leerlingen en {n_groups} groepen moeten er minmiaal "
         "{acceptabel_max_samen} bij elkaar mogen, niet {max_aantal_samen}"
     ),
+    "wrong_columns_preferences": (
+        "Het voorkeuren-bestand heeft de verkeerde kolommen. Controleer of je het goede"
+        " bestand hebt geupload en het meest recente template hebt gebruikt."
+    ),
+    "wrong_columns_not_together": (
+        "Het niet-samen-bestand heeft de verkeerde kolommen. Controleer of je het goede"
+        " bestand hebt geupload en het meest recente template hebt gebruikt."
+    ),
+    "wrong_columns_groups_to": (
+        "Het groepen-bestand heeft de verkeerde kolommen. Controleer of je het goede "
+        "bestand hebt geupload en het meeste recente template hebt gebruikt."
+    ),
 }
 
 
