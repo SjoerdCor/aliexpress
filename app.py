@@ -7,7 +7,7 @@ import webbrowser
 from dotenv import load_dotenv
 
 from src.aliexpress.main import distribute_students_once
-from src.aliexpress.datareader import ValidationError
+from src.aliexpress.errors import ReadableError
 
 
 def setup_logger():
@@ -80,6 +80,11 @@ FRIENDLY_TEMPLATES = {
         "Het groepen-bestand heeft de verkeerde kolommen. Controleer of je het goede "
         "bestand hebt geupload en het meeste recente template hebt gebruikt."
     ),
+    "infeasible_problem": (
+        "Met deze vereiste klassenbalans en verdeling van leerlingen die overgaan is het"
+        "niet mogelijk. Overweeg de volgende versoepelingen om het probleem wel op te "
+        "lossen:\n {possible_improvement}"
+    ),
 }
 
 
@@ -117,7 +122,7 @@ def upload_files():
             output_file = distribute_students_once(
                 preferences, groups_to, not_together, **kwargs
             )
-        except ValidationError as e:
+        except ReadableError as e:
             template = FRIENDLY_TEMPLATES.get(e.code)
             message = template.format(**e.context)
 

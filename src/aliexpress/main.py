@@ -9,6 +9,7 @@ import pandas as pd
 from . import datareader
 from . import problemsolver
 from . import solutions
+from .errors import FeasibilityError
 
 FILE_PREFERENCES = "voorkeuren.xlsx"
 FILE_GROUPS_TO = "groepen.xlsx"
@@ -91,7 +92,44 @@ def distribute_students_once(
     )
     feas_prob = ps_lexmaxmin.calculate_feasibility()
     if feas_prob.objective.value() > 0:
-        raise RuntimeError("Can not solve the problem for this class imbalance")
+        slack_var_dct = {
+            "SLACK_balanced_boys_girls_total": {
+                "name": "Maximale verschil jongens/meisjes totale groep",
+                "attr_value": ps_lexmaxmin.max_imbalance_boys_girls_total,
+            },
+            "SLACK_balanced_boys_girls_year": {
+                "name": "Maximale verschil jongens/meisjes nieuwe jaarlaag",
+                "attr_value": ps_lexmaxmin.max_imbalance_boys_girls_year,
+            },
+            "SLACK_diff_n_students_total": {
+                "name": "Maximale verschil totale groepsgrootte",
+                "attr_value": ps_lexmaxmin.max_diff_n_students_total,
+            },
+            "SLACK_diff_n_students_year": {
+                "name": "Maximale verschil groepsgrootte nieuwe jaarlaag",
+                "attr_value": ps_lexmaxmin.max_diff_n_students_year,
+            },
+            "SLACK_max_clique": {
+                "name": "Maximale groep vanuit eerdere groep",
+                "attr_value": ps_lexmaxmin.max_clique,
+            },
+            "SLACK_max_clique_sex": {
+                "name": "Maximale groep jongens/meisjes vanuit eerdere groep",
+                "attr_value": ps_lexmaxmin.max_clique_sex,
+            },
+        }
+
+        msg = ""
+        for slack_var_name, dct in slack_var_dct.items():
+            v = feas_prob.variablesDict()[slack_var_name]
+            if v.value() > 0:
+                msg += f'{dct["name"]}: {round(dct["attr_value"] + v.value())} (+ {round(v.value())})\n'
+
+        raise FeasibilityError(
+            "infeasible_problem",
+            context={"possible_improvement": msg},
+            technical_message="Can not solve the problem for this class imbalance",
+        )
 
     logger.info("Finding first solution... lexmaxmin")
     ps_lexmaxmin.run(save=False)

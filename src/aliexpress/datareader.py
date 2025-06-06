@@ -6,6 +6,8 @@ import warnings
 
 import pandas as pd
 
+from .errors import ValidationError
+
 
 def toggle_negative_weights(df: pd.DataFrame, mask="Gewicht") -> pd.DataFrame:
     """Adjusts 'Liever niet met'/'Graag met' category by negating weight and renaming.
@@ -42,14 +44,6 @@ def clean_name(x):
     if isinstance(x, str):
         return x.strip().title().replace(" ", "")
     return x
-
-
-class ValidationError(Exception):
-    def __init__(self, code, context=None, technical_message=None):
-        super().__init__(technical_message or code)
-        self.code = code
-        self.context = context or {}
-        self.technical_message = technical_message
 
 
 class VoorkeurenProcessor:
