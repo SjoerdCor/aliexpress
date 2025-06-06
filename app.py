@@ -39,10 +39,35 @@ app.config.from_object(ConfigClass)
 
 
 temp_storage = {}
-
 FRIENDLY_TEMPLATES = {
-    "duplicate_students_preferences": "In voorkeuren is de volgende naam/namen niet uniek: {duplicated}\n Voeg de eerste letter van de achternaam toe om de leerlingen van elkaar te onderscheiden.",
-    "wrong_sex": "Onbekende student(en) op rij {row}: {names}",
+    "duplicate_students_preferences": (
+        "In voorkeuren is de volgende naam/namen niet uniek: {duplicated}\n"
+        "Voeg de eerste letter van de achternaam toe om de leerlingen van elkaar te onderscheiden."
+    ),
+    "wrong_sex": "Verkeerd ingevuld geslacht voor {students_incorrect_sex}",
+    "wrong_index_names_preferences": (
+        "Het voorkeurenbestand kon niet worden verwerkt. Gebruik het meeste recente template"
+    ),
+    "wrong_column_names_preferences": (
+        "Het voorkeurenbestand kon niet worden verwerkt. Gebruik het meeste recente template"
+    ),
+    "negative_weights_preferences": "Er zijn negatieve gewichten in het voorkeurenbestand.",
+    "invalid_values_preferences": (
+        "Onbekende leerling of groep in categorie {wishtype}: {invalid_values}"
+    ),
+    "duplicated_students_not_together": (
+        "In het niet-samen-bestand wordt in de {row}e groep dezelfde leerling meerdere "
+        "keren genoemd: {duplicated_students}"
+    ),
+    "unknown_students_not_together": (
+        "In het niet-samen-bestand wordt in de {row}e groep komt {unknown_students} voor, "
+        "die niet in het voorkeurenbestand voorkomt"
+    ),
+    "too_strict_not_together": (
+        "In het niet-samen-bestand op de {row}e rij is de maximale groepsgrootte te klein: "
+        "bij {n_students} leerlingen en {n_groups} groepen moeten er minmiaal "
+        "{acceptabel_max_samen} bij elkaar mogen, niet {max_aantal_samen}"
+    ),
 }
 
 

@@ -133,18 +133,24 @@ class VoorkeurenProcessor:
 
     def validate_preferences(self, all_to_groups=None) -> None:
         """Validates voorkeuren DataFrame structure and values."""
-        if self.df.index.names != ["Leerling", "TypeWens", "Nr"]:
-            raise ValueError(
-                "Invalid index names. Expected ['Leerling', 'TypeWens', 'Nr']."
+        expected_index_names = ["Leerling", "TypeWens", "Nr"]
+        if self.df.index.names != expected_index_names:
+            raise ValidationError(
+                code="wrong_index_names_preferences",
+                technical_message=f"Invalid index names. Expected {expected_index_names}.",
             )
         expected = {"Gewicht", "Waarde"}
         if set(self.df.columns) != expected:
-            raise ValueError(
-                f"Invalid columns! Expected {sorted(expected)}, got {sorted(self.df.columns)}"
+            raise ValidationError(
+                code="wrong_columns_preferences",
+                technical_message=f"Invalid columns! Expected {sorted(expected)}, got {sorted(self.df.columns)}",
             )
 
         if (self.df["Gewicht"] <= 0).any():
-            raise ValueError("All 'Gewicht' values must be positive.")
+            raise ValidationError(
+                code="negative_weights_preferences",
+                technical_message="All 'Gewicht' values must be positive.",
+            )
 
         all_leerlingen = self.input.index.get_level_values("Leerling").unique().tolist()
         accepted_values = {
@@ -160,8 +166,13 @@ class VoorkeurenProcessor:
                     lambda x, allowed_values=allowed_values: ~x.isin(allowed_values)
                 ]
                 if not invalid_values.empty:
-                    raise ValueError(
-                        f"Invalid values in '{wishtype}':\n{invalid_values}"
+                    raise ValidationError(
+                        "invalid_values_preferences",
+                        context={
+                            "wishtype": wishtype,
+                            "invalid_values": ",".join(invalid_values.tolist()),
+                        },
+                        technical_message=f"Invalid values in '{wishtype}':\n{invalid_values}",
                     )
             except KeyError:
                 warnings.warn(f"No entries found for wish type '{wishtype}'")
@@ -207,23 +218,42 @@ def read_not_together(filename: str, students: Iterable, n_groups: int) -> list:
     def _validate(group, max_aantal_samen, students, n_groups):
         duplicated = group.duplicated()
         if duplicated.any():
-            raise ValueError(
-                f"Duplicated students on row {i + 1}:\n {group[duplicated]}"
+            raise ValidationError(
+                code="duplicated_students_not_together",
+                context={
+                    "row": i + 1,
+                    "duplicated_students": ",".join(group[duplicated].tolist()),
+                },
+                technical_message=f"Duplicated students on row {i + 1}:\n {group[duplicated]}",
             )
 
         known_students = group.isin(students)
         if not known_students.all():
-            raise ValueError(
-                f"Unknown students on row {i + 1}:\n{group[~known_students]}"
+            raise ValidationError(
+                code="unknown_students_not_together",
+                context={
+                    "row": i + 1,
+                    "unknow_students": ",".join(group[~known_students]),
+                },
+                technical_message=f"Unknown students on row {i + 1}:\n{group[~known_students]}",
             )
 
         if len(group) / max_aantal_samen > n_groups:
             msg = (
                 f"Cannot divide {len(group)} students over {n_groups} groups in "
-                f"subgroups of max size {max_aantal_samen}. Must be at least "
-                f"{math.ceil(len(group) / n_groups)} (row {i + 1})"
+                f"subgroups of max size {max_aantal_samen}. (row {i + 1})"
             )
-            raise ValueError(msg)
+            raise ValidationError(
+                "too_strict_not_together",
+                context={
+                    "n_students": len(group),
+                    "n_groups": n_groups,
+                    "max_aantal_samen": max_aantal_samen,
+                    "acceptabel_max_samen": math.ceil(len(group) / n_groups),
+                    "row": i + 1,
+                },
+                technical_message=msg,
+            )
 
     for i, row in df_not_together.iterrows():
         group = row.filter(like="Leerling").dropna().apply(clean_name)
