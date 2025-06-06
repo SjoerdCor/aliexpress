@@ -7,7 +7,7 @@ import webbrowser
 from dotenv import load_dotenv
 
 from src.aliexpress.main import distribute_students_once
-from src.aliexpress.errors import ReadableError
+from src.aliexpress.errors import ReadableError, ValidationError
 
 
 def setup_logger():
@@ -122,7 +122,14 @@ def upload_files():
             output_file = distribute_students_once(
                 preferences, groups_to, not_together, **kwargs
             )
+        except ValidationError as e:
+            logger.error(e.technical_message)
+            template = FRIENDLY_TEMPLATES.get(e.code)
+            message = template.format(**e.context)
+            flash(message, "error")
+            return render_template("upload.html")
         except ReadableError as e:
+            logger.error(e.technical_message)
             template = FRIENDLY_TEMPLATES.get(e.code)
             message = template.format(**e.context)
 
