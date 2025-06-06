@@ -1,12 +1,30 @@
 from flask import Flask, render_template, request, redirect, url_for, send_file, flash
 import os
 import uuid
+import logging
 
 import webbrowser
 from dotenv import load_dotenv
 
 from src.aliexpress.main import distribute_students_once
 from src.aliexpress.datareader import ValidationError
+
+
+def setup_logger():
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+
+    file_handler = logging.FileHandler("aliexpress.log")
+    file_handler.setLevel(logging.INFO)
+
+    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+    return logger
+
+
+logger = setup_logger()
+
 
 load_dotenv()
 
@@ -21,6 +39,11 @@ app.config.from_object(ConfigClass)
 
 
 temp_storage = {}
+
+FRIENDLY_TEMPLATES = {
+    "duplicate_students_preferences": "In voorkeuren is de volgende naam/namen niet uniek: {duplicated}\n Voeg de eerste letter van de achternaam toe om de leerlingen van elkaar te onderscheiden.",
+    "wrong_sex": "Onbekende student(en) op rij {row}: {names}",
+}
 
 
 @app.route("/", methods=["GET", "POST"])
@@ -52,17 +75,23 @@ def upload_files():
             "max_clique": max_clique,
             "max_clique_sex": max_clique_sex,
         }
+
         try:
             output_file = distribute_students_once(
                 preferences, groups_to, not_together, **kwargs
             )
         except ValidationError as e:
+            template = FRIENDLY_TEMPLATES.get(e.code)
+            message = template.format(**e.context)
+
             base_msg = "Kon bestanden niet goed inlezen.\n"
-            flash(base_msg + str(e), "error")
+            flash(base_msg + message, "error")
             return render_template("upload.html")
         except Exception as e:
-            base_msg = "Er is iets onverwachts misgegaan.\n"
-            flash(base_msg + str(e), "error")
+            logger.exception("Uncaught exception")
+            msg = "Er is iets onverwachts misgegaan. Het probleem is gelogd. laat de maker dit onderzoeken."
+            flash(msg, "error")
+
             return render_template("upload.html", previous_data=request.form)
         file_id = str(uuid.uuid4())
         temp_storage[file_id] = output_file

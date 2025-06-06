@@ -45,7 +45,11 @@ def clean_name(x):
 
 
 class ValidationError(Exception):
-    pass
+    def __init__(self, code, context=None, technical_message=None):
+        super().__init__(technical_message or code)
+        self.code = code
+        self.context = context or {}
+        self.technical_message = technical_message
 
 
 class VoorkeurenProcessor:
@@ -96,18 +100,22 @@ class VoorkeurenProcessor:
         duplicated = df.index[df.index.duplicated()].unique().tolist()
         if duplicated:
             # \n is not allowed in f-strings
-            msg = (
-                "In voorkeuren is de volgende naam/namen niet uniek: "
-                + ", ".join(duplicated)
-                + ".\n"
-                "Voeg de eerste letter van de achternaam toe om de leerlingen van elkaar te onderscheiden"
+            raise ValidationError(
+                code="duplicate_students_preferences",
+                context={"duplicated": ",".join(duplicated)},
+                technical_message="Non-unique leerlingen detected in input data.",
             )
-            raise ValidationError(msg)
 
         incorrect = ~df["Jongen/meisje"].isin(["Jongen", "Meisje"]).squeeze()
         if incorrect.any():
             raise ValidationError(
-                f"Verkeerd ingevuld geslacht voor {','.join(incorrect[incorrect].index)}"
+                code="wrong_sex",
+                context={
+                    "students_incorrect_sex": ",".join(
+                        incorrect[incorrect].index.tolist()
+                    )
+                },
+                technical_message=f"Wrong or unknown geslacht for {incorrect[incorrect].index.tolist()}",
             )
 
     def restructure(self) -> None:
