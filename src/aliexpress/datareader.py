@@ -44,6 +44,10 @@ def clean_name(x):
     return x
 
 
+class ValidationError(Exception):
+    pass
+
+
 class VoorkeurenProcessor:
     """Read and transform the input sheet to a workable DataFrame"""
 
@@ -88,13 +92,22 @@ class VoorkeurenProcessor:
         return df
 
     def _validate_input(self, df):
-        if df.index.duplicated().any():
-            raise RuntimeError("Non-unique leerlingen detected in input data.")
+
+        duplicated = df.index[df.index.duplicated()].unique().tolist()
+        if duplicated:
+            # \n is not allowed in f-strings
+            msg = (
+                "In voorkeuren is de volgende naam/namen niet uniek: "
+                + ", ".join(duplicated)
+                + ".\n"
+                "Voeg de eerste letter van de achternaam toe om de leerlingen van elkaar te onderscheiden"
+            )
+            raise ValidationError(msg)
 
         incorrect = ~df["Jongen/meisje"].isin(["Jongen", "Meisje"]).squeeze()
         if incorrect.any():
-            raise ValueError(
-                f"Wrong or unknown geslacht for {incorrect[incorrect].index.tolist()}"
+            raise ValidationError(
+                f"Verkeerd ingevuld geslacht voor {','.join(incorrect[incorrect].index)}"
             )
 
     def restructure(self) -> None:

@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, send_file
+from flask import Flask, render_template, request, redirect, url_for, send_file, flash
 import os
 import uuid
 
@@ -6,6 +6,7 @@ import webbrowser
 from dotenv import load_dotenv
 
 from src.aliexpress.main import distribute_students_once
+from src.aliexpress.datareader import ValidationError
 
 load_dotenv()
 
@@ -51,10 +52,18 @@ def upload_files():
             "max_clique": max_clique,
             "max_clique_sex": max_clique_sex,
         }
-
-        output_file = distribute_students_once(
-            preferences, groups_to, not_together, **kwargs
-        )
+        try:
+            output_file = distribute_students_once(
+                preferences, groups_to, not_together, **kwargs
+            )
+        except ValidationError as e:
+            base_msg = "Kon bestanden niet goed inlezen.\n"
+            flash(base_msg + str(e), "error")
+            return render_template("upload.html")
+        except Exception as e:
+            base_msg = "Er is iets onverwachts misgegaan.\n"
+            flash(base_msg + str(e), "error")
+            return render_template("upload.html", previous_data=request.form)
         file_id = str(uuid.uuid4())
         temp_storage[file_id] = output_file
 
