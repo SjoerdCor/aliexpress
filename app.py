@@ -1,3 +1,4 @@
+from collections import defaultdict
 from flask import Flask, render_template, request, redirect, url_for, send_file, flash
 import os
 import uuid
@@ -43,6 +44,8 @@ app.config.from_object(ConfigClass)
 
 
 temp_storage = {}
+results = defaultdict(lambda: {"status": "pending", "logs": []})
+
 FRIENDLY_TEMPLATES = {
     "duplicate_students_preferences": (
         "In voorkeuren is de volgende naam/namen niet uniek: {duplicated}\n"
@@ -92,16 +95,26 @@ FRIENDLY_TEMPLATES = {
         "niet mogelijk. Overweeg de volgende versoepelingen om het probleem wel op te "
         "lossen:\n {possible_improvement}"
     ),
+    "internal_error": (
+        "Er is iets onverwachts misgegaan. Het probleem is gelogd. "
+        "Laat de maker dit onderzoeken."
+    ),
 }
+
+
+def file_to_io(uploaded_file):
+    from io import BytesIO
+
+    return BytesIO(uploaded_file.read())
 
 
 @app.route("/", methods=["GET", "POST"])
 def upload_files():
     if request.method == "POST":
         logger.info("Submitted")
-        preferences = request.files["preferences"]
-        groups_to = request.files["groups_to"]
-        not_together = request.files["not_together"]
+        preferences = file_to_io(request.files["preferences"])
+        groups_to = file_to_io(request.files["groups_to"])
+        not_together = file_to_io(request.files["not_together"])
 
         try:
             max_diff_n_students_total = int(request.form["max_diff_n_students_total"])
@@ -126,47 +139,104 @@ def upload_files():
             "max_clique_sex": max_clique_sex,
         }
 
+        def on_update(message):
+            results[task_id]["logs"].append(message)
+
         logger.info("Starting distribution...")
-        try:
-            output_file = distribute_students_once(
-                preferences, groups_to, not_together, **kwargs
-            )
-        except ValidationError as e:
-            logger.exception("Files are incorrect")
-            template = FRIENDLY_TEMPLATES.get(e.code)
-            message = template.format(**e.context)
-            flash(message, "error")
-            return render_template("upload.html")
-        except FeasibilityError as e:
-            logger.exception("Problem is infeasible")
-            template = FRIENDLY_TEMPLATES.get(e.code)
-            message = template.format(**e.context)
-            flash(message, "error")
-            return render_template("upload.html")
-        except Exception as e:
-            logger.exception("Uncaught exception")
-            msg = "Er is iets onverwachts misgegaan. Het probleem is gelogd. laat de maker dit onderzoeken."
-            flash(msg, "error")
+        from threading import Thread
 
-            return render_template("upload.html", previous_data=request.form)
-        file_id = str(uuid.uuid4())
-        temp_storage[file_id] = output_file
+        task_id = str(uuid.uuid4())
 
-        return redirect(url_for("result_page", file_id=file_id))
+        def run_task(*args, **kwargs):
+            try:
+                results[task_id]["status"] = "running"
+                result = distribute_students_once(*args, **kwargs, on_update=on_update)
+                logger.info("Distributing students finished successfully")
+                results[task_id] = {"status": "done"}
+                temp_storage[task_id] = result
+
+            except ValidationError as e:
+                logger.exception("Files are incorrect")
+                results[task_id] = {
+                    "status": "error",
+                    "error_code": e.code,
+                    "error_context": e.context,
+                }
+            except FeasibilityError as e:
+                logger.exception("Problem is infeasible")
+                results[task_id] = {
+                    "status": "error",
+                    "error_code": e.code,
+                    "error_context": e.context,
+                }
+            except Exception as e:
+                logger.exception("Uncaught exception")
+                results[task_id] = {
+                    "status": "error",
+                    "error_code": "internal_error",
+                    "error_context": {"details": str(e)},
+                }
+
+        Thread(
+            target=run_task,
+            args=(preferences, groups_to, not_together),
+            kwargs=kwargs,
+        ).start()
+
+        # output_file = distribute_students_once(
+        #     preferences, groups_to, not_together, **kwargs
+        # )
+        return redirect(url_for("processing", task_id=task_id))
+
+        # return redirect(url_for("result_page", file_id=file_id))
     logger.info("Showing upload page")
     return render_template("upload.html")
 
 
-@app.route("/result/<file_id>")
-def result_page(file_id):
-    return render_template("result.html", file_id=file_id)
+from flask import jsonify
 
 
-@app.route("/download/<file_id>")
-def download(file_id):
-    file_buffer = temp_storage.get(file_id)
+@app.route("/status/<task_id>")
+def status(task_id):
+    logger.debug("{task_id=}")
+    result = results.get(task_id)
+    logger.debug(f"{result=}, {type(result)}")
+    if not result:
+        return jsonify({"status": "unknown"})
+    return jsonify(result)
+
+
+@app.route("/processing/<task_id>")
+def processing(task_id):
+    return render_template("processing.html", task_id=task_id)
+
+
+@app.route("/handle-error", methods=["POST"])
+def handle_error():
+    data = request.get_json()
+    code = data.get("code")
+    context = data.get("context", {})
+
+    template = FRIENDLY_TEMPLATES.get(code, "Er ging iets fout.")
+    message = template.format(**context)
+    flash(message, "error")
+
+    return "", 204
+
+
+@app.route("/result/<task_id>")
+def result_page(task_id):
+    return render_template("result.html", task_id=task_id)
+
+
+@app.route("/download/<task_id>")
+def download(task_id):
+    file_buffer = temp_storage.get(task_id)
+    logger.debug(task_id)
+    print(temp_storage)
     if file_buffer is None:
-        return "File not found", 404
+        flash("Groepsindeling niet gevonden. Mogelijk nog aan het berekenen", "error")
+        return render_template("result.html", task_id=task_id)
 
     return send_file(
         file_buffer,
