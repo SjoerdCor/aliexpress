@@ -47,6 +47,7 @@ def distribute_students_once(
     path_preferences=FILE_PREFERENCES,
     path_groups_to=FILE_GROUPS_TO,
     path_not_together=FILE_NOT_TOGETHER,
+    on_update=None,
     **kwargs,
 ):
     """Distribute all students with preferences over all groups with lexmaxmin
