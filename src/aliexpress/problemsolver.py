@@ -801,6 +801,7 @@ class ProblemSolver:
         if pulp.HiGHS_CMD().available():
             solver = pulp.HiGHS_CMD(**kwargs, gapRel=0)
         else:
+            logger.warning("Falling back to CBC solver. Might be very slow!")
             solver = pulp.PULP_CBC_CMD(**kwargs)
         return solver
 
