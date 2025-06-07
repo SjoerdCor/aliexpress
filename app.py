@@ -7,19 +7,23 @@ import webbrowser
 from dotenv import load_dotenv
 
 from src.aliexpress.main import distribute_students_once
-from src.aliexpress.errors import ReadableError, ValidationError
+from src.aliexpress.errors import FeasibilityError, ValidationError
 
 
 def setup_logger():
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
 
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.DEBUG)
     file_handler = logging.FileHandler("aliexpress.log")
     file_handler.setLevel(logging.INFO)
 
     formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
     file_handler.setFormatter(formatter)
+    console_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
     return logger
 
 
@@ -70,15 +74,18 @@ FRIENDLY_TEMPLATES = {
     ),
     "wrong_columns_preferences": (
         "Het voorkeuren-bestand heeft de verkeerde kolommen. Controleer of je het goede"
-        " bestand hebt geupload en het meest recente template hebt gebruikt."
+        " bestand hebt geupload en het meest recente template hebt gebruikt. "
+        "\n{wrong_columns}"
     ),
     "wrong_columns_not_together": (
         "Het niet-samen-bestand heeft de verkeerde kolommen. Controleer of je het goede"
-        " bestand hebt geupload en het meest recente template hebt gebruikt."
+        " bestand hebt geupload en het meest recente template hebt gebruikt. "
+        "\n{wrong_columns}"
     ),
     "wrong_columns_groups_to": (
         "Het groepen-bestand heeft de verkeerde kolommen. Controleer of je het goede "
-        "bestand hebt geupload en het meeste recente template hebt gebruikt."
+        "bestand hebt geupload en het meeste recente template hebt gebruikt. "
+        "\n{wrong_columns}"
     ),
     "infeasible_problem": (
         "Met deze vereiste klassenbalans en verdeling van leerlingen die overgaan is het"
@@ -91,6 +98,7 @@ FRIENDLY_TEMPLATES = {
 @app.route("/", methods=["GET", "POST"])
 def upload_files():
     if request.method == "POST":
+        logger.info("Submitted")
         preferences = request.files["preferences"]
         groups_to = request.files["groups_to"]
         not_together = request.files["not_together"]
@@ -118,23 +126,22 @@ def upload_files():
             "max_clique_sex": max_clique_sex,
         }
 
+        logger.info("Starting distribution...")
         try:
             output_file = distribute_students_once(
                 preferences, groups_to, not_together, **kwargs
             )
         except ValidationError as e:
-            logger.error(e.technical_message)
+            logger.exception("Files are incorrect")
             template = FRIENDLY_TEMPLATES.get(e.code)
             message = template.format(**e.context)
             flash(message, "error")
             return render_template("upload.html")
-        except ReadableError as e:
-            logger.error(e.technical_message)
+        except FeasibilityError as e:
+            logger.exception("Problem is infeasible")
             template = FRIENDLY_TEMPLATES.get(e.code)
             message = template.format(**e.context)
-
-            base_msg = "Kon bestanden niet goed inlezen.\n"
-            flash(base_msg + message, "error")
+            flash(message, "error")
             return render_template("upload.html")
         except Exception as e:
             logger.exception("Uncaught exception")
@@ -146,7 +153,7 @@ def upload_files():
         temp_storage[file_id] = output_file
 
         return redirect(url_for("result_page", file_id=file_id))
-
+    logger.info("Showing upload page")
     return render_template("upload.html")
 
 

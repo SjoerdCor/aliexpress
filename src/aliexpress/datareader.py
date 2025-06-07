@@ -9,6 +9,44 @@ import pandas as pd
 from .errors import ValidationError
 
 
+def validate_columns(df: pd.DataFrame, expected_columns, file_type: str) -> None:
+    """Validates whether df has expected columns
+
+    file-type is in {"preferences", "groups_to", "not_together"}
+
+    Raises
+    ------
+    Validation error if not matching
+    """
+
+    def flatten_column(col: tuple) -> str:
+        "Comparable by removing nan, readable: tuple -> str"
+        parts = [str(c) for c in col if pd.notna(c)]
+        return "_".join(parts)
+
+    if isinstance(df.columns, pd.MultiIndex):
+        actual = {flatten_column(c) for c in df.columns}
+        expected = {flatten_column(c) for c in expected_columns}
+    else:
+        actual = set(df.columns)
+        expected = set(expected_columns)
+
+    missing = expected - actual
+    extra = actual - expected
+
+    if missing or extra:
+        msg = ""
+        if missing:
+            msg += f"Ontbrekende kolommen: {', '.join(missing)}. \n"
+        if extra:
+            msg += f"Onverwachte kolommen: {', '.join(extra)}."
+        raise ValidationError(
+            f"wrong_columns_{file_type}",
+            context={"wrong_columns": msg},
+            technical_message=f"Wrong columns for {file_type}: \n{missing=}\n{extra=}",
+        )
+
+
 def toggle_negative_weights(df: pd.DataFrame, mask="Gewicht") -> pd.DataFrame:
     """Adjusts 'Liever niet met'/'Graag met' category by negating weight and renaming.
 
@@ -112,13 +150,8 @@ class VoorkeurenProcessor:
             ],
             names=["TypeWens", "Nr", "TypeWaarde"],
         )
-        try:
-            pd.testing.assert_index_equal(df.columns, expected_columns)
-        except AssertionError as e:
-            raise ValidationError(
-                code="wrong_columns_preferences",
-                technical_message="Preferences excel has wrong columns",
-            ) from e
+        validate_columns(df, expected_columns, "preferences")
+
         duplicated = df.index[df.index.duplicated()].unique().tolist()
         if duplicated:
             raise ValidationError(
@@ -249,13 +282,7 @@ def read_not_together(filename: str, students: Iterable, n_groups: int) -> list:
         "Leerling 11",
         "Leerling 12",
     ]
-    try:
-        pd.testing.assert_index_equal(pd.Index(expected_cols), df_not_together.columns)
-    except AssertionError as e:
-        raise ValidationError(
-            "wrong_columns_not_together",
-            technical_message="Not together excel has wrong columns",
-        ) from e
+    validate_columns(df_not_together, expected_cols, "not_together")
     result = []
 
     def _validate(group, max_aantal_samen, students, n_groups):
@@ -318,12 +345,5 @@ def read_groups_excel(path_groups_to) -> dict:
     """Reads the information about the groups to from excel to dict"""
     df = pd.read_excel(path_groups_to)
     expected_columns = ["Groepen", "Jongens", "Meisjes"]
-
-    try:
-        pd.testing.assert_index_equal(df.columns, pd.Index(expected_columns))
-    except AssertionError as e:
-        raise ValidationError(
-            code="wrong_columns_groups_to",
-            technical_message="groups excel has wrong columns",
-        ) from e
+    validate_columns(df, expected_columns, "groups_to")
     return df.set_index("Groepen").to_dict(orient="index")
