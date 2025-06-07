@@ -304,7 +304,7 @@ def read_not_together(filename: str, students: Iterable, n_groups: int) -> list:
                 code="unknown_students_not_together",
                 context={
                     "row": i + 1,
-                    "unknow_students": ",".join(group[~known_students]),
+                    "unknown_students": ",".join(group[~known_students]),
                 },
                 technical_message=f"Unknown students on row {i + 1}:\n{group[~known_students]}",
             )
