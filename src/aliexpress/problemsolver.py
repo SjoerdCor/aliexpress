@@ -674,17 +674,20 @@ class ProblemSolver:
             with warnings.catch_warnings(
                 action="ignore", category=pd.errors.PerformanceWarning
             ):
-                positive_preferences = self.preferences.loc[
-                    (student, "Graag met")
-                ].query("Gewicht > 0")
-                if positive_preferences.empty:
-                    # Add base satisfaction if no positive preferences, so maxmin optimizes
-                    # for student with actual preferences
+                # Add base satisfaction if no (positive) preferences, so maxmin optimizes
+                # for student with actual preferences
+                try:
+                    preferences = self.preferences.loc[(student, "Graag met")]
+                except KeyError:
                     satisfaction_current_student += 1
                 else:
-                    max_wishes = positive_preferences["Gewicht"].sum()
-                    max_satisfaction = get_satisfaction_integral(0, max_wishes)
-                    satisfaction_current_student /= max_satisfaction
+                    positive_preferences = preferences.query("Gewicht > 0")
+                    if positive_preferences.empty:
+                        satisfaction_current_student += 1
+                    else:
+                        max_wishes = positive_preferences["Gewicht"].sum()
+                        max_satisfaction = get_satisfaction_integral(0, max_wishes)
+                        satisfaction_current_student /= max_satisfaction
             self.prob += (
                 self.studentsatisfaction[student] == satisfaction_current_student
             )
