@@ -95,6 +95,12 @@ input[type="text"]:focus {
 .button.primary:hover {
   background-color: #b35400;
 }
+.previous-step {
+    text-align: left;
+    width: 100%;
+    margin-top: 2rem;
+}
+
 
 .next-step {
     text-align: right;
