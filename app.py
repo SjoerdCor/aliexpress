@@ -130,6 +130,11 @@ FRIENDLY_TEMPLATES = {
 }
 
 
+@app.route("/")
+def home():
+    return render_template("home.html")
+
+
 def file_to_io(uploaded_file) -> BytesIO:
     """Get file as BytesIO"""
     return BytesIO(uploaded_file.read())
@@ -147,7 +152,7 @@ def fillin():
     return render_template("fillin.html")
 
 
-@app.route("/", methods=["GET", "POST"])
+@app.route("/upload", methods=["GET", "POST"])
 def upload_files():
     """Handle upload page, including form submission"""
     if request.method == "POST":

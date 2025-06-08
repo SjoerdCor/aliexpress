@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% set current_step = 0 %}
+{% block header %}Welkom bij het ALI Express{% endblock %}
+
+{% block content %}
+<div class="homepage">
+
+    <section class="intro">
+        <p>
+            ALI Express helpt scholen om leerlingen op een slimme manier in groepen in te delen.</p>
+        <p> Handmatig een goede groepsindeling maken kan heel tijdrovend en ingewikkeld zijn, met allerlei wensen en
+            regels om rekening mee te houden.
+            ALI Express neemt dat werk voor je uit handen door in een paar simpele stappen de beste groepen samen te
+            stellen.</p>
+        <p>
+            Het houdt bijvoorbeeld rekening met wie bij elkaar wil zitten of juist niet, het aantal jongens en meisjes
+            en voorkomt dat oude kliekjes blijven hangen.
+            Zo krijg je snel groepen waar iedereen beter in past. </p>
+    </section>
+
+    <div class="step-navigation">
+        <a href="{{ url_for('fillin') }}" class="button next-step">Start →</a>
+    </div>
+
+</div>
+{% endblock %}
