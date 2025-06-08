@@ -183,6 +183,12 @@ class VoorkeurenProcessor:
             names=["TypeWens", "Nr", "TypeWaarde"],
         )
         validate_columns(df, expected_columns, "preferences")
+        if df.empty:
+            raise ValidationError(
+                "empty_df",
+                context={"filetype": "voorkeuren"},
+                technical_message="Preferences df is empty",
+            )
         check_mandatory_columns(df, ["Jongen/meisje", "Stamgroep"], "preferences")
 
         duplicated = df.index[df.index.duplicated()].unique().tolist()
@@ -379,6 +385,14 @@ def read_groups_excel(path_groups_to) -> dict:
     """Reads the information about the groups to from excel to dict"""
     df = pd.read_excel(path_groups_to)
     expected_columns = ["Groepen", "Jongens", "Meisjes"]
+
     validate_columns(df, expected_columns, "groups_to")
+    if df.empty:
+        raise ValidationError(
+            "empty_df",
+            context={"filetype": "groepen"},
+            technical_message="groups_to df is empty",
+        )
+
     check_mandatory_columns(df, ["Groepen", "Jongens", "Meisjes"], "groups_to")
     return df.set_index("Groepen").to_dict(orient="index")

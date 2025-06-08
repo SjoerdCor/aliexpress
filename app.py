@@ -123,6 +123,9 @@ FRIENDLY_TEMPLATES = {
     "could_not_read": (
         "Het {filetype}-bestand kon niet worden ingelezen. Controleer of je het juiste bestand hebt geupload"
     ),
+    "empty_df": (
+        "Het {filetype}-bestand was helemaal leeg. Daardoor kan er geen groepsindeling worden berekend"
+    ),
     "internal_error": (
         "Er is iets onverwachts misgegaan. Het probleem is gelogd. "
         "Laat de maker dit onderzoeken."
