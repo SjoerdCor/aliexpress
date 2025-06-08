@@ -5,6 +5,8 @@
 
 {% block content %}
 <div id="logs"></div>
+<div class="loading-spinner"></div>
+
 <script>
     setInterval(() => {
         fetch("/status/{{ task_id }}")
