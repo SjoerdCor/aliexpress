@@ -16,6 +16,7 @@ from flask import (
     redirect,
     url_for,
     send_file,
+    session,
     flash,
     jsonify,
 )
@@ -164,6 +165,7 @@ def upload_files():
             "max_clique": max_clique,
             "max_clique_sex": max_clique_sex,
         }
+        session["config"] = kwargs
 
         def on_update(message):
             results[task_id]["logs"].append(message)
