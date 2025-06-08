@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% set current_step = 1 %}
+{% block content %}
+
+
+<p>Download hier de invulbestanden:</p>
+<div class="download-buttons" style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
+    <a href="{{ url_for('download_template', filename='voorkeuren.xlsx') }}" class="button">Download
+        Voorkeuren</a>
+    <a href="{{ url_for('download_template', filename='groepen.xlsx') }}" class="button">Download Groepen</a>
+    <a href="{{ url_for('download_template', filename='niet_samen.xlsx') }}" class="button">Download
+        Niet-samen</a>
+</div>
+
+<!-- <div class="instructions-box"
+    style="border: 1px solid #ddd; background: #fff7f0; padding: 1rem; border-radius: 0.5rem; max-height: 200px; overflow-y: auto; margin-bottom: 2rem;">
+    <h2 style="font-size: 1.2rem; margin-top: 0;">Invulinstructies</h2>
+    <p>
+        Zorg ervoor dat je alle verplichte velden invult in het juiste formaat. Kijk bij twijfel in de legenda op het
+        tweede tabblad van elk template. Gebruik bij voorkeur de meest recente versie van Excel.
+    </p>
+    <p>
+        Let op dat je geen formules gebruikt, alleen platte tekst of getallen. Meerdere invoerregels kun je onder elkaar
+        zetten in dezelfde kolom.
+    </p>
+</div> -->
+
+<div class="next-step">
+    <a href="{{ url_for('upload_files') }}" class="button primary">Naar uploaden</a>
+</div>
+
+</div>
+{% endblock %}

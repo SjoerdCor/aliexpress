@@ -16,6 +16,7 @@ from flask import (
     redirect,
     url_for,
     send_file,
+    send_from_directory,
     session,
     flash,
     jsonify,
@@ -132,6 +133,18 @@ FRIENDLY_TEMPLATES = {
 def file_to_io(uploaded_file) -> BytesIO:
     """Get file as BytesIO"""
     return BytesIO(uploaded_file.read())
+
+
+@app.route("/input_templates/<path:filename>")
+def download_template(filename):
+    """Download the template sheets"""
+    return send_from_directory("input_templates", filename, as_attachment=True)
+
+
+@app.route("/fillin")
+def fillin():
+    """Display the fillin page"""
+    return render_template("fillin.html")
 
 
 @app.route("/", methods=["GET", "POST"])
