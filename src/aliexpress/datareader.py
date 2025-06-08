@@ -59,17 +59,22 @@ def check_mandatory_columns(
     ValidationError if mandatory columns contain NA
 
     """
-    failed_columns = set()
+    failed_columns = []
     if check_index:
         if df.index.isna().any():
-            failed_columns.add(df.index.names)
+            if isinstance(df.index, pd.MultiIndex):
+                parts = [str(c) for c in df.index.names if pd.notna(c)]
+                name = "_".join(parts)
+            else:
+                name = df.index.name
+            failed_columns.append(name)
     illegal_cols = df[mandatory_columns].isna().any().loc[lambda s: s]
     for col in illegal_cols.index.tolist():
-        failed_columns.add(col)
+        failed_columns.append(col)
     if failed_columns:
         raise ValidationError(
             code=f"empty_mandatory_columns_{file_type}",
-            context={"failed_columns": failed_columns},
+            context={"failed_columns": ", ".join(failed_columns)},
             technical_message=f"Mandatory columns not filled:\n index: {df.index.isna().sum()},\n{df[mandatory_columns].isna().sum()}",
         )
 
@@ -316,7 +321,6 @@ def read_not_together(filename: str, students: Iterable, n_groups: int) -> list:
     result = []
 
     def _validate(group, max_aantal_samen, students, n_groups):
-        # TODO: validate group not empty
         duplicated = group.duplicated()
         if duplicated.any():
             raise ValidationError(
@@ -376,5 +380,5 @@ def read_groups_excel(path_groups_to) -> dict:
     df = pd.read_excel(path_groups_to)
     expected_columns = ["Groepen", "Jongens", "Meisjes"]
     validate_columns(df, expected_columns, "groups_to")
-    check_mandatory_columns["Groepen", "Jongens", "Meisjes"]
+    check_mandatory_columns(df, ["Groepen", "Jongens", "Meisjes"], "groups_to")
     return df.set_index("Groepen").to_dict(orient="index")
