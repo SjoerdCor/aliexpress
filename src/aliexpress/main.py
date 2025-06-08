@@ -53,6 +53,9 @@ def distribute_students_once(
     """Distribute all students with preferences over all groups with lexmaxmin
 
     Kwargs are passed to problemsolver
+    Parameters:
+        on_update : func
+            Takes a message and decides what to do with it
     """
     groups_to = datareader.read_groups_excel(path_groups_to)
     processor = datareader.VoorkeurenProcessor(path_preferences)
@@ -61,6 +64,7 @@ def distribute_students_once(
     not_together = datareader.read_not_together(
         path_not_together, students_info.keys(), len(groups_to)
     )
+    on_update("Alle bestanden zijn gevalideerd!")
     logger.info("All files read")
 
     df_groups_to = pd.DataFrame.from_dict(groups_to, orient="index")
@@ -69,12 +73,15 @@ def distribute_students_once(
     )
 
     df_students = pd.DataFrame.from_dict(students_info, orient="index")
-
-    logger.info(
-        "Current boy/girl distribution:\n%s",
-        df_students[["Jongen/meisje"]].value_counts(),
+    sex_distribution = df_students[["Jongen/meisje"]].value_counts()
+    on_update(
+        f"{len(df_students)} leerlingen te verdelen, waarvan {sex_distribution.loc['Jongen'].squeeze()}"
+        f" jongens en {sex_distribution.loc['Meisje'].squeeze()} meisjes"
     )
-    logger.info("Coming from groups:\n%s", df_students["Stamgroep"].value_counts())
+    logger.info("Current boy/girl distribution:\n%s", sex_distribution)
+    on_update("Komen uit de volgende groepen:")
+    for group, value in df_students["Stamgroep"].value_counts().items():
+        on_update(f"{group}: {value}")
 
     defaults_problemsolver = {
         "max_imbalance_boys_girls_total": 5,
@@ -131,9 +138,12 @@ def distribute_students_once(
             context={"possible_improvement": msg},
             technical_message="Can not solve the problem for this class imbalance",
         )
-
+    on_update("Bepaald dat probleem oplosbaar is!")
+    on_update("Aan de slag!")
     logger.info("Finding first solution... lexmaxmin")
     ps_lexmaxmin.run(save=False)
+    on_update("Groepsindeling gemaakt!")
+    on_update("Groepsindeling wegschrijven...")
     logger.info("Found solution")
 
     with tempfile.NamedTemporaryFile(mode="w+", suffix=".json", delete=False) as tmp:
@@ -148,6 +158,7 @@ def distribute_students_once(
     sa.to_excel(output)
     output.seek(0)
     logger.info("Done!")
+    on_update("Klaar!")
     return output
 
 
