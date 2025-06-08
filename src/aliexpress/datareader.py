@@ -16,7 +16,7 @@ def validate_columns(df: pd.DataFrame, expected_columns, file_type: str) -> None
 
     Raises
     ------
-    Validation error if not matching
+    ValidationError if not matching
     """
 
     def flatten_column(col: tuple) -> str:
@@ -44,6 +44,33 @@ def validate_columns(df: pd.DataFrame, expected_columns, file_type: str) -> None
             f"wrong_columns_{file_type}",
             context={"wrong_columns": msg},
             technical_message=f"Wrong columns for {file_type}: \n{missing=}\n{extra=}",
+        )
+
+
+def check_mandatory_columns(
+    df: pd.DataFrame, mandatory_columns: list, file_type: str, check_index=True
+):
+    """Check whether all mandatory columns are filled
+
+    file-type is in {"preferences", "groups_to", "not_together"}
+
+    Raises
+    ------
+    ValidationError if mandatory columns contain NA
+
+    """
+    failed_columns = set()
+    if check_index:
+        if df.index.isna().any():
+            failed_columns.add(df.index.names)
+    illegal_cols = df[mandatory_columns].isna().any().loc[lambda s: s]
+    for col in illegal_cols.index.tolist():
+        failed_columns.add(col)
+    if failed_columns:
+        raise ValidationError(
+            code=f"empty_mandatory_columns_{file_type}",
+            context={"failed_columns": failed_columns},
+            technical_message=f"Mandatory columns not filled:\n index: {df.index.isna().sum()},\n{df[mandatory_columns].isna().sum()}",
         )
 
 
@@ -151,6 +178,7 @@ class VoorkeurenProcessor:
             names=["TypeWens", "Nr", "TypeWaarde"],
         )
         validate_columns(df, expected_columns, "preferences")
+        check_mandatory_columns(df, ["Jongen/meisje", "Stamgroep"], "preferences")
 
         duplicated = df.index[df.index.duplicated()].unique().tolist()
         if duplicated:
@@ -283,6 +311,8 @@ def read_not_together(filename: str, students: Iterable, n_groups: int) -> list:
         "Leerling 12",
     ]
     validate_columns(df_not_together, expected_cols, "not_together")
+    check_mandatory_columns(df_not_together, expected_cols[:3], "not_together")
+
     result = []
 
     def _validate(group, max_aantal_samen, students, n_groups):
@@ -346,4 +376,5 @@ def read_groups_excel(path_groups_to) -> dict:
     df = pd.read_excel(path_groups_to)
     expected_columns = ["Groepen", "Jongens", "Meisjes"]
     validate_columns(df, expected_columns, "groups_to")
+    check_mandatory_columns["Groepen", "Jongens", "Meisjes"]
     return df.set_index("Groepen").to_dict(orient="index")
