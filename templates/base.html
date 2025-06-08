@@ -21,6 +21,43 @@
     {% endwith %}
 
     <div class="container">
+        <div class="stepper">
+            <div class="step {% if current_step > 1 %}done{% elif current_step == 1 %}active{% endif %}">
+                {% if current_step >= 10 %}
+                <a href="#">Invullen</a>
+                {% else %}
+                <span>Invullen</span>
+                {% endif %}
+            </div>
+            <div class="step {% if current_step > 2 %}done{% elif current_step == 2 %}active{% endif %}">
+                {% if current_step >= 10 %}
+                <a href="{{ url_for('uploaden') }}">Uploaden</a>
+                {% else %}
+                <span>Uploaden</span>
+                {% endif %}
+            </div>
+            <div class="step {% if current_step > 3 %}done{% elif current_step == 3 %}active{% endif %}">
+                {% if current_step >= 10 and task_id %}
+                <a href="{{ url_for('verwerken', task_id=task_id) }}">Verwerken</a>
+                {% else %}
+                <span>Leerlingen<br>indelen</span>
+                {% endif %}
+            </div>
+            <div class="step {% if current_step > 4 %}done{% elif current_step == 4 %}active{% endif %}">
+                {% if current_step >= 10 and task_id %}
+                <a href="{{ url_for('resultaat', task_id=task_id) }}">Resultaat</a>
+                {% else %}
+                <span>Resultaat<br> bekijken</span>
+                {% endif %}
+            </div>
+            <div class="step {% if current_step > 5 %}done{% elif current_step == 5 %}active{% endif %}">
+                {% if current_step >= 5 %}
+                <a href="#">Klaar</a>
+                {% else %}
+                <span>Klaar!</span>
+                {% endif %}
+            </div>
+        </div>
         <h1>{% block header %}{% endblock %}</h1>
         {% block content %}{% endblock %}
     </div>
