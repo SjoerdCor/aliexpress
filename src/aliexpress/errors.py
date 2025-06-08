@@ -13,5 +13,6 @@ class ValidationError(ReadableError):
 class FeasibilityError(ReadableError):
     pass
 
-class CouldNotReadFileError(ReadableError)
+
+class CouldNotReadFileError(ReadableError):
     pass
