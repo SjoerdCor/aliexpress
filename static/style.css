@@ -306,3 +306,7 @@ input[type="submit"] {
   margin-bottom: 1rem;
   text-align: center;
 }
+
+.intro p{
+  font-weight: normal;
+}
