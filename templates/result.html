@@ -8,11 +8,8 @@
 <a href="{{ url_for('download', task_id=task_id) }}" class="button primary">Download groepsindeling</a>
 <p>Onderzoek hem goed. Ben je er tevreden mee?</p>
 
-<div class="previous-step">
-    <a href="{{ url_for('upload_files') }}" class="button primary">Nog niet helemaal...</a>
-</div>
-
-<div class="next-step">
-    <a href="{{ url_for('done') }}" class="button primary">Ja, ik ben tevreden!</a>
+<div class="step-navigation">
+    <a href="{{ url_for('upload_files') }}" class="button previous-step">← Nog niet helemaal... opnieuw invoeren</a>
+    <a href="{{ url_for('done') }}" class="button next-step">Ja, ik ben tevreden! →</a>
 </div>
 {% endblock %}
