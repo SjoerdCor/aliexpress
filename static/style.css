@@ -61,7 +61,6 @@ input[type="text"] {
 	font-size: 16px;
 	color: #333333;
 	box-sizing: border-box;
-	/* Add this property */
 }
 
 select:focus,
@@ -71,14 +70,26 @@ input[type="text"]:focus {
 	outline: none;
 }
 
+input[type="submit"] {
+  all: unset;
+  font-family: inherit;
+  font-size: 1rem;
+  padding: 0.75rem 1.5rem;
+  background-color: #e69900;
+  color: white;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  text-align: center;
+  display: inline-block;
+}
+
 .button {
   display: inline-block;
   padding: 0.6rem 1.2rem;
   background-color: #ff9933;
   color: white;
   border-radius: 0.4rem;
-  text-decoration: none; /* dit haalt die onderstreping weg */
-  font-weight: bold;
+  text-decoration: none; 
   cursor: pointer;
   transition: background-color 0.2s ease;
 }
@@ -86,7 +97,6 @@ input[type="text"]:focus {
 .button:hover {
 	background-color: #cc8000;
 }
-
 
 .step-navigation {
   display: flex;

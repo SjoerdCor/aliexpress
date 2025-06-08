@@ -55,6 +55,9 @@
     </fieldset>
     <br>
 
-    <input type="submit" value="Verwerken">
+    <div class="step-navigation">
+        <a href="{{ url_for('fillin') }}" class="button previous-step">← Naar Invullen</a>
+        <input type="submit" value="Bereken groepsindeling →" class="button next-step">
+    </div>
 </form>
 {% endblock %}
