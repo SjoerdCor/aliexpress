@@ -47,7 +47,7 @@ def distribute_students_once(
     path_preferences=FILE_PREFERENCES,
     path_groups_to=FILE_GROUPS_TO,
     path_not_together=FILE_NOT_TOGETHER,
-    on_update=None,
+    on_update=lambda msg: None,
     **kwargs,
 ):
     """Distribute all students with preferences over all groups with lexmaxmin
@@ -55,7 +55,8 @@ def distribute_students_once(
     Kwargs are passed to problemsolver
     Parameters:
         on_update : func
-            Takes a message and decides what to do with it
+            Takes a user friendly message and decides what to do with it for the calling
+            function. By default, ignores them
     """
     groups_to = datareader.read_groups_excel(path_groups_to)
     processor = datareader.VoorkeurenProcessor(path_preferences)
