@@ -196,12 +196,7 @@ def upload_files():
             kwargs=kwargs,
         ).start()
 
-        # output_file = distribute_students_once(
-        #     preferences, groups_to, not_together, **kwargs
-        # )
         return redirect(url_for("processing", task_id=task_id))
-
-        # return redirect(url_for("result_page", file_id=file_id))
     logger.info("Showing upload page")
     return render_template("upload.html")
 
