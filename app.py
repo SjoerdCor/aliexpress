@@ -275,6 +275,12 @@ def download(task_id):
     )
 
 
+@app.route("/done")
+def done():
+    """Show done page"""
+    return render_template("done.html")
+
+
 if __name__ == "__main__":
     webbrowser.open("http://localhost:5000")
     app.run()
