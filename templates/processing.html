@@ -11,8 +11,8 @@
             .then(r => r.json())
             .then(data => {
                 console.log(data.status)
-                // document.getElementById("logs").innerHTML =
-                //     data.logs.map(line => `<p>${line}</p>`).join("");
+                document.getElementById("logs").innerHTML =
+                    data.logs.map(line => `<p>${line}</p>`).join("");
 
                 if (data.status === "done") {
                     window.location.href = "/result/{{ task_id }}";
