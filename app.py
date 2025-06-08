@@ -1,17 +1,31 @@
-from collections import defaultdict
-from flask import Flask, render_template, request, redirect, url_for, send_file, flash
-import os
-import uuid
-import logging
+"""The flask server that governs the app"""
 
+from collections import defaultdict
+from io import BytesIO
+import logging
+import os
+from threading import Thread
+import uuid
 import webbrowser
+
 from dotenv import load_dotenv
+from flask import (
+    Flask,
+    render_template,
+    request,
+    redirect,
+    url_for,
+    send_file,
+    flash,
+    jsonify,
+)
 
 from src.aliexpress.main import distribute_students_once
 from src.aliexpress.errors import FeasibilityError, ValidationError
 
 
 def setup_logger():
+    """Create logging instance"""
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
 
@@ -102,14 +116,14 @@ FRIENDLY_TEMPLATES = {
 }
 
 
-def file_to_io(uploaded_file):
-    from io import BytesIO
-
+def file_to_io(uploaded_file) -> BytesIO:
+    """Get file as BytesIO"""
     return BytesIO(uploaded_file.read())
 
 
 @app.route("/", methods=["GET", "POST"])
 def upload_files():
+    """Handle upload page, including form submission"""
     if request.method == "POST":
         logger.info("Submitted")
         preferences = file_to_io(request.files["preferences"])
@@ -143,7 +157,6 @@ def upload_files():
             results[task_id]["logs"].append(message)
 
         logger.info("Starting distribution...")
-        from threading import Thread
 
         task_id = str(uuid.uuid4())
 
@@ -193,14 +206,10 @@ def upload_files():
     return render_template("upload.html")
 
 
-from flask import jsonify
-
-
 @app.route("/status/<task_id>")
 def status(task_id):
-    logger.debug("{task_id=}")
+    """Return status as json"""
     result = results.get(task_id)
-    logger.debug(f"{result=}, {type(result)}")
     if not result:
         return jsonify({"status": "unknown"})
     return jsonify(result)
@@ -208,11 +217,13 @@ def status(task_id):
 
 @app.route("/processing/<task_id>")
 def processing(task_id):
+    """Display processing page"""
     return render_template("processing.html", task_id=task_id)
 
 
 @app.route("/handle-error", methods=["POST"])
 def handle_error():
+    """Show information about errors to user"""
     data = request.get_json()
     code = data.get("code")
     context = data.get("context", {})
@@ -221,19 +232,21 @@ def handle_error():
     message = template.format(**context)
     flash(message, "error")
 
+    # By not redirecting here but in JS, this is more flexible
     return "", 204
 
 
 @app.route("/result/<task_id>")
 def result_page(task_id):
+    """Display result for single run"""
     return render_template("result.html", task_id=task_id)
 
 
 @app.route("/download/<task_id>")
 def download(task_id):
+    """Download single groepsindeling"""
     file_buffer = temp_storage.get(task_id)
     logger.debug(task_id)
-    print(temp_storage)
     if file_buffer is None:
         flash("Groepsindeling niet gevonden. Mogelijk nog aan het berekenen", "error")
         return render_template("result.html", task_id=task_id)
