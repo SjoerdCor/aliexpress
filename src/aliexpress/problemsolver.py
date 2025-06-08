@@ -706,7 +706,12 @@ class ProblemSolver:
         M = 1_000_000  # Large enough so min dominates sum
         return M * minimal_satisfaction + pulp.lpSum(self.studentsatisfaction.values())
 
-    def _lex_max_min(self, satisfied: dict, n_levels=10) -> pulp.LpVariable:
+    def _lex_max_min(
+        self,
+        satisfied: dict,
+        n_levels_max: int = None,
+        satisfaction_max: float = 0.8,
+    ) -> pulp.LpVariable:
         """
         Solve the approximate lexmaxmin problem for student satisfaction
 
@@ -714,22 +719,28 @@ class ProblemSolver:
         often plateaud: there are multiple students at the same level. Level by level,
         first the next lowest plateau is determined, and then the number of students
         on that plateau. When each number is found, it is then added as a constraint and
-        continues solving. Total student satisfaction is the ultimate tie breaker
+        continues solving. Automatically stops when all students are distributed,
+        or if n_levels max or satisfaction_max is reached. In that case, total student satisfaction is the ultimate tie breaker
 
         Parameters
         ----------
-        n_levels : int
-            The number of plateaus to use. Higher means more precision, but slightly slower,
+        n_levels_max : int, optional
+            The max number of plateaus to use. Higher means more precision, but slightly slower,
             although the last levels are usually very quick, when the solution is already
-            fixed. Too high might result in an Infeasible problem
+            fixed.
+        satisfaction_max : float (default 0.8)
+            The satisfaction after which the relative satisfaction will be used. This prevents
+            some numerical solver errors.
         """
         M = 100
         eps = 1e-6
         solver = self._get_solver()
 
         self._calculate_student_satisfaction(satisfied)
-        for level in range(n_levels):
-
+        level = 0
+        while True:
+            if n_levels_max is not None and level >= n_levels_max:
+                break
             # Step 1: maximize minimal satisfaction
             minimal_satisfaction = pulp.LpVariable(f"MinimalSatisfaction_{level}")
             if level == 0:
@@ -747,6 +758,9 @@ class ProblemSolver:
             self.prob.setObjective(minimal_satisfaction)
             self.prob.solve(solver)
             m_val = minimal_satisfaction.value()
+            if m_val > satisfaction_max:
+                logger.debug("Minimal satisfaction reached, breaking lexmaxmin")
+                break
             logger.debug(f"Level {level}, step 1 done, {m_val}")
             # Add as constraint
             if level == 0:
@@ -793,9 +807,12 @@ class ProblemSolver:
             )
 
             logger.debug(f"Level {level}, step 2 done, {count_at_level}")
-
+            if count_at_level == 0:
+                logger.debug(f"Stopped at level {level}: no more students left")
+                break
             # Add as constraint
             self.prob += pulp.lpSum(has_this_level.values()) == count_at_level
+            level += 1
 
         return pulp.lpSum(self.studentsatisfaction.values())
 
