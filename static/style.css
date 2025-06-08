@@ -231,18 +231,17 @@ button:hover {
 }
 
 .step.active::before {
-  background-color: #007bff;
+  background-color: #ff9933;
 }
 
 .step.done::before {
-  background-color: #28a745;
+  background-color: #c2a17a  ;
 }
 
 .step:not(:last-child)::after {
   content: "";
   position: absolute;
   top: 15px;
-  /* right: -50%; */
   left: 50%;
   width: calc(100% + 2rem);
   height: 2px;
@@ -251,7 +250,7 @@ button:hover {
 }
 
 .step.done:not(:last-child)::after {
-  background-color: #28a745;
+  background-color: #c2a17a  ;
 }
 
 .step a {
