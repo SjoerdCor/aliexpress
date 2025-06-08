@@ -9,7 +9,7 @@ import pandas as pd
 from . import datareader
 from . import problemsolver
 from . import solutions
-from .errors import FeasibilityError
+from . import errors
 
 FILE_PREFERENCES = "voorkeuren.xlsx"
 FILE_GROUPS_TO = "groepen.xlsx"
@@ -58,13 +58,40 @@ def distribute_students_once(
             Takes a user friendly message and decides what to do with it for the calling
             function. By default, ignores them
     """
-    groups_to = datareader.read_groups_excel(path_groups_to)
-    processor = datareader.VoorkeurenProcessor(path_preferences)
-    preferences = processor.process(all_to_groups=list(groups_to.keys()))
+    try:
+        groups_to = datareader.read_groups_excel(path_groups_to)
+    except errors.ValidationError as e:
+        raise e
+    except Exception as e:
+        raise errors.CouldNotReadFileError(
+            "could_not_read",
+            context={"filetype": "groepen"},
+            technical_message="Could not read groups_to",
+        ) from e
+    try:
+        processor = datareader.VoorkeurenProcessor(path_preferences)
+        preferences = processor.process(all_to_groups=list(groups_to.keys()))
+    except errors.ValidationError as e:
+        raise e
+    except Exception as e:
+        raise errors.CouldNotReadFileError(
+            "could_not_read",
+            context={"filetype": "voorkeuren"},
+            technical_message="Could not read preferences",
+        ) from e
     students_info = processor.get_students_meta_info()
-    not_together = datareader.read_not_together(
-        path_not_together, students_info.keys(), len(groups_to)
-    )
+    try:
+        not_together = datareader.read_not_together(
+            path_not_together, students_info.keys(), len(groups_to)
+        )
+    except errors.ValidationError as e:
+        raise e
+    except Exception as e:
+        raise errors.CouldNotReadFileError(
+            "could_not_read",
+            context={"filetype": "niet-samen"},
+            technical_message="Could not read not_together",
+        ) from e
     on_update("Alle bestanden zijn gevalideerd!")
     logger.info("All files read")
 
@@ -127,7 +154,7 @@ def distribute_students_once(
             if v.value() > 0:
                 msg += f'{dct["name"]}: {round(dct["attr_value"] + v.value())} (+ {round(v.value())})\n'
 
-        raise FeasibilityError(
+        raise errors.FeasibilityError(
             "infeasible_problem",
             context={"possible_improvement": msg},
             technical_message="Can not solve the problem for this class imbalance",

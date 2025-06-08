@@ -118,6 +118,9 @@ FRIENDLY_TEMPLATES = {
     "empty_mandatory_columns_not_together": (
         "In het niet-samen-bestand zijn niet alle verplichte kolommen gevuld: controleer {failed_columns}"
     ),
+    "could_not_read": (
+        "Het {filetype}-bestand kon niet worden ingelezen. Controleer of je het juiste bestand hebt geupload"
+    ),
     "internal_error": (
         "Er is iets onverwachts misgegaan. Het probleem is gelogd. "
         "Laat de maker dit onderzoeken."
