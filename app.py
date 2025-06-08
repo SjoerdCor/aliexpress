@@ -165,30 +165,24 @@ def upload_files():
                 results[task_id]["status"] = "running"
                 result = distribute_students_once(*args, **kwargs, on_update=on_update)
                 logger.info("Distributing students finished successfully")
-                results[task_id] = {"status": "done"}
+                results[task_id]["status"] = "done"
                 temp_storage[task_id] = result
 
             except ValidationError as e:
                 logger.exception("Files are incorrect")
-                results[task_id] = {
-                    "status": "error",
-                    "error_code": e.code,
-                    "error_context": e.context,
-                }
+                results[task_id]["status"] = "error"
+                results[task_id]["error_code"] = e.code
+                results[task_id]["error_context"] = e.context
             except FeasibilityError as e:
                 logger.exception("Problem is infeasible")
-                results[task_id] = {
-                    "status": "error",
-                    "error_code": e.code,
-                    "error_context": e.context,
-                }
+                results[task_id]["status"] = "error"
+                results[task_id]["error_code"] = e.code
+                results[task_id]["error_context"] = e.context
             except Exception as e:
                 logger.exception("Uncaught exception")
-                results[task_id] = {
-                    "status": "error",
-                    "error_code": "internal_error",
-                    "error_context": {"details": str(e)},
-                }
+                results[task_id]["status"] = "error"
+                results[task_id]["error_code"] = "internal_error"
+                results[task_id]["error_context"] = {"details": str(e)}
 
         Thread(
             target=run_task,
