@@ -679,7 +679,7 @@ class ProblemSolver:
                 try:
                     preferences = self.preferences.loc[(student, "Graag met")]
                 except KeyError:
-                    satisfaction_current_student += 1
+                    satisfaction_current_student = 1
                 else:
                     positive_preferences = preferences.query("Gewicht > 0")
                     if positive_preferences.empty:
