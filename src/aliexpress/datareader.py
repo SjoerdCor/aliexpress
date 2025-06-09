@@ -196,7 +196,7 @@ class VoorkeurenProcessor:
             raise ValidationError(
                 code="duplicate_students_preferences",
                 context={"duplicated": ",".join(duplicated)},
-                technical_message="Non-unique leerlingen detected in input data.",
+                technical_message=f"Non-unique leerlingen detected in input data. {duplicated}",
             )
 
         incorrect = ~df["Jongen/meisje"].isin(["Jongen", "Meisje"]).squeeze()
@@ -209,6 +209,23 @@ class VoorkeurenProcessor:
                     )
                 },
                 technical_message=f"Wrong or unknown geslacht for {incorrect[incorrect].index.tolist()}",
+            )
+
+        duplicated_values = (
+            df.xs("Waarde", level="TypeWaarde", axis="columns")
+            .transpose()
+            .apply(lambda s: s.dropna().duplicated())
+            .any()
+        )
+
+        if duplicated_values.any():
+            students_with_duplicates = ", ".join(
+                duplicated_values.loc[lambda s: s].index
+            )
+            raise ValidationError(
+                "duplicated_values_preferences",
+                context={"students_with_duplicates": students_with_duplicates},
+                technical_message=f"Duplicate value (group or student) detected for single student: {duplicated_values}",
             )
 
     def restructure(self) -> None:

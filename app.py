@@ -126,6 +126,10 @@ FRIENDLY_TEMPLATES = {
     "empty_df": (
         "Het {filetype}-bestand was helemaal leeg. Daardoor kan er geen groepsindeling worden berekend"
     ),
+    "duplicated_values_preferences": (
+        "In het voorkeuren-bestand is voor {students_with_duplicates} een leerling of groep"
+        "gevonden die dubbel voorkomt. Tel ze op of streep ze tegen elkaar weg om dubbelingen te voorkomen"
+    ),
     "internal_error": (
         "Er is iets onverwachts misgegaan. Het probleem is gelogd. "
         "Laat de maker dit onderzoeken."
