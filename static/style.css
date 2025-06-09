@@ -373,3 +373,17 @@ table.dataframe td {
 table.dataframe th {
   background-color: #f2f2f2;
 }
+.instructions-box {
+  border: 1px solid #ddd;
+  background: #fff7f0;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  max-height: 200px;
+  overflow-y: auto;
+  margin-bottom: 2rem;
+}
+
+.instructions-box h2 {
+  font-size: 1.2rem;
+  margin-top: 0;
+}
