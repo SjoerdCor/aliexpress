@@ -8,6 +8,38 @@ from openpyxl.styles import numbers, Alignment
 from .problemsolver import get_satisfaction_integral
 from . import datareader
 
+TABLE_STYLES = styles = [
+    {
+        "selector": "th.row_heading, td.row_heading, th.row_heading.level0",
+        "props": [
+            (
+                "background-color",
+                "#f0f0f0",
+            ),  # light grey background for index cells
+            ("border", "1px solid #dcdcdc"),
+            ("padding", "6px 10px"),
+        ],
+    },
+    {
+        "selector": "table.dataframe",
+        "props": [
+            ("border-collapse", "collapse"),
+            ("border", "1px solid #dcdcdc"),
+        ],
+    },
+    {
+        "selector": "th.col_heading",
+        "props": [
+            (
+                "background-color",
+                "#e9ecef",
+            ),  # light grey for column headers (optional)
+            ("border", "1px solid #dcdcdc"),
+            ("padding", "6px 10px"),
+        ],
+    },
+]
+
 
 class SolutionAnalyzer:
     """Create a report about the solution found to the Linear Programming problem
@@ -246,6 +278,9 @@ class SolutionAnalyzer:
             "AccountedWeightedPreferences": "Aantal gehonoreerde wensen",
             "NrWeightedPreferences": "Aantal wensen",
         }
+
+        # styled = df.style
+
         return (
             self.student_performance.rename_axis("Leerling")
             .loc[:, list(cols.keys())]
@@ -261,6 +296,7 @@ class SolutionAnalyzer:
                 },
                 na_rep="",
             )
+            .set_table_styles(TABLE_STYLES)
         )
 
     def _calculate_solution_performance(self):
@@ -370,12 +406,17 @@ class SolutionAnalyzer:
         satisfied_preferences_original_index = (
             self._determine_satisfied_preferences_studentindex()
         )
+
         styled = self.input_sheet.style.apply(
             self._display_satisfied_preferences,
             axis=None,
             satisfied_preferences_original_index=satisfied_preferences_original_index,
         )
-        return styled.format(na_rep="")
+        return (
+            styled.format(na_rep="")
+            .format_index(na_rep="", axis="columns")
+            .set_table_styles(TABLE_STYLES)
+        )
 
     @staticmethod
     def _autoscale_column_width(sheet):
