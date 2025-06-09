@@ -72,6 +72,7 @@ class SolutionAnalyzer:
         df_student_info = pd.DataFrame.from_dict(
             self.students_info, orient="index"
         ).reset_index(names="Naam")
+
         df = (
             self.groepsindeling.merge(df_student_info)
             .sort_values(["Jongen/meisje", "Stamgroep"])
@@ -81,14 +82,23 @@ class SolutionAnalyzer:
             )
             .set_index(["Group", "nr", "Jongen/meisje"])["Naam"]
             .unstack(["Group", "Jongen/meisje"], fill_value="")
-            .sort_index(axis="columns")
+        )
+
+        # Show all columns even if some groups/sexes are not distributed to
+        expected_columns = pd.MultiIndex.from_product(
+            [sorted(self.groepsindeling["Group"].unique()), ["Jongen", "Meisje"]],
+            names=["Groep", "Jongen/meisje"],
         )
 
         # The double transpose works around a concat error for MultiIndex
-        df = pd.concat(
-            [df.transpose(), df.apply(lambda col: (col != "")).sum().rename("#")],
-            axis="columns",
-        ).transpose()
+        df = (
+            pd.concat(
+                [df.transpose(), df.apply(lambda col: (col != "")).sum().rename("#")],
+                axis="columns",
+            )
+            .transpose()
+            .reindex(expected_columns, axis="columns")
+        )
 
         for group in df.columns.levels[0]:
             df.loc["Groepsgrootte", (group, "Jongen")] = self.group_report.loc[
