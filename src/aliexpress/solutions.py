@@ -248,7 +248,8 @@ class SolutionAnalyzer:
                     "Tevredenheid": "{:.2%}",
                     "Aantal gehonoreerde wensen": "{:.1f}",
                     "Aantal wensen": "{:.1f}",
-                }
+                },
+                na_rep="",
             )
         )
 
@@ -359,11 +360,12 @@ class SolutionAnalyzer:
         satisfied_preferences_original_index = (
             self._determine_satisfied_preferences_studentindex()
         )
-        return self.input_sheet.style.apply(
+        styled = self.input_sheet.style.apply(
             self._display_satisfied_preferences,
             axis=None,
             satisfied_preferences_original_index=satisfied_preferences_original_index,
         )
+        return styled.format(na_rep="")
 
     @staticmethod
     def _autoscale_column_width(sheet):
