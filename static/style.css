@@ -381,6 +381,7 @@ table.dataframe th {
   max-height: 200px;
   overflow-y: auto;
   margin-bottom: 2rem;
+  margin-top: 1rem;
 }
 
 .instructions-box h2 {
