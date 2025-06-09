@@ -12,18 +12,55 @@
         Niet-samen</a>
 </div>
 
-<!-- <div class="instructions-box"
-    style="border: 1px solid #ddd; background: #fff7f0; padding: 1rem; border-radius: 0.5rem; max-height: 200px; overflow-y: auto; margin-bottom: 2rem;">
-    <h2 style="font-size: 1.2rem; margin-top: 0;">Invulinstructies</h2>
+<div class="instructions-box">
+    <h2>Invulinstructies</h2>
+
+    <h3>Voorkeuren-bestand</h3>
     <p>
-        Zorg ervoor dat je alle verplichte velden invult in het juiste formaat. Kijk bij twijfel in de legenda op het
-        tweede tabblad van elk template. Gebruik bij voorkeur de meest recente versie van Excel.
+        Dit is het belangrijkste bestand van ALI Express. Hier kun je basisinformatie over je leeringen invoeren
+        (die wordt gebruikt om de balans in de groepen te bewaren) en de wensen van de leerling op basis van het
+        gesprek.
+        Wat specifieke tips:
+    <ul>
+        <li> Klik op een kolomnaam voor meer informatie over hoe je het moet invullen</li>
+        <li> Controleer dat de naam van de leerling uniek is voor de leerlingen die verdeel moeten worden. Zo niet, voeg
+            de eerste letter van de achternaam toe</li>
+        <li>Vul minimale tevredenheid alleen in alsdeze leerling echt een zetje nodig heeft. Houd er
+            rekening mee dat elke eis hier ten koste gaat van iemands anders tevredenheid.
+        </li>
+        <li>Denk hier echt aan wat de leerling wil. Onwenselijke combinaties kun je in het Niet-samen-bestand invoeren.
+            Ook als iets jou een goede combi lijkt: laat dat aan ALI Express, die weegt alles mee</li>
+        <li>
+            Voer zoveel mogelijk positieve wensen in. Dat geeft ALI Express meer flexibiliteit om voor iedereen een
+            prima oplossing te vinden.
+        </li>
+        <li>
+            Voer hier precies de naam van de leerling of van de groep in. Dus niet "Robin (Blauw)", maar "Blauw" of
+            "Robin" of "Jongens zoals Rene"
+        </li>
+
+        <li> Check of je alle kolommen hebt ingevuld, en of je passende gewichten hebt ingevuld</li>
+    </ul>
     </p>
-    <p>
-        Let op dat je geen formules gebruikt, alleen platte tekst of getallen. Meerdere invoerregels kun je onder elkaar
-        zetten in dezelfde kolom.
+    <h3>Groepen-bestand</h3>
+    <p>Geef hier in naar welke groepen de leerlingen kunnen, en hoeveel jongens en meisjes er overblijven
+        nadat de oudere leerlingen zijn doorgegaan. Dat laatste zorgt er voor dat de balans goed kan worden bewaard,
+        qua grootte en jongen/meisjes.
     </p>
-</div> -->
+    <h3>Niet-samen-bestand</h3>
+    <p>In dit bestand kan per regel worden weergegeven wie er helemaal niet of niet in te grote groepen bij elkaar
+        mogen. Je kunt hier denken aan kinderen die elkaar negatief versterken of zorgleerlingen die je wilt scheiden
+        om passende aandacht te kunnen geven. Houd er rekening mee dat eisen die je hier invult, de groepsindeling
+        moeilijker
+        maken en daardoor zullen leiden tot een lagere tevredenheid.
+
+        Alle namen moeten voorkomen in het voorkeuren-bestand.
+        Als je bijvoorbeeld twee leerlingen niet bij elkaar wilt, vul je die namen in bij Leerling1 en Leerling 2, en
+        max_aantal_samen 1: ze mogen dan niet samen in een groep.
+        Je zou ook de 10 zorgleerlingen kunnen invoeren en dan aangeven dat er daarvan maximaal 2 in een groep mogen.
+    </p>
+</div>
+
 
 <div class="step-navigation">
     <a href="{{ url_for('upload_files') }}" class="button next-step">Naar uploaden →</a>
