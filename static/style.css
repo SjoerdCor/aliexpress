@@ -310,3 +310,66 @@ input[type="submit"] {
 .intro p{
   font-weight: normal;
 }
+
+
+.tabs-wrapper,
+.table-wrapper {
+  overflow-x: auto;
+  max-width: 100%;
+  display: block;
+}
+
+.tabs {
+  display: inline-flex;
+  min-width: max-content;
+  border-bottom: 1px solid #ccc;
+}
+
+.tab {
+  padding: 10px 20px;
+  white-space: nowrap;
+  cursor: pointer;
+  background: #f1f1f1;
+  border: 1px solid #ccc;
+  border-bottom: none;
+  margin-right: 5px;
+  flex-shrink: 0;
+}
+
+.tab.active {
+  background: white;
+  font-weight: bold;
+}
+
+.tab-content {
+  border: 1px solid #ccc;
+  max-width: 100%;
+  padding: 10px;
+  background: white;
+}
+
+.tab-pane {
+  display: none;
+}
+
+.tab-pane.active {
+  display: block;
+}
+
+.table-wrapper table {
+  min-width: 600px; 
+  width: max-content;
+  border-collapse: collapse;
+}
+
+table.dataframe th,
+table.dataframe td {
+  border: 1px solid #ccc;
+  padding: 6px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+table.dataframe th {
+  background-color: #f2f2f2;
+}

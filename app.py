@@ -263,7 +263,12 @@ def handle_error():
 @app.route("/result/<task_id>")
 def result_page(task_id):
     """Display result for single run"""
-    return render_template("result.html", task_id=task_id)
+
+    dataframes = {
+        k: df.to_html(na_rep="")
+        for k, df in temp_storage[task_id]["dataframes"].items()
+    }
+    return render_template("result.html", task_id=task_id, dataframes=dataframes)
 
 
 @app.route("/download/<task_id>")
@@ -276,7 +281,7 @@ def download(task_id):
         return render_template("result.html", task_id=task_id)
 
     return send_file(
-        file_buffer,
+        file_buffer["download"],
         as_attachment=True,
         download_name="results.xlsx",
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

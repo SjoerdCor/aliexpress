@@ -4,12 +4,46 @@
 {% block header %}Groepsindeling klaar!{% endblock %}
 
 {% block content %}
-<p>Je kunt de groepsindeling hier downloaden:</p>
+<p>Onderzoek de groepsindeling goed en bekijk samen of je er tevreden mee bent </p>
+<div class="tabs-wrapper">
+    <div class="tabs">
+        {% for name in dataframes.keys() %}
+        <div class="tab {% if loop.index0 == 0 %}active{% endif %}" onclick="showTab({{ loop.index0 }})">{{ name }}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="tab-content">
+    {% for html in dataframes.values() %}
+    <div class="tab-pane {% if loop.index0 == 0 %}active{% endif %}" id="tab{{ loop.index0 }}">
+        <div class="table-wrapper">
+            {{ html | safe }}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+<p>Je kunt de groepsindeling hier ook downloaden:</p>
 <a href="{{ url_for('download', task_id=task_id) }}" class="button primary">Download groepsindeling</a>
-<p>Onderzoek hem goed. Ben je er tevreden mee?</p>
+<p><br>Ben je er tevreden mee?</p>
 
 <div class="step-navigation">
     <a href="{{ url_for('upload_files') }}" class="button previous-step">← Nog niet helemaal... opnieuw invoeren</a>
     <a href="{{ url_for('done') }}" class="button next-step">Ja, ik ben tevreden! →</a>
 </div>
+<script>
+    function showTab(index) {
+        const tabs = document.querySelectorAll('.tab');
+        const panes = document.querySelectorAll('.tab-pane');
+
+        tabs.forEach((tab, i) => {
+            tab.classList.toggle('active', i === index);
+        });
+
+        panes.forEach((pane, i) => {
+            pane.classList.toggle('active', i === index);
+        });
+    }
+</script>
+
 {% endblock %}

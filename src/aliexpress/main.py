@@ -180,7 +180,15 @@ def distribute_students_once(
     output.seek(0)
     logger.info("Done!")
     on_update("Klaar!")
-    return output
+
+    dfs = {
+        "Groepsindeling": sa.display_groepsindeling(),
+        "Klassenoverzicht": sa.group_report,
+        "Overgangsmatrix": sa.display_transition_matrix(),
+        "Leerlingtevredenheid": sa.display_student_performance(),
+        "VervuldeWensen": sa.display_satisfied_preferences(),
+    }
+    return {"download": output, "dataframes": dfs}
 
 
 if __name__ == "__main__":
