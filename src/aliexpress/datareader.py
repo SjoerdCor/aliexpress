@@ -280,7 +280,9 @@ class VoorkeurenProcessor:
                         "invalid_values_preferences",
                         context={
                             "wishtype": wishtype,
-                            "invalid_values": ",".join(invalid_values.tolist()),
+                            "invalid_values": ",".join(
+                                invalid_values.astype(str).tolist()
+                            ),
                         },
                         technical_message=f"Invalid values in '{wishtype}':\n{invalid_values}",
                     )
@@ -350,7 +352,9 @@ def read_not_together(filename: str, students: Iterable, n_groups: int) -> list:
                 code="duplicated_students_not_together",
                 context={
                     "row": i + 1,
-                    "duplicated_students": ",".join(group[duplicated].tolist()),
+                    "duplicated_students": ",".join(
+                        group[duplicated].astype(str).tolist()
+                    ),
                 },
                 technical_message=f"Duplicated students on row {i + 1}:\n {group[duplicated]}",
             )
@@ -361,7 +365,7 @@ def read_not_together(filename: str, students: Iterable, n_groups: int) -> list:
                 code="unknown_students_not_together",
                 context={
                     "row": i + 1,
-                    "unknown_students": ",".join(group[~known_students]),
+                    "unknown_students": ",".join(group[~known_students].astype(str)),
                 },
                 technical_message=f"Unknown students on row {i + 1}:\n{group[~known_students]}",
             )
