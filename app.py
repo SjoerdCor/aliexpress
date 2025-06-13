@@ -62,7 +62,13 @@ app.config.from_object(ConfigClass)
 
 
 temp_storage = {}
-results = defaultdict(lambda: {"status": "pending", "logs": []})
+status_dct = defaultdict(
+    lambda: {
+        "status_studentdistribution": "pending",
+        "status_sociogram": "pending",
+        "logs": [],
+    }
+)
 
 FRIENDLY_TEMPLATES = {
     "duplicate_students_preferences": (
@@ -196,7 +202,7 @@ def upload_files():
         session["config"] = kwargs
 
         def on_update(message):
-            results[task_id]["logs"].append(message)
+            status_dct[task_id]["logs"].append(message)
 
         logger.info("Starting distribution...")
 
@@ -205,30 +211,31 @@ def upload_files():
 
         def run_task(*args, **kwargs):
             try:
-                results[task_id]["status"] = "running"
+                status_dct[task_id]["status_studentdistribution"] = "running"
                 result = distribute_students_once(*args, **kwargs, on_update=on_update)
                 logger.info("Distributing students finished successfully")
-                results[task_id]["status"] = "done"
+                status_dct[task_id]["status_studentdistribution"] = "done"
                 temp_storage[task_id]["groepsindeling"] = result
 
             except ValidationError as e:
                 logger.exception("Files are incorrect")
-                results[task_id]["status"] = "error"
-                results[task_id]["error_code"] = e.code
-                results[task_id]["error_context"] = e.context
+                status_dct[task_id]["status_studentdistribution"] = "error"
+                status_dct[task_id]["error_code"] = e.code
+                status_dct[task_id]["error_context"] = e.context
             except FeasibilityError as e:
                 logger.exception("Problem is infeasible")
-                results[task_id]["status"] = "error"
-                results[task_id]["error_code"] = e.code
-                results[task_id]["error_context"] = e.context
+                status_dct[task_id]["status_studentdistribution"] = "error"
+                status_dct[task_id]["error_code"] = e.code
+                status_dct[task_id]["error_context"] = e.context
             except Exception as e:
                 logger.exception("Uncaught exception")
-                results[task_id]["status"] = "error"
-                results[task_id]["error_code"] = "internal_error"
-                results[task_id]["error_context"] = {"details": str(e)}
+                status_dct[task_id]["status_studentdistribution"] = "error"
+                status_dct[task_id]["error_code"] = "internal_error"
+                status_dct[task_id]["error_context"] = {"details": str(e)}
 
         def create_sociogram(preferences, groups_to):
             try:
+                on_update("Sociogram tekenen...")
                 groups_to = list(datareader.read_groups_excel(groups_to).keys())
                 sg = sociogram.SociogramMaker(preferences, groups_to)
                 fig, g, pos = sg.plot_sociogram()
@@ -237,6 +244,9 @@ def upload_files():
                 fig = sociogram.networkx_to_plotly(g, pos)
                 html = fig.to_html(full_html=True, include_plotlyjs="cdn")
                 logger.info("HTML created")
+                on_update(
+                    f'<a href=/sociogram/{task_id} target="_blank">Bekijk het sociogram nu!</a>'
+                )
                 temp_storage[task_id]["sociogram"] = html
             except Exception:
                 logger.exception("Could not create sociogram")
@@ -256,9 +266,9 @@ def upload_files():
 @app.route("/status/<task_id>")
 def status(task_id):
     """Return status as json"""
-    result = results.get(task_id)
+    result = status_dct.get(task_id)
     if not result:
-        return jsonify({"status": "unknown"})
+        return jsonify({"status_studentdistribution": "unknown"})
     return jsonify(result)
 
 
@@ -287,7 +297,6 @@ def handle_error():
 def show_sociogram(task_id):
     """Display sociogram"""
     html = temp_storage[task_id]["sociogram"]
-
     return Response(html, mimetype="text/html")
 
 

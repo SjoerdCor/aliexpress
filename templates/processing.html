@@ -13,13 +13,13 @@
         fetch("/status/{{ task_id }}")
             .then(r => r.json())
             .then(data => {
-                console.log(data.status)
+                console.log(data.status_studentdistribution)
                 document.getElementById("logs").innerHTML =
                     data.logs.map(line => `<p>${line}</p>`).join("");
 
-                if (data.status === "done") {
+                if (data.status_studentdistribution === "done") {
                     window.location.href = "/result/{{ task_id }}";
-                } else if (data.status === "error") {
+                } else if (data.status_studentdistribution === "error") {
 
                     fetch("/handle-error", {
                         method: "POST",
