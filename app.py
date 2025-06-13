@@ -245,7 +245,7 @@ def upload_files():
                 html = fig.to_html(full_html=True, include_plotlyjs="cdn")
                 logger.info("HTML created")
                 on_update(
-                    f'<a href=/sociogram/{task_id} target="_blank">Bekijk het sociogram nu!</a>'
+                    f'<a href=/sociogram/{task_id} target="_blank" class="button">Bekijk het sociogram nu!</a>'
                 )
                 temp_storage[task_id]["sociogram"] = html
             except Exception:
