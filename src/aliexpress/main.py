@@ -9,7 +9,6 @@ from . import datareader
 from . import problemsolver
 from . import solutions
 from . import errors
-from . import sociogram
 
 
 FILE_PREFERENCES = "voorkeuren.xlsx"
@@ -111,12 +110,6 @@ def distribute_students_once(
     on_update("Komen uit de volgende groepen:")
     for group, value in df_students["Stamgroep"].value_counts().items():
         on_update(f"{group}: {value}")
-
-    on_update("Sociogram tekenen...")
-
-    sg = sociogram.SociogramMaker(path_preferences, df_groups_to.index.tolist())
-    img_data = sg.get_as_b64_bytes()
-    on_update(f'<img src="data:image/png;base64,{img_data}" style="max-width:100%;"/>')
 
     ps_lexmaxmin = problemsolver.ProblemSolver(
         preferences,

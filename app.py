@@ -11,6 +11,7 @@ import webbrowser
 from dotenv import load_dotenv
 from flask import (
     Flask,
+    Response,
     render_template,
     request,
     redirect,
@@ -24,6 +25,7 @@ from flask import (
 
 from src.aliexpress.main import distribute_students_once
 from src.aliexpress.errors import FeasibilityError, ValidationError
+from src.aliexpress import sociogram, datareader
 
 
 def setup_logger():
@@ -139,6 +141,7 @@ FRIENDLY_TEMPLATES = {
 
 @app.route("/")
 def home():
+    """Display home page"""
     return render_template("home.html")
 
 
@@ -198,6 +201,7 @@ def upload_files():
         logger.info("Starting distribution...")
 
         task_id = str(uuid.uuid4())
+        temp_storage[task_id] = {}
 
         def run_task(*args, **kwargs):
             try:
@@ -205,7 +209,7 @@ def upload_files():
                 result = distribute_students_once(*args, **kwargs, on_update=on_update)
                 logger.info("Distributing students finished successfully")
                 results[task_id]["status"] = "done"
-                temp_storage[task_id] = result
+                temp_storage[task_id]["groepsindeling"] = result
 
             except ValidationError as e:
                 logger.exception("Files are incorrect")
@@ -223,6 +227,21 @@ def upload_files():
                 results[task_id]["error_code"] = "internal_error"
                 results[task_id]["error_context"] = {"details": str(e)}
 
+        def create_sociogram(preferences, groups_to):
+            try:
+                groups_to = list(datareader.read_groups_excel(groups_to).keys())
+                sg = sociogram.SociogramMaker(preferences, groups_to)
+                fig, g, pos = sg.plot_sociogram()
+                logger.info("Sociogram created")
+
+                fig = sociogram.networkx_to_plotly(g, pos)
+                html = fig.to_html(full_html=True, include_plotlyjs="cdn")
+                logger.info("HTML created")
+                temp_storage[task_id]["sociogram"] = html
+            except Exception:
+                logger.exception("Could not create sociogram")
+
+        Thread(target=create_sociogram, args=(preferences, groups_to)).start()
         Thread(
             target=run_task,
             args=(preferences, groups_to, not_together),
@@ -264,13 +283,21 @@ def handle_error():
     return "", 204
 
 
+@app.route("/sociogram/<task_id>")
+def show_sociogram(task_id):
+    """Display sociogram"""
+    html = temp_storage[task_id]["sociogram"]
+
+    return Response(html, mimetype="text/html")
+
+
 @app.route("/result/<task_id>")
 def result_page(task_id):
     """Display result for single run"""
 
     dataframes = {
         k: df.to_html(na_rep="")
-        for k, df in temp_storage[task_id]["dataframes"].items()
+        for k, df in temp_storage[task_id]["groepsindeling"]["dataframes"].items()
     }
     return render_template("result.html", task_id=task_id, dataframes=dataframes)
 
@@ -285,7 +312,7 @@ def download(task_id):
         return render_template("result.html", task_id=task_id)
 
     return send_file(
-        file_buffer["download"],
+        file_buffer["groepsindeling"]["download"],
         as_attachment=True,
         download_name="results.xlsx",
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

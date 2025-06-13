@@ -1,8 +1,10 @@
 import base64
 import io
+import math
 
 import networkx as nx
 from matplotlib import pyplot as plt
+import plotly.graph_objects as go
 
 from . import datareader
 
@@ -87,7 +89,7 @@ class SociogramMaker:
         self.draw_edges(g, ax, pos)
 
         plt.axis("off")
-        return fig
+        return fig, g, pos
 
     def draw_edges(self, g, ax, pos):
         """Draw edges on graph g on ax using positions given"""
@@ -119,3 +121,90 @@ class SociogramMaker:
         plt.close(fig)
         buf.seek(0)
         return base64.b64encode(buf.read()).decode("utf-8")
+
+
+def networkx_to_plotly(g, pos):
+    edge_traces = []
+    seen_pairs = set()
+
+    for u, v, data in g.edges(data=True):
+        x0, y0 = pos[u]
+        x1, y1 = pos[v]
+        weight = data.get("weight", 1)
+        is_bidirectional = (v, u) in seen_pairs
+
+        width = abs(weight)
+        color = "red" if weight < 0 else "#888"
+        text = f"{u} → {v}<br>Gewicht: {weight:.2f}"
+
+        # Arrowhead parameters
+        dx = x1 - x0
+        dy = y1 - y0
+        length = math.sqrt(dx**2 + dy**2)
+        offset_scale = 0.02 if is_bidirectional else 0
+        ox = -dy / length * offset_scale
+        oy = dx / length * offset_scale
+
+        ux, uy = dx / length, dy / length
+
+        # Shorten line so it doesn't overlap node marker
+        shrink = 0.02
+        x0s = x0 + ox + shrink * ux
+        y0s = y0 + oy + shrink * uy
+        x1s = x1 + ox - shrink * ux
+        y1s = y1 + oy - shrink * uy
+
+        edge_traces.append(
+            go.Scatter(
+                x=[x0s, x1s],
+                y=[y0s, y1s],
+                mode="lines+markers",
+                line=dict(width=width, color=color),
+                marker=dict(
+                    symbol="triangle-up",
+                    size=6,
+                    color=color,
+                    angleref="previous",
+                ),
+                hoverinfo="text",
+                text=text,
+                showlegend=False,
+            )
+        )
+
+        seen_pairs.add((u, v))
+
+    node_x = []
+    node_y = []
+    labels = []
+
+    for node in g.nodes():
+        x, y = pos[node]
+        node_x.append(x)
+        node_y.append(y)
+        labels.append(str(node))
+
+    node_trace = go.Scatter(
+        x=node_x,
+        y=node_y,
+        mode="markers+text",
+        text=labels,
+        textposition="top center",
+        hoverinfo="text",
+        marker=dict(size=10, color="skyblue", line_width=2),
+    )
+
+    fig = go.Figure(
+        data=edge_traces + [node_trace],
+        layout=go.Layout(
+            width=600,
+            height=600,
+            showlegend=False,
+            hovermode="closest",
+            margin=dict(b=20, l=5, r=5, t=40),
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False),
+        ),
+    )
+
+    return fig
