@@ -11,8 +11,11 @@ dependencies:
   - jinja2=3.1.2 # necessary for df.style
   - matplotlib=3.10.0 # necessary for df.style
   - highs=1.10.0
+  - networkx=3.5
+  - plotly=6.1.2
   - pip:
     - pulp==3.1.1
     - flask==3.1.0
     - dotenv==0.9.9
     - -e .
+    - nbformat==5.10.4
