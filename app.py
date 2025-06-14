@@ -242,7 +242,7 @@ def upload_files():
                 logger.info("Sociogram created")
 
                 fig = sociogram.networkx_to_plotly(g, pos)
-                html = fig.to_html(full_html=True, include_plotlyjs="cdn")
+                html = fig.to_html(full_html=False, include_plotlyjs="cdn")
                 logger.info("HTML created")
                 on_update(
                     f'<a href=/sociogram/{task_id} target="_blank" class="button">Bekijk het sociogram nu!</a>'
@@ -297,7 +297,7 @@ def handle_error():
 def show_sociogram(task_id):
     """Display sociogram"""
     html = temp_storage[task_id]["sociogram"]
-    return Response(html, mimetype="text/html")
+    return render_template("sociogram.html", plotly_div=html)
 
 
 @app.route("/result/<task_id>")
