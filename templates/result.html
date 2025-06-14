@@ -4,6 +4,9 @@
 {% block header %}Groepsindeling klaar!{% endblock %}
 
 {% block content %}
+
+<a href="{{ url_for('show_sociogram', task_id=task_id) }}" target="_blank" class="button primary">Bekijk sociogram</a>
+
 <p>Onderzoek de groepsindeling goed en bekijk samen of je er tevreden mee bent </p>
 <div class="tabs-wrapper">
     <div class="tabs">
