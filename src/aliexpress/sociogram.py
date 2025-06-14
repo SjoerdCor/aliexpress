@@ -42,31 +42,36 @@ class SociogramMaker:
 
     def calculate_node_size(self, g):
         """Calculate the node size of nodes of g based on their popularity"""
-        popularity = (
-            self.preferences.groupby("Waarde")["Gewicht"]
-            .apply(lambda s: s.clip(-2, 2).sum())
-            .reindex(self.students_info.keys())
-            .fillna(0)
-        )
-
         min_node_size = 25
         max_node_size = 375
-        node_sizes = [
-            self.min_max_scaler(
-                popularity[child],
-                min_node_size,
-                max_node_size,
-                popularity.min(),
-                popularity.max(),
+
+        node_sizes = []
+        for child, data in g.nodes(data=True):
+            node_sizes.append(
+                self.min_max_scaler(
+                    data.get("popularity"),
+                    min_node_size,
+                    max_node_size,
+                    -2,
+                    10,
+                )
             )
-            for child in g.nodes()
-        ]
 
         return node_sizes
 
     def plot_sociogram(self):
         """Returns a matplolib Figure of the sociogram"""
         g = nx.MultiDiGraph()
+
+        popularity = (
+            self.preferences.groupby("Waarde")["Gewicht"]
+            .apply(lambda s: s.clip(-2, 2).sum())
+            .reindex(self.students_info.keys())
+            .fillna(0)
+        )
+        for student in self.students_info:
+            g.add_node(student, popularity=popularity[student])
+
         sociogram_preferences = (
             self.preferences.loc[
                 lambda df: df["Waarde"].isin(self.students_info.keys()),
@@ -75,8 +80,6 @@ class SociogramMaker:
             .reset_index("Leerling")
             .reset_index(drop=True)
         )
-        for student in self.students_info:
-            g.add_node(student)
         for _, row in sociogram_preferences.iterrows():
             g.add_edge(row["Leerling"], row["Waarde"], weight=row["Gewicht"])
 
@@ -178,12 +181,19 @@ def networkx_to_plotly(g, pos):
     node_x = []
     node_y = []
     labels = []
+    node_sizes = []
 
-    for node in g.nodes():
+    def calc_node_size(popularity, default_size=10):
+        if popularity > 0:
+            return default_size + 1.5 * popularity
+        return max(default_size + 3 * popularity, 1)
+
+    for node, data in g.nodes(data=True):
         x, y = pos[node]
         node_x.append(x)
         node_y.append(y)
         labels.append(str(node))
+        node_sizes.append(calc_node_size(data["popularity"]))
 
     node_trace = go.Scatter(
         x=node_x,
@@ -192,9 +202,8 @@ def networkx_to_plotly(g, pos):
         text=labels,
         textposition="top center",
         hoverinfo="text",
-        marker=dict(size=10, color="skyblue", line_width=2),
+        marker=dict(size=node_sizes, color="skyblue", line_width=2),
     )
-
     fig = go.Figure(
         data=edge_traces + [node_trace],
         layout=go.Layout(
