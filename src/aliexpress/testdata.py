@@ -19,8 +19,8 @@ def generate_groups(n_groups=4) -> pd.DataFrame:
     sample_group_names = [
         "Beren",
         "Otters",
-        "Pandas",
-        "Flamingos",
+        "Panda's",
+        "Flamingo's",
         "Alpaca's",
         "Pinguins",
         "Vossen",
@@ -260,7 +260,7 @@ def generate_niet_samen(leerlingen: list, n_groups=4, n_rules=5) -> pd.DataFrame
 def main(n_groups=4, n_students=35, n_rules=5):
     """Generate the three input files and write to testdata"""
     groups = generate_groups(n_groups)
-    groups.to_excel(os.path.join(FOLDER, "groups_generated.xlsx"), index=False)
+    groups.to_excel(os.path.join(FOLDER, "groepen_generated.xlsx"), index=False)
     df_students_excel = PreferenceExcelGenerator(groups["Groepen"].tolist()).generate(
         n_students
     )
