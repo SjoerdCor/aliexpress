@@ -160,7 +160,7 @@ def distribute_students_once(
             technical_message="Can not solve the problem for this class imbalance",
         )
     on_update("Bepaald dat probleem oplosbaar is!")
-    on_update("Aan de slag!")
+    on_update("Aan de slag! Groepen indelen...")
     logger.info("Finding first solution... lexmaxmin")
     ps_lexmaxmin.run(save=False)
     on_update("Groepsindeling gemaakt!")
