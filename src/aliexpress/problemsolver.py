@@ -621,11 +621,15 @@ class ProblemSolver:
         """Calculate the weighted sum of satisfied preferences."""
         graag_met = self.preferences.xs("Graag met", level="TypeWens")
         weights = graag_met["Gewicht"].to_dict()
+        weights_pulp = pulp.LpVariable.dicts(
+            "Weights_preferences", graag_met.index.to_list(), cat="Continuous"
+        )
         weighted_satisfied = pulp.LpVariable.dicts(
             "WeightedSatisfied", graag_met.index.to_list(), cat="Continuous"
         )
 
         for key, weight in weights.items():
+            self.prob += weights_pulp[key] == weight
             if weight > 0:
                 # Weight is positive: you get points for getting it right
                 self.prob += weighted_satisfied[key] == (satisfied[key] * weight)

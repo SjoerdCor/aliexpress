@@ -239,6 +239,21 @@ class SolutionAnalyzer:
         satisfied_constraints: pd.DataFrame
             The output of calculate_satisfied_constraints
         """
+        studentsatisfaction = pd.Series(
+            {
+                k.replace("studentsatisfaction_", ""): v.value()
+                for k, v in self.prob_vars.items()
+                if k.startswith("studentsatisfaction")
+            },
+            name="RelativeSatisfaction",
+        )
+        n_weighted_preferencs = (
+            self._probvars_to_series(self.prob_vars, "Weights_preferences", "qqqq")
+            .where(lambda s: s.gt(0))
+            .groupby("student")
+            .sum()
+            .rename("NrWeightedPreferences")
+        )
         df = (
             self.satisfied_constraints.groupby("student")
             .agg(
@@ -247,22 +262,9 @@ class SolutionAnalyzer:
                 PctAccounted=("Satisfied", "mean"),
                 AccountedWeightedPreferences=("WeightedSatisfied", "sum"),
             )
-            .assign(
-                NrWeightedPreferences=self.preferences.xs("Graag met", level="TypeWens")
-                .loc[lambda df: df["Gewicht"].gt(0)]
-                .groupby("Leerling")["Gewicht"]
-                .sum(),
-                PctWeightedAccounted=lambda df: df["AccountedWeightedPreferences"]
-                / df["NrWeightedPreferences"],
-                PossibleSatisfaction=lambda df: df["NrWeightedPreferences"].map(
-                    lambda x: get_satisfaction_integral(0, x)
-                ),
-                ActualSatisfaction=lambda df: df["AccountedWeightedPreferences"].map(
-                    lambda x: get_satisfaction_integral(0, x)
-                ),
-                RelativeSatisfaction=lambda df: df["ActualSatisfaction"]
-                / df["PossibleSatisfaction"],
-            )
+            .join(studentsatisfaction, how="outer")
+            .join(n_weighted_preferencs)
+            .fillna(0)
         )
         return df
 
@@ -306,11 +308,10 @@ class SolutionAnalyzer:
         """
         cols = [
             "NrPreferences",
-            "AccountedPreferences",
             "NrWeightedPreferences",
+            "AccountedPreferences",
             "AccountedWeightedPreferences",
-            "PossibleSatisfaction",
-            "ActualSatisfaction",
+            "RelativeSatisfaction",
         ]
         solution_performance = (
             self.student_performance[cols]
@@ -324,8 +325,6 @@ class SolutionAnalyzer:
                     "AccountedWeightedPreferences"
                 ]
                 / df["NrWeightedPreferences"],
-                RelativeSatisfaction=lambda df: df["ActualSatisfaction"]
-                / df["PossibleSatisfaction"],
             )
         ).to_dict("records")[0]
         return solution_performance
