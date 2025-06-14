@@ -84,6 +84,7 @@ class SolutionAnalyzer:
         ]
         df = pd.DataFrame(chosen_groups)
         df[["Naam", "Group"]] = df[0].str.extract(r"group_\('(.*)',_'(.*)'\)")
+        assert df.notna().all().all(), df.loc[lambda df: df.isna().any(axis="columns")]
         return df.drop(columns=[0])
 
     def display_transition_matrix(self):

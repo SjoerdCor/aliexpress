@@ -1,6 +1,7 @@
 """Read and transform the input sheet to a workable DataFrame"""
 
 import math
+import re
 from typing import Iterable
 import warnings
 
@@ -112,7 +113,8 @@ def toggle_negative_weights(df: pd.DataFrame, mask="Gewicht") -> pd.DataFrame:
 def clean_name(x):
     """Clean spaces and capitals in names"""
     if isinstance(x, str):
-        return x.strip().title().replace(" ", "")
+        html_safe = re.sub(r"[<>&\"'`=/\\]", "", x)
+        return html_safe.strip().title().replace(" ", "")
     return x
 
 
@@ -284,7 +286,7 @@ class VoorkeurenProcessor:
                                 invalid_values.astype(str).tolist()
                             ),
                         },
-                        technical_message=f"Invalid values in '{wishtype}':\n{invalid_values}",
+                        technical_message=f"Invalid values in '{wishtype}':\n{invalid_values}\n{allowed_values=}",
                     )
             except KeyError:
                 warnings.warn(f"No entries found for wish type '{wishtype}'")
@@ -416,4 +418,8 @@ def read_groups_excel(path_groups_to) -> dict:
         )
 
     check_mandatory_columns(df, ["Groepen", "Jongens", "Meisjes"], "groups_to")
-    return df.set_index("Groepen").to_dict(orient="index")
+    return (
+        df.assign(Groepen=lambda df: df["Groepen"].apply(clean_name))
+        .set_index("Groepen")
+        .to_dict(orient="index")
+    )
