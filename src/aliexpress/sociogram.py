@@ -75,7 +75,8 @@ class SociogramMaker:
             .reset_index("Leerling")
             .reset_index(drop=True)
         )
-
+        for student in self.students_info:
+            g.add_node(student)
         for _, row in sociogram_preferences.iterrows():
             g.add_edge(row["Leerling"], row["Waarde"], weight=row["Gewicht"])
 
