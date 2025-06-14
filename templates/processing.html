@@ -6,7 +6,7 @@
 
 {% block content %}
 <div id="logs"></div>
-<div class="loading-spinner"></div>
+<div class="loading-spinner" style="display: none;"></div>
 
 <script>
     setInterval(() => {
@@ -16,11 +16,15 @@
                 console.log(data.status_studentdistribution)
                 document.getElementById("logs").innerHTML =
                     data.logs.map(line => `<p>${line}</p>`).join("");
+                if (data.status_studentdistribution === "running") {
+                    document.querySelector('.loading-spinner').style.display = 'block';
 
-                if (data.status_studentdistribution === "done") {
+                }
+                else if (data.status_studentdistribution === "done") {
+                    document.querySelector('.loading-spinner').style.display = 'none';
                     window.location.href = "/result/{{ task_id }}";
                 } else if (data.status_studentdistribution === "error") {
-
+                    document.querySelector('.loading-spinner').style.display = 'none';
                     fetch("/handle-error", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
