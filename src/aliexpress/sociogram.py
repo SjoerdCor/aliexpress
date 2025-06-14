@@ -131,7 +131,7 @@ def networkx_to_plotly(g, pos):
         x0, y0 = pos[u]
         x1, y1 = pos[v]
         weight = data.get("weight", 1)
-        is_bidirectional = (v, u) in seen_pairs
+        is_bidirectional = (v, u) in g.edges()
 
         width = abs(weight)
         color = "red" if weight < 0 else "#888"
@@ -141,7 +141,7 @@ def networkx_to_plotly(g, pos):
         dx = x1 - x0
         dy = y1 - y0
         length = math.sqrt(dx**2 + dy**2)
-        offset_scale = 0.02 if is_bidirectional else 0
+        offset_scale = 0.01 if is_bidirectional else 0
         ox = -dy / length * offset_scale
         oy = dx / length * offset_scale
 
