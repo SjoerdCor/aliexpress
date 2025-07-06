@@ -71,7 +71,12 @@ def check_mandatory_columns(
             failed_columns.append(name)
     illegal_cols = df[mandatory_columns].isna().any().loc[lambda s: s]
     for col in illegal_cols.index.tolist():
-        failed_columns.append(col)
+        if isinstance(col, tuple):
+            col_name = "_".join(str(c) for c in col if pd.notna(c))
+        else:
+            col_name = str(col)
+        failed_columns.append(col_name)
+
     if failed_columns:
         raise ValidationError(
             code=f"empty_mandatory_columns_{file_type}",
