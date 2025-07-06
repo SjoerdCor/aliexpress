@@ -224,13 +224,45 @@ def test_voorkeuren_processor_init(mock_read_excel):
         assert isinstance(processor.df, pd.DataFrame)
 
 
+def test_voorkeuren_processor_wrong_columns(valid_voorkeuren_df):
+    df = valid_voorkeuren_df.copy()
+    df = df.iloc[:, :-1]
+    processor = datareader.VoorkeurenProcessor.__new__(datareader.VoorkeurenProcessor)
+    with pytest.raises(errors.ValidationError) as exc:
+        processor._validate_input(df.iloc[:, :-1])
+    assert "wrong_columns_preferences" in exc.value.code
+
+
+def test_voorkeuren_processor_empty_df(valid_voorkeuren_df):
+    df = valid_voorkeuren_df.copy()
+    df = df.iloc[:0, :]
+    processor = datareader.VoorkeurenProcessor.__new__(datareader.VoorkeurenProcessor)
+    with pytest.raises(errors.ValidationError) as exc:
+        processor._validate_input(df)
+    assert "empty_df" in exc.value.code
+
+
+def test_voorkeuren_processor_mandatory_columns(valid_voorkeuren_df):
+    processor = datareader.VoorkeurenProcessor.__new__(datareader.VoorkeurenProcessor)
+
+    df = valid_voorkeuren_df.copy()
+    df["Stamgroep"] = np.nan
+    with pytest.raises(errors.ValidationError) as exc:
+        processor._validate_input(df)
+    assert "empty_mandatory_columns_preferences" in exc.value.code
+
+    df = valid_voorkeuren_df.copy()
+    df["Jongen/meisje"] = np.nan
+    with pytest.raises(errors.ValidationError) as exc:
+        processor._validate_input(df)
+    assert "empty_mandatory_columns_preferences" in exc.value.code
+
+
 def test_voorkeuren_processor_clean_input():
     df = pd.DataFrame(
         {("A", "B", "C"): ["  john ", "<script>"]}, index=[" alice ", "bob"]
     )
-    processor = datareader.VoorkeurenProcessor.__new__(
-        datareader.VoorkeurenProcessor
-    )  # bypass __init__
+    processor = datareader.VoorkeurenProcessor.__new__(datareader.VoorkeurenProcessor)
     cleaned = processor.clean_input(df)
     assert "John" in cleaned.iloc[:, 0].values
     assert "Script" in cleaned.iloc[:, 0].values
@@ -314,9 +346,8 @@ def test_voorkeuren_processor_validate_input_wrong_sex(valid_voorkeuren_df):
 
 def test_voorkeuren_processor_validate_input_duplicated_values(valid_voorkeuren_df):
     df = valid_voorkeuren_df.copy()
-    print(df)
-    df.loc["John", ("Graag met", 1, "Waarde")] = "Bob"
-    df.loc["John", ("Graag met", 2, "Waarde")] = "Bob"
+    df.loc["John", ("Graag met", 1, "Waarde")] = "Jane"
+    df.loc["John", ("Graag met", 2, "Waarde")] = "Jane"
     processor = datareader.VoorkeurenProcessor.__new__(datareader.VoorkeurenProcessor)
     with pytest.raises(datareader.ValidationError) as exc:
         processor._validate_input(df)
