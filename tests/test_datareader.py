@@ -668,4 +668,4 @@ def test_read_groups_excel_missing_col(mock_read_excel):
     mock_read_excel.return_value = df
     with pytest.raises(errors.ValidationError) as exc:
         datareader.read_groups_excel("groups.xlsx")
-    assert "empty_mandatory_columns_groups" == exc.value.code
+    assert "empty_mandatory_columns_groups_to" == exc.value.code
