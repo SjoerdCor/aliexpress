@@ -5,11 +5,24 @@ description = "Calculates the ideal distribution of students"
 readme = "README.MD"
 authors = [{ name = "Sjoerd Cornelissen"}]
 requires-python = ">=3.11"
+dependencies = [
+    "pulp==3.1.1",
+    "flask==3.1.0",
+    "python-dotenv==0.9.9",
+    "pandas==2.2.3",
+    "openpyxl==3.1.5",
+    "jinja2==3.1.2",
+    "matplotlib==3.10.0",
+    "plotly==6.1.2",
+    "networkx==3.5",
+    "ipykernel==6.19.0",
+    "nbformat==5.10.4",
+]
 
 [project.optional-dependencies]
 dev = [
     "pytest==8.4.1",
-    "pytest==6.2.1",
+    "pytest-cov==6.2.1",
     "black==25.1.0",
     "pre-commit==4.2.0",
 ]
