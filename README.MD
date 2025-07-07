@@ -22,6 +22,8 @@ SECRET_KEY=<your-secret-key-here>
 
 Following the How to use-section, a local web app launches which details a step-by-step plan to get to the allocation of the students.
 
+Developers should also run `pre-commit install`.
+
 
 ## Detailed description
 ALI Express automatically takes into account many criteria of both group balance and student satisfaction, including positiive and negative preferences for current peers, future groups, including weights, impossiblities and minimal satisfaction. For group balance, this includes group size for both total and new groups, balance between boys and girls and  maximum cliques from current groups. Additionally, it allows to specify which students should not be together, or not in too large groups. 
