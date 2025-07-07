@@ -13,20 +13,20 @@ def valid_voorkeuren_df():
         ("MinimaleTevredenheid", np.nan, np.nan),
         ("Jongen/meisje", np.nan, np.nan),
         ("Stamgroep", np.nan, np.nan),
-        ("Graag met", 1, "Waarde"),
-        ("Graag met", 1, "Gewicht"),
-        ("Graag met", 2, "Waarde"),
-        ("Graag met", 2, "Gewicht"),
-        ("Graag met", 3, "Waarde"),
-        ("Graag met", 3, "Gewicht"),
-        ("Graag met", 4, "Waarde"),
-        ("Graag met", 4, "Gewicht"),
-        ("Graag met", 5, "Waarde"),
-        ("Graag met", 5, "Gewicht"),
-        ("Liever niet met", 1, "Waarde"),
-        ("Liever niet met", 1, "Gewicht"),
-        ("Niet in", 1, "Waarde"),
-        ("Niet in", 2, "Waarde"),
+        ("Graag met", 1.0, "Waarde"),
+        ("Graag met", 1.0, "Gewicht"),
+        ("Graag met", 2.0, "Waarde"),
+        ("Graag met", 2.0, "Gewicht"),
+        ("Graag met", 3.0, "Waarde"),
+        ("Graag met", 3.0, "Gewicht"),
+        ("Graag met", 4.0, "Waarde"),
+        ("Graag met", 4.0, "Gewicht"),
+        ("Graag met", 5.0, "Waarde"),
+        ("Graag met", 5.0, "Gewicht"),
+        ("Liever niet met", 1.0, "Waarde"),
+        ("Liever niet met", 1.0, "Gewicht"),
+        ("Niet in", 1.0, "Waarde"),
+        ("Niet in", 2.0, "Waarde"),
     ]
     columns = pd.MultiIndex.from_tuples(header, names=["TypeWens", "Nr", "TypeWaarde"])
     data = [
@@ -149,7 +149,7 @@ def test_check_mandatory_columns_success():
 
 def test_check_mandatory_columns_missing_data():
     df = pd.DataFrame({"A": [np.nan], "B": [2]})
-    df.index = pd.Index([np.nan], name="idx")
+    df.index = pd.Index([1], name="idx")
     with pytest.raises(errors.ValidationError) as exc:
         datareader.check_mandatory_columns(df, ["A", "B"], "test")
     assert "empty_mandatory_columns" in exc.value.code
@@ -167,16 +167,15 @@ def test_toggle_negative_weights():
     df = pd.DataFrame(
         {
             "Leerling": ["John", "Jane"],
-            "TypeWens": ["Liever niet met", "Graag met"],
+            "TypeWens": ["Graag met", "Graag met"],
             "Gewicht": [-1, 2],
         }
     )
     df.set_index(["Leerling", "TypeWens"], inplace=True)
     result = datareader.toggle_negative_weights(df)
-    assert all(result["Gewicht"] > 0)
-    assert set(result.index.get_level_values("TypeWens")) == {
-        "Graag met",
-    }
+    assert result["Gewicht"].tolist() == [1, 2]
+    expected = ["Liever niet met", "Graag met"]
+    assert result.index.get_level_values("TypeWens").tolist() == expected
 
 
 def test_toggle_negative_weights_liever_niet_met():
@@ -190,6 +189,8 @@ def test_toggle_negative_weights_liever_niet_met():
     df.set_index(["Leerling", "TypeWens"], inplace=True)
     result = datareader.toggle_negative_weights(df, mask="Liever niet met")
     assert result["Gewicht"].tolist() == [-1, 2]
+    expected = ["Graag met", "Graag met"]
+    assert result.index.get_level_values("TypeWens").tolist() == expected
 
 
 @pytest.mark.parametrize(
@@ -207,21 +208,158 @@ def test_clean_name(input_str, expected):
 
 
 @patch("aliexpress.datareader.pd.read_excel")
-def test_voorkeuren_processor_init(mock_read_excel):
+def test_voorkeuren_processor_init(mock_read_excel, valid_voorkeuren_df):
+    index = pd.Index(
+        ["Leerling", np.nan, np.nan, "John", "Jane", "Alice", "Eve"],
+        dtype="object",
+        name="Leerling",
+    )
+
     mock_df = pd.DataFrame(
         [
-            ["Graag met", "Graag met", "Graag met", "Liever niet met"],
-            [1.0, 2.0, 3.0, 1.0],
-            ["Waarde", "Gewicht", "Waarde", "Waarde"],
-            ["Alice", 1, "Bob", "Charlie"],
+            {
+                1: "MinimaleTevredenheid",
+                2: "Jongen/meisje",
+                3: "Stamgroep",
+                4: "Graag met",
+                5: np.nan,
+                6: "Graag met",
+                7: np.nan,
+                8: "Graag met",
+                9: np.nan,
+                10: "Graag met",
+                11: np.nan,
+                12: "Graag met",
+                13: np.nan,
+                14: "Liever niet met",
+                15: np.nan,
+                16: "Niet in",
+                17: "Niet in",
+            },
+            {
+                1: np.nan,
+                2: np.nan,
+                3: np.nan,
+                4: 1,
+                5: np.nan,
+                6: 2,
+                7: np.nan,
+                8: 3,
+                9: np.nan,
+                10: 4,
+                11: np.nan,
+                12: 5,
+                13: np.nan,
+                14: 1,
+                15: np.nan,
+                16: 1,
+                17: 2,
+            },
+            {
+                1: np.nan,
+                2: np.nan,
+                3: np.nan,
+                4: "Naam (leerling of stamgroep)",
+                5: "Gewicht",
+                6: "Naam (leerling of stamgroep)",
+                7: "Gewicht",
+                8: "Naam (leerling of stamgroep)",
+                9: "Gewicht",
+                10: "Naam (leerling of stamgroep)",
+                11: "Gewicht",
+                12: "Naam (leerling of stamgroep)",
+                13: "Gewicht",
+                14: "Naam (leerling of stamgroep)",
+                15: "Gewicht",
+                16: "Stamgroep",
+                17: "Stamgroep",
+            },
+            {
+                1: 0.5,
+                2: "Jongen",
+                3: "A",
+                4: "Jane",
+                5: 1,
+                6: "Alice",
+                7: 2,
+                8: "Blauw",
+                9: 0.5,
+                10: np.nan,
+                11: np.nan,
+                12: np.nan,
+                13: np.nan,
+                14: "Eve",
+                15: 2,
+                16: "Oranje",
+                17: np.nan,
+            },
+            {
+                1: np.nan,
+                2: "Meisje",
+                3: "B",
+                4: np.nan,
+                5: np.nan,
+                6: np.nan,
+                7: np.nan,
+                8: np.nan,
+                9: np.nan,
+                10: np.nan,
+                11: np.nan,
+                12: np.nan,
+                13: np.nan,
+                14: np.nan,
+                15: np.nan,
+                16: np.nan,
+                17: np.nan,
+            },
+            {
+                1: np.nan,
+                2: "Meisje",
+                3: "B",
+                4: np.nan,
+                5: np.nan,
+                6: np.nan,
+                7: np.nan,
+                8: np.nan,
+                9: np.nan,
+                10: np.nan,
+                11: np.nan,
+                12: np.nan,
+                13: np.nan,
+                14: np.nan,
+                15: np.nan,
+                16: np.nan,
+                17: np.nan,
+            },
+            {
+                1: np.nan,
+                2: "Meisje",
+                3: "B",
+                4: np.nan,
+                5: np.nan,
+                6: np.nan,
+                7: np.nan,
+                8: np.nan,
+                9: np.nan,
+                10: np.nan,
+                11: np.nan,
+                12: np.nan,
+                13: np.nan,
+                14: np.nan,
+                15: np.nan,
+                16: np.nan,
+                17: np.nan,
+            },
         ],
-        columns=[0, 1, 2, 3],
-        index=["Leerling", "Leerling", "Leerling", "John"],
+        index=index,
     )
     mock_read_excel.return_value = mock_df
+    expected = valid_voorkeuren_df.copy()
     with patch("aliexpress.datareader.VoorkeurenProcessor._validate_input"):
         processor = datareader.VoorkeurenProcessor("dummy.xlsx")
         assert isinstance(processor.df, pd.DataFrame)
+        assert processor.df.equals(processor.input)
+        pd.testing.assert_frame_equal(processor.df, expected)
 
 
 def test_voorkeuren_processor_wrong_columns(valid_voorkeuren_df):
@@ -269,62 +407,33 @@ def test_voorkeuren_processor_clean_input():
     assert "Alice" in cleaned.index
 
 
-@patch("aliexpress.datareader.pd.read_excel")
-def test_read_not_together_success(mock_read_excel):
-    data = {
-        "Max aantal samen": [2],
-        "Leerling 1": ["Alice"],
-        "Leerling 2": ["Bob"],
-    }
-    for llnr in range(3, 13):
-        data[f"Leerling {llnr}"] = pd.NA
+def test_voorkeuren_processor_process(valid_voorkeuren_df):
+    processor = datareader.VoorkeurenProcessor.__new__(datareader.VoorkeurenProcessor)
+    processor.input = valid_voorkeuren_df
+    processor.df = valid_voorkeuren_df.copy()
+    processor.restructure()
 
-    mock_read_excel.return_value = pd.DataFrame(data)
-    students = ["Alice", "Bob"]
-    result = datareader.read_not_together("dummy.xlsx", students, n_groups=2)
-    assert result[0]["Max_aantal_samen"] == 2
-    assert result[0]["group"] == {"Alice", "Bob"}
-
-
-@patch("aliexpress.datareader.pd.read_excel")
-def test_read_not_together_duplicate_student_error(mock_read_excel):
-    data = {
-        "Max aantal samen": [2],
-        "Leerling 1": ["Alice"],
-        "Leerling 2": ["Alice"],
-    }
-    for llnr in range(3, 13):
-        data[f"Leerling {llnr}"] = pd.NA
-    mock_read_excel.return_value = pd.DataFrame(data)
-    with pytest.raises(datareader.ValidationError) as exc:
-        datareader.read_not_together("dummy.xlsx", ["Alice"], 2)
-    assert "duplicated_students_not_together" in exc.value.code
-
-
-@patch("aliexpress.datareader.pd.read_excel")
-def test_read_groups_excel_success(mock_read_excel):
-    df = pd.DataFrame(
+    expected = pd.DataFrame(
         {
-            "Groepen": ["A"],
-            "Jongens": [5],
-            "Meisjes": [6],
+            "Waarde": {
+                ("John", "Graag met", 1.0): "Jane",
+                ("John", "Graag met", 2.0): "Alice",
+                ("John", "Graag met", 3.0): "Blauw",
+                ("John", "Liever niet met", 1.0): "Eve",
+                ("John", "Niet in", 1.0): "Oranje",
+            },
+            "Gewicht": {
+                ("John", "Graag met", 1.0): 1.0,
+                ("John", "Graag met", 2.0): 2.0,
+                ("John", "Graag met", 3.0): 0.5,
+                ("John", "Liever niet met", 1.0): 2.0,
+                ("John", "Niet in", 1.0): 1.0,
+            },
         }
     )
-    mock_read_excel.return_value = df
-    result = datareader.read_groups_excel("groups.xlsx")
-    assert "A" in result
-    assert result["A"]["Jongens"] == 5
-    assert result["A"]["Meisjes"] == 6
-
-
-@patch("aliexpress.datareader.pd.read_excel")
-def test_read_groups_excel_empty(mock_read_excel):
-    mock_read_excel.return_value = pd.DataFrame(
-        columns=["Groepen", "Jongens", "Meisjes"]
-    )
-    with pytest.raises(errors.ValidationError) as exc:
-        datareader.read_groups_excel("groups.xlsx")
-    assert "empty_df" in exc.value.code
+    expected.index.names = ["Leerling", "TypeWens", "Nr"]
+    expected.columns.names = ["TypeWaarde"]
+    pd.testing.assert_frame_equal(processor.df, expected)
 
 
 def test_voorkeuren_processor_validate_input_duplicate(valid_voorkeuren_df):
@@ -443,6 +552,52 @@ def test_voorkeuren_processor_process_and_get_students_meta_info(valid_voorkeure
     assert dicts_equal_with_nan(meta, expected)
 
 
+@patch("aliexpress.datareader.pd.read_excel")
+def test_read_not_together_success(mock_read_excel):
+    data = {
+        "Max aantal samen": [2],
+        "Leerling 1": ["Alice"],
+        "Leerling 2": ["Bob"],
+    }
+    for llnr in range(3, 13):
+        data[f"Leerling {llnr}"] = pd.NA
+
+    mock_read_excel.return_value = pd.DataFrame(data)
+    students = ["Alice", "Bob"]
+    result = datareader.read_not_together("dummy.xlsx", students, n_groups=2)
+    assert result == [{"Max_aantal_samen": 2, "group": {"Alice", "Bob"}}]
+
+
+def test_read_not_together_incompletely_filled():
+    df = pd.DataFrame(
+        {
+            "Max aantal samen": [2],
+            "Leerling 1": ["Alice"],
+        }
+    )
+    for llnr in range(2, 13):
+        df[f"Leerling {llnr}"] = pd.NA
+    with patch("aliexpress.datareader.pd.read_excel", return_value=df):
+        with pytest.raises(datareader.ValidationError) as exc:
+            datareader.read_not_together("dummy.xlsx", ["Alice"], 2)
+        assert "empty_mandatory_columns_not_together" == exc.value.code
+
+
+@patch("aliexpress.datareader.pd.read_excel")
+def test_read_not_together_duplicate_student_error(mock_read_excel):
+    data = {
+        "Max aantal samen": [2],
+        "Leerling 1": ["Alice"],
+        "Leerling 2": ["Alice"],
+    }
+    for llnr in range(3, 13):
+        data[f"Leerling {llnr}"] = pd.NA
+    mock_read_excel.return_value = pd.DataFrame(data)
+    with pytest.raises(datareader.ValidationError) as exc:
+        datareader.read_not_together("dummy.xlsx", ["Alice"], 2)
+    assert "duplicated_students_not_together" in exc.value.code
+
+
 def test_read_not_together_unknown_student():
     df = pd.DataFrame(
         {
@@ -474,3 +629,43 @@ def test_read_not_together_too_strict():
         with pytest.raises(datareader.ValidationError) as exc:
             datareader.read_not_together("dummy.xlsx", ["Alice", "Bob", "Charlie"], 2)
         assert "too_strict_not_together" in exc.value.code
+
+
+@patch("aliexpress.datareader.pd.read_excel")
+def test_read_groups_excel_success(mock_read_excel):
+    df = pd.DataFrame(
+        {
+            "Groepen": ["De Flamingo's"],
+            "Jongens": [5],
+            "Meisjes": [6],
+        }
+    )
+    mock_read_excel.return_value = df
+    result = datareader.read_groups_excel("groups.xlsx")
+    assert result == {"DeFlamingos": {"Jongens": 5, "Meisjes": 6}}
+
+
+@patch("aliexpress.datareader.pd.read_excel")
+def test_read_groups_excel_empty(mock_read_excel):
+    mock_read_excel.return_value = pd.DataFrame(
+        columns=["Groepen", "Jongens", "Meisjes"]
+    )
+    with pytest.raises(errors.ValidationError) as exc:
+        datareader.read_groups_excel("groups.xlsx")
+    assert "empty_df" in exc.value.code
+
+
+@patch("aliexpress.datareader.pd.read_excel")
+def test_read_groups_excel_missing_col(mock_read_excel):
+    df = pd.DataFrame(
+        {
+            "Groepen": ["De Flamingo's"],
+            "Jongens": [np.nan],
+            "Meisjes": [6],
+        }
+    )
+
+    mock_read_excel.return_value = df
+    with pytest.raises(errors.ValidationError) as exc:
+        datareader.read_groups_excel("groups.xlsx")
+    assert "empty_mandatory_columns_groups" == exc.value.code
