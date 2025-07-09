@@ -54,11 +54,11 @@ def _apply_threshold_constraints(
 
     for threshold in thresholds:
         if threshold > 0:
-            prob += threshold_vars[threshold] <= value * (1 / threshold) + eps
-            prob += threshold_vars[threshold] >= (value - (threshold - eps)) / M
+            prob += value >= threshold - M * (1 - threshold_vars[threshold])
+            prob += value <= threshold - eps + M * threshold_vars[threshold]
         else:
-            prob += threshold_vars[threshold] >= value * (1 / threshold) - eps
-            prob += threshold_vars[threshold] <= (value - (threshold + eps)) / M
+            prob += value <= threshold + M * (1 - threshold_vars[threshold])
+            prob += value >= threshold + eps - M * threshold_vars[threshold]
 
 
 def powerset(iterable):
@@ -762,10 +762,11 @@ class ProblemSolver:
             self.prob.setObjective(minimal_satisfaction)
             self.prob.solve(solver)
             m_val = minimal_satisfaction.value()
+            logger.debug(f"Level {level}, step 1 done, {m_val}")
             if m_val > satisfaction_max:
                 logger.debug("Minimal satisfaction reached, breaking lexmaxmin")
                 break
-            logger.debug(f"Level {level}, step 1 done, {m_val}")
+
             # Add as constraint
             if level == 0:
                 for student in self.students:
