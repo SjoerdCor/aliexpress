@@ -203,7 +203,8 @@ class PreferenceExcelGenerator:
         """Generate 0, 1 or 2 groups the student can not be in"""
         already_wished = [w[0] for w in wishes + [not_with]]
         possible_groups = [gr for gr in group_names if gr not in already_wished]
-        n_not_in = random.randint(0, min(2, len(possible_groups)))
+        # -1 because there should always be at least one group to place the student in
+        n_not_in = random.randint(0, min(2, len(possible_groups) - 1))
         not_in = random.sample(possible_groups, n_not_in)
 
         return not_in + [""] * (2 - n_not_in)
@@ -271,4 +272,4 @@ def main(n_groups=4, n_students=35, n_rules=5):
 
 
 if __name__ == "__main__":
-    main()
+    main(2, 5, 1)
