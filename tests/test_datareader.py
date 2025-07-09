@@ -117,115 +117,6 @@ def valid_voorkeuren_df():
 
 
 @pytest.fixture
-def empty_voorkeuren_df():
-    header = [
-        ("MinimaleTevredenheid", np.nan, np.nan),
-        ("Jongen/meisje", np.nan, np.nan),
-        ("Stamgroep", np.nan, np.nan),
-        ("Graag met", 1.0, "Waarde"),
-        ("Graag met", 1.0, "Gewicht"),
-        ("Graag met", 2.0, "Waarde"),
-        ("Graag met", 2.0, "Gewicht"),
-        ("Graag met", 3.0, "Waarde"),
-        ("Graag met", 3.0, "Gewicht"),
-        ("Graag met", 4.0, "Waarde"),
-        ("Graag met", 4.0, "Gewicht"),
-        ("Graag met", 5.0, "Waarde"),
-        ("Graag met", 5.0, "Gewicht"),
-        ("Liever niet met", 1.0, "Waarde"),
-        ("Liever niet met", 1.0, "Gewicht"),
-        ("Niet in", 1.0, "Waarde"),
-        ("Niet in", 2.0, "Waarde"),
-    ]
-    columns = pd.MultiIndex.from_tuples(header, names=["TypeWens", "Nr", "TypeWaarde"])
-    data = [
-        [
-            np.nan,
-            "Jongen",
-            "A",
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-        ],
-        [
-            np.nan,
-            "Meisje",
-            "B",
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-        ],
-        [
-            np.nan,
-            "Meisje",
-            "B",
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-        ],
-        [
-            np.nan,
-            "Meisje",
-            "B",
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-        ],
-    ]
-
-    df = pd.DataFrame(
-        data,
-        columns=columns,
-        index=pd.Index(["John", "Jane", "Alice", "Eve"], name="Leerling"),
-    )
-    return df
-
-
-@pytest.fixture
 def valid_groepen_df():
     return pd.DataFrame({"Groepen": ["A"], "Jongens": [5], "Meisjes": [6]})
 
@@ -641,8 +532,8 @@ def test_voorkeuren_processor_empty_df(valid_voorkeuren_df):
     assert "empty_df" in exc.value.code
 
 
-def test_voorkeuren_processor_no_preferences(empty_voorkeuren_df):
-    df = empty_voorkeuren_df.copy()
+def test_voorkeuren_processor_no_preferences(valid_voorkeuren_df):
+    df = valid_voorkeuren_df.copy().iloc[1:]
     processor = datareader.VoorkeurenProcessor.__new__(datareader.VoorkeurenProcessor)
     processor.df = df
     processor.input = df
@@ -658,8 +549,7 @@ def test_voorkeuren_processor_no_preferences(empty_voorkeuren_df):
     expected = pd.DataFrame(
         columns=pd.Index(["Waarde", "Gewicht"], name="TypeWaarde"),
         index=expected_index,
-        dtype="float64",
-    )
+    ).astype({"Gewicht": "float64"})
     pd.testing.assert_frame_equal(df_processed, expected)
 
 
