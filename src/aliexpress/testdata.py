@@ -10,7 +10,7 @@ import numpy as np
 
 random.seed(42)
 
-FOLDER = "../../testdata"
+FOLDER = "testdata"
 
 
 def generate_groups(n_groups=4) -> pd.DataFrame:
@@ -247,13 +247,12 @@ def generate_niet_samen(leerlingen: list, n_groups=4, n_rules=5) -> pd.DataFrame
     """Generate the not_together excel file"""
     rules = []
     for _ in range(n_rules):
-        n_children = random.randint(2, 12)
+        n_children = random.randint(2, min(12, len(leerlingen)))
         group = random.sample(leerlingen, k=n_children)
-        rule = [math.ceil(n_children / n_groups), *group]
+        rule = [math.ceil(n_children / n_groups), *group] + [np.nan] * (12 - n_children)
         rules.append(rule)
-
     cols = ["Max aantal samen"] + [f"Leerling {i}" for i in range(1, 13)]
-    df = pd.DataFrame(rules).reindex(columns=cols)
+    df = pd.DataFrame(rules, columns=cols)
     return df
 
 
