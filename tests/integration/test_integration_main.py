@@ -1,6 +1,8 @@
 import pandas as pd
 import numpy as np
+import pytest
 from aliexpress.main import distribute_students_once
+from aliexpress import errors
 
 
 def test_distribute_students_once_happy_flow_full():
@@ -56,6 +58,31 @@ def test_distribute_students_once_happy_flow_full():
     assert isinstance(vervuldewensen, pd.io.formats.style.Styler)
     df_expected_vervuldewensen = get_expected_vervuldewensen()
     pd.testing.assert_frame_equal(vervuldewensen.data, df_expected_vervuldewensen)
+
+
+def test_distribute_students_once_happy_flow_infeasible():
+    with pytest.raises(errors.FeasibilityError) as exc:
+        result = distribute_students_once(
+            path_preferences="tests/integration/voorkeuren.xlsx",
+            path_groups_to="tests/integration/groepen.xlsx",
+            path_not_together="tests/integration/niet_samen.xlsx",
+            on_update=lambda msg: None,
+            max_clique=1,
+            max_clique_sex=1,
+            max_diff_n_students_year=1,
+            max_diff_n_students_total=1,
+            max_imbalance_boys_girls_year=1,
+            max_imbalance_boys_girls_total=1,
+        )
+    improvements = [
+        "Maximale verschil jongens/meisjes totale groep: 3 (+ 2)",
+        "Maximale verschil jongens/meisjes nieuwe jaarlaag: 2 (+ 1)",
+        "Maximale verschil groepsgrootte nieuwe jaarlaag: 2 (+ 1)",
+        "Maximale groep vanuit eerdere groep: 3 (+ 2)",
+        "Maximale groep jongens/meisjes vanuit eerdere groep: 2 (+ 1)",
+    ]
+    for line in improvements:
+        assert line in str(exc.value.context["possible_improvement"])
 
 
 def get_expected_groepsindeling():
