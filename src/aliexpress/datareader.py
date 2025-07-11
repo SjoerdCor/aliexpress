@@ -244,7 +244,7 @@ class VoorkeurenProcessor:
                 ]
             )
             .stack(["TypeWens", "Nr"], future_stack=True)
-            .dropna(subset="Waarde")
+            .dropna(how="all")
             .fillna({"Gewicht": 1})
         )
 
@@ -261,6 +261,22 @@ class VoorkeurenProcessor:
             raise ValidationError(
                 code="wrong_columns_preferences",
                 technical_message=f"Invalid columns! Expected {sorted(expected)}, got {sorted(self.df.columns)}",
+            )
+
+        missing_waarde = self.df.loc[
+            lambda df: df.index.get_level_values("TypeWens").isin(
+                ["Graag met", "Liever niet met"]
+            ),
+            "Waarde",
+        ].isna()
+        if missing_waarde.any():
+            students_with_missing = missing_waarde.loc[
+                lambda s: s
+            ].index.get_level_values("Leerling")
+            raise ValidationError(
+                code="weight_without_name_preferences",
+                context={"students": ",".join(students_with_missing)},
+                technical_message="There are missing values in 'Waarde' where 'Gewicht' is filled.",
             )
 
         if (self.df["Gewicht"] <= 0).any():
