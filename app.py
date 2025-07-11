@@ -11,7 +11,6 @@ from threading import Thread
 from dotenv import load_dotenv
 from flask import (
     Flask,
-    Response,
     flash,
     jsonify,
     redirect,
@@ -30,8 +29,8 @@ from src.aliexpress.main import distribute_students_once
 
 def setup_logger():
     """Create logging instance"""
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.INFO)
+    log = logging.getLogger(__name__)
+    log.setLevel(logging.INFO)
 
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.DEBUG)
@@ -41,9 +40,9 @@ def setup_logger():
     formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
     file_handler.setFormatter(formatter)
     console_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
-    return logger
+    log.addHandler(file_handler)
+    log.addHandler(console_handler)
+    return log
 
 
 logger = setup_logger()
@@ -120,23 +119,29 @@ FRIENDLY_TEMPLATES = {
         "lossen:\n {possible_improvement}"
     ),
     "empty_mandatory_columns_preferences": (
-        "In het voorkeuren-bestand zijn niet alle verplichte kolommen gevuld: controleer {failed_columns}"
+        "In het voorkeuren-bestand zijn niet alle verplichte kolommen gevuld: "
+        "controleer {failed_columns}"
     ),
     "empty_mandatory_columns_groups_to": (
-        "In het groepen-bestand zijn niet alle verplichte kolommen gevuld: controleer {failed_columns}"
+        "In het groepen-bestand zijn niet alle verplichte kolommen gevuld: "
+        "controleer {failed_columns}"
     ),
     "empty_mandatory_columns_not_together": (
-        "In het niet-samen-bestand zijn niet alle verplichte kolommen gevuld: controleer {failed_columns}"
+        "In het niet-samen-bestand zijn niet alle verplichte kolommen gevuld: "
+        "controleer {failed_columns}"
     ),
     "could_not_read": (
-        "Het {filetype}-bestand kon niet worden ingelezen. Controleer of je het juiste bestand hebt geupload"
+        "Het {filetype}-bestand kon niet worden ingelezen. "
+        "Controleer of je het juiste bestand hebt geupload"
     ),
     "empty_df": (
-        "Het {filetype}-bestand was helemaal leeg. Daardoor kan er geen groepsindeling worden berekend"
+        "Het {filetype}-bestand was helemaal leeg. Daardoor kan er "
+        "geen groepsindeling worden berekend"
     ),
     "duplicated_values_preferences": (
-        "In het voorkeuren-bestand is voor {students_with_duplicates} een leerling of groep "
-        "gevonden die dubbel voorkomt. Tel ze op of streep ze tegen elkaar weg om dubbelingen te voorkomen"
+        "In het voorkeuren-bestand is voor {students_with_duplicates} "
+        "een leerling of groep gevonden die dubbel voorkomt. Tel ze op "
+        "of streep ze tegen elkaar weg om dubbelingen te voorkomen."
     ),
     "weight_without_name_preferences": (
         "In het voorkeuren-bestand is een gewicht gevonden zonder bijbehorende naam voor {students}"
@@ -212,6 +217,7 @@ def upload_files():
         task_id = str(uuid.uuid4())
         temp_storage[task_id] = {}
 
+        # pylint: disable=broad-exception-caught
         def run_task(*args, **kwargs):
             try:
                 status_dct[task_id]["status_studentdistribution"] = "running"
@@ -248,12 +254,14 @@ def upload_files():
                 html = fig.to_html(full_html=False, include_plotlyjs="cdn")
                 logger.info("HTML created")
                 on_update(
-                    f'<a href=/sociogram/{task_id} target="_blank" class="button">Bekijk het sociogram nu!</a>'
+                    f'<a href=/sociogram/{task_id} target="_blank" class="button">'
+                    "Bekijk het sociogram nu!</a>"
                 )
                 temp_storage[task_id]["sociogram"] = html
             except Exception:
                 logger.exception("Could not create sociogram")
 
+        # pylint: enable=broad-exception-caught
         Thread(target=create_sociogram, args=(preferences, groups_to)).start()
         Thread(
             target=run_task,

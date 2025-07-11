@@ -45,3 +45,6 @@ aliexpress = "aliexpress.main:main"
 
 [tool.pytest.ini_options]
 addopts = "--cov=aliexpress --cov-report=term-missing --cov-report=xml"
+
+[tool.pylint."VARIABLES"]
+good-names = ["M"]

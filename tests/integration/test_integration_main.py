@@ -1,3 +1,9 @@
+# pylint: disable=too-many-lines  # Perhaps in the future switch to pytest-regression
+
+"""Integration tests for the main functionality of the AliExpress application.
+
+These tests ensure that the student distribution process works correctly
+with both small and full datasets, checking the output against expected results."""
 import numpy as np
 import pandas as pd
 import pytest
@@ -7,7 +13,7 @@ from aliexpress.main import distribute_students_once
 
 
 def test_distribute_students_once_happy_flow_small():
-
+    """Test the student distribution with a small, quick dataset."""
     result = distribute_students_once(
         path_preferences="tests/integration/voorkeuren_small.xlsx",
         path_groups_to="tests/integration/groepen_small.xlsx",
@@ -63,7 +69,7 @@ def test_distribute_students_once_happy_flow_small():
 
 
 def test_distribute_students_once_happy_flow_full():
-
+    """Test the student distribution with a full dataset, ensuring all outputs are correct."""
     result = distribute_students_once(
         path_preferences="tests/integration/voorkeuren.xlsx",
         path_groups_to="tests/integration/groepen.xlsx",
@@ -117,8 +123,10 @@ def test_distribute_students_once_happy_flow_full():
 
 
 def test_distribute_students_once_happy_flow_infeasible():
+    """Test the student distribution with infeasible constraints
+    ensuring it raises a FeasibilityError."""
     with pytest.raises(errors.FeasibilityError) as exc:
-        result = distribute_students_once(
+        distribute_students_once(
             path_preferences="tests/integration/voorkeuren.xlsx",
             path_groups_to="tests/integration/groepen.xlsx",
             path_not_together="tests/integration/niet_samen.xlsx",
@@ -141,6 +149,7 @@ def test_distribute_students_once_happy_flow_infeasible():
         assert line in str(exc.value.context["possible_improvement"])
 
 
+# pylint: disable=missing-function-docstring
 def get_expected_groepsindeling_small():
     data = {
         ("Beren", "Jongen"): ["Bram (D)", "", 1, 19],

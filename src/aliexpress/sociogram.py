@@ -1,3 +1,5 @@
+"""Create a Sociogram, displaying relations and popularity"""
+
 import base64
 import io
 import math
@@ -31,7 +33,7 @@ class SociogramMaker:
     def min_max_scaler(
         this_value, min_desired, max_desired, min_possible, max_possible
     ):
-        """Scale this value, which is in range [min_possible, max_possible] to range [min_desired, max_desired]
+        """Scale value from range [min_possible, max_possible] to range [min_desired, max_desired]
 
         Useful for popularity -> node size, or calculating edge widths on weight, etc.
         """
@@ -46,7 +48,7 @@ class SociogramMaker:
         max_node_size = 375
 
         node_sizes = []
-        for child, data in g.nodes(data=True):
+        for _, data in g.nodes(data=True):
             node_sizes.append(
                 self.min_max_scaler(
                     data.get("popularity"),
@@ -128,6 +130,15 @@ class SociogramMaker:
 
 
 def networkx_to_plotly(g, pos):
+    """Convert a NetworkX graph to a Plotly figure
+
+    Parameters
+    ----------
+    g : networkx.Graph
+        The graph to convert
+    pos : dict
+        A dictionary mapping nodes to their (x, y) positions
+    """
     edge_traces = []
     seen_pairs = set()
 

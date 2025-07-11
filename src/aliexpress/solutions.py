@@ -2,11 +2,11 @@
 
 import pandas as pd
 import pulp
+from IPython.display import display
 from openpyxl.styles import Alignment, numbers
 from openpyxl.utils import get_column_letter
 
 from . import datareader
-from .problemsolver import get_satisfaction_integral
 
 TABLE_STYLES = styles = [
     {
@@ -88,6 +88,9 @@ class SolutionAnalyzer:
         return df.drop(columns=[0])
 
     def display_transition_matrix(self):
+        """Create a transition matrix of the groups
+
+        How many students moved from one group to another"""
         df_student_info = pd.DataFrame.from_dict(
             self.students_info, orient="index"
         ).reset_index(names="Naam")
@@ -118,6 +121,7 @@ class SolutionAnalyzer:
         )
 
         # Show all columns even if some groups/sexes are not distributed to
+        # pylint: disable=unsubscriptable-object
         expected_columns = pd.MultiIndex.from_product(
             [sorted(self.groepsindeling["Group"].unique()), ["Jongen", "Meisje"]],
             names=["Groep", "Jongen/meisje"],
@@ -146,6 +150,7 @@ class SolutionAnalyzer:
             sex = "boys" if geslacht == "Jongen" else "girls"
             for gedeelte in "Totaal", "Jaarlaag":
                 part = "in" if gedeelte == "Totaal" else "to"
+                # pylint: disable=unsubscriptable-object
                 for group in self.groepsindeling["Group"].unique():
                     varname = f"{sex}_{part}_group_{group}"
                     distribution[(group, gedeelte, geslacht)] = round(
@@ -537,7 +542,8 @@ class SolutionAnalyzer:
 
         for i, row in diffs_satisfaction.iterrows():
             print(
-                f"{i}:\t{row['RelativeSatisfaction_this']:.1%} --> {row['RelativeSatisfaction_other']:.1%}"
+                f"{i}:\t{row['RelativeSatisfaction_this']:.1%}"
+                f" --> {row['RelativeSatisfaction_other']:.1%}"
             )
 
     def show_all(self, to_excel=True):
