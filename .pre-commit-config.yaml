@@ -48,3 +48,12 @@ repos:
         language: system
         entry: python -m black
         types: [python]
+
+      # Lint with pylint.
+      - id: pylint
+        name: Check code style using pylint
+        language: system
+        stages: [pre-commit]
+        entry: python -m pylint
+        args: ["--disable=R"]
+        types: [python]
