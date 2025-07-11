@@ -2,8 +2,8 @@
 
 import math
 import re
-from typing import Iterable
 import warnings
+from typing import Iterable
 
 import pandas as pd
 

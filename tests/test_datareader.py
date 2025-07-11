@@ -1,10 +1,11 @@
-import pytest
-import pandas as pd
-import numpy as np
-from pandas import MultiIndex
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from aliexpress import errors, datareader
+import numpy as np
+import pandas as pd
+import pytest
+from pandas import MultiIndex
+
+from aliexpress import datareader, errors
 
 
 @pytest.fixture

@@ -1,31 +1,31 @@
 """The flask server that governs the app"""
 
-from collections import defaultdict
-from io import BytesIO
 import logging
 import os
-from threading import Thread
 import uuid
 import webbrowser
+from collections import defaultdict
+from io import BytesIO
+from threading import Thread
 
 from dotenv import load_dotenv
 from flask import (
     Flask,
     Response,
+    flash,
+    jsonify,
+    redirect,
     render_template,
     request,
-    redirect,
-    url_for,
     send_file,
     send_from_directory,
     session,
-    flash,
-    jsonify,
+    url_for,
 )
 
-from src.aliexpress.main import distribute_students_once
+from src.aliexpress import datareader, sociogram
 from src.aliexpress.errors import FeasibilityError, ValidationError
-from src.aliexpress import sociogram, datareader
+from src.aliexpress.main import distribute_students_once
 
 
 def setup_logger():
