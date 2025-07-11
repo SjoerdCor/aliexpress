@@ -138,6 +138,9 @@ FRIENDLY_TEMPLATES = {
         "In het voorkeuren-bestand is voor {students_with_duplicates} een leerling of groep "
         "gevonden die dubbel voorkomt. Tel ze op of streep ze tegen elkaar weg om dubbelingen te voorkomen"
     ),
+    "weight_without_name_preferences": (
+        "In het voorkeuren-bestand is een gewicht gevonden zonder bijbehorende naam voor {students}"
+    ),
     "internal_error": (
         "Er is iets onverwachts misgegaan. Het probleem is gelogd. "
         "Laat de maker dit onderzoeken."
