@@ -1,6 +1,7 @@
 """Defines helper functions that implement the important bitwise operations in PuLP"""
 
 import functools
+
 import pulp
 
 

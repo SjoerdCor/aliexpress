@@ -2,11 +2,11 @@
 
 import pandas as pd
 import pulp
+from openpyxl.styles import Alignment, numbers
 from openpyxl.utils import get_column_letter
-from openpyxl.styles import numbers, Alignment
 
-from .problemsolver import get_satisfaction_integral
 from . import datareader
+from .problemsolver import get_satisfaction_integral
 
 TABLE_STYLES = styles = [
     {

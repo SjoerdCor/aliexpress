@@ -1,8 +1,9 @@
-import pandas as pd
 import numpy as np
+import pandas as pd
 import pytest
-from aliexpress.main import distribute_students_once
+
 from aliexpress import errors
+from aliexpress.main import distribute_students_once
 
 
 def test_distribute_students_once_happy_flow_small():

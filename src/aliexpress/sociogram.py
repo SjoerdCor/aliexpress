@@ -3,8 +3,8 @@ import io
 import math
 
 import networkx as nx
-from matplotlib import pyplot as plt
 import plotly.graph_objects as go
+from matplotlib import pyplot as plt
 
 from . import datareader
 

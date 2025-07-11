@@ -1,15 +1,11 @@
-from io import BytesIO
 import logging
 import os
 import tempfile
+from io import BytesIO
 
 import pandas as pd
 
-from . import datareader
-from . import problemsolver
-from . import solutions
-from . import errors
-
+from . import datareader, errors, problemsolver, solutions
 
 FILE_PREFERENCES = "voorkeuren.xlsx"
 FILE_GROUPS_TO = "groepen.xlsx"
