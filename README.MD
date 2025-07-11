@@ -6,7 +6,7 @@ ALI Express is designed to simplify and optimize the complex process of student 
 
 ## Installation
 This app can be installed using anaconda. After this installation, include it in the PATH environment variables as well.
-Install git, clone this repository, and then run 
+Install git, clone this repository, and then run
 
 ```bash
 conda env create -f environment.yml
@@ -26,7 +26,7 @@ Developers should also run `pre-commit install`.
 
 
 ## Detailed description
-ALI Express automatically takes into account many criteria of both group balance and student satisfaction, including positiive and negative preferences for current peers, future groups, including weights, impossiblities and minimal satisfaction. For group balance, this includes group size for both total and new groups, balance between boys and girls and  maximum cliques from current groups. Additionally, it allows to specify which students should not be together, or not in too large groups. 
+ALI Express automatically takes into account many criteria of both group balance and student satisfaction, including positiive and negative preferences for current peers, future groups, including weights, impossiblities and minimal satisfaction. For group balance, this includes group size for both total and new groups, balance between boys and girls and  maximum cliques from current groups. Additionally, it allows to specify which students should not be together, or not in too large groups.
 
 ## How to use
 

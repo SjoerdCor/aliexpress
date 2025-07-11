@@ -89,7 +89,7 @@ input[type="submit"] {
   background-color: #ff9933;
   color: white;
   border-radius: 0.4rem;
-  text-decoration: none; 
+  text-decoration: none;
   cursor: pointer;
   transition: background-color 0.2s ease;
 }
@@ -357,7 +357,7 @@ input[type="submit"] {
 }
 
 .table-wrapper table {
-  min-width: 600px; 
+  min-width: 600px;
   width: max-content;
   border-collapse: collapse;
 }
