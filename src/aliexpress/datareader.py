@@ -5,7 +5,9 @@ import re
 import warnings
 from typing import Iterable
 
+import numpy as np
 import pandas as pd
+import pandera.pandas as pa
 
 from .errors import ValidationError
 
@@ -175,59 +177,104 @@ class VoorkeurenProcessor:
         return df
 
     def _validate_input(self, df):
+        # This "coerce" in pandera is a bit ugly, not separating concerns
+        # But it does work very easily
+        waarde_check = pa.Column(object, nullable=True, coerce=True)
+        gewicht_check = pa.Column(
+            float, checks=pa.Check.greater_than(0), nullable=True, coerce=True
+        )
+        schema = pa.DataFrameSchema(
+            {
+                ("MinimaleTevredenheid", np.nan, np.nan): pa.Column(
+                    float,
+                    checks=pa.Check.less_than_or_equal_to(1),
+                    nullable=True,
+                    coerce=True,
+                ),
+                ("Jongen/meisje", np.nan, np.nan): pa.Column(
+                    str, checks=pa.Check.isin(["Jongen", "Meisje"]), coerce=True
+                ),
+                ("Stamgroep", np.nan, np.nan): pa.Column(str),
+                ("Graag met", 1.0, "Waarde"): waarde_check,
+                ("Graag met", 1.0, "Gewicht"): gewicht_check,
+                ("Graag met", 2.0, "Waarde"): waarde_check,
+                ("Graag met", 2.0, "Gewicht"): gewicht_check,
+                ("Graag met", 3.0, "Waarde"): waarde_check,
+                ("Graag met", 3.0, "Gewicht"): gewicht_check,
+                ("Graag met", 4.0, "Waarde"): waarde_check,
+                ("Graag met", 4.0, "Gewicht"): gewicht_check,
+                ("Graag met", 5.0, "Waarde"): waarde_check,
+                ("Graag met", 5.0, "Gewicht"): gewicht_check,
+                ("Liever niet met", 1.0, "Waarde"): waarde_check,
+                ("Liever niet met", 1.0, "Gewicht"): gewicht_check,
+                ("Niet in", 1.0, "Waarde"): waarde_check,
+                ("Niet in", 2.0, "Waarde"): gewicht_check,
+            },
+            index=pa.Index(pa.String, unique=True, coerce=True),
+        )
+        # This check does not seem to work in pandera (perhaps because
+        # of np.nan in the Index)
         expected_columns = pd.MultiIndex.from_tuples(
-            [
-                ("MinimaleTevredenheid", pd.NA, pd.NA),
-                ("Jongen/meisje", pd.NA, pd.NA),
-                ("Stamgroep", pd.NA, pd.NA),
-                ("Graag met", 1.0, "Waarde"),
-                ("Graag met", 1.0, "Gewicht"),
-                ("Graag met", 2.0, "Waarde"),
-                ("Graag met", 2.0, "Gewicht"),
-                ("Graag met", 3.0, "Waarde"),
-                ("Graag met", 3.0, "Gewicht"),
-                ("Graag met", 4.0, "Waarde"),
-                ("Graag met", 4.0, "Gewicht"),
-                ("Graag met", 5.0, "Waarde"),
-                ("Graag met", 5.0, "Gewicht"),
-                ("Liever niet met", 1.0, "Waarde"),
-                ("Liever niet met", 1.0, "Gewicht"),
-                ("Niet in", 1.0, "Waarde"),
-                ("Niet in", 2.0, "Waarde"),
-            ],
+            schema.columns.keys(),
             names=["TypeWens", "Nr", "TypeWaarde"],
         )
         validate_columns(df, expected_columns, "preferences")
+
         if df.empty:
             raise ValidationError(
                 "empty_df",
                 context={"filetype": "voorkeuren"},
                 technical_message="Preferences df is empty",
             )
-        check_mandatory_columns(df, ["Jongen/meisje", "Stamgroep"], "preferences")
-
-        duplicated = df.index[df.index.duplicated()].unique().tolist()
-        if duplicated:
-            raise ValidationError(
-                code="duplicate_students_preferences",
-                context={"duplicated": ",".join(duplicated)},
-                technical_message=f"Non-unique leerlingen detected in input data. {duplicated}",
-            )
-
-        incorrect = ~df["Jongen/meisje"].isin(["Jongen", "Meisje"]).squeeze()
-        if incorrect.any():
-            raise ValidationError(
-                code="wrong_sex",
-                context={
-                    "students_incorrect_sex": ",".join(
-                        incorrect[incorrect].index.tolist()
-                    )
-                },
-                technical_message=(
-                    "Wrong or unknown geslacht for "
-                    f"{incorrect[incorrect].index.tolist()}"
-                ),
-            )
+        try:
+            schema.validate(df)
+        except pa.errors.SchemaError as exc:
+            if exc.reason_code == pa.errors.SchemaErrorReason.SERIES_CONTAINS_NULLS:
+                raise ValidationError(
+                    code="empty_mandatory_columns_preferences",
+                    context={"failed_columns": exc.failure_cases},
+                    technical_message=(
+                        f"Mandatory columns not filled:\n {exc.failure_cases}"
+                    ),
+                ) from exc
+            if exc.reason_code == pa.errors.SchemaErrorReason.DATATYPE_COERCION:
+                raise ValidationError(
+                    code="wrong_datatype",
+                    context={
+                        "failed_columns": exc.schema.name,
+                        "filetype": "voorkeuren",
+                    },
+                    technical_message=(
+                        f"Column {exc.schema.name} can not be converted to the correct datatype\n"
+                        f"{exc.failure_cases}"
+                    ),
+                ) from exc
+            if (
+                exc.reason_code
+                == pa.errors.SchemaErrorReason.SERIES_CONTAINS_DUPLICATES
+            ):
+                raise ValidationError(
+                    code="duplicate_students_preferences",
+                    context={
+                        "duplicated": ", ".join(exc.failure_cases["failure_case"])
+                    },
+                    technical_message=(
+                        "Non-unique leerlingen detected in input data.\n"
+                        f"{exc.failure_cases}"
+                    ),
+                ) from exc
+            if (
+                exc.reason_code == pa.errors.SchemaErrorReason.DATAFRAME_CHECK
+                and exc.column_name == ("Jongen/meisje", np.nan, np.nan)
+            ):
+                raise ValidationError(
+                    code="wrong_sex",
+                    context={
+                        "students_incorrect_sex": ", ".join(exc.failure_cases["index"])
+                    },
+                    technical_message=f"Wrong geslacht\n{exc.failure_cases}",
+                ) from exc
+            raise exc
 
         duplicated_values = (
             df.xs("Waarde", level="TypeWaarde", axis="columns")
@@ -240,6 +287,7 @@ class VoorkeurenProcessor:
             students_with_duplicates = ", ".join(
                 duplicated_values.loc[lambda s: s].index
             )
+
             raise ValidationError(
                 "duplicated_values_preferences",
                 context={"students_with_duplicates": students_with_duplicates},
