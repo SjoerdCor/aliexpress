@@ -427,12 +427,27 @@ def test_voorkeuren_processor_weight_missing_name(valid_voorkeuren_df):
     df = valid_voorkeuren_df.copy()
     df.loc["John", ("Graag met", 1, "Waarde")] = np.nan
     processor = datareader.VoorkeurenProcessor.__new__(datareader.VoorkeurenProcessor)
-    processor.input = df
-    processor.df = df
-    processor.restructure()
+
     with pytest.raises(errors.ValidationError) as exc:
-        processor.validate_preferences(["Oranje", "Blauw"])
+        processor._validate_input(df)
     assert "weight_without_name_preferences" in exc.value.code
+
+
+def test_voorkeuren_processor_wrong_datatype(valid_voorkeuren_df):
+    """Test that VoorkeurenProcessor raises an error for wrong/inconvertible datatype"""
+    processor = datareader.VoorkeurenProcessor.__new__(datareader.VoorkeurenProcessor)
+
+    df = valid_voorkeuren_df.copy()
+    df.loc["John", ("MinimaleTevredenheid", np.nan, np.nan)] = "String"
+    with pytest.raises(errors.ValidationError) as exc:
+        processor._validate_input(df)
+    assert "wrong_datatype" == exc.value.code
+
+    df = valid_voorkeuren_df.copy()
+    df.loc["John", ("Liever niet met", 1.0, "Gewicht")] = "String"
+    with pytest.raises(errors.ValidationError) as exc:
+        processor._validate_input(df)
+    assert "wrong_datatype" == exc.value.code
 
 
 def test_voorkeuren_processor_clean_input():
