@@ -23,7 +23,11 @@ from flask import (
 )
 
 from src.aliexpress import datareader, sociogram
-from src.aliexpress.errors import FeasibilityError, ValidationError
+from src.aliexpress.errors import (
+    CouldNotReadFileError,
+    FeasibilityError,
+    ValidationError,
+)
 from src.aliexpress.main import distribute_students_once
 
 
@@ -226,7 +230,7 @@ def upload_files():
                 status_dct[task_id]["status_studentdistribution"] = "done"
                 temp_storage[task_id]["groepsindeling"] = result
 
-            except ValidationError as e:
+            except (ValidationError, CouldNotReadFileError) as e:
                 logger.exception("Files are incorrect")
                 status_dct[task_id]["status_studentdistribution"] = "error"
                 status_dct[task_id]["error_code"] = e.code
