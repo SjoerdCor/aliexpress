@@ -204,7 +204,8 @@ class PreferenceExcelGenerator:
         already_wished = [w[0] for w in wishes + [not_with]]
         possible_groups = [gr for gr in group_names if gr not in already_wished]
         # -1 because there should always be at least one group to place the student in
-        n_not_in = random.randint(0, min(2, len(possible_groups) - 1))
+        max_n_not_in_possible = max(min(2, len(possible_groups) - 1), 0)
+        n_not_in = random.randint(0, max_n_not_in_possible)
         not_in = random.sample(possible_groups, n_not_in)
 
         return not_in + [""] * (2 - n_not_in)
