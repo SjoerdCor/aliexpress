@@ -238,14 +238,15 @@ class VoorkeurenProcessor:
                     ),
                 ) from exc
             if exc.reason_code == pa.errors.SchemaErrorReason.DATATYPE_COERCION:
+                col_name = "_".join(str(c) for c in exc.schema.name if pd.notna(c))
                 raise ValidationError(
                     code="wrong_datatype",
                     context={
-                        "failed_columns": exc.schema.name,
+                        "failed_columns": col_name,
                         "filetype": "voorkeuren",
                     },
                     technical_message=(
-                        f"Column {exc.schema.name} can not be converted to the correct datatype\n"
+                        f"Column {col_name} can not be converted to the correct datatype\n"
                         f"{exc.failure_cases}"
                     ),
                 ) from exc
