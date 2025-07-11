@@ -1,8 +1,50 @@
 repos:
+
+  # Some default pre-commit hooks.
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      # Makes sure all line endings are the same.
+      - id: mixed-line-ending
+        name: Check and fix mixed line breaks
+
+      # Remove trailing spaces from lines.
+      # Note: Leaves hard line-breaks in markdown intact.
+      - id: trailing-whitespace
+        name: Check and fix trailing whitespace
+        args: [--markdown-linebreak-ext=md]
+
+      # Check YAML validity.
+      - id: check-yaml
+        name: Check YAML formatting
+
+      # Check unresolved merge conflicts.
+      - id: check-merge-conflict
+        name: Check merge conflicts
+
+  # Hooks using local packages.
   - repo: local
     hooks:
-      - id: unit-tests
-        name: Run unit tests
-        entry: pytest
+      - id: clear-jupyter-output
+        name: Clear output in Jupyter Notebooks
+        stages: [pre-commit]
         language: system
-        pass_filenames: false
+        entry: jupyter nbconvert --ClearOutputPreprocessor.enabled=True --inplace
+        types: [jupyter]
+
+      # Sort imports in scripts.
+      - id: isort
+        name: Sort import statements
+        stages: [pre-commit]
+        language: system
+        entry: python -m isort
+        args: ["--profile", "black"]
+        types: [python]
+
+      # Auto-format with black.
+      - id: black
+        name: Format code using black
+        stages: [pre-commit]
+        language: system
+        entry: python -m black
+        types: [python]
