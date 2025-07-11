@@ -1,3 +1,7 @@
+"""Main module for distributing students into groups based on preferences.
+
+It has one orchestrating function that can be called from the command line or app"""
+
 import logging
 import os
 import tempfile
@@ -13,16 +17,17 @@ FILE_NOT_TOGETHER = "niet_samen.xlsx"
 
 
 def setup_logger():
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.INFO)
+    """Set up a logger for the module."""
+    log = logging.getLogger(__name__)
+    log.setLevel(logging.INFO)
 
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.INFO)
 
     formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
     console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
-    return logger
+    log.addHandler(console_handler)
+    return log
 
 
 logger = setup_logger()
@@ -99,8 +104,9 @@ def distribute_students_once(
     df_students = pd.DataFrame.from_dict(students_info, orient="index")
     sex_distribution = df_students[["Jongen/meisje"]].value_counts()
     on_update(
-        f"{len(df_students)} leerlingen te verdelen, waarvan {sex_distribution.loc['Jongen'].squeeze()}"
-        f" jongens en {sex_distribution.loc['Meisje'].squeeze()} meisjes"
+        f"{len(df_students)} leerlingen te verdelen, "
+        f"waarvan {sex_distribution.loc['Jongen'].squeeze()} jongens "
+        f"en {sex_distribution.loc['Meisje'].squeeze()} meisjes"
     )
     logger.info("Current boy/girl distribution:\n%s", sex_distribution)
     on_update("Komen uit de volgende groepen:")
@@ -148,7 +154,10 @@ def distribute_students_once(
         for slack_var_name, dct in slack_var_dct.items():
             v = feas_prob.variablesDict()[slack_var_name]
             if v.value() > 0:
-                msg += f'{dct["name"]}: {round(dct["attr_value"] + v.value())} (+ {round(v.value())})\n'
+                msg += (
+                    f'{dct["name"]}: {round(dct["attr_value"] + v.value())}'
+                    f" (+ {round(v.value())})\n"
+                )
 
         raise errors.FeasibilityError(
             "infeasible_problem",

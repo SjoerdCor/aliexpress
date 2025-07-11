@@ -15,16 +15,17 @@ from . import pulp_logical
 
 
 def setup_logger():
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.DEBUG)
+    """Setup a logger for the module"""
+    log = logging.getLogger(__name__)
+    log.setLevel(logging.DEBUG)
 
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.DEBUG)
 
     formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
     console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
-    return logger
+    log.addHandler(console_handler)
+    return log
 
 
 logger = setup_logger()
@@ -724,7 +725,8 @@ class ProblemSolver:
         first the next lowest plateau is determined, and then the number of students
         on that plateau. When each number is found, it is then added as a constraint and
         continues solving. Automatically stops when all students are distributed,
-        or if n_levels max or satisfaction_max is reached. In that case, total student satisfaction is the ultimate tie breaker
+        or if n_levels max or satisfaction_max is reached. In that case,
+        totalstudent satisfaction is the ultimate tie breaker.
 
         Parameters
         ----------
@@ -742,11 +744,13 @@ class ProblemSolver:
 
         self._calculate_student_satisfaction(satisfied)
         level = 0
+
         while True:
             if n_levels_max is not None and level >= n_levels_max:
                 break
             # Step 1: maximize minimal satisfaction
             minimal_satisfaction = pulp.LpVariable(f"MinimalSatisfaction_{level}")
+            # pylint: disable=used-before-assignment
             if level == 0:
                 for satisfaction in self.studentsatisfaction.values():
                     self.prob += minimal_satisfaction <= satisfaction
@@ -757,12 +761,13 @@ class ProblemSolver:
                         minimal_satisfaction
                         <= satisfaction + (1 - has_this_level[student]) * M + eps
                     ), f"MinimalSatisfactionLT{student}_{level}"
-
+            # pylint: enable=used-before-assignment
             self.prob.sense = pulp.LpMaximize
             self.prob.setObjective(minimal_satisfaction)
             self.prob.solve(solver)
             m_val = minimal_satisfaction.value()
-            logger.debug(f"Level {level}, step 1 done, {m_val}")
+            logger.debug("Level %s, step 1 done, %s", level, m_val)
+
             if m_val > satisfaction_max:
                 logger.debug("Minimal satisfaction reached, breaking lexmaxmin")
                 break
@@ -810,10 +815,10 @@ class ProblemSolver:
                 for student in self.students
                 if pulp.value(has_this_level[student]) > 0.5
             )
-
-            logger.debug(f"Level {level}, step 2 done, {count_at_level}")
+            logger.debug("Level %s, step 2 done, %s", level, count_at_level)
             if count_at_level == 0:
-                logger.debug(f"Stopped at level {level}: no more students left")
+                logger.debug("Stopped at level %s: no more students left", level)
+
                 break
             # Add as constraint
             self.prob += pulp.lpSum(has_this_level.values()) == count_at_level

@@ -1,4 +1,9 @@
+"""Custom exception classes for handling readable application errors."""
+
+
 class ReadableError(Exception):
+    """Base exception with user-friendly and technical error details."""
+
     def __init__(self, code, context=None, technical_message=None):
         super().__init__(technical_message or code)
         self.code = code
@@ -7,12 +12,12 @@ class ReadableError(Exception):
 
 
 class ValidationError(ReadableError):
-    pass
+    """Raised when input validation fails."""
 
 
 class FeasibilityError(ReadableError):
-    pass
+    """Raised when a feasibility check fails."""
 
 
 class CouldNotReadFileError(ReadableError):
-    pass
+    """Generic error, raised when a file cannot be read for unknown reason."""

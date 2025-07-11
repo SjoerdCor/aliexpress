@@ -1,15 +1,19 @@
-from unittest.mock import MagicMock, patch
+# pylint: disable=redefined-outer-name # for fixtures
+# pylint: disable=protected-access
+
+"""Tests for the datareader module in the aliexpress package"""
+from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
 import pytest
-from pandas import MultiIndex
 
 from aliexpress import datareader, errors
 
 
 @pytest.fixture
 def valid_voorkeuren_df():
+    """Fixture for a valid preferences DataFrame with the expected structure."""
     header = [
         ("MinimaleTevredenheid", np.nan, np.nan),
         ("Jongen/meisje", np.nan, np.nan),
@@ -117,25 +121,14 @@ def valid_voorkeuren_df():
     return df
 
 
-@pytest.fixture
-def valid_groepen_df():
-    return pd.DataFrame({"Groepen": ["A"], "Jongens": [5], "Meisjes": [6]})
-
-
-@pytest.fixture
-def valid_niet_samen_df():
-    data = {"Max aantal samen": [2], "Leerling 1": ["Alice"], "Leerling 2": ["Bob"]}
-    for llnr in range(3, 13):
-        data[f"Leerling {llnr}"] = pd.NA
-    return pd.DataFrame(data)
-
-
 def test_validate_columns_success():
+    """Test that validate_columns does not raise an error for correct columns."""
     df = pd.DataFrame(columns=["A", "B", "C"])
     datareader.validate_columns(df, ["A", "B", "C"], "test")
 
 
 def test_validate_columns_extra_and_missing():
+    """Test that validate_columns raises an error for extra and missing columns."""
     df = pd.DataFrame(columns=["A", "B", "D"])
     with pytest.raises(errors.ValidationError) as exc:
         datareader.validate_columns(df, ["A", "B", "C"], "test")
@@ -144,11 +137,13 @@ def test_validate_columns_extra_and_missing():
 
 
 def test_check_mandatory_columns_success():
+    """Test that check_mandatory_columns does not raise an error for mandatory columns present."""
     df = pd.DataFrame({"A": [1], "B": [2]})
     datareader.check_mandatory_columns(df, ["A", "B"], "test")
 
 
 def test_check_mandatory_columns_missing_data():
+    """Test that check_mandatory_columns raises an error for missing mandatory columns."""
     df = pd.DataFrame({"A": [np.nan], "B": [2]})
     df.index = pd.Index([1], name="idx")
     with pytest.raises(errors.ValidationError) as exc:
@@ -157,6 +152,7 @@ def test_check_mandatory_columns_missing_data():
 
 
 def test_check_mandatory_columns_index_nan():
+    """Test that check_mandatory_columns raises an error for index with NaN."""
     df = pd.DataFrame({"A": [1], "B": [2]})
     df.index = pd.Index([float("nan")], name="idx")
     with pytest.raises(errors.ValidationError) as exc:
@@ -165,6 +161,7 @@ def test_check_mandatory_columns_index_nan():
 
 
 def test_toggle_negative_weights():
+    """Test that toggle_negative_weights correctly toggles weights and TypeWens."""
     df = pd.DataFrame(
         {
             "Leerling": ["John", "Jane"],
@@ -180,6 +177,7 @@ def test_toggle_negative_weights():
 
 
 def test_toggle_negative_weights_liever_niet_met():
+    """Test that toggle_negative_weights correctly toggles weights for 'Liever niet met' mask."""
     df = pd.DataFrame(
         {
             "Leerling": ["John", "Jane"],
@@ -205,11 +203,13 @@ def test_toggle_negative_weights_liever_niet_met():
     ],
 )
 def test_clean_name(input_str, expected):
+    """Test that clean_name function correctly cleans names."""
     assert datareader.clean_name(input_str) == expected
 
 
 @patch("aliexpress.datareader.pd.read_excel")
 def test_voorkeuren_processor_init(mock_read_excel, valid_voorkeuren_df):
+    """Test that VoorkeurenProcessor initializes correctly with a valid DataFrame."""
     index = pd.Index(
         ["Leerling", np.nan, np.nan, "John", "Jane", "Alice", "Eve"],
         dtype="object",
@@ -364,6 +364,7 @@ def test_voorkeuren_processor_init(mock_read_excel, valid_voorkeuren_df):
 
 
 def test_voorkeuren_processor_wrong_columns(valid_voorkeuren_df):
+    """Test that VoorkeurenProcessor raises an error for wrong columns."""
     df = valid_voorkeuren_df.copy()
     df = df.iloc[:, :-1]
     processor = datareader.VoorkeurenProcessor.__new__(datareader.VoorkeurenProcessor)
@@ -373,6 +374,7 @@ def test_voorkeuren_processor_wrong_columns(valid_voorkeuren_df):
 
 
 def test_voorkeuren_processor_empty_df(valid_voorkeuren_df):
+    """Test that VoorkeurenProcessor raises an error for an empty DataFrame."""
     df = valid_voorkeuren_df.copy()
     df = df.iloc[:0, :]
     processor = datareader.VoorkeurenProcessor.__new__(datareader.VoorkeurenProcessor)
@@ -382,6 +384,7 @@ def test_voorkeuren_processor_empty_df(valid_voorkeuren_df):
 
 
 def test_voorkeuren_processor_no_preferences(valid_voorkeuren_df):
+    """Test that VoorkeurenProcessor returns an empty DataFrame when no preferences are provided."""
     df = valid_voorkeuren_df.copy().iloc[1:]
     processor = datareader.VoorkeurenProcessor.__new__(datareader.VoorkeurenProcessor)
     processor.df = df
@@ -403,6 +406,7 @@ def test_voorkeuren_processor_no_preferences(valid_voorkeuren_df):
 
 
 def test_voorkeuren_processor_mandatory_columns(valid_voorkeuren_df):
+    """Test that VoorkeurenProcessor raises an error for missing mandatory columns."""
     processor = datareader.VoorkeurenProcessor.__new__(datareader.VoorkeurenProcessor)
 
     df = valid_voorkeuren_df.copy()
@@ -419,6 +423,7 @@ def test_voorkeuren_processor_mandatory_columns(valid_voorkeuren_df):
 
 
 def test_voorkeuren_processor_weight_missing_name(valid_voorkeuren_df):
+    """Test that VoorkeurenProcessor raises an error for missing name in weight column."""
     df = valid_voorkeuren_df.copy()
     df.loc["John", ("Graag met", 1, "Waarde")] = np.nan
     processor = datareader.VoorkeurenProcessor.__new__(datareader.VoorkeurenProcessor)
@@ -431,6 +436,7 @@ def test_voorkeuren_processor_weight_missing_name(valid_voorkeuren_df):
 
 
 def test_voorkeuren_processor_clean_input():
+    """Test that VoorkeurenProcessor cleans input DataFrame correctly."""
     df = pd.DataFrame(
         {("A", "B", "C"): ["  john ", "<script>"]}, index=[" alice ", "bob"]
     )
@@ -442,6 +448,7 @@ def test_voorkeuren_processor_clean_input():
 
 
 def test_voorkeuren_processor_process(valid_voorkeuren_df):
+    """Test that VoorkeurenProcessor processes preferences correctly."""
     processor = datareader.VoorkeurenProcessor.__new__(datareader.VoorkeurenProcessor)
     processor.input = valid_voorkeuren_df
     processor.df = valid_voorkeuren_df.copy()
@@ -471,6 +478,7 @@ def test_voorkeuren_processor_process(valid_voorkeuren_df):
 
 
 def test_voorkeuren_processor_validate_input_duplicate(valid_voorkeuren_df):
+    """ "Test that VoorkeurenProcessor raises an error for duplicate student preferences."""
     df = pd.concat([valid_voorkeuren_df, valid_voorkeuren_df])
     processor = datareader.VoorkeurenProcessor.__new__(datareader.VoorkeurenProcessor)
     with pytest.raises(datareader.ValidationError) as exc:
@@ -479,6 +487,7 @@ def test_voorkeuren_processor_validate_input_duplicate(valid_voorkeuren_df):
 
 
 def test_voorkeuren_processor_validate_input_wrong_sex(valid_voorkeuren_df):
+    """Test that VoorkeurenProcessor raises an error for sex that is not Jongen or Meisje."""
     df = valid_voorkeuren_df.copy()
     df.iloc[0, df.columns.get_loc(("Jongen/meisje", np.nan, np.nan))] = "Alien"
     processor = datareader.VoorkeurenProcessor.__new__(datareader.VoorkeurenProcessor)
@@ -488,6 +497,7 @@ def test_voorkeuren_processor_validate_input_wrong_sex(valid_voorkeuren_df):
 
 
 def test_voorkeuren_processor_validate_input_duplicated_values(valid_voorkeuren_df):
+    """ "Test that VoorkeurenProcessor raises an error for duplicated values in preferences."""
     df = valid_voorkeuren_df.copy()
     df.loc["John", ("Graag met", 1, "Waarde")] = "Jane"
     df.loc["John", ("Graag met", 2, "Waarde")] = "Jane"
@@ -497,7 +507,8 @@ def test_voorkeuren_processor_validate_input_duplicated_values(valid_voorkeuren_
     assert "duplicated_values_preferences" in exc.value.code
 
 
-def test_voorkeuren_processor_restructure_and_validate_preferences(valid_voorkeuren_df):
+def test_voorkeuren_processor_negative_gewicht(valid_voorkeuren_df):
+    """Test that VoorkeurenProcessor raises on negative gewicht."""
     df = valid_voorkeuren_df.copy()
     df.loc["John", ("Graag met", 1, "Gewicht")] = -1
 
@@ -512,6 +523,7 @@ def test_voorkeuren_processor_restructure_and_validate_preferences(valid_voorkeu
 
 
 def test_voorkeuren_processor_validate_preferences_wrong_index():
+    """Test that VoorkeurenProcessor raises an error for wrong index names in preferences."""
     processor = datareader.VoorkeurenProcessor.__new__(datareader.VoorkeurenProcessor)
     processor.df = pd.DataFrame({"Gewicht": [1], "Waarde": ["A"]})
     with pytest.raises(datareader.ValidationError) as exc:
@@ -520,6 +532,7 @@ def test_voorkeuren_processor_validate_preferences_wrong_index():
 
 
 def test_voorkeuren_processor_validate_preferences_invalid_values(valid_voorkeuren_df):
+    """Test that VoorkeurenProcessor raises an error for unknown leerling/group."""
     df = valid_voorkeuren_df.copy()
 
     processor = datareader.VoorkeurenProcessor.__new__(datareader.VoorkeurenProcessor)
@@ -533,7 +546,7 @@ def test_voorkeuren_processor_validate_preferences_invalid_values(valid_voorkeur
 
 
 def test_voorkeuren_processor_process_and_get_students_meta_info(valid_voorkeuren_df):
-
+    """Test that VoorkeurenProcessor retrieves student meta info correctly."""
     df = valid_voorkeuren_df.copy()
     processor = datareader.VoorkeurenProcessor.__new__(datareader.VoorkeurenProcessor)
     processor.input = df
@@ -588,6 +601,7 @@ def test_voorkeuren_processor_process_and_get_students_meta_info(valid_voorkeure
 
 @patch("aliexpress.datareader.pd.read_excel")
 def test_read_not_together_success(mock_read_excel):
+    """Test that read_not_together reads a DataFrame with two students correctly."""
     data = {
         "Max aantal samen": [2],
         "Leerling 1": ["Alice"],
@@ -603,6 +617,7 @@ def test_read_not_together_success(mock_read_excel):
 
 
 def test_read_not_together_incompletely_filled():
+    """Test that read_not_together raises an error for incompletely filled DataFrame."""
     df = pd.DataFrame(
         {
             "Max aantal samen": [2],
@@ -619,6 +634,7 @@ def test_read_not_together_incompletely_filled():
 
 @patch("aliexpress.datareader.pd.read_excel")
 def test_read_not_together_duplicate_student_error(mock_read_excel):
+    """Test that read_not_together raises an error for duplicated students in the DataFrame."""
     data = {
         "Max aantal samen": [2],
         "Leerling 1": ["Alice"],
@@ -633,6 +649,7 @@ def test_read_not_together_duplicate_student_error(mock_read_excel):
 
 
 def test_read_not_together_unknown_student():
+    """Test that read_not_together raises an error for unknown students in the DataFrame."""
     df = pd.DataFrame(
         {
             "Max aantal samen": [2],
@@ -649,6 +666,7 @@ def test_read_not_together_unknown_student():
 
 
 def test_read_not_together_too_strict():
+    """Test that read_not_together raises an error for impossibly strict conditions"""
     df = pd.DataFrame(
         {
             "Max aantal samen": [1],
@@ -667,6 +685,7 @@ def test_read_not_together_too_strict():
 
 @patch("aliexpress.datareader.pd.read_excel")
 def test_read_groups_excel_success(mock_read_excel):
+    """Test that read_groups_excel reads a DataFrame with groups correctly."""
     df = pd.DataFrame(
         {
             "Groepen": ["De Flamingo's"],
@@ -681,6 +700,7 @@ def test_read_groups_excel_success(mock_read_excel):
 
 @patch("aliexpress.datareader.pd.read_excel")
 def test_read_groups_excel_empty(mock_read_excel):
+    """Test that read_groups_excel raises an error for an empty DataFrame."""
     mock_read_excel.return_value = pd.DataFrame(
         columns=["Groepen", "Jongens", "Meisjes"]
     )
@@ -691,6 +711,7 @@ def test_read_groups_excel_empty(mock_read_excel):
 
 @patch("aliexpress.datareader.pd.read_excel")
 def test_read_groups_excel_missing_col(mock_read_excel):
+    """Test that read_groups_excel raises an error for missing mandatory columns."""
     df = pd.DataFrame(
         {
             "Groepen": ["De Flamingo's"],

@@ -81,7 +81,11 @@ def check_mandatory_columns(
         raise ValidationError(
             code=f"empty_mandatory_columns_{file_type}",
             context={"failed_columns": ", ".join(failed_columns)},
-            technical_message=f"Mandatory columns not filled:\n index: {df.index.isna().sum()},\n{df[mandatory_columns].isna().sum()}",
+            technical_message=(
+                "Mandatory columns not filled:\n"
+                f" index: {df.index.isna().sum()},\n"
+                f"{df[mandatory_columns].isna().sum()}"
+            ),
         )
 
 
@@ -100,11 +104,15 @@ def toggle_negative_weights(df: pd.DataFrame, mask="Gewicht") -> pd.DataFrame:
             Of the same shape, but with negated Gewicht and TypeWens
     """
     df = df.reset_index()
-    # TODO: Make this more readable
     if mask == "Gewicht":
         mask = df["Gewicht"] < 0
     elif mask == "Liever niet met":
         mask = df["TypeWens"] == "Liever niet met"
+    else:
+        raise ValueError(
+            "mask should be either 'Gewicht' or 'Liever niet met', "
+            f"got {mask} instead."
+        )
     df.loc[mask, "Gewicht"] = -df["Gewicht"]
     df.loc[mask, "TypeWens"] = df.loc[mask, "TypeWens"].map(
         {"Graag met": "Liever niet met", "Liever niet met": "Graag met"}
@@ -158,9 +166,9 @@ class VoorkeurenProcessor:
         return df
 
     def clean_input(self, df):
+        """Cleans strings of all columns and index in the DataFrame if possible."""
         df.index = df.index.map(clean_name)
 
-        # Clean each column
         for col in df.columns:
             if df[col].dtype == "object":
                 df[col] = df[col].apply(clean_name)
@@ -215,7 +223,10 @@ class VoorkeurenProcessor:
                         incorrect[incorrect].index.tolist()
                     )
                 },
-                technical_message=f"Wrong or unknown geslacht for {incorrect[incorrect].index.tolist()}",
+                technical_message=(
+                    "Wrong or unknown geslacht for "
+                    f"{incorrect[incorrect].index.tolist()}"
+                ),
             )
 
         duplicated_values = (
@@ -232,7 +243,10 @@ class VoorkeurenProcessor:
             raise ValidationError(
                 "duplicated_values_preferences",
                 context={"students_with_duplicates": students_with_duplicates},
-                technical_message=f"Duplicate value (group or student) detected for single student: {duplicated_values}",
+                technical_message=(
+                    "Duplicate value (group or student) detected"
+                    f" for single student: {duplicated_values}"
+                ),
             )
 
     def restructure(self) -> None:
@@ -260,7 +274,10 @@ class VoorkeurenProcessor:
         if set(self.df.columns) != expected:
             raise ValidationError(
                 code="wrong_columns_preferences",
-                technical_message=f"Invalid columns! Expected {sorted(expected)}, got {sorted(self.df.columns)}",
+                technical_message=(
+                    f"Invalid columns! Expected {sorted(expected)}, "
+                    f"got {sorted(self.df.columns)}"
+                ),
             )
 
         missing_waarde = self.df.loc[
@@ -307,7 +324,10 @@ class VoorkeurenProcessor:
                                 invalid_values.astype(str).tolist()
                             ),
                         },
-                        technical_message=f"Invalid values in '{wishtype}':\n{invalid_values}\n{allowed_values=}",
+                        technical_message=(
+                            f"Invalid values in '{wishtype}':\n"
+                            f"{invalid_values}\n{allowed_values=}"
+                        ),
                     )
             except KeyError:
                 warnings.warn(f"No entries found for wish type '{wishtype}'")
