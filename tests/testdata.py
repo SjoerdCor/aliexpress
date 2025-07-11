@@ -272,5 +272,57 @@ def main(n_groups=4, n_students=35, n_rules=5):
     )
 
 
+def generate_dataframe_function(df, function_name="get_expected_dataframe"):
+    """Generate a function that returns a DataFrame with the given data
+
+    Used to create expected DataFrames for tests.
+    """
+    data_dict = df.to_dict(orient="list")
+
+    # Replace NaN with np.nan in values
+    def format_value(v):
+        if isinstance(v, float) and math.isnan(v):
+            return "np.nan"
+        return repr(v)
+
+    # Format the data dict
+    formatted_data = "{\n"
+    for col, values in data_dict.items():
+        formatted_list = ", ".join(format_value(v) for v in values)
+        formatted_data += f"    {repr(col)}: [{formatted_list}],\n"
+    formatted_data += "}"
+
+    # Handle custom index
+    use_index = not isinstance(df.index, pd.RangeIndex)
+    if use_index:
+        index_vals = [format_value(i) for i in df.index.tolist()]
+        index_code = f"    df.index = pd.Index([{', '.join(index_vals)}])\n"
+        if any(name is not None for name in df.index.names):
+            index_code += f"    df.index.names = {repr(list(df.index.names))}\n"
+    else:
+        index_code = ""
+
+    # Handle column names
+    if any(name is not None for name in df.columns.names):
+        column_code = f"    df.columns.names = {repr(list(df.columns.names))}\n"
+    else:
+        column_code = ""
+
+    # Assemble function code
+    code = f"""\
+def {function_name}():
+    data = {formatted_data}
+    df = pd.DataFrame(data)
+{index_code}{column_code}    return df
+"""
+    return code
+
+    # Example usage:
+    # for name, df in result["dataframes"].items():
+    #     if isinstance(df, pd.io.formats.style.Styler):
+    #         df = df.data
+    #     print(generate_dataframe_function(df, f"get_expected_{name.lower()}_small"))
+
+
 if __name__ == "__main__":
     main(2, 5, 1)
