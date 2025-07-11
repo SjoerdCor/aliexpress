@@ -275,158 +275,6 @@ def test_voorkeuren_processor_init(mock_read_excel, valid_voorkeuren_df):
                 17: "Stamgroep",
             },
             {
-                1: np.nan,
-                2: "Jongen",
-                3: "A",
-                4: np.nan,
-                5: np.nan,
-                6: np.nan,
-                7: np.nan,
-                8: np.nan,
-                9: np.nan,
-                10: np.nan,
-                11: np.nan,
-                12: np.nan,
-                13: np.nan,
-                14: np.nan,
-                15: np.nan,
-                16: np.nan,
-                17: np.nan,
-            },
-            {
-                1: np.nan,
-                2: "Meisje",
-                3: "B",
-                4: np.nan,
-                5: np.nan,
-                6: np.nan,
-                7: np.nan,
-                8: np.nan,
-                9: np.nan,
-                10: np.nan,
-                11: np.nan,
-                12: np.nan,
-                13: np.nan,
-                14: np.nan,
-                15: np.nan,
-                16: np.nan,
-                17: np.nan,
-            },
-            {
-                1: np.nan,
-                2: "Meisje",
-                3: "B",
-                4: np.nan,
-                5: np.nan,
-                6: np.nan,
-                7: np.nan,
-                8: np.nan,
-                9: np.nan,
-                10: np.nan,
-                11: np.nan,
-                12: np.nan,
-                13: np.nan,
-                14: np.nan,
-                15: np.nan,
-                16: np.nan,
-                17: np.nan,
-            },
-            {
-                1: np.nan,
-                2: "Meisje",
-                3: "B",
-                4: np.nan,
-                5: np.nan,
-                6: np.nan,
-                7: np.nan,
-                8: np.nan,
-                9: np.nan,
-                10: np.nan,
-                11: np.nan,
-                12: np.nan,
-                13: np.nan,
-                14: np.nan,
-                15: np.nan,
-                16: np.nan,
-                17: np.nan,
-            },
-        ],
-        index=index,
-    )
-    mock_read_excel.return_value = mock_df
-    expected = valid_voorkeuren_df.copy()
-    with patch("aliexpress.datareader.VoorkeurenProcessor._validate_input"):
-        processor = datareader.VoorkeurenProcessor("dummy.xlsx")
-        assert isinstance(processor.df, pd.DataFrame)
-        assert processor.df.equals(processor.input)
-        pd.testing.assert_frame_equal(processor.df, expected)
-
-    index = pd.Index(
-        ["Leerling", np.nan, np.nan, "John", "Jane", "Alice", "Eve"],
-        dtype="object",
-        name="Leerling",
-    )
-
-    mock_df = pd.DataFrame(
-        [
-            {
-                1: "MinimaleTevredenheid",
-                2: "Jongen/meisje",
-                3: "Stamgroep",
-                4: "Graag met",
-                5: np.nan,
-                6: "Graag met",
-                7: np.nan,
-                8: "Graag met",
-                9: np.nan,
-                10: "Graag met",
-                11: np.nan,
-                12: "Graag met",
-                13: np.nan,
-                14: "Liever niet met",
-                15: np.nan,
-                16: "Niet in",
-                17: "Niet in",
-            },
-            {
-                1: np.nan,
-                2: np.nan,
-                3: np.nan,
-                4: 1,
-                5: np.nan,
-                6: 2,
-                7: np.nan,
-                8: 3,
-                9: np.nan,
-                10: 4,
-                11: np.nan,
-                12: 5,
-                13: np.nan,
-                14: 1,
-                15: np.nan,
-                16: 1,
-                17: 2,
-            },
-            {
-                1: np.nan,
-                2: np.nan,
-                3: np.nan,
-                4: "Naam (leerling of stamgroep)",
-                5: "Gewicht",
-                6: "Naam (leerling of stamgroep)",
-                7: "Gewicht",
-                8: "Naam (leerling of stamgroep)",
-                9: "Gewicht",
-                10: "Naam (leerling of stamgroep)",
-                11: "Gewicht",
-                12: "Naam (leerling of stamgroep)",
-                13: "Gewicht",
-                14: "Naam (leerling of stamgroep)",
-                15: "Gewicht",
-                16: "Stamgroep",
-                17: "Stamgroep",
-            },
-            {
                 1: 0.5,
                 2: "Jongen",
                 3: "A",
@@ -567,6 +415,18 @@ def test_voorkeuren_processor_mandatory_columns(valid_voorkeuren_df):
     with pytest.raises(errors.ValidationError) as exc:
         processor._validate_input(df)
     assert "empty_mandatory_columns_preferences" in exc.value.code
+
+
+def test_voorkeuren_processor_weight_missing_name(valid_voorkeuren_df):
+    df = valid_voorkeuren_df.copy()
+    df.loc["John", ("Graag met", 1, "Waarde")] = np.nan
+    processor = datareader.VoorkeurenProcessor.__new__(datareader.VoorkeurenProcessor)
+    processor.input = df
+    processor.df = df
+    processor.restructure()
+    with pytest.raises(errors.ValidationError) as exc:
+        processor.validate_preferences(["Oranje", "Blauw"])
+    assert "weight_without_name_preferences" in exc.value.code
 
 
 def test_voorkeuren_processor_clean_input():
