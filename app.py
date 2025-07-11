@@ -150,6 +150,9 @@ FRIENDLY_TEMPLATES = {
     "weight_without_name_preferences": (
         "In het voorkeuren-bestand is een gewicht gevonden zonder bijbehorende naam voor {students}"
     ),
+    "wrong_datatype": (
+        "Ongeldige waarden gevonden in kolom {failed_columns} van het {filetype}-bestand"
+    ),
     "internal_error": (
         "Er is iets onverwachts misgegaan. Het probleem is gelogd. "
         "Laat de maker dit onderzoeken."
@@ -299,8 +302,11 @@ def handle_error():
     data = request.get_json()
     code = data.get("code")
     context = data.get("context", {})
-
-    template = FRIENDLY_TEMPLATES.get(code, "Er ging iets fout.")
+    unknown_error_message = (
+        "Er is iets onverwachts misgegaan. Het probleem is gelogd. "
+        "Laat de maker dit onderzoeken."
+    )
+    template = FRIENDLY_TEMPLATES.get(code, unknown_error_message)
     message = template.format(**context)
     flash(message, "error")
 
