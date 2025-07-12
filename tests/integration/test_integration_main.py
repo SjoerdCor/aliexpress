@@ -224,7 +224,7 @@ def get_expected_vervuldewensen_small():
         ],
         ("Stamgroep", np.nan, np.nan): ["A", "D", "B", "A", "A"],
         ("Graag met", 1.0, "Waarde"): ["Otters", "Eva", "Eva", "Eva", "Anna"],
-        ("Graag met", 1.0, "Gewicht"): [1, 3, 2, 3, 2],
+        ("Graag met", 1.0, "Gewicht"): [1.0, 3.0, 2.0, 3.0, 2.0],
         ("Graag met", 2.0, "Waarde"): ["Beren", np.nan, "Daan", "Beren", np.nan],
         ("Graag met", 2.0, "Gewicht"): [1.0, np.nan, 1.0, 2.0, np.nan],
         ("Graag met", 3.0, "Waarde"): ["Bram", np.nan, "Beren", "Anna", np.nan],
