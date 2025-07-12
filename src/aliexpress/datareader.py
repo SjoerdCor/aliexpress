@@ -416,18 +416,15 @@ def read_not_together(filename: str, students: Iterable, n_groups: int) -> list:
     """Reads the preferences for students who should not be togeter (in large groups)"""
     df_not_together = pd.read_excel(filename)
 
-    column_type_student_notnullable = pa.Column(
-        object,
-        pa.Check.isin(students),
-        nullable=False,
-        coerce=True,
-    )
-    column_type_student_nullable = pa.Column(
-        object,
-        checks=pa.Check.isin(students),
-        nullable=True,
-        coerce=True,
-    )
+    def create_student_column_schema(students, nullable=True):
+        return pa.Column(
+            object,
+            checks=pa.Check.isin(students),
+            nullable=nullable,
+            coerce=True,
+        )
+
+    students = list(students)  # pandera needs something thats picklable
     schema = pa.DataFrameSchema(
         {
             "Max aantal samen": pa.Column(
@@ -435,18 +432,18 @@ def read_not_together(filename: str, students: Iterable, n_groups: int) -> list:
                 checks=pa.Check.greater_than_or_equal_to(1),
                 coerce=True,
             ),
-            "Leerling 1": column_type_student_notnullable,
-            "Leerling 2": column_type_student_notnullable,
-            "Leerling 3": column_type_student_nullable,
-            "Leerling 4": column_type_student_nullable,
-            "Leerling 5": column_type_student_nullable,
-            "Leerling 6": column_type_student_nullable,
-            "Leerling 7": column_type_student_nullable,
-            "Leerling 8": column_type_student_nullable,
-            "Leerling 9": column_type_student_nullable,
-            "Leerling 10": column_type_student_nullable,
-            "Leerling 11": column_type_student_nullable,
-            "Leerling 12": column_type_student_nullable,
+            "Leerling 1": create_student_column_schema(students, nullable=False),
+            "Leerling 2": create_student_column_schema(students, nullable=False),
+            "Leerling 3": create_student_column_schema(students, nullable=True),
+            "Leerling 4": create_student_column_schema(students, nullable=True),
+            "Leerling 5": create_student_column_schema(students, nullable=True),
+            "Leerling 6": create_student_column_schema(students, nullable=True),
+            "Leerling 7": create_student_column_schema(students, nullable=True),
+            "Leerling 8": create_student_column_schema(students, nullable=True),
+            "Leerling 9": create_student_column_schema(students, nullable=True),
+            "Leerling 10": create_student_column_schema(students, nullable=True),
+            "Leerling 11": create_student_column_schema(students, nullable=True),
+            "Leerling 12": create_student_column_schema(students, nullable=True),
         },
         strict=True,
     )
@@ -552,9 +549,43 @@ def read_not_together(filename: str, students: Iterable, n_groups: int) -> list:
 def read_groups_excel(path_groups_to) -> dict:
     """Reads the information about the groups to from excel to dict"""
     df = pd.read_excel(path_groups_to)
-    expected_columns = ["Groepen", "Jongens", "Meisjes"]
+    schema = pa.DataFrameSchema(
+        {
+            "Groepen": pa.Column(object, unique=True),
+            "Jongens": pa.Column(
+                "Int64", pa.Check.greater_than_or_equal_to(0), coerce=True
+            ),
+            "Meisjes": pa.Column(
+                "Int64", pa.Check.greater_than_or_equal_to(0), coerce=True
+            ),
+        },
+        strict=True,
+    )
+    try:
+        df = schema.validate(df)
+    except pa.errors.SchemaError as exc:
+        if exc.reason_code == pa.errors.SchemaErrorReason.DATATYPE_COERCION:
+            raise ValidationError(
+                code="wrong_datatype",
+                context={
+                    "failed_columns": exc.schema.name,
+                    "filetype": "voorkeuren",
+                },
+                technical_message=(
+                    f"Column {exc.schema.name} can not be converted to the correct datatype\n"
+                    f"{exc.failure_cases}"
+                ),
+            ) from exc
+        if exc.reason_code == pa.errors.SchemaErrorReason.SERIES_CONTAINS_NULLS:
+            raise ValidationError(
+                code="empty_mandatory_columns_groups_to",
+                context={"failed_columns": exc.failure_cases},
+                technical_message=(
+                    f"Mandatory columns not filled:\n {exc.failure_cases}"
+                ),
+            ) from exc
+        raise exc
 
-    validate_columns(df, expected_columns, "groups_to")
     if df.empty:
         raise ValidationError(
             "empty_df",
@@ -562,7 +593,6 @@ def read_groups_excel(path_groups_to) -> dict:
             technical_message="groups_to df is empty",
         )
 
-    check_mandatory_columns(df, ["Groepen", "Jongens", "Meisjes"], "groups_to")
     return (
         df.assign(Groepen=lambda df: df["Groepen"].apply(clean_name))
         .set_index("Groepen")
