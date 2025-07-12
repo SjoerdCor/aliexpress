@@ -161,10 +161,7 @@ class VoorkeurenProcessor:
             [df.iloc[0], df.iloc[1], df.iloc[2]], names=["TypeWens", "Nr", "TypeWaarde"]
         )
 
-        df = df.iloc[3:]
-
-        self._validate_input(df)
-
+        df = df.iloc[3:].pipe(self._validate_input)
         return df
 
     def clean_input(self, df):
@@ -176,7 +173,7 @@ class VoorkeurenProcessor:
                 df[col] = df[col].apply(clean_name)
         return df
 
-    def _validate_input(self, df):
+    def _validate_input(self, df: pd.DataFrame) -> pd.DataFrame:
         # This "coerce" in pandera is a bit ugly, not separating concerns
         # But it does work very easily
         waarde_check = pa.Column(object, nullable=True, coerce=True)
@@ -227,7 +224,7 @@ class VoorkeurenProcessor:
                 technical_message="Preferences df is empty",
             )
         try:
-            schema.validate(df)
+            df = schema.validate(df)
         except pa.errors.SchemaError as exc:
             if exc.reason_code == pa.errors.SchemaErrorReason.SERIES_CONTAINS_NULLS:
                 raise ValidationError(
@@ -297,6 +294,7 @@ class VoorkeurenProcessor:
                     f" for single student: {duplicated_values}"
                 ),
             )
+        return df
 
     def restructure(self) -> None:
         """Restructures voorkeuren DataFrame from wide to long format with default values."""
