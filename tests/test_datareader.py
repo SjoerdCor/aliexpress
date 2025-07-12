@@ -356,11 +356,10 @@ def test_voorkeuren_processor_init(mock_read_excel, valid_voorkeuren_df):
     )
     mock_read_excel.return_value = mock_df
     expected = valid_voorkeuren_df.copy()
-    with patch("aliexpress.datareader.VoorkeurenProcessor._validate_input"):
-        processor = datareader.VoorkeurenProcessor("dummy.xlsx")
-        assert isinstance(processor.df, pd.DataFrame)
-        assert processor.df.equals(processor.input)
-        pd.testing.assert_frame_equal(processor.df, expected)
+    processor = datareader.VoorkeurenProcessor("dummy.xlsx")
+    assert isinstance(processor.df, pd.DataFrame)
+    assert processor.df.equals(processor.input)
+    pd.testing.assert_frame_equal(processor.df, expected)
 
 
 def test_voorkeuren_processor_wrong_columns(valid_voorkeuren_df):
@@ -420,17 +419,6 @@ def test_voorkeuren_processor_mandatory_columns(valid_voorkeuren_df):
     with pytest.raises(errors.ValidationError) as exc:
         processor._validate_input(df)
     assert "empty_mandatory_columns_preferences" in exc.value.code
-
-
-def test_voorkeuren_processor_weight_missing_name(valid_voorkeuren_df):
-    """Test that VoorkeurenProcessor raises an error for missing name in weight column."""
-    df = valid_voorkeuren_df.copy()
-    df.loc["John", ("Graag met", 1, "Waarde")] = np.nan
-    processor = datareader.VoorkeurenProcessor.__new__(datareader.VoorkeurenProcessor)
-
-    with pytest.raises(errors.ValidationError) as exc:
-        processor._validate_input(df)
-    assert "weight_without_name_preferences" in exc.value.code
 
 
 def test_voorkeuren_processor_wrong_datatype(valid_voorkeuren_df):
@@ -558,6 +546,19 @@ def test_voorkeuren_processor_validate_preferences_invalid_values(valid_voorkeur
     with pytest.raises(datareader.ValidationError) as exc:
         processor.validate_preferences(["Blauw"])
     assert "invalid_values_preferences" in exc.value.code
+
+
+def test_voorkeuren_processor_weight_missing_name(valid_voorkeuren_df):
+    """Test that VoorkeurenProcessor raises an error for missing name in weight column."""
+    df = valid_voorkeuren_df.copy()
+    df.loc["John", ("Graag met", 1, "Waarde")] = np.nan
+    processor = datareader.VoorkeurenProcessor.__new__(datareader.VoorkeurenProcessor)
+    processor.df = df
+    processor.restructure()
+
+    with pytest.raises(errors.ValidationError) as exc:
+        processor.validate_preferences(df)
+    assert "weight_without_name_preferences" in exc.value.code
 
 
 def test_voorkeuren_processor_process_and_get_students_meta_info(valid_voorkeuren_df):
