@@ -415,27 +415,94 @@ class VoorkeurenProcessor:
 def read_not_together(filename: str, students: Iterable, n_groups: int) -> list:
     """Reads the preferences for students who should not be togeter (in large groups)"""
     df_not_together = pd.read_excel(filename)
-    expected_cols = [
-        "Max aantal samen",
-        "Leerling 1",
-        "Leerling 2",
-        "Leerling 3",
-        "Leerling 4",
-        "Leerling 5",
-        "Leerling 6",
-        "Leerling 7",
-        "Leerling 8",
-        "Leerling 9",
-        "Leerling 10",
-        "Leerling 11",
-        "Leerling 12",
-    ]
-    validate_columns(df_not_together, expected_cols, "not_together")
-    check_mandatory_columns(df_not_together, expected_cols[:3], "not_together")
 
-    result = []
+    column_type_student_notnullable = pa.Column(
+        object,
+        pa.Check.isin(students),
+        nullable=False,
+        coerce=True,
+    )
+    column_type_student_nullable = pa.Column(
+        object,
+        checks=pa.Check.isin(students),
+        nullable=True,
+        coerce=True,
+    )
+    schema = pa.DataFrameSchema(
+        {
+            "Max aantal samen": pa.Column(
+                int,
+                checks=pa.Check.greater_than_or_equal_to(1),
+                coerce=True,
+            ),
+            "Leerling 1": column_type_student_notnullable,
+            "Leerling 2": column_type_student_notnullable,
+            "Leerling 3": column_type_student_nullable,
+            "Leerling 4": column_type_student_nullable,
+            "Leerling 5": column_type_student_nullable,
+            "Leerling 6": column_type_student_nullable,
+            "Leerling 7": column_type_student_nullable,
+            "Leerling 8": column_type_student_nullable,
+            "Leerling 9": column_type_student_nullable,
+            "Leerling 10": column_type_student_nullable,
+            "Leerling 11": column_type_student_nullable,
+            "Leerling 12": column_type_student_nullable,
+        },
+        strict=True,
+    )
+    try:
+        df_not_together = schema.validate(df_not_together)
+    except pa.errors.SchemaError as exc:
+        if exc.reason_code == pa.errors.SchemaErrorReason.SERIES_CONTAINS_NULLS:
+            raise ValidationError(
+                code="empty_mandatory_columns_not_together",
+                context={"failed_columns": exc.failure_cases},
+                technical_message=(
+                    f"Mandatory columns not filled:\n {exc.failure_cases}"
+                ),
+            ) from exc
+        if exc.reason_code == pa.errors.SchemaErrorReason.COLUMN_NOT_IN_DATAFRAME:
+            raise ValidationError(
+                "wrong_columns_not_together",
+                context={"wrong_columns": "Ontbrekende kolommen: " + exc.failure_cases},
+                technical_message=f"Wrong columns for not_together: {exc.failure_cases}",
+            ) from exc
+        if exc.reason_code == pa.errors.SchemaErrorReason.COLUMN_NOT_IN_SCHEMA:
+            raise ValidationError(
+                "wrong_columns_not_together",
+                context={"wrong_columns": "Extra kolommen: " + exc.failure_cases},
+                technical_message=f"Wrong columns for not_together: {exc.failure_cases}",
+            ) from exc
+        if exc.reason_code == pa.errors.SchemaErrorReason.DATATYPE_COERCION:
+            raise ValidationError(
+                code="wrong_datatype",
+                context={
+                    "failed_columns": exc.schema.name,
+                    "filetype": "niet_samen",
+                },
+                technical_message=(
+                    f"Column {exc.schema.name} can not be converted to the correct datatype\n"
+                    f"{exc.failure_cases}"
+                ),
+            ) from exc
+        if (
+            exc.reason_code == pa.errors.SchemaErrorReason.DATAFRAME_CHECK
+            and exc.check.name == "isin"
+        ):
+            raise ValidationError(
+                code="unknown_students_not_together",
+                context={
+                    "row": exc.failure_cases,
+                    "unknown_students": ", ".join(
+                        exc.failure_cases["failure_case"].astype(str)
+                    ),
+                },
+                technical_message=f"Unknown students: {exc.failure_cases}",
+            ) from exc
+        raise exc
 
-    def _validate(group, max_aantal_samen, students, n_groups):
+    def _validate(group, max_aantal_samen, n_groups):
+        """Perform row-wise checks"""
         duplicated = group.duplicated()
         if duplicated.any():
             raise ValidationError(
@@ -447,17 +514,6 @@ def read_not_together(filename: str, students: Iterable, n_groups: int) -> list:
                     ),
                 },
                 technical_message=f"Duplicated students on row {i + 1}:\n {group[duplicated]}",
-            )
-
-        known_students = group.isin(students)
-        if not known_students.all():
-            raise ValidationError(
-                code="unknown_students_not_together",
-                context={
-                    "row": i + 1,
-                    "unknown_students": ",".join(group[~known_students].astype(str)),
-                },
-                technical_message=f"Unknown students on row {i + 1}:\n{group[~known_students]}",
             )
 
         if len(group) / max_aantal_samen > n_groups:
@@ -477,11 +533,12 @@ def read_not_together(filename: str, students: Iterable, n_groups: int) -> list:
                 technical_message=msg,
             )
 
+    result = []
     for i, row in df_not_together.iterrows():
         group = row.filter(like="Leerling").dropna().apply(clean_name)
         max_aantal_samen = row["Max aantal samen"]
 
-        _validate(group, max_aantal_samen, students, n_groups)
+        _validate(group, max_aantal_samen, n_groups)
 
         result.append(
             {
