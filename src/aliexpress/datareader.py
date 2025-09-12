@@ -587,17 +587,17 @@ def read_groups_excel(path_groups_to) -> dict:
                 "Int64", pa.Check.greater_than_or_equal_to(0), coerce=True
             ),
         },
+        checks=[
+            pa.Check(
+                lambda df: len(df) > 0,
+                name="empty_df",
+                error="DataFrame cannot be empty",
+            )
+        ],
         strict=True,
     )
 
     df = validate_schema_with_filetype(df, schema, filetype="groepen")
-
-    if df.empty:
-        raise ValidationError(
-            "empty_df",
-            context={"filetype": "groepen"},
-            technical_message="groups_to df is empty",
-        )
 
     return (
         df.assign(Groepen=lambda df: df["Groepen"].apply(clean_name))

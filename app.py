@@ -199,6 +199,12 @@ def to_validation_message(exc: pa.errors.SchemaError) -> str:
             "In het {exc.filetype}-bestand zijn niet alle verplichte kolommen gevuld: "
             f"controleer {exc.failure_cases}"
         )
+    if exc.reason_code == pa.errors.SchemaErrorReason.DATAFRAME_CHECK:
+        if exc.check.name == "empty_df":
+            return (
+                f"Het {exc.filetype}-bestand was helemaal leeg. Daardoor kan er "
+                "geen groepsindeling worden berekend"
+            )
     return (
         "Er is iets onverwachts misgegaan. Het probleem is gelogd. "
         "Laat de maker dit onderzoeken."
