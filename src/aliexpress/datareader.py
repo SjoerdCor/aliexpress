@@ -87,47 +87,6 @@ def validate_columns(df: pd.DataFrame, expected_columns, file_type: str) -> None
         )
 
 
-def check_mandatory_columns(
-    df: pd.DataFrame, mandatory_columns: list, file_type: str, check_index=True
-):
-    """Check whether all mandatory columns are filled
-
-    file-type is in {"preferences", "groups_to", "not_together"}
-
-    Raises
-    ------
-    ValidationError if mandatory columns contain NA
-
-    """
-    failed_columns = []
-    if check_index:
-        if df.index.isna().any():
-            if isinstance(df.index, pd.MultiIndex):
-                parts = [str(c) for c in df.index.names if pd.notna(c)]
-                name = "_".join(parts)
-            else:
-                name = df.index.name
-            failed_columns.append(name)
-    illegal_cols = df[mandatory_columns].isna().any().loc[lambda s: s]
-    for col in illegal_cols.index.tolist():
-        if isinstance(col, tuple):
-            col_name = "_".join(str(c) for c in col if pd.notna(c))
-        else:
-            col_name = str(col)
-        failed_columns.append(col_name)
-
-    if failed_columns:
-        raise ValidationError(
-            code=f"empty_mandatory_columns_{file_type}",
-            context={"failed_columns": ", ".join(failed_columns)},
-            technical_message=(
-                "Mandatory columns not filled:\n"
-                f" index: {df.index.isna().sum()},\n"
-                f"{df[mandatory_columns].isna().sum()}"
-            ),
-        )
-
-
 def toggle_negative_weights(df: pd.DataFrame, mask="Gewicht") -> pd.DataFrame:
     """Adjusts 'Liever niet met'/'Graag met' category by negating weight and renaming.
 
