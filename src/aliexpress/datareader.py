@@ -546,6 +546,34 @@ def read_not_together(filename: str, students: Iterable, n_groups: int) -> list:
     return result
 
 
+def validate_schema_with_filetype(
+    df: pd.DataFrame, schema: pa.DataFrameSchema, filetype: str
+) -> pd.DataFrame:
+    """Validates a DataFrame against a given schema and raises a SchemaError
+    with filetype context if validation fails.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The DataFrame to validate.
+    schema : pa.DataFrameSchema
+        The pandera DataFrameSchema to validate against.
+    filetype : str
+        The type of file being validated, used in error messages.
+
+    Returns
+    -------
+    pd.DataFrame
+        The validated DataFrame.
+    """
+    try:
+        df = schema.validate(df)
+    except pa.errors.SchemaError as exc:
+        exc.filetype = filetype  # Attach filetype to the exception for context
+        raise exc
+    return df
+
+
 def read_groups_excel(path_groups_to) -> dict:
     """Reads the information about the groups to from excel to dict"""
     df = pd.read_excel(path_groups_to)
@@ -561,30 +589,8 @@ def read_groups_excel(path_groups_to) -> dict:
         },
         strict=True,
     )
-    try:
-        df = schema.validate(df)
-    except pa.errors.SchemaError as exc:
-        if exc.reason_code == pa.errors.SchemaErrorReason.DATATYPE_COERCION:
-            raise ValidationError(
-                code="wrong_datatype",
-                context={
-                    "failed_columns": exc.schema.name,
-                    "filetype": "voorkeuren",
-                },
-                technical_message=(
-                    f"Column {exc.schema.name} can not be converted to the correct datatype\n"
-                    f"{exc.failure_cases}"
-                ),
-            ) from exc
-        if exc.reason_code == pa.errors.SchemaErrorReason.SERIES_CONTAINS_NULLS:
-            raise ValidationError(
-                code="empty_mandatory_columns_groups_to",
-                context={"failed_columns": exc.failure_cases},
-                technical_message=(
-                    f"Mandatory columns not filled:\n {exc.failure_cases}"
-                ),
-            ) from exc
-        raise exc
+
+    df = validate_schema_with_filetype(df, schema, filetype="groepen")
 
     if df.empty:
         raise ValidationError(
