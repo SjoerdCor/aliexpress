@@ -341,6 +341,18 @@ def read_not_together(filename: str, students: Iterable, n_groups: int) -> list:
         )
 
     students = list(students)  # pandera needs something thats picklable
+
+    def no_duplicated_students(df: pd.DataFrame) -> pd.Series:
+        "A row is valid if there are no duplicated students in it"
+        groups = df.filter(like="Leerling").map(clean_name)
+        return ~groups.apply(lambda row: row.dropna().duplicated().any(), axis=1)
+
+    def can_be_divided(df: pd.DataFrame, n_groups: int) -> pd.Series:
+        """A row is valid if the students in it can be divided over n_groups"""
+        group_sizes = df.filter(like="Leerling").count("columns")
+        max_samen = df["Max aantal samen"]
+        return (group_sizes / max_samen) <= n_groups
+
     schema = pa.DataFrameSchema(
         {
             "Max aantal samen": pa.Column(
@@ -362,96 +374,17 @@ def read_not_together(filename: str, students: Iterable, n_groups: int) -> list:
             "Leerling 12": create_student_column_schema(students, nullable=True),
         },
         strict=True,
+        checks=[
+            pa.Check(no_duplicated_students, name="duplicated_students_not_together"),
+            pa.Check(can_be_divided, name="too_strict_not_together", n_groups=n_groups),
+        ],
     )
-    try:
-        df_not_together = schema.validate(df_not_together)
-    except pa.errors.SchemaError as exc:
-        if exc.reason_code == pa.errors.SchemaErrorReason.SERIES_CONTAINS_NULLS:
-            raise ValidationError(
-                code="empty_mandatory_columns_not_together",
-                context={"failed_columns": exc.failure_cases},
-                technical_message=(
-                    f"Mandatory columns not filled:\n {exc.failure_cases}"
-                ),
-            ) from exc
-        if exc.reason_code == pa.errors.SchemaErrorReason.COLUMN_NOT_IN_DATAFRAME:
-            raise ValidationError(
-                "wrong_columns_not_together",
-                context={"wrong_columns": "Ontbrekende kolommen: " + exc.failure_cases},
-                technical_message=f"Wrong columns for not_together: {exc.failure_cases}",
-            ) from exc
-        if exc.reason_code == pa.errors.SchemaErrorReason.COLUMN_NOT_IN_SCHEMA:
-            raise ValidationError(
-                "wrong_columns_not_together",
-                context={"wrong_columns": "Extra kolommen: " + exc.failure_cases},
-                technical_message=f"Wrong columns for not_together: {exc.failure_cases}",
-            ) from exc
-        if exc.reason_code == pa.errors.SchemaErrorReason.DATATYPE_COERCION:
-            raise ValidationError(
-                code="wrong_datatype",
-                context={
-                    "failed_columns": exc.schema.name,
-                    "filetype": "niet_samen",
-                },
-                technical_message=(
-                    f"Column {exc.schema.name} can not be converted to the correct datatype\n"
-                    f"{exc.failure_cases}"
-                ),
-            ) from exc
-        if (
-            exc.reason_code == pa.errors.SchemaErrorReason.DATAFRAME_CHECK
-            and exc.check.name == "isin"
-        ):
-            raise ValidationError(
-                code="unknown_students_not_together",
-                context={
-                    "row": exc.failure_cases,
-                    "unknown_students": ", ".join(
-                        exc.failure_cases["failure_case"].astype(str)
-                    ),
-                },
-                technical_message=f"Unknown students: {exc.failure_cases}",
-            ) from exc
-        raise exc
-
-    def _validate(group, max_aantal_samen, n_groups):
-        """Perform row-wise checks"""
-        duplicated = group.duplicated()
-        if duplicated.any():
-            raise ValidationError(
-                code="duplicated_students_not_together",
-                context={
-                    "row": i + 1,
-                    "duplicated_students": ",".join(
-                        group[duplicated].astype(str).tolist()
-                    ),
-                },
-                technical_message=f"Duplicated students on row {i + 1}:\n {group[duplicated]}",
-            )
-
-        if len(group) / max_aantal_samen > n_groups:
-            msg = (
-                f"Cannot divide {len(group)} students over {n_groups} groups in "
-                f"subgroups of max size {max_aantal_samen}. (row {i + 1})"
-            )
-            raise ValidationError(
-                "too_strict_not_together",
-                context={
-                    "n_students": len(group),
-                    "n_groups": n_groups,
-                    "max_aantal_samen": max_aantal_samen,
-                    "acceptabel_max_samen": math.ceil(len(group) / n_groups),
-                    "row": i + 1,
-                },
-                technical_message=msg,
-            )
+    validate_schema_with_filetype(df_not_together, schema, filetype="niet_samen")
 
     result = []
-    for i, row in df_not_together.iterrows():
+    for _, row in df_not_together.iterrows():
         group = row.filter(like="Leerling").dropna().apply(clean_name)
         max_aantal_samen = row["Max aantal samen"]
-
-        _validate(group, max_aantal_samen, n_groups)
 
         result.append(
             {

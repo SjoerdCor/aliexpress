@@ -247,6 +247,39 @@ def to_validation_message(exc: pa.errors.SchemaError) -> str:
                 )
             )
             return f"Onbekende leerling of groep in categorie: {invalid_values}"
+        if exc.check.name == "isin" and exc.filetype == "niet_samen":
+            unknown_students = ", ".join(exc.failure_cases["failure_case"].astype(str))
+            return (
+                f"In het niet-samen-bestand komt {unknown_students} voor, "
+                "die niet in het voorkeurenbestand voorkomt"
+            )
+        if exc.check.name == "duplicated_students_not_together":
+            rows = ", ".join(set(exc.failure_cases["index"].add(1).astype(str)))
+            duplicated_students = ", ".join(
+                exc.failure_cases.groupby("index")["failure_case"].apply(
+                    lambda s: s[s.duplicated()]
+                )
+            )
+            return (
+                f"In het niet-samen-bestand wordt in de {rows}e "
+                f"groep dezelfde leerling meerdere keren genoemd: {duplicated_students}"
+            )
+        if exc.check.name == "too_strict_not_together":
+            rows = ", ".join(set(exc.failure_cases["index"].add(1).astype(str)))
+            max_samen = ", ".join(
+                exc.failure_cases.loc[
+                    lambda df: df["column"] == "Max aantal samen", "failure_case"
+                ].astype(str)
+            )
+            nr_students = ", ".join(
+                exc.failure_cases.groupby("index").size().sub(1).astype(str)
+            )
+
+            return (
+                f"In het niet-samen-bestand op de {rows}e rij is de maximale "
+                f"groepsgrootte te klein: met dit aantal groepen lukt het niet om {nr_students} "
+                f"leerlingen te verdelen met maximaal {max_samen} bij elkaar."
+            )
 
     return (
         "Er is iets onverwachts misgegaan. Het probleem is gelogd. "
