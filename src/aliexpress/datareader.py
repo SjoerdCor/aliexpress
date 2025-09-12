@@ -223,56 +223,8 @@ class VoorkeurenProcessor:
                 context={"filetype": "voorkeuren"},
                 technical_message="Preferences df is empty",
             )
-        try:
-            df = schema.validate(df)
-        except pa.errors.SchemaError as exc:
-            if exc.reason_code == pa.errors.SchemaErrorReason.SERIES_CONTAINS_NULLS:
-                raise ValidationError(
-                    code="empty_mandatory_columns_preferences",
-                    context={"failed_columns": exc.failure_cases},
-                    technical_message=(
-                        f"Mandatory columns not filled:\n {exc.failure_cases}"
-                    ),
-                ) from exc
-            if exc.reason_code == pa.errors.SchemaErrorReason.DATATYPE_COERCION:
-                col_name = "_".join(str(c) for c in exc.schema.name if pd.notna(c))
-                raise ValidationError(
-                    code="wrong_datatype",
-                    context={
-                        "failed_columns": col_name,
-                        "filetype": "voorkeuren",
-                    },
-                    technical_message=(
-                        f"Column {col_name} can not be converted to the correct datatype\n"
-                        f"{exc.failure_cases}"
-                    ),
-                ) from exc
-            if (
-                exc.reason_code
-                == pa.errors.SchemaErrorReason.SERIES_CONTAINS_DUPLICATES
-            ):
-                raise ValidationError(
-                    code="duplicate_students_preferences",
-                    context={
-                        "duplicated": ", ".join(exc.failure_cases["failure_case"])
-                    },
-                    technical_message=(
-                        "Non-unique leerlingen detected in input data.\n"
-                        f"{exc.failure_cases}"
-                    ),
-                ) from exc
-            if (
-                exc.reason_code == pa.errors.SchemaErrorReason.DATAFRAME_CHECK
-                and exc.column_name == ("Jongen/meisje", np.nan, np.nan)
-            ):
-                raise ValidationError(
-                    code="wrong_sex",
-                    context={
-                        "students_incorrect_sex": ", ".join(exc.failure_cases["index"])
-                    },
-                    technical_message=f"Wrong geslacht\n{exc.failure_cases}",
-                ) from exc
-            raise exc
+
+        df = validate_schema_with_filetype(df, schema, filetype="voorkeuren")
 
         duplicated_values = (
             df.xs("Waarde", level="TypeWaarde", axis="columns")
