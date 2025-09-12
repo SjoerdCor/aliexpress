@@ -8,6 +8,7 @@ import tempfile
 from io import BytesIO
 
 import pandas as pd
+import pandera as pa
 
 from . import datareader, errors, problemsolver, solutions
 
@@ -61,7 +62,8 @@ def distribute_students_once(
     """
     try:
         groups_to = datareader.read_groups_excel(path_groups_to)
-    except errors.ValidationError as e:
+    # TODO: remove ValidationError
+    except (errors.ValidationError, pa.errors.SchemaError) as e:
         raise e
     except Exception as e:
         raise errors.CouldNotReadFileError(

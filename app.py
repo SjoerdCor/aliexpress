@@ -8,6 +8,7 @@ from collections import defaultdict
 from io import BytesIO
 from threading import Thread
 
+import pandera as pa
 from dotenv import load_dotenv
 from flask import (
     Flask,
@@ -183,6 +184,27 @@ def fillin():
     return render_template("fillin.html")
 
 
+def to_validation_message(exc: pa.errors.SchemaError) -> str:
+    """Convert a pandera SchemaError to a user-friendly message
+
+    This SchemaError must have been modified to contain a 'filetype' attribute.
+    """
+    if exc.reason_code == pa.errors.SchemaErrorReason.DATATYPE_COERCION:
+        return (
+            f"Ongeldige waarden gevonden in kolom {exc.schema.name} "
+            f"van het {exc.filetype}-bestand"
+        )
+    if exc.reason_code == pa.errors.SchemaErrorReason.SERIES_CONTAINS_NULLS:
+        return (
+            "In het {exc.filetype}-bestand zijn niet alle verplichte kolommen gevuld: "
+            f"controleer {exc.failure_cases}"
+        )
+    return (
+        "Er is iets onverwachts misgegaan. Het probleem is gelogd. "
+        "Laat de maker dit onderzoeken."
+    )
+
+
 @app.route("/upload", methods=["GET", "POST"])
 def upload_files():
     """Handle upload page, including form submission"""
@@ -232,7 +254,12 @@ def upload_files():
                 logger.info("Distributing students finished successfully")
                 status_dct[task_id]["status_studentdistribution"] = "done"
                 temp_storage[task_id]["groepsindeling"] = result
-
+            except pa.errors.SchemaError as exc:
+                logger.exception("Files are incorrect")
+                message = to_validation_message(exc)
+                status_dct[task_id]["status_studentdistribution"] = "error"
+                status_dct[task_id]["message"] = message
+            # TODO: remove old style validation error
             except (ValidationError, CouldNotReadFileError) as e:
                 logger.exception("Files are incorrect")
                 status_dct[task_id]["status_studentdistribution"] = "error"
@@ -300,14 +327,19 @@ def processing(task_id):
 def handle_error():
     """Show information about errors to user"""
     data = request.get_json()
-    code = data.get("code")
-    context = data.get("context", {})
-    unknown_error_message = (
-        "Er is iets onverwachts misgegaan. Het probleem is gelogd. "
-        "Laat de maker dit onderzoeken."
-    )
-    template = FRIENDLY_TEMPLATES.get(code, unknown_error_message)
-    message = template.format(**context)
+    try:
+        message = data["message"]
+    except KeyError:
+        # TODO: remove Old style
+        # Old style
+        code = data.get("code")
+        context = data.get("context", {})
+        unknown_error_message = (
+            "Er is iets onverwachts misgegaan. Het probleem is gelogd. "
+            "Laat de maker dit onderzoeken."
+        )
+        template = FRIENDLY_TEMPLATES.get(code, unknown_error_message)
+        message = template.format(**context)
     flash(message, "error")
 
     # By not redirecting here but in JS, this is more flexible
