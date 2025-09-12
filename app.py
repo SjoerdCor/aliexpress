@@ -8,6 +8,7 @@ from collections import defaultdict
 from io import BytesIO
 from threading import Thread
 
+import numpy as np
 import pandera as pa
 from dotenv import load_dotenv
 from flask import (
@@ -199,12 +200,22 @@ def to_validation_message(exc: pa.errors.SchemaError) -> str:
             "In het {exc.filetype}-bestand zijn niet alle verplichte kolommen gevuld: "
             f"controleer {exc.failure_cases}"
         )
+    if exc.reason_code == pa.errors.SchemaErrorReason.SERIES_CONTAINS_DUPLICATES:
+        if exc.filetype == "voorkeuren":
+            return (
+                "In voorkeuren is de volgende naam/namen niet uniek: {duplicated}\n"
+                "Voeg de eerste letter van de achternaam toe om de leerlingen van "
+                "elkaar te onderscheiden."
+            )
+
     if exc.reason_code == pa.errors.SchemaErrorReason.DATAFRAME_CHECK:
         if exc.check.name == "empty_df":
             return (
                 f"Het {exc.filetype}-bestand was helemaal leeg. Daardoor kan er "
                 "geen groepsindeling worden berekend"
             )
+        if exc.column_name == ("Jongen/meisje", np.nan, np.nan):
+            return f"Verkeerd ingevuld geslacht voor {', '.join(exc.failure_cases['index'])}"
     return (
         "Er is iets onverwachts misgegaan. Het probleem is gelogd. "
         "Laat de maker dit onderzoeken."
