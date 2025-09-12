@@ -190,6 +190,15 @@ def to_validation_message(exc: pa.errors.SchemaError) -> str:
 
     This SchemaError must have been modified to contain a 'filetype' attribute.
     """
+    if exc.reason_code in (
+        pa.errors.SchemaErrorReason.COLUMN_NOT_IN_SCHEMA,
+        pa.errors.SchemaErrorReason.COLUMN_NOT_IN_DATAFRAME,
+    ):
+        return (
+            f"Het {exc.filetype}-bestand heeft de verkeerde kolommen. Controleer of je het goede"
+            " bestand hebt geupload en het meest recente template hebt gebruikt. "
+            f"\n{exc.failure_cases}"
+        )
     if exc.reason_code == pa.errors.SchemaErrorReason.DATATYPE_COERCION:
         return (
             f"Ongeldige waarden gevonden in kolom {exc.schema.name} "
@@ -202,8 +211,9 @@ def to_validation_message(exc: pa.errors.SchemaError) -> str:
         )
     if exc.reason_code == pa.errors.SchemaErrorReason.SERIES_CONTAINS_DUPLICATES:
         if exc.filetype == "voorkeuren":
+            duplicates = ", ".join(exc.failure_cases["failure_case"])
             return (
-                "In voorkeuren is de volgende naam/namen niet uniek: {duplicated}\n"
+                f"In voorkeuren is de volgende naam/namen niet uniek: {duplicates}\n"
                 "Voeg de eerste letter van de achternaam toe om de leerlingen van "
                 "elkaar te onderscheiden."
             )
@@ -216,6 +226,28 @@ def to_validation_message(exc: pa.errors.SchemaError) -> str:
             )
         if exc.column_name == ("Jongen/meisje", np.nan, np.nan):
             return f"Verkeerd ingevuld geslacht voor {', '.join(exc.failure_cases['index'])}"
+        if exc.check.name == "greater_than" and "Gewicht" in exc.column_name:
+            return "Er zijn negatieve gewichten in het voorkeurenbestand."
+        if exc.check.name == "duplicated_values_preferences":
+            students_with_duplicates = ", ".join(
+                set(exc.failure_cases["index"].get_level_values("Leerling"))
+            )
+            return (
+                "In het voorkeuren-bestand is voor "
+                f"{students_with_duplicates} een leerling of groep gevonden die "
+                "dubbel voorkomt. Tel ze op of streep ze tegen elkaar weg om "
+                "dubbelingen te voorkomen."
+            )
+        if exc.check.name == "invalid_values_preferences":
+            invalid_values = ", ".join(
+                set(
+                    exc.failure_cases.loc[
+                        lambda df: df["column"] == "Waarde", "failure_case"
+                    ]
+                )
+            )
+            return f"Onbekende leerling of groep in categorie: {invalid_values}"
+
     return (
         "Er is iets onverwachts misgegaan. Het probleem is gelogd. "
         "Laat de maker dit onderzoeken."
