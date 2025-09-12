@@ -62,8 +62,7 @@ def distribute_students_once(
     """
     try:
         groups_to = datareader.read_groups_excel(path_groups_to)
-    # TODO: remove ValidationError
-    except (errors.ValidationError, pa.errors.SchemaError) as e:
+    except pa.errors.SchemaError as e:
         raise e
     except Exception as e:
         raise errors.CouldNotReadFileError(
@@ -74,7 +73,8 @@ def distribute_students_once(
     try:
         processor = datareader.VoorkeurenProcessor(path_preferences)
         preferences = processor.process(all_to_groups=list(groups_to.keys()))
-    except errors.ValidationError as e:
+    # TODO: remove ValidationError
+    except (errors.ValidationError, pa.errors.SchemaError) as e:
         raise e
     except Exception as e:
         raise errors.CouldNotReadFileError(

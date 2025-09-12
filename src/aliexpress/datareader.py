@@ -12,6 +12,43 @@ import pandera.pandas as pa
 from .errors import ValidationError
 
 
+def validate_schema_with_filetype(
+    df: pd.DataFrame, schema: pa.DataFrameSchema, filetype: str
+) -> pd.DataFrame:
+    """Validates a DataFrame against a given schema and raises a SchemaError
+    with filetype context if validation fails.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The DataFrame to validate.
+    schema : pa.DataFrameSchema
+        The pandera DataFrameSchema to validate against.
+    filetype : str
+        The type of file being validated, used in error messages.
+
+    Returns
+    -------
+    pd.DataFrame
+        The validated DataFrame.
+    """
+    try:
+        df = schema.validate(df)
+    except pa.errors.SchemaError as exc:
+        exc.filetype = filetype  # Attach filetype to the exception for context
+        raise exc
+    return df
+
+
+def create_check_empty_df():
+    """Creates a pandera Check to ensure DataFrame is not empty."""
+    return pa.Check(
+        lambda df: len(df) > 0,
+        name="empty_df",
+        error="DataFrame cannot be empty",
+    )
+
+
 def validate_columns(df: pd.DataFrame, expected_columns, file_type: str) -> None:
     """Validates whether df has expected columns
 
@@ -208,6 +245,7 @@ class VoorkeurenProcessor:
                 ("Niet in", 2.0, "Waarde"): gewicht_check,
             },
             index=pa.Index(pa.String, unique=True, coerce=True),
+            checks=[create_check_empty_df()],
         )
         # This check does not seem to work in pandera (perhaps because
         # of np.nan in the Index)
@@ -217,35 +255,7 @@ class VoorkeurenProcessor:
         )
         validate_columns(df, expected_columns, "preferences")
 
-        if df.empty:
-            raise ValidationError(
-                "empty_df",
-                context={"filetype": "voorkeuren"},
-                technical_message="Preferences df is empty",
-            )
-
         df = validate_schema_with_filetype(df, schema, filetype="voorkeuren")
-
-        duplicated_values = (
-            df.xs("Waarde", level="TypeWaarde", axis="columns")
-            .transpose()
-            .apply(lambda s: s.dropna().duplicated())
-            .any()
-        )
-
-        if duplicated_values.any():
-            students_with_duplicates = ", ".join(
-                duplicated_values.loc[lambda s: s].index
-            )
-
-            raise ValidationError(
-                "duplicated_values_preferences",
-                context={"students_with_duplicates": students_with_duplicates},
-                technical_message=(
-                    "Duplicate value (group or student) detected"
-                    f" for single student: {duplicated_values}"
-                ),
-            )
         return df
 
     def restructure(self) -> None:
@@ -263,73 +273,68 @@ class VoorkeurenProcessor:
 
     def validate_preferences(self, all_to_groups=None) -> None:
         """Validates voorkeuren DataFrame structure and values."""
-        expected_index_names = ["Leerling", "TypeWens", "Nr"]
-        if self.df.index.names != expected_index_names:
-            raise ValidationError(
-                code="wrong_index_names_preferences",
-                technical_message=f"Invalid index names. Expected {expected_index_names}.",
-            )
-        expected = {"Gewicht", "Waarde"}
-        if set(self.df.columns) != expected:
-            raise ValidationError(
-                code="wrong_columns_preferences",
-                technical_message=(
-                    f"Invalid columns! Expected {sorted(expected)}, "
-                    f"got {sorted(self.df.columns)}"
-                ),
-            )
 
-        missing_waarde = self.df.loc[
-            lambda df: df.index.get_level_values("TypeWens").isin(
+        def waarde_unique_within_leerling(df: pd.DataFrame) -> bool:
+            return df.groupby("Leerling")["Waarde"].apply(lambda s: s.is_unique).all()
+
+        def waarde_matches_typewens(
+            df: pd.DataFrame, all_to_groups: list, all_leerlingen: list
+        ) -> bool:
+            mask_nietin = df.index.get_level_values("TypeWens") == "Niet in"
+            mask_other = df.index.get_level_values("TypeWens").isin(
                 ["Graag met", "Liever niet met"]
-            ),
-            "Waarde",
-        ].isna()
-        if missing_waarde.any():
-            students_with_missing = missing_waarde.loc[
-                lambda s: s
-            ].index.get_level_values("Leerling")
-            raise ValidationError(
-                code="weight_without_name_preferences",
-                context={"students": ",".join(students_with_missing)},
-                technical_message="There are missing values in 'Waarde' where 'Gewicht' is filled.",
             )
 
-        if (self.df["Gewicht"] <= 0).any():
-            raise ValidationError(
-                code="negative_weights_preferences",
-                technical_message="All 'Gewicht' values must be positive.",
+            valid = pd.Series(True, index=df.index)
+            valid.loc[mask_nietin] = df.loc[mask_nietin, "Waarde"].isin(all_to_groups)
+            valid.loc[mask_other] = df.loc[mask_other, "Waarde"].isin(
+                all_to_groups + all_leerlingen
             )
+            return valid
 
-        all_leerlingen = self.input.index.get_level_values("Leerling").unique().tolist()
-        accepted_values = {
-            "Niet in": all_to_groups or [],
-            "Graag met": all_leerlingen + (all_to_groups or []),
-            "Liever niet met": all_leerlingen + (all_to_groups or []),
-        }
+        all_to_groups = all_to_groups or []
+        all_leerlingen = self.input.index.get_level_values("Leerling").tolist()
 
-        for wishtype, allowed_values in accepted_values.items():
-            try:
-                # The default value in the lambda prevents pylint cell-var-from-loop
-                invalid_values = self.df.xs(wishtype, level="TypeWens")["Waarde"].loc[
-                    lambda x, allowed_values=allowed_values: ~x.isin(allowed_values)
-                ]
-                if not invalid_values.empty:
-                    raise ValidationError(
-                        "invalid_values_preferences",
-                        context={
-                            "wishtype": wishtype,
-                            "invalid_values": ",".join(
-                                invalid_values.astype(str).tolist()
-                            ),
-                        },
-                        technical_message=(
-                            f"Invalid values in '{wishtype}':\n"
-                            f"{invalid_values}\n{allowed_values=}"
+        schema = pa.DataFrameSchema(
+            columns={
+                "Waarde": pa.Column(str),
+                "Gewicht": pa.Column(float),
+            },
+            index=pa.MultiIndex(
+                [
+                    pa.Index(str, name="Leerling"),
+                    pa.Index(
+                        str,
+                        name="TypeWens",
+                        checks=pa.Check.isin(
+                            ["Niet in", "Graag met", "Liever niet met"]
                         ),
-                    )
-            except KeyError:
-                warnings.warn(f"No entries found for wish type '{wishtype}'")
+                    ),
+                    pa.Index(
+                        int,
+                        name="Nr",
+                        checks=pa.Check.greater_than(0, name="positive_gewicht"),
+                    ),
+                ]
+            ),
+            checks=[
+                pa.Check(
+                    waarde_unique_within_leerling,
+                    name="duplicated_values_preferences",
+                    error="Column 'Waarde' must be unique within each Leerling.",
+                ),
+                pa.Check(
+                    lambda df: waarde_matches_typewens(
+                        df, all_to_groups, all_leerlingen
+                    ),
+                    name="invalid_values_preferences",
+                ),
+            ],
+            strict=True,
+            coerce=True,
+        )
+
+        validate_schema_with_filetype(self.df, schema, filetype="voorkeuren")
 
     def process(self, all_to_groups: list) -> pd.DataFrame:
         """Runs the full processing pipeline.
@@ -498,34 +503,6 @@ def read_not_together(filename: str, students: Iterable, n_groups: int) -> list:
     return result
 
 
-def validate_schema_with_filetype(
-    df: pd.DataFrame, schema: pa.DataFrameSchema, filetype: str
-) -> pd.DataFrame:
-    """Validates a DataFrame against a given schema and raises a SchemaError
-    with filetype context if validation fails.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        The DataFrame to validate.
-    schema : pa.DataFrameSchema
-        The pandera DataFrameSchema to validate against.
-    filetype : str
-        The type of file being validated, used in error messages.
-
-    Returns
-    -------
-    pd.DataFrame
-        The validated DataFrame.
-    """
-    try:
-        df = schema.validate(df)
-    except pa.errors.SchemaError as exc:
-        exc.filetype = filetype  # Attach filetype to the exception for context
-        raise exc
-    return df
-
-
 def read_groups_excel(path_groups_to) -> dict:
     """Reads the information about the groups to from excel to dict"""
     df = pd.read_excel(path_groups_to)
@@ -539,13 +516,7 @@ def read_groups_excel(path_groups_to) -> dict:
                 "Int64", pa.Check.greater_than_or_equal_to(0), coerce=True
             ),
         },
-        checks=[
-            pa.Check(
-                lambda df: len(df) > 0,
-                name="empty_df",
-                error="DataFrame cannot be empty",
-            )
-        ],
+        checks=[create_check_empty_df()],
         strict=True,
     )
 
