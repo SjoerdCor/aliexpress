@@ -24,13 +24,13 @@ from flask import (
     url_for,
 )
 
-from src.aliexpress import datareader, sociogram
-from src.aliexpress.errors import (
+from aliexpress import datareader, sociogram
+from aliexpress.errors import (
     CouldNotReadFileError,
     FeasibilityError,
     ValidationError,
 )
-from src.aliexpress.main import distribute_students_once
+from aliexpress.main import distribute_students_once
 
 
 def setup_logger():
