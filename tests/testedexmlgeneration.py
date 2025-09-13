@@ -162,7 +162,7 @@ def add_leerlingen_to_xml(df_leerlingen_dummy, root):
         for col in df_leerlingen_dummy.columns:
             if col == "groep":
                 ET.SubElement(leerling_el, "groep", key=str(row["groep"]))
-            if pd.notna(row.get(col)):
+            elif pd.notna(row.get(col)):  # groep should not be written twice
                 ET.SubElement(leerling_el, col).text = str(row[col])
 
 
