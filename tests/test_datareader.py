@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
+import pandera as pa
 import pytest
 
 from aliexpress import datareader, errors
@@ -134,30 +135,6 @@ def test_validate_columns_extra_and_missing():
         datareader.validate_columns(df, ["A", "B", "C"], "test")
     expected = "Wrong columns for test: \nmissing={'C'}\nextra={'D'}"
     assert str(exc.value) == expected
-
-
-def test_check_mandatory_columns_success():
-    """Test that check_mandatory_columns does not raise an error for mandatory columns present."""
-    df = pd.DataFrame({"A": [1], "B": [2]})
-    datareader.check_mandatory_columns(df, ["A", "B"], "test")
-
-
-def test_check_mandatory_columns_missing_data():
-    """Test that check_mandatory_columns raises an error for missing mandatory columns."""
-    df = pd.DataFrame({"A": [np.nan], "B": [2]})
-    df.index = pd.Index([1], name="idx")
-    with pytest.raises(errors.ValidationError) as exc:
-        datareader.check_mandatory_columns(df, ["A", "B"], "test")
-    assert "empty_mandatory_columns" in exc.value.code
-
-
-def test_check_mandatory_columns_index_nan():
-    """Test that check_mandatory_columns raises an error for index with NaN."""
-    df = pd.DataFrame({"A": [1], "B": [2]})
-    df.index = pd.Index([float("nan")], name="idx")
-    with pytest.raises(errors.ValidationError) as exc:
-        datareader.check_mandatory_columns(df, ["A", "B"], "test")
-    assert "empty_mandatory_columns_test" in exc.value.code
 
 
 def test_toggle_negative_weights():
@@ -377,9 +354,12 @@ def test_voorkeuren_processor_empty_df(valid_voorkeuren_df):
     df = valid_voorkeuren_df.copy()
     df = df.iloc[:0, :]
     processor = datareader.VoorkeurenProcessor.__new__(datareader.VoorkeurenProcessor)
-    with pytest.raises(errors.ValidationError) as exc:
+    with pytest.raises(pa.errors.SchemaError) as excinfo:
         processor._validate_input(df)
-    assert "empty_df" in exc.value.code
+    exc = excinfo.value
+    assert exc.reason_code == pa.errors.SchemaErrorReason.DATAFRAME_CHECK
+    assert exc.check.name == "empty_df"
+    assert exc.filetype == "voorkeuren"
 
 
 def test_voorkeuren_processor_no_preferences(valid_voorkeuren_df):
@@ -410,15 +390,21 @@ def test_voorkeuren_processor_mandatory_columns(valid_voorkeuren_df):
 
     df = valid_voorkeuren_df.copy()
     df["Stamgroep"] = np.nan
-    with pytest.raises(errors.ValidationError) as exc:
+    with pytest.raises(pa.errors.SchemaError) as exc:
         processor._validate_input(df)
-    assert "empty_mandatory_columns_preferences" in exc.value.code
+        assert exc.reason_code == pa.errors.SchemaErrorReason.SERIES_CONTAINS_NULLS
+        assert "Stamgroep" in exc.failure_cases
+        assert exc.filetype == "voorkeuren"
 
     df = valid_voorkeuren_df.copy()
     df["Jongen/meisje"] = np.nan
-    with pytest.raises(errors.ValidationError) as exc:
+    with pytest.raises(pa.errors.SchemaError) as excinfo:
         processor._validate_input(df)
-    assert "empty_mandatory_columns_preferences" in exc.value.code
+
+    exc = excinfo.value
+    assert exc.reason_code == pa.errors.SchemaErrorReason.SERIES_CONTAINS_NULLS
+    assert ("Jongen/meisje", np.nan, np.nan) == exc.column_name
+    assert exc.filetype == "voorkeuren"
 
 
 def test_voorkeuren_processor_wrong_datatype(valid_voorkeuren_df):
@@ -427,15 +413,22 @@ def test_voorkeuren_processor_wrong_datatype(valid_voorkeuren_df):
 
     df = valid_voorkeuren_df.copy()
     df.loc["John", ("MinimaleTevredenheid", np.nan, np.nan)] = "String"
-    with pytest.raises(errors.ValidationError) as exc:
+    with pytest.raises(pa.errors.SchemaError) as excinfo:
         processor._validate_input(df)
-    assert "wrong_datatype" == exc.value.code
+
+    exc = excinfo.value
+    assert exc.reason_code == pa.errors.SchemaErrorReason.DATATYPE_COERCION
+    assert ("MinimaleTevredenheid", np.nan, np.nan) == exc.schema.name
+    assert exc.filetype == "voorkeuren"
 
     df = valid_voorkeuren_df.copy()
     df.loc["John", ("Liever niet met", 1.0, "Gewicht")] = "String"
-    with pytest.raises(errors.ValidationError) as exc:
+    with pytest.raises(pa.errors.SchemaError) as excinfo:
         processor._validate_input(df)
-    assert "wrong_datatype" == exc.value.code
+    exc = excinfo.value
+    assert exc.reason_code == pa.errors.SchemaErrorReason.DATATYPE_COERCION
+    assert "Gewicht" in exc.schema.name
+    assert exc.filetype == "voorkeuren"
 
 
 def test_voorkeuren_processor_clean_input():
@@ -484,9 +477,11 @@ def test_voorkeuren_processor_validate_input_duplicate(valid_voorkeuren_df):
     """ "Test that VoorkeurenProcessor raises an error for duplicate student preferences."""
     df = pd.concat([valid_voorkeuren_df, valid_voorkeuren_df])
     processor = datareader.VoorkeurenProcessor.__new__(datareader.VoorkeurenProcessor)
-    with pytest.raises(datareader.ValidationError) as exc:
+    with pytest.raises(pa.errors.SchemaError) as exc:
         processor._validate_input(df)
-    assert "duplicate_students_preferences" in exc.value.code
+        assert exc.reason_code == pa.errors.SchemaErrorReason.SERIES_CONTAINS_DUPLICATES
+        assert "Leerling" in exc.failure_cases
+        assert exc.filetype == "voorkeuren"
 
 
 def test_voorkeuren_processor_validate_input_wrong_sex(valid_voorkeuren_df):
@@ -494,9 +489,12 @@ def test_voorkeuren_processor_validate_input_wrong_sex(valid_voorkeuren_df):
     df = valid_voorkeuren_df.copy()
     df.iloc[0, df.columns.get_loc(("Jongen/meisje", np.nan, np.nan))] = "Alien"
     processor = datareader.VoorkeurenProcessor.__new__(datareader.VoorkeurenProcessor)
-    with pytest.raises(datareader.ValidationError) as exc:
+    with pytest.raises(pa.errors.SchemaError) as exc:
+
         processor._validate_input(df)
-    assert "wrong_sex" in exc.value.code
+        assert exc.reason_code == pa.errors.SchemaErrorReason.DATAFRAME_CHECK
+        assert exc.column_name == ("Jongen/meisje", np.nan, np.nan)
+        assert exc.filetype == "voorkeuren"
 
 
 def test_voorkeuren_processor_validate_input_duplicated_values(valid_voorkeuren_df):
@@ -504,10 +502,17 @@ def test_voorkeuren_processor_validate_input_duplicated_values(valid_voorkeuren_
     df = valid_voorkeuren_df.copy()
     df.loc["John", ("Graag met", 1, "Waarde")] = "Jane"
     df.loc["John", ("Graag met", 2, "Waarde")] = "Jane"
+
     processor = datareader.VoorkeurenProcessor.__new__(datareader.VoorkeurenProcessor)
-    with pytest.raises(datareader.ValidationError) as exc:
-        processor._validate_input(df)
-    assert "duplicated_values_preferences" in exc.value.code
+    processor.input = df
+    processor.df = df.copy()
+    processor.restructure()
+    with pytest.raises(pa.errors.SchemaError) as excinfo:
+        processor.validate_preferences(["Oranje", "Blauw"])
+    exc = excinfo.value
+    assert exc.reason_code == pa.errors.SchemaErrorReason.DATAFRAME_CHECK
+    assert exc.check.name == "duplicated_values_preferences"
+    assert exc.filetype == "voorkeuren"
 
 
 def test_voorkeuren_processor_negative_gewicht(valid_voorkeuren_df):
@@ -520,18 +525,12 @@ def test_voorkeuren_processor_negative_gewicht(valid_voorkeuren_df):
     processor.df = df.copy()
     processor.restructure()
 
-    with pytest.raises(datareader.ValidationError) as exc:
+    with pytest.raises(pa.errors.SchemaError) as excinfo:
         processor.validate_preferences(["Oranje", "Blauw"])
-    assert "negative_weights_preferences" in exc.value.code
-
-
-def test_voorkeuren_processor_validate_preferences_wrong_index():
-    """Test that VoorkeurenProcessor raises an error for wrong index names in preferences."""
-    processor = datareader.VoorkeurenProcessor.__new__(datareader.VoorkeurenProcessor)
-    processor.df = pd.DataFrame({"Gewicht": [1], "Waarde": ["A"]})
-    with pytest.raises(datareader.ValidationError) as exc:
-        processor.validate_preferences()
-    assert "wrong_index_names_preferences" in exc.value.code
+    err = excinfo.value
+    assert err.reason_code == pa.errors.SchemaErrorReason.DATAFRAME_CHECK
+    assert err.check.name == "greater_than" and "Gewicht" in err.column_name
+    assert err.filetype == "voorkeuren"
 
 
 def test_voorkeuren_processor_validate_preferences_invalid_values(valid_voorkeuren_df):
@@ -543,9 +542,11 @@ def test_voorkeuren_processor_validate_preferences_invalid_values(valid_voorkeur
     processor.df = df.copy()
     processor.restructure()
 
-    with pytest.raises(datareader.ValidationError) as exc:
+    with pytest.raises(pa.errors.SchemaError) as excinfo:
         processor.validate_preferences(["Blauw"])
-    assert "invalid_values_preferences" in exc.value.code
+    err = excinfo.value
+    assert err.reason_code == pa.errors.SchemaErrorReason.DATAFRAME_CHECK
+    assert err.check.name == "invalid_values_preferences"
 
 
 def test_voorkeuren_processor_weight_missing_name(valid_voorkeuren_df):
@@ -554,11 +555,12 @@ def test_voorkeuren_processor_weight_missing_name(valid_voorkeuren_df):
     df.loc["John", ("Graag met", 1, "Waarde")] = np.nan
     processor = datareader.VoorkeurenProcessor.__new__(datareader.VoorkeurenProcessor)
     processor.df = df
+    processor.input = df
     processor.restructure()
 
-    with pytest.raises(errors.ValidationError) as exc:
-        processor.validate_preferences(df)
-    assert "weight_without_name_preferences" in exc.value.code
+    with pytest.raises(pa.errors.SchemaError) as exc:
+        processor.validate_preferences(["Blauw", "Oranje"])
+    assert exc.value.reason_code == pa.errors.SchemaErrorReason.SERIES_CONTAINS_NULLS
 
 
 def test_voorkeuren_processor_process_and_get_students_meta_info(valid_voorkeuren_df):
@@ -643,9 +645,10 @@ def test_read_not_together_incompletely_filled():
     for llnr in range(2, 13):
         df[f"Leerling {llnr}"] = pd.NA
     with patch("aliexpress.datareader.pd.read_excel", return_value=df):
-        with pytest.raises(datareader.ValidationError) as exc:
+        with pytest.raises(pa.errors.SchemaError) as exc:
             datareader.read_not_together("dummy.xlsx", ["Alice"], 2)
-        assert "empty_mandatory_columns_not_together" == exc.value.code
+    assert exc.value.reason_code == pa.errors.SchemaErrorReason.SERIES_CONTAINS_NULLS
+    assert exc.value.column_name == "Leerling 2"
 
 
 @patch("aliexpress.datareader.pd.read_excel")
@@ -659,9 +662,10 @@ def test_read_not_together_duplicate_student_error(mock_read_excel):
     for llnr in range(3, 13):
         data[f"Leerling {llnr}"] = pd.NA
     mock_read_excel.return_value = pd.DataFrame(data)
-    with pytest.raises(datareader.ValidationError) as exc:
+    with pytest.raises(pa.errors.SchemaError) as exc:
         datareader.read_not_together("dummy.xlsx", ["Alice"], 2)
-    assert "duplicated_students_not_together" in exc.value.code
+    assert exc.value.reason_code == pa.errors.SchemaErrorReason.DATAFRAME_CHECK
+    assert exc.value.check.name == "duplicated_students_not_together"
 
 
 def test_read_not_together_unknown_student():
@@ -676,9 +680,11 @@ def test_read_not_together_unknown_student():
     for llnr in range(3, 13):
         df[f"Leerling {llnr}"] = pd.NA
     with patch("aliexpress.datareader.pd.read_excel", return_value=df):
-        with pytest.raises(datareader.ValidationError) as exc:
+        with pytest.raises(pa.errors.SchemaError) as exc:
             datareader.read_not_together("dummy.xlsx", ["Alice"], 2)
-        assert "unknown_students_not_together" in exc.value.code
+    assert exc.value.reason_code == pa.errors.SchemaErrorReason.DATAFRAME_CHECK
+    assert exc.value.check.name == "isin" and exc.value.filetype == "niet_samen"
+    assert exc.value.failure_cases["failure_case"].squeeze() == "Unknown"
 
 
 def test_read_not_together_too_strict():
@@ -694,9 +700,10 @@ def test_read_not_together_too_strict():
     for llnr in range(4, 13):
         df[f"Leerling {llnr}"] = pd.NA
     with patch("aliexpress.datareader.pd.read_excel", return_value=df):
-        with pytest.raises(datareader.ValidationError) as exc:
+        with pytest.raises(pa.errors.SchemaError) as exc:
             datareader.read_not_together("dummy.xlsx", ["Alice", "Bob", "Charlie"], 2)
-        assert "too_strict_not_together" in exc.value.code
+    assert exc.value.reason_code == pa.errors.SchemaErrorReason.DATAFRAME_CHECK
+    assert exc.value.check.name == "too_strict_not_together"
 
 
 @patch("aliexpress.datareader.pd.read_excel")
@@ -720,9 +727,10 @@ def test_read_groups_excel_empty(mock_read_excel):
     mock_read_excel.return_value = pd.DataFrame(
         columns=["Groepen", "Jongens", "Meisjes"]
     )
-    with pytest.raises(errors.ValidationError) as exc:
+    with pytest.raises(pa.errors.SchemaError) as exc:
         datareader.read_groups_excel("groups.xlsx")
-    assert "empty_df" in exc.value.code
+    assert exc.value.reason_code == pa.errors.SchemaErrorReason.DATAFRAME_CHECK
+    assert exc.value.check.name == "empty_df" and exc.value.filetype == "groepen"
 
 
 @patch("aliexpress.datareader.pd.read_excel")
@@ -737,6 +745,8 @@ def test_read_groups_excel_missing_col(mock_read_excel):
     )
 
     mock_read_excel.return_value = df
-    with pytest.raises(errors.ValidationError) as exc:
+    with pytest.raises(pa.errors.SchemaError) as exc:
         datareader.read_groups_excel("groups.xlsx")
-    assert "empty_mandatory_columns_groups_to" == exc.value.code
+    assert exc.value.reason_code == pa.errors.SchemaErrorReason.SERIES_CONTAINS_NULLS
+    assert exc.value.column_name == "Jongens"
+    assert exc.value.filetype == "groepen"

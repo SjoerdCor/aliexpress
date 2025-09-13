@@ -1,6 +1,5 @@
 """Read and transform the input sheet to a workable DataFrame"""
 
-import math
 import re
 import warnings
 from typing import Iterable
@@ -252,12 +251,16 @@ class VoorkeurenProcessor:
             return valid
 
         all_to_groups = all_to_groups or []
-        all_leerlingen = self.input.index.get_level_values("Leerling").tolist()
+        try:
+            all_leerlingen = self.input.index.get_level_values("Leerling").tolist()
+        except KeyError:
+            # Make sure it does not error here yet (if index is wrong), must throw SchemaError later
+            all_leerlingen = []
 
         schema = pa.DataFrameSchema(
             columns={
                 "Waarde": pa.Column(str),
-                "Gewicht": pa.Column(float),
+                "Gewicht": pa.Column(float, checks=pa.Check.greater_than(0)),
             },
             index=pa.MultiIndex(
                 [
@@ -269,11 +272,7 @@ class VoorkeurenProcessor:
                             ["Niet in", "Graag met", "Liever niet met"]
                         ),
                     ),
-                    pa.Index(
-                        int,
-                        name="Nr",
-                        checks=pa.Check.greater_than(0, name="positive_gewicht"),
-                    ),
+                    pa.Index(float, name="Nr"),
                 ]
             ),
             checks=[
