@@ -87,7 +87,7 @@ def distribute_students_once(
         not_together = datareader.read_not_together(
             path_not_together, students_info.keys(), len(groups_to)
         )
-    except errors.ValidationError as e:
+    except pa.errors.SchemaError as e:
         raise e
     except Exception as e:
         raise errors.CouldNotReadFileError(
