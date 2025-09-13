@@ -2,6 +2,7 @@
 
 import re
 import warnings
+import xml.etree.ElementTree as ET
 from typing import Iterable
 
 import numpy as np
@@ -418,3 +419,39 @@ def read_groups_excel(path_groups_to) -> dict:
         .set_index("Groepen")
         .to_dict(orient="index")
     )
+
+
+def get_leerlingen_from_edex(file_loc) -> pd.DataFrame:
+    """Reads leerlingen from an EDEX XML file and returns them as a DataFrame."""
+
+    tree = ET.parse(file_loc)
+    root = tree.getroot()
+
+    rows = []
+    for ll in root.findall("./leerlingen/leerling"):
+        data = {}
+        data["key"] = ll.attrib.get("key")
+        for child in ll:
+            if child.tag == "groep":
+                data["groepscode"] = child.attrib.get("key")
+            else:
+                data[child.tag] = child.text
+        rows.append(data)
+    df = pd.DataFrame(rows).set_index("key")
+    return df
+
+
+def get_groepen_from_edex(file_loc) -> pd.DataFrame:
+    """Reads groepen from an EDEX XML file and returns them as a DataFrame."""
+    tree = ET.parse(file_loc)
+    root = tree.getroot()
+
+    rows = []
+    for gg in root.findall("./groepen/groep"):
+        data = {}
+        data["key"] = gg.attrib.get("key")
+        for child in gg:
+            data[child.tag] = child.text
+        rows.append(data)
+    df = pd.DataFrame(rows).set_index("key")
+    return df
