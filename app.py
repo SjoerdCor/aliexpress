@@ -75,92 +75,6 @@ status_dct = defaultdict(
     }
 )
 
-FRIENDLY_TEMPLATES = {
-    "duplicate_students_preferences": (
-        "In voorkeuren is de volgende naam/namen niet uniek: {duplicated}\n"
-        "Voeg de eerste letter van de achternaam toe om de leerlingen van elkaar te onderscheiden."
-    ),
-    "wrong_sex": "Verkeerd ingevuld geslacht voor {students_incorrect_sex}",
-    "wrong_index_names_preferences": (
-        "Het voorkeurenbestand kon niet worden verwerkt. Gebruik het meeste recente template"
-    ),
-    "wrong_column_names_preferences": (
-        "Het voorkeurenbestand kon niet worden verwerkt. Gebruik het meeste recente template"
-    ),
-    "negative_weights_preferences": "Er zijn negatieve gewichten in het voorkeurenbestand.",
-    "invalid_values_preferences": (
-        "Onbekende leerling of groep in categorie {wishtype}: {invalid_values}"
-    ),
-    "duplicated_students_not_together": (
-        "In het niet-samen-bestand wordt in de {row}e groep dezelfde leerling meerdere "
-        "keren genoemd: {duplicated_students}"
-    ),
-    "unknown_students_not_together": (
-        "In het niet-samen-bestand wordt in de {row}e groep komt {unknown_students} voor, "
-        "die niet in het voorkeurenbestand voorkomt"
-    ),
-    "too_strict_not_together": (
-        "In het niet-samen-bestand op de {row}e rij is de maximale groepsgrootte te klein: "
-        "bij {n_students} leerlingen en {n_groups} groepen moeten er minmiaal "
-        "{acceptabel_max_samen} bij elkaar mogen, niet {max_aantal_samen}"
-    ),
-    "wrong_columns_preferences": (
-        "Het voorkeuren-bestand heeft de verkeerde kolommen. Controleer of je het goede"
-        " bestand hebt geupload en het meest recente template hebt gebruikt. "
-        "\n{wrong_columns}"
-    ),
-    "wrong_columns_not_together": (
-        "Het niet-samen-bestand heeft de verkeerde kolommen. Controleer of je het goede"
-        " bestand hebt geupload en het meest recente template hebt gebruikt. "
-        "\n{wrong_columns}"
-    ),
-    "wrong_columns_groups_to": (
-        "Het groepen-bestand heeft de verkeerde kolommen. Controleer of je het goede "
-        "bestand hebt geupload en het meeste recente template hebt gebruikt. "
-        "\n{wrong_columns}"
-    ),
-    "infeasible_problem": (
-        "Met deze vereiste klassenbalans en verdeling van leerlingen die overgaan is het"
-        "niet mogelijk. Overweeg de volgende versoepelingen om het probleem wel op te "
-        "lossen:\n {possible_improvement}"
-    ),
-    "empty_mandatory_columns_preferences": (
-        "In het voorkeuren-bestand zijn niet alle verplichte kolommen gevuld: "
-        "controleer {failed_columns}"
-    ),
-    "empty_mandatory_columns_groups_to": (
-        "In het groepen-bestand zijn niet alle verplichte kolommen gevuld: "
-        "controleer {failed_columns}"
-    ),
-    "empty_mandatory_columns_not_together": (
-        "In het niet-samen-bestand zijn niet alle verplichte kolommen gevuld: "
-        "controleer {failed_columns}"
-    ),
-    "could_not_read": (
-        "Het {filetype}-bestand kon niet worden ingelezen. "
-        "Controleer of je het juiste bestand hebt geupload"
-    ),
-    "empty_df": (
-        "Het {filetype}-bestand was helemaal leeg. Daardoor kan er "
-        "geen groepsindeling worden berekend"
-    ),
-    "duplicated_values_preferences": (
-        "In het voorkeuren-bestand is voor {students_with_duplicates} "
-        "een leerling of groep gevonden die dubbel voorkomt. Tel ze op "
-        "of streep ze tegen elkaar weg om dubbelingen te voorkomen."
-    ),
-    "weight_without_name_preferences": (
-        "In het voorkeuren-bestand is een gewicht gevonden zonder bijbehorende naam voor {students}"
-    ),
-    "wrong_datatype": (
-        "Ongeldige waarden gevonden in kolom {failed_columns} van het {filetype}-bestand"
-    ),
-    "internal_error": (
-        "Er is iets onverwachts misgegaan. Het probleem is gelogd. "
-        "Laat de maker dit onderzoeken."
-    ),
-}
-
 
 @app.route("/")
 def home():
@@ -185,7 +99,47 @@ def fillin():
     return render_template("fillin.html")
 
 
-def to_validation_message(exc: pa.errors.SchemaError) -> str:
+def to_validation_message(exc: Exception) -> str:
+    """Convert a validation exception to a user-friendly message"""
+    if isinstance(exc, pa.errors.SchemaError):
+        return schemaerror_to_validation_message(exc)
+    if isinstance(exc, (ValidationError, CouldNotReadFileError, FeasibilityError)):
+        return readableerror_to_validation_message(exc)
+    return (
+        "Er is iets onverwachts misgegaan. Het probleem is gelogd. "
+        "Laat de maker dit onderzoeken."
+    )
+
+
+def readableerror_to_validation_message(exc: Exception) -> str:
+    """Convert a validation exception to a user-friendly message"""
+    friendly_templates = {
+        "wrong_columns_preferences": (
+            "Het voorkeuren-bestand heeft de verkeerde kolommen. Controleer of je het goede"
+            " bestand hebt geupload en het meest recente template hebt gebruikt. "
+            "\n{wrong_columns}"
+        ),
+        "infeasible_problem": (
+            "Met deze vereiste klassenbalans en verdeling van leerlingen die overgaan is het"
+            "niet mogelijk. Overweeg de volgende versoepelingen om het probleem wel op te "
+            "lossen:\n {possible_improvement}"
+        ),
+        "internal_error": (
+            "Er is iets onverwachts misgegaan. Het probleem is gelogd. "
+            "Laat de maker dit onderzoeken."
+        ),
+    }
+
+    template = friendly_templates.get(exc.code, None)
+    if template:
+        return template.format(**exc.context)
+    return (
+        "Er is iets onverwachts misgegaan. Het probleem is gelogd. "
+        "Laat de maker dit onderzoeken."
+    )
+
+
+def schemaerror_to_validation_message(exc: pa.errors.SchemaError) -> str:
     """Convert a pandera SchemaError to a user-friendly message
 
     This SchemaError must have been modified to contain a 'filetype' attribute.
@@ -218,6 +172,10 @@ def to_validation_message(exc: pa.errors.SchemaError) -> str:
                 "Voeg de eerste letter van de achternaam toe om de leerlingen van "
                 "elkaar te onderscheiden."
             )
+        return (
+            f"In het {exc.filetype}-bestand zijn dubbelingen ingevuld "
+            f"in kolom {exc.column_name}"
+        )
 
     if exc.reason_code == pa.errors.SchemaErrorReason.DATAFRAME_CHECK:
         if exc.check.name == "empty_df":
@@ -283,9 +241,17 @@ def to_validation_message(exc: pa.errors.SchemaError) -> str:
             )
 
     return (
-        "Er is iets onverwachts misgegaan. Het probleem is gelogd. "
-        "Laat de maker dit onderzoeken."
+        f"Er is iets onverwachts misgegaan bij het lezen van {exc.filetype}. "
+        "Controleer het bestand goed en of je het meest recente template hebt gebruikt. "
+        "Als het probleem blijft bestaan, laat de maker dit onderzoeken."
     )
+
+
+def _handle_failure(exc, task_id, log_msg):
+    logger.exception(log_msg)
+    message = to_validation_message(exc)
+    status_dct[task_id]["status_studentdistribution"] = "error"
+    status_dct[task_id]["message"] = message
 
 
 @app.route("/upload", methods=["GET", "POST"])
@@ -337,27 +303,16 @@ def upload_files():
                 logger.info("Distributing students finished successfully")
                 status_dct[task_id]["status_studentdistribution"] = "done"
                 temp_storage[task_id]["groepsindeling"] = result
-            except pa.errors.SchemaError as exc:
-                logger.exception("Files are incorrect")
-                message = to_validation_message(exc)
-                status_dct[task_id]["status_studentdistribution"] = "error"
-                status_dct[task_id]["message"] = message
-            # TODO: remove old style validation error
-            except (ValidationError, CouldNotReadFileError) as e:
-                logger.exception("Files are incorrect")
-                status_dct[task_id]["status_studentdistribution"] = "error"
-                status_dct[task_id]["error_code"] = e.code
-                status_dct[task_id]["error_context"] = e.context
-            except FeasibilityError as e:
-                logger.exception("Problem is infeasible")
-                status_dct[task_id]["status_studentdistribution"] = "error"
-                status_dct[task_id]["error_code"] = e.code
-                status_dct[task_id]["error_context"] = e.context
-            except Exception as e:
-                logger.exception("Uncaught exception")
-                status_dct[task_id]["status_studentdistribution"] = "error"
-                status_dct[task_id]["error_code"] = "internal_error"
-                status_dct[task_id]["error_context"] = {"details": str(e)}
+            except (
+                pa.errors.SchemaError,
+                ValidationError,
+                CouldNotReadFileError,
+            ) as exc:
+                _handle_failure(exc, task_id, "Files are incorrect")
+            except FeasibilityError as exc:
+                _handle_failure(exc, task_id, "Problem is infeasible")
+            except Exception as exc:
+                _handle_failure(exc, task_id, "Uncaught exception")
 
         def create_sociogram(preferences, groups_to):
             try:
@@ -410,20 +365,7 @@ def processing(task_id):
 def handle_error():
     """Show information about errors to user"""
     data = request.get_json()
-    try:
-        message = data["message"]
-    except KeyError:
-        # TODO: remove Old style
-        # Old style
-        code = data.get("code")
-        context = data.get("context", {})
-        unknown_error_message = (
-            "Er is iets onverwachts misgegaan. Het probleem is gelogd. "
-            "Laat de maker dit onderzoeken."
-        )
-        template = FRIENDLY_TEMPLATES.get(code, unknown_error_message)
-        message = template.format(**context)
-    flash(message, "error")
+    flash(data["message"], "error")
 
     # By not redirecting here but in JS, this is more flexible
     return "", 204
