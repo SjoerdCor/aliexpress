@@ -206,8 +206,9 @@ def to_validation_message(exc: pa.errors.SchemaError) -> str:
         )
     if exc.reason_code == pa.errors.SchemaErrorReason.SERIES_CONTAINS_NULLS:
         return (
-            "In het {exc.filetype}-bestand zijn niet alle verplichte kolommen gevuld: "
-            f"controleer {exc.failure_cases}"
+            f"In het {exc.filetype}-bestand zijn niet alle verplichte kolommen gevuld: "
+            f"controleer {exc.column_name} bij regel "
+            f"{', '.join(exc.failure_cases[', '].astype(str))}"
         )
     if exc.reason_code == pa.errors.SchemaErrorReason.SERIES_CONTAINS_DUPLICATES:
         if exc.filetype == "voorkeuren":
