@@ -3,6 +3,7 @@
 import re
 import warnings
 import xml.etree.ElementTree as ET
+from io import BytesIO
 from typing import Iterable
 
 import numpy as np
@@ -421,37 +422,77 @@ def read_groups_excel(path_groups_to) -> dict:
     )
 
 
-def get_leerlingen_from_edex(file_loc) -> pd.DataFrame:
-    """Reads leerlingen from an EDEX XML file and returns them as a DataFrame."""
+class EdexReader:
+    """Read EDEX file"""
 
-    tree = ET.parse(file_loc)
-    root = tree.getroot()
+    def __init__(self, file_loc):
+        self.file_loc = file_loc
+        self.df_leerlingen = self._parse_leerlingen().pipe(self._clean_leerlingen)
+        self.df_groepen = self._parse_groepen().pipe(self._clean_groepen)
 
-    rows = []
-    for ll in root.findall("./leerlingen/leerling"):
-        data = {}
-        data["key"] = ll.attrib.get("key")
-        for child in ll:
-            if child.tag == "groep":
-                data["groepscode"] = child.attrib.get("key")
-            else:
+    def _parse_leerlingen(self):
+        if isinstance(self.file_loc, BytesIO):
+            self.file_loc.seek(0)
+        tree = ET.parse(self.file_loc)
+        root = tree.getroot()
+
+        rows = []
+        for ll in root.findall("./leerlingen/leerling"):
+            data = {}
+            data["key"] = ll.attrib.get("key")
+            for child in ll:
+                if child.tag == "groep":
+                    data["groepscode"] = child.attrib.get("key")
+                else:
+                    data[child.tag] = child.text
+            rows.append(data)
+        return pd.DataFrame(rows)
+
+    @staticmethod
+    def _clean_leerlingen(df):
+        geslacht_code = {
+            "0": "Onbekend",
+            "1": "Jongen",
+            "2": "Meisje",
+            "9": "Niet gespecificeerd",
+        }
+
+        return (
+            df.set_index("key")
+            .astype({"jaargroep": "Int64"})
+            .assign(geslacht=lambda df: df["geslacht"].map(geslacht_code))
+        )
+
+    def _parse_groepen(self):
+        if isinstance(self.file_loc, BytesIO):
+            self.file_loc.seek(0)
+
+        tree = ET.parse(self.file_loc)
+        root = tree.getroot()
+
+        rows = []
+        for gg in root.findall("./groepen/groep"):
+            data = {}
+            data["key"] = gg.attrib.get("key")
+            for child in gg:
                 data[child.tag] = child.text
-        rows.append(data)
-    df = pd.DataFrame(rows).set_index("key")
-    return df
+            rows.append(data)
+        return pd.DataFrame(rows)
 
+    @staticmethod
+    def _clean_groepen(df) -> pd.DataFrame:
+        return df.set_index("key").astype({"jaargroep": "Int64"})
 
-def get_groepen_from_edex(file_loc) -> pd.DataFrame:
-    """Reads groepen from an EDEX XML file and returns them as a DataFrame."""
-    tree = ET.parse(file_loc)
-    root = tree.getroot()
-
-    rows = []
-    for gg in root.findall("./groepen/groep"):
-        data = {}
-        data["key"] = gg.attrib.get("key")
-        for child in gg:
-            data[child.tag] = child.text
-        rows.append(data)
-    df = pd.DataFrame(rows).set_index("key")
-    return df
+    def get_full_df(self) -> pd.DataFrame:
+        """Enrich students with group information"""
+        df = (
+            self.df_leerlingen.merge(
+                self.df_groepen,
+                left_on="groepscode",
+                right_index=True,
+                suffixes=("", "_groep"),
+            )
+            .rename(columns={"naam": "groepsnaam"})
+            .drop(columns=["jaargroep_groep"])
+        )
+        return df
