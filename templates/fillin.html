@@ -2,6 +2,19 @@
 {% set current_step = 1 %}
 {% block content %}
 
+<p> Upload hier de schoolgegevens</p>
+<form method="post" action="{{ url_for('create_fillin_files')}}" enctype="multipart/form-data">
+    <label for="edexml">edexml:</label><br>
+    <input type="file" name="edexml" accept=".xml" required><br><br>
+    <label for="jaargroep"> jaargroep die moet worden ingedeeld</label>
+    <select name="jaargroep" required>
+        {% for year in range(1, 9) %}
+        <option value="{{ year }}">{{ year }}</option>
+        {% endfor %}
+    </select>
+    <button type="submit">Invulformulieren downloaden</button>
+    <br><br>
+    </form>
 
 <p>Download hier de invulbestanden:</p>
 <div class="download-buttons" style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
