@@ -10,6 +10,7 @@ from threading import Thread
 
 import numpy as np
 import openpyxl
+import pandas as pd
 import pandera as pa
 from dotenv import load_dotenv
 from flask import (
@@ -101,63 +102,72 @@ def fillin():
     return render_template("fillin.html")
 
 
+def create_unique_name(df: pd.DataFrame) -> pd.Series:
+    """Find unique name per leerling. Needs roepnaam and achternaam"""
+    unique_names = df["roepnaam"] + " "
+
+    n_letters_added = 0
+    while unique_names.duplicated().any():
+        for ix in unique_names[unique_names.duplicated(keep=False)].index:
+            unique_names[ix] += df.loc[ix, "achternaam"][n_letters_added]
+        n_letters_added += 1
+    return unique_names.str.strip()
+
+
 @app.route("/create_fillin_files", methods=["POST"])
 def create_fillin_files():
     """Create the fillin files"""
     edexml = file_to_io(request.files["edexml"])
     jaargroep = int(request.form["jaargroep"])
-    logger.debug("Information uploaden")
-    df_groepen = datareader.get_groepen_from_edex(edexml).astype({"jaargroep": "Int64"})
-    logger.debug("Groepen gelezen")
-    edexml.seek(0)
-    df_leerlingen = (
-        datareader.get_leerlingen_from_edex(edexml)
-        .astype({"jaargroep": "Int64"})
-        .assign(
-            geslacht=lambda df: df["geslacht"].map(
-                {
-                    "0": "Onbekend",
-                    "1": "Jongen",
-                    "2": "Meisje",
-                    "9": "Niet gespecificeerd",
-                }
-            )
-        )
-    )
-    logger.debug("Leerlingen gelezen")
 
-    df = (
-        df_leerlingen.merge(
-            df_groepen, left_on="groepscode", right_index=True, suffixes=("", "_groep")
-        )
-        .rename(columns={"naam": "groepsnaam"})
-        .drop(columns=["jaargroep_groep"])
-    )
-
-    def find_groep_die_doorgaat(df, leerjaar=2):
-        df_leerjaar = df[df["jaargroep"] == leerjaar]
-        return df_leerjaar
-
-    def create_unique_name(df):
-        unique_names = df["roepnaam"] + " "
-
-        n_letters_added = 0
-        while unique_names.duplicated().any():
-            for ix in unique_names[unique_names.duplicated(keep=False)].index:
-                unique_names[i] += df.loc[ix, "achternaam"][n_letters_added]
-            n_letters_added += 1
-        return unique_names.str.strip()
-
+    df = datareader.EdexReader(edexml).get_full_df()
     groep_die_doorgaat = (
-        find_groep_die_doorgaat(df, leerjaar=jaargroep)
+        df.loc[lambda df: df["jaargroep"] == jaargroep]
         .assign(uniekenaam=create_unique_name)
         .sort_values(["groepsnaam", "uniekenaam"])
     )
     logger.debug("Relevante leerlingen bepaald")
 
     wb = openpyxl.load_workbook("input_templates/voorkeuren.xlsx")
-    logger.debug("Template geopend")
+    fill_in_known_values(df, groep_die_doorgaat, wb)
+    add_data_validations(wb)
 
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    logger.debug("Opgeslagen")
+
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name="resultaat.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+
+def add_data_validations(wb):
+    """Add data validations to workbook
+
+    For jongen/meisje, for niet in (groups) and for preferences (students + group)
+    """
+    ws1 = wb["Sheet1"]
+    val_specs = [
+        ("Sheet2!$A:$A", "C"),  # jongen/meisje
+        ("Sheet2!$B:$B", "QR"),  # niet in: only groups
+        ("Sheet2!$C:$C", "EGIKMO"),  # (negative) preferences: groups + students
+    ]
+
+    for rng, cols_to_be_validated in val_specs:
+        dv = DataValidation(
+            type="list", formula1=f"={rng}", allow_blank=True, showErrorMessage=True
+        )
+        for col in cols_to_be_validated:
+            dv.add(f"{col}4:{col}1048576")
+        ws1.add_data_validation(dv)
+
+
+def fill_in_known_values(df, groep_die_doorgaat, wb):
+    """Fill the students in from the workbook, and the data to be used for validation"""
     ws1 = wb["Sheet1"]
     for i, (_, row) in enumerate(groep_die_doorgaat.iterrows(), start=4):
         ws1[f"A{i}"].value = row["uniekenaam"]
@@ -173,47 +183,6 @@ def create_fillin_files():
         ws2[f"B{i}"].value = gr
     for i, sub in enumerate(groups_to + all_leerlingen, start=1):
         ws2[f"C{i}"].value = sub
-
-    dv_jm = DataValidation(
-        type="list",
-        formula1="=Sheet2!$A:$A",
-        allow_blank=True,
-        showErrorMessage=True,
-    )
-    dv_jm.add("C4:C1048576")
-    ws1.add_data_validation(dv_jm)
-
-    dv_groups = DataValidation(
-        type="list",
-        formula1="=Sheet2!$B:$B",
-        allow_blank=True,
-        showErrorMessage=True,
-    )
-    for col in "QR":
-        dv_groups.add(f"{col}4:{col}1048576")
-    ws1.add_data_validation(dv_groups)
-
-    dv_groupsandstudents = DataValidation(
-        type="list",
-        formula1="=Sheet2!$C:$C",
-        allow_blank=True,
-        showErrorMessage=True,
-    )
-    for col in "EGIKMO":
-        dv_groupsandstudents.add(f"{col}4:{col}1048576")
-    ws1.add_data_validation(dv_groupsandstudents)
-
-    output = BytesIO()
-    wb.save(output)
-    output.seek(0)
-    logger.debug("Opgeslagen")
-
-    return send_file(
-        output,
-        as_attachment=True,
-        download_name="resultaat.xlsx",
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    )
 
 
 def to_validation_message(exc: Exception) -> str:
