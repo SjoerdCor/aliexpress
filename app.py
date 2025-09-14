@@ -96,9 +96,87 @@ def download_template(filename):
     return send_from_directory("input_templates", filename, as_attachment=True)
 
 
-@app.route("/fillin")
+@app.route("/fillin", methods=["GET", "POST"])
 def fillin():
     """Display the fillin page"""
+    if request.method == "POST":
+
+        if "edexml" in request.files:
+            edexml = file_to_io(request.files["edexml"])
+            jaargroep = int(request.form["jaargroep"])
+
+            df = datareader.EdexReader(edexml).get_full_df()
+            candidates_doorgaan = (
+                df.loc[lambda df: df["jaargroep"] == jaargroep]
+                .sort_values(["groepsnaam", "roepnaam", "achternaam"])
+                .reset_index()
+                .filter(
+                    ["key", "roepnaam", "achternaam", "groepsnaam", "geslacht"],
+                    axis="columns",
+                )
+                .to_dict(orient="records")
+            )
+            allowed_groups = df.loc[
+                lambda df: df["jaargroep"] == jaargroep, "groepsnaam"
+            ].unique().tolist() + ["Anders"]
+
+            temp_storage["candidates"] = candidates_doorgaan
+            # TODO: make groups_to more flexible
+            temp_storage["groups_to"] = (
+                df.loc[lambda df: df["jaargroep"] == jaargroep + 1, "groepsnaam"]
+                .unique()
+                .tolist()
+            )
+            return render_template(
+                "fillin.html",
+                candidates=candidates_doorgaan,
+                allowed_groups=allowed_groups,
+                uploaded=True,
+            )
+        else:
+            # Step 4: handle selection form after tickboxes
+            selected = request.form.getlist("students")
+
+            new_firstnames = request.form.getlist("new_firstname[]")
+            new_lastnames = request.form.getlist("new_lastname[]")
+            new_genders = request.form.getlist("new_gender[]")
+            new_groups = request.form.getlist("new_group[]")
+
+            new_students = [
+                {"roepnaam": fn, "achternaam": ln, "geslacht": sex, "groepsnaam": gr}
+                for fn, ln, sex, gr in zip(
+                    new_firstnames, new_lastnames, new_genders, new_groups
+                )
+                if fn.strip() and ln.strip()
+            ]
+
+            df_original = (
+                pd.DataFrame(temp_storage["candidates"]).set_index("key").loc[selected]
+            )
+            df_new = pd.DataFrame(new_students)
+            # TODO: remove tussenvoegsels from achternamen
+            df_total = (
+                pd.concat([df_original, df_new])
+                .assign(uniekenaam=create_unique_name)
+                .sort_values(["groepsnaam", "uniekenaam"])
+            )
+
+            wb = openpyxl.load_workbook("input_templates/voorkeuren.xlsx")
+            fill_in_known_values(temp_storage["groups_to"], df_total, wb)
+            add_data_validations(wb)
+
+            output = BytesIO()
+            wb.save(output)
+            output.seek(0)
+            logger.debug("Opgeslagen")
+
+            return send_file(
+                output,
+                as_attachment=True,
+                download_name="resultaat.xlsx",
+                mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+
     return render_template("fillin.html")
 
 
@@ -126,7 +204,6 @@ def create_fillin_files():
         .assign(uniekenaam=create_unique_name)
         .sort_values(["groepsnaam", "uniekenaam"])
     )
-    logger.debug("Relevante leerlingen bepaald")
 
     wb = openpyxl.load_workbook("input_templates/voorkeuren.xlsx")
     fill_in_known_values(df, groep_die_doorgaat, wb)
@@ -166,7 +243,7 @@ def add_data_validations(wb):
         ws1.add_data_validation(dv)
 
 
-def fill_in_known_values(df, groep_die_doorgaat, wb):
+def fill_in_known_values(groups_to, groep_die_doorgaat, wb):
     """Fill the students in from the workbook, and the data to be used for validation"""
     ws1 = wb["Sheet1"]
     for i, (_, row) in enumerate(groep_die_doorgaat.iterrows(), start=4):
@@ -176,7 +253,6 @@ def fill_in_known_values(df, groep_die_doorgaat, wb):
 
     logger.debug("Data ingevuld")
 
-    groups_to = df.loc[df["jaargroep"] == 3, "groepsnaam"].unique().tolist()
     all_leerlingen = groep_die_doorgaat["uniekenaam"].tolist()
     ws2 = wb["Sheet2"]
     for i, gr in enumerate(groups_to, start=1):
