@@ -336,6 +336,11 @@ def fill_in_groups_to(groups_to, wb):
         ws1[f"A{i}"] = gr
         ws1[f"B{i}"] = values["Jongens"]
         ws1[f"C{i}"] = values["Meisjes"]
+
+        ws1[f"A{i}"].protection = openpyxl.styles.Protection(locked=False)
+        ws1[f"B{i}"].protection = openpyxl.styles.Protection(locked=False)
+        ws1[f"C{i}"].protection = openpyxl.styles.Protection(locked=False)
+
     dv_int = DataValidation(
         type="whole",
         operator="greaterThanOrEqual",
@@ -347,6 +352,7 @@ def fill_in_groups_to(groups_to, wb):
     dv_int.add("B2:B1048576")
     dv_int.add("C2:C1048576")
     ws1.add_data_validation(dv_int)
+    ws1.protection.sheet = True
 
 
 def fill_in_known_values(groups_to, groep_die_doorgaat, wb):
