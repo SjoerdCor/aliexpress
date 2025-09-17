@@ -4,7 +4,8 @@ import logging
 import os
 import uuid
 import webbrowser
-from collections import defaultdict
+import zipfile
+from collections import Counter, defaultdict
 from io import BytesIO
 from threading import Thread
 
@@ -171,7 +172,16 @@ def fillin():
 
             new_groups = [g for g in formdata.get("new_groups[]", []) if g.strip()]
 
-            groups_to = list(selected_per_group.keys() + new_groups)
+            groups_to = {}
+            for g, lst in selected_per_group.items():
+                c = Counter(lst)
+                groups_to[g] = {
+                    "Jongens": c.get("Jongen", 0),
+                    "Meisjes": c.get("Meisje", 0),
+                }
+
+            for g in new_groups:
+                groups_to.setdefault(g, {"Jongens": 0, "Meisjes": 0})
 
             # Step 4: handle selection form after tickboxes
             selected = request.form.getlist("students")
@@ -199,20 +209,31 @@ def fillin():
                 .sort_values(["groepsnaam", "uniekenaam"])
             )
 
-            wb = openpyxl.load_workbook("input_templates/voorkeuren.xlsx")
-            fill_in_known_values(groups_to, df_total, wb)
-            add_data_validations(wb)
+            zip_buffer = BytesIO()
+            with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
 
-            output = BytesIO()
-            wb.save(output)
-            output.seek(0)
-            logger.debug("Opgeslagen")
+                wb_groups = openpyxl.load_workbook("input_templates/groepen.xlsx")
+                fill_in_groups_to(groups_to, wb_groups)
+                buf_groups = BytesIO()
+                wb_groups.save(buf_groups)
+                buf_groups.seek(0)
+                zip_file.writestr("groepen.xlsx", buf_groups.read())
+
+                wb_prefs = openpyxl.load_workbook("input_templates/voorkeuren.xlsx")
+                fill_in_known_values(list(groups_to.keys()), df_total, wb_prefs)
+                add_data_validations(wb_prefs)
+                buf_prefs = BytesIO()
+                wb_prefs.save(buf_prefs)
+                buf_prefs.seek(0)
+                zip_file.writestr("voorkeuren.xlsx", buf_prefs.read())
+
+            zip_buffer.seek(0)
 
             return send_file(
-                output,
+                zip_buffer,
                 as_attachment=True,
-                download_name="resultaat.xlsx",
-                mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                download_name="invulformulieren.zip",
+                mimetype="application/zip",
             )
 
     return render_template("fillin.html")
@@ -279,6 +300,26 @@ def add_data_validations(wb):
         for col in cols_to_be_validated:
             dv.add(f"{col}4:{col}1048576")
         ws1.add_data_validation(dv)
+
+
+def fill_in_groups_to(groups_to, wb):
+    """Fill the students in from the workbook, and the data to be used for validation"""
+    ws1 = wb["Sheet1"]
+    for i, (gr, values) in enumerate(groups_to.items(), start=2):
+        ws1[f"A{i}"] = gr
+        ws1[f"B{i}"] = values["Jongens"]
+        ws1[f"C{i}"] = values["Meisjes"]
+    dv_int = DataValidation(
+        type="whole",
+        operator="greaterThanOrEqual",
+        formula1="0",
+        allow_blank=True,
+        showErrorMessage=True,
+        errorTitle="Alleen niet-negatieve gehele getallen zijn toegestaan.",
+    )
+    dv_int.add("B2:B1048576")
+    dv_int.add("C2:C1048576")
+    ws1.add_data_validation(dv_int)
 
 
 def fill_in_known_values(groups_to, groep_die_doorgaat, wb):
