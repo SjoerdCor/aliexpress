@@ -101,7 +101,6 @@ def download_template(filename):
 def fillin():
     """Display the fillin page"""
     if request.method == "POST":
-
         if "edexml" in request.files:
             edexml = file_to_io(request.files["edexml"])
             jaargroep = int(request.form["jaargroep"])
@@ -227,6 +226,15 @@ def fillin():
                 buf_prefs.seek(0)
                 zip_file.writestr("voorkeuren.xlsx", buf_prefs.read())
 
+                wb_not_together = openpyxl.load_workbook(
+                    "input_templates/niet_samen.xlsx"
+                )
+                add_data_validations_not_together(wb_not_together, df_total)
+                buf_not_together = BytesIO()
+                wb_not_together.save(buf_not_together)
+                buf_not_together.seek(0)
+                zip_file.writestr("niet_samen.xlsx", buf_not_together.read())
+
             zip_buffer.seek(0)
 
             return send_file(
@@ -279,6 +287,25 @@ def create_fillin_files():
         download_name="resultaat.xlsx",
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+
+
+def add_data_validations_not_together(wb, df):
+    """Add data validations for students to not_together"""
+    ws2 = wb["Sheet2"]
+    for i, ll in enumerate(df["uniekenaam"].unique().tolist(), start=1):
+        ws2[f"A{i}"].value = ll
+
+    ws1 = wb["Sheet1"]
+
+    dv = DataValidation(
+        type="list",
+        formula1="=Sheet2!$A:$A",
+        allow_blank=True,
+        showErrorMessage=True,
+    )
+    for col in "BCDEFGHIJKLM":
+        dv.add(f"{col}2:{col}1048576")
+    ws1.add_data_validation(dv)
 
 
 def add_data_validations(wb):
