@@ -13,19 +13,19 @@
         <option value="{{ year }}">{{ year }}</option>
         {% endfor %}
     </select>
-    <button type="submit">Invulformulieren downloaden</button>
+    <button type="submit">Selecteer leerlingen en groepen</button>
     <br><br>
     </form>
 {% else %}
 
 
-  <h3>Select students to continue</h3>
+  <h2>Select leerlingen die doorgaan</h2>
   <form method="post">
     {% for student in candidates %}
       <label>
         <input type="checkbox" name="students" value="{{ student.key }}" checked>
         {{ student.roepnaam }} {{ student.achternaam }} ({{ student.groepsnaam }})
-      </label><br>
+      </label>
     {% endfor %}
 
     <h3>Add new students</h3>
@@ -38,16 +38,40 @@
             <option value="Meisje">Meisje</option>
         </select>
         <select name="new_group[]">
-          {% for g in allowed_groups %}
+          {% for g in groups_from %}
             <option value="{{ g }}">{{ g }}</option>
           {% endfor %}
         </select>
     </div>
     </div>
     <button type="button" onclick="addStudentField()">+ Add another</button>
+<h2>Selecteer groepen waar ze naar toe gaan</h2>
+  <div id="groups-to">
+    {% for groupname, students in groups_to.items()%}
+      <div class="group-block">
+        <strong>{{ groupname }}</strong>
+          <ul>
+            {% for s in students %}
+              <li>
+                <label>
+                  <input type="checkbox" name="group_students[{{ groupname }}]" value="{{ s.geslacht }}" {% if s.blijft_in_groep %}checked{% endif %}>
+                  {{ s.roepnaam }} {{ s.achternaam }} ({{s.jaargroep}})
+                </label>
+              </li>
+            {% endfor %}
+          </ul>
+      </div>
+    {% endfor %}
+  </div>
+
+  <h3>Nieuwe groep toevoegen</h3>
+  <div id="new-groups">
+    <input type="text" name="new_groups[]" placeholder="Groepsnaam">
+  </div>
+  <button type="button" onclick="addGroupField()">+ Nog een groep</button>
 
     <br><br>
-    <button type="submit">Continue</button>
+    <button type="submit">Genereer invulformulieren</button>
   </form>
 <script>
 const groupOptions = `{% for g in allowed_groups %}<option value="{{ g }}">{{ g }}</option>{% endfor %}`;
@@ -69,12 +93,20 @@ function addStudentField() {
   `;
   container.appendChild(row);
 }
+
+function addGroupField() {
+  const container = document.getElementById("new-groups");
+  const row = document.createElement("div");
+  row.innerHTML = `<input type="text" name="new_groups[]" placeholder="Groepsnaam">`;
+  container.appendChild(row);
+}
+
 </script>
 <style>
   .student-row {
     display: flex;
     gap: 10px;
-    margin-bottom: 5px;
+    /* margin-bottom: 5px; */
   }
   .student-row input, .student-row select {
     flex: 1;
