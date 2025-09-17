@@ -116,24 +116,63 @@ def fillin():
                 )
                 .to_dict(orient="records")
             )
-            allowed_groups = df.loc[
+            groups_from = df.loc[
                 lambda df: df["jaargroep"] == jaargroep, "groepsnaam"
             ].unique().tolist() + ["Anders"]
 
             temp_storage["candidates"] = candidates_doorgaan
-            # TODO: make groups_to more flexible
-            temp_storage["groups_to"] = (
+
+            groupnames_to = (
                 df.loc[lambda df: df["jaargroep"] == jaargroep + 1, "groepsnaam"]
                 .unique()
                 .tolist()
             )
+
+            groups_to = (
+                df.loc[lambda df: df["groepsnaam"].isin(groupnames_to)]
+                .assign(
+                    blijft_in_groep=lambda df: (
+                        df["jaargroep"]
+                        < df.groupby("groepsnaam")["jaargroep"].transform("max")
+                    )
+                )
+                .sort_values(["groepsnaam", "jaargroep", "geslacht"])
+                .groupby("groepsnaam")
+                .apply(
+                    lambda g: g[
+                        [
+                            "roepnaam",
+                            "achternaam",
+                            "geslacht",
+                            "jaargroep",
+                            "blijft_in_groep",
+                        ]
+                    ].to_dict(orient="records")
+                )
+                .to_dict()
+            )
             return render_template(
                 "fillin.html",
                 candidates=candidates_doorgaan,
-                allowed_groups=allowed_groups,
+                groups_from=groups_from,
+                groups_to=groups_to,
                 uploaded=True,
             )
         else:
+
+            formdata = request.form.to_dict(flat=False)
+            selected_per_group = defaultdict(list)
+            for key, values in formdata.items():
+                if key.startswith("group_students["):
+                    groupname = key[
+                        len("group_students[") : -1
+                    ]  # alles tussen [ ] halen
+                    selected_per_group[groupname].extend(values)
+
+            new_groups = [g for g in formdata.get("new_groups[]", []) if g.strip()]
+
+            groups_to = list(selected_per_group.keys() + new_groups)
+
             # Step 4: handle selection form after tickboxes
             selected = request.form.getlist("students")
 
@@ -154,7 +193,6 @@ def fillin():
                 pd.DataFrame(temp_storage["candidates"]).set_index("key").loc[selected]
             )
             df_new = pd.DataFrame(new_students)
-            # TODO: remove tussenvoegsels from achternamen
             df_total = (
                 pd.concat([df_original, df_new])
                 .assign(uniekenaam=create_unique_name)
@@ -162,7 +200,7 @@ def fillin():
             )
 
             wb = openpyxl.load_workbook("input_templates/voorkeuren.xlsx")
-            fill_in_known_values(temp_storage["groups_to"], df_total, wb)
+            fill_in_known_values(groups_to, df_total, wb)
             add_data_validations(wb)
 
             output = BytesIO()
