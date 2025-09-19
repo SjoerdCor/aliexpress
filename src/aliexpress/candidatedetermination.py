@@ -5,36 +5,38 @@ from collections import Counter
 import pandas as pd
 
 
-def handle_edexml_upload(df, jaargroep):
-    """Process uploaded edexml and render candidates + groups"""
+def get_candidates(df: pd.DataFrame, jaargroep: int):
+    """Return list of candidates for the given jaargroep."""
+    df_current = df[df["jaargroep"] == jaargroep]
+    return df_current.sort_values(["groepsnaam", "roepnaam", "achternaam"])[
+        ["key", "roepnaam", "achternaam", "groepsnaam", "geslacht"]
+    ].to_dict(orient="records")
 
-    candidates = (
-        df.loc[lambda df: df["jaargroep"] == jaargroep]
-        .sort_values(["groepsnaam", "roepnaam", "achternaam"])
-        .reset_index()
-        .filter(
-            ["key", "roepnaam", "achternaam", "groepsnaam", "geslacht"], axis="columns"
-        )
-        .to_dict(orient="records")
-    )
 
-    groups_from = (
-        df.loc[lambda df: df["jaargroep"] == jaargroep, "groepsnaam"].unique().tolist()
-    ) + ["Anders"]
+def get_groups_from(df: pd.DataFrame, jaargroep: int):
+    """Return unique group names in the current jaargroep plus 'Anders'."""
+    df_current = df[df["jaargroep"] == jaargroep]
+    return df_current["groepsnaam"].unique().tolist() + ["Anders"]
 
+
+def get_groups_to(df: pd.DataFrame, jaargroep: int):
+    """Return dictionary of groups for the next jaargroep with blijft_in_groep flag."""
+    next_jaargroep = jaargroep + 1
     groupnames_to = (
-        df.loc[lambda df: df["jaargroep"] == jaargroep + 1, "groepsnaam"]
-        .unique()
-        .tolist()
+        df.loc[df["jaargroep"] == next_jaargroep, "groepsnaam"].unique().tolist()
     )
 
-    groups_to = (
-        df.loc[lambda df: df["groepsnaam"].isin(groupnames_to)]
-        .assign(
-            blijft_in_groep=lambda df: df["jaargroep"]
-            < df.groupby("groepsnaam")["jaargroep"].transform("max")
-        )
-        .sort_values(["groepsnaam", "jaargroep", "geslacht"])
+    df_next = df[df["groepsnaam"].isin(groupnames_to)].copy()
+    if df_next.empty:
+        return {}
+
+    max_jaargroep_per_group = df_next.groupby("groepsnaam")["jaargroep"].transform(
+        "max"
+    )
+    df_next["blijft_in_groep"] = df_next["jaargroep"] < max_jaargroep_per_group
+
+    return (
+        df_next.sort_values(["groepsnaam", "jaargroep", "geslacht"])
         .groupby("groepsnaam")
         .apply(
             lambda g: g[
@@ -43,6 +45,13 @@ def handle_edexml_upload(df, jaargroep):
         )
         .to_dict()
     )
+
+
+def handle_edexml_upload(df: pd.DataFrame, jaargroep: int):
+    """Process uploaded EDEXML and render candidates + groups."""
+    candidates = get_candidates(df, jaargroep)
+    groups_from = get_groups_from(df, jaargroep)
+    groups_to = get_groups_to(df, jaargroep)
     return candidates, groups_from, groups_to
 
 
