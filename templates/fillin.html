@@ -74,7 +74,7 @@
     <button type="submit">Genereer invulformulieren</button>
   </form>
 <script>
-const groupOptions = `{% for g in allowed_groups %}<option value="{{ g }}">{{ g }}</option>{% endfor %}`;
+const groupOptions = `{% for g in groups_from %}<option value="{{ g }}">{{ g }}</option>{% endfor %}`;
 
 function addStudentField() {
   const container = document.getElementById("new-students");
