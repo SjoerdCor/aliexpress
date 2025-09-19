@@ -3,9 +3,17 @@
 {% block content %}
 
 {% if not uploaded %}
-<p> Upload hier de schoolgegevens</p>
+<p> De snelste manier om tot invulformulieren te komen is door een zogenaamd EDEXML-bestand  te uploaden.
+  Deze kun je uit alle bekende leerlingadministratiesystemen downloaden. <a href="https://www.google.com/search?q=edexml+exporteren"
+     target="_blank"
+     rel="noopener noreferrer"
+     aria-label="Zoek op Google: hoe uploaden EDEXML bestand invulformulieren leerlingadministratie">
+    Zoek hoe je dat kunt doen (Google)
+  </a>. Selecteer de versie 2.1. Er hoeven geen privacy-gevoelige gegevens te worden geexporteerd.
+In het volgende scherm kun je dan controleren of het allemaal klopt.
+</p>
 <form method="post" enctype="multipart/form-data">
-    <label for="edexml">edexml:</label><br>
+    <label for="edexml">EDEXML:</label><br>
     <input type="file" name="edexml" accept=".xml" required><br><br>
     <label for="jaargroep"> jaargroep die moet worden ingedeeld</label>
     <select name="jaargroep" required>
@@ -13,13 +21,14 @@
         <option value="{{ year }}">{{ year }}</option>
         {% endfor %}
     </select>
-    <button type="submit">Selecteer leerlingen en groepen</button>
+    <button type="submit" class="button">Selecteer leerlingen en groepen</button>
     <br><br>
     </form>
 {% else %}
 
 
-  <h2>Select leerlingen die doorgaan</h2>
+  <h2>Selecteer leerlingen die doorgaan</h2>
+  <p>Vink aan wie naar de volgende groep gaan. Verlengers kunnen uitgevinkt worden. Als er nog leerlingen missen kun je die onderaan toevoegen</p>
   <form method="post">
     {% for student in candidates %}
       <label>
@@ -32,6 +41,8 @@
     </div>
     <button type="button" onclick="addStudentField()">+ Voeg leerling toe</button>
 <h2>Selecteer groepen waar ze naar toe gaan</h2>
+<p>Met vinkjes kun je aangeven wie achterblijven in de groepen. Deze worden automatisch geteld in de jongens/meisjes-verdeling in de groepen.
+  Als er nog leerlingen missen, kun je die telling in het excel aanpassen. Onderaan kun je ook nog een groepsnaam toevoegen als die mist.</p>
   <div id="groups-to">
     {% for groupname, students in groups_to.items()%}
       <div class="group-block">
@@ -55,7 +66,7 @@
   <button type="button" onclick="addGroupField()">+ Nog een groep</button>
 
     <br><br>
-    <button type="submit">Genereer invulformulieren</button>
+    <button type="submit" class="button">Genereer invulformulieren</button>
   </form>
 <script>
 const groupOptions = `{% for g in groups_from %}<option value="{{ g }}">{{ g }}</option>{% endfor %}`;
@@ -147,17 +158,6 @@ function addGroupField() {
 {% endif %}
 
 
-
-
-<p>Download hier de invulbestanden:</p>
-<div class="download-buttons" style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
-    <a href="{{ url_for('download_template', filename='voorkeuren.xlsx') }}" class="button">Download
-        Voorkeuren</a>
-    <a href="{{ url_for('download_template', filename='groepen.xlsx') }}" class="button">Download Groepen</a>
-    <a href="{{ url_for('download_template', filename='niet_samen.xlsx') }}" class="button">Download
-        Niet-samen</a>
-</div>
-
 <div class="instructions-box">
     <h2>Invulinstructies</h2>
 
@@ -209,7 +209,7 @@ function addGroupField() {
 
 
 <div class="step-navigation">
-    <a href="{{ url_for('upload_files') }}" class="button next-step">Naar uploaden →</a>
+    <a href="{{ url_for('upload_files') }}" class="button next-step">Ik heb de invulformulieren <br>Naar uploaden →</a>
 </div>
 
 </div>
