@@ -132,9 +132,17 @@ def fillin():
             new_students = _extract_new_students(request.form)
             existing_groups = extract_selected_per_group(request.form)
             selected_ids = request.form.getlist("students")
+
             new_groups = [
                 grp for grp in request.form.getlist("new_groups[]") if grp.strip()
             ]
+            if len(new_students) + len(selected_ids) == 0:
+                flash("Er moet minsten één leerling aanwezig zijn", "error")
+                redirect(url_for("fillin"))
+            if not new_groups + list(existing_groups.keys()):
+                flash("Er moet minstens één groep aanwezig zijn", "error")
+                redirect(url_for("fillin"))
+
             groups_to, df_total = candidatedetermination.handle_form_submission(
                 existing_groups,
                 new_groups,
