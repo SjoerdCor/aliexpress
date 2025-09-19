@@ -64,9 +64,7 @@
     {% endfor %}
   </div>
 
-  <h3>Nieuwe groep toevoegen</h3>
   <div id="new-groups">
-    <input type="text" name="new_groups[]" placeholder="Groepsnaam">
   </div>
   <button type="button" onclick="addGroupField()">+ Nog een groep</button>
 
@@ -97,7 +95,22 @@ function addStudentField() {
 function addGroupField() {
   const container = document.getElementById("new-groups");
   const row = document.createElement("div");
-  row.innerHTML = `<input type="text" name="new_groups[]" placeholder="Groepsnaam">`;
+  row.className = "group-row";
+
+  const input = document.createElement("input");
+  input.type = "text";
+  input.name = "new_groups[]";
+  input.placeholder = "Groepsnaam";
+  input.required = true;
+
+  const removeBtn = document.createElement("button");
+  removeBtn.type = "button";
+  removeBtn.textContent = "✖";
+  removeBtn.style.cursor = "pointer";
+  removeBtn.onclick = () => row.remove();
+
+  row.appendChild(input);
+  row.appendChild(removeBtn);
   container.appendChild(row);
 }
 
@@ -110,6 +123,25 @@ function addGroupField() {
   }
   .student-row input, .student-row select {
     flex: 1;
+  }
+
+  .group-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-bottom: 5px;
+  }
+
+  .group-row input {
+    flex: 1;
+  }
+
+  .group-row button {
+    cursor: pointer;
+    background: none;
+    border: none;
+    font-size: 16px;
+    color: red;
   }
 </style>
 
