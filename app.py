@@ -4,12 +4,11 @@ import logging
 import os
 import uuid
 import webbrowser
-from collections import Counter, defaultdict
+from collections import defaultdict
 from io import BytesIO
 from threading import Thread
 
 import numpy as np
-import pandas as pd
 import pandera as pa
 from dotenv import load_dotenv
 from flask import (
@@ -25,7 +24,7 @@ from flask import (
     url_for,
 )
 
-from aliexpress import datareader, input_writer, sociogram
+from aliexpress import candidatedetermination, datareader, input_writer, sociogram
 from aliexpress.errors import (
     CouldNotReadFileError,
     FeasibilityError,
@@ -99,117 +98,55 @@ def fillin():
     """Display and process the fillin page"""
     if request.method == "POST":
         if "edexml" in request.files:
-            return _handle_edexml_upload(request)
+            edexml = file_to_io(request.files["edexml"])
+            jaargroep = int(request.form["jaargroep"])
+            df = datareader.EdexReader(edexml).get_full_df()
+
+            candidates, groups_from, groups_to = (
+                candidatedetermination.handle_edexml_upload(df, jaargroep)
+            )
+            # Later the values will be retrieved based on key (which are selected in the app)
+            temp_storage["candidates"] = candidates
+
+            return render_template(
+                "fillin.html",
+                candidates=candidates,
+                groups_from=groups_from,
+                groups_to=groups_to,
+                uploaded=True,
+            )
         else:
-            return _handle_form_submission(request)
+            new_students = _extract_new_students(request.form)
+            existing_groups = extract_selected_per_group(request.form)
+            selected_ids = request.form.getlist("students")
+            new_groups = [
+                grp for grp in request.form.get("new_groups[]", []) if grp.strip()
+            ]
+            groups_to, df_total = candidatedetermination.handle_form_submission(
+                existing_groups,
+                new_groups,
+                temp_storage["candidates"],
+                new_students,
+                selected_ids,
+            )
+            zip_buffer = input_writer.create_zip_with_templates(groups_to, df_total)
+
+            return send_file(
+                zip_buffer,
+                as_attachment=True,
+                download_name="invulformulieren.zip",
+                mimetype="application/zip",
+            )
 
     return render_template("fillin.html")
 
 
-def _handle_edexml_upload(req):
-    """Process uploaded edexml and render candidates + groups"""
-    edexml = file_to_io(req.files["edexml"])
-    jaargroep = int(req.form["jaargroep"])
-    df = datareader.EdexReader(edexml).get_full_df()
-
-    candidates = (
-        df.loc[lambda df: df["jaargroep"] == jaargroep]
-        .sort_values(["groepsnaam", "roepnaam", "achternaam"])
-        .reset_index()
-        .filter(
-            ["key", "roepnaam", "achternaam", "groepsnaam", "geslacht"], axis="columns"
-        )
-        .to_dict(orient="records")
-    )
-    # Later the values will be retrieved based on key (which are selected in the app)
-    temp_storage["candidates"] = candidates
-
-    groups_from = (
-        df.loc[lambda df: df["jaargroep"] == jaargroep, "groepsnaam"].unique().tolist()
-    ) + ["Anders"]
-
-    groupnames_to = (
-        df.loc[lambda df: df["jaargroep"] == jaargroep + 1, "groepsnaam"]
-        .unique()
-        .tolist()
-    )
-
-    groups_to = (
-        df.loc[lambda df: df["groepsnaam"].isin(groupnames_to)]
-        .assign(
-            blijft_in_groep=lambda df: df["jaargroep"]
-            < df.groupby("groepsnaam")["jaargroep"].transform("max")
-        )
-        .sort_values(["groepsnaam", "jaargroep", "geslacht"])
-        .groupby("groepsnaam")
-        .apply(
-            lambda g: g[
-                ["roepnaam", "achternaam", "geslacht", "jaargroep", "blijft_in_groep"]
-            ].to_dict(orient="records")
-        )
-        .to_dict()
-    )
-
-    return render_template(
-        "fillin.html",
-        candidates=candidates,
-        groups_from=groups_from,
-        groups_to=groups_to,
-        uploaded=True,
-    )
-
-
-def _handle_form_submission(req):
-    """Process the form after candidates have been selected and groups defined"""
-    formdata = req.form.to_dict(flat=False)
-
-    selected_per_group = _extract_selected_per_group(formdata)
-    groups_to = _build_groups_summary(selected_per_group, formdata)
-
-    selected_ids = req.form.getlist("students")
-    new_students = _extract_new_students(req)
-
-    df_total = _combine_students(temp_storage["candidates"], selected_ids, new_students)
-
-    zip_buffer = input_writer.create_zip_with_templates(groups_to, df_total)
-
-    return send_file(
-        zip_buffer,
-        as_attachment=True,
-        download_name="invulformulieren.zip",
-        mimetype="application/zip",
-    )
-
-
-def _extract_selected_per_group(formdata):
-    """Extract students assigned to each group from formdata"""
-    selected = defaultdict(list)
-    for key, values in formdata.items():
-        if key.startswith("group_students["):
-            groupname = key[len("group_students[") : -1]  # extract text inside [ ]
-            selected[groupname].extend(values)
-    return selected
-
-
-def _build_groups_summary(selected_per_group, formdata):
-    """Build a summary of groups with counts of boys and girls"""
-    groups_to = {}
-    for g, lst in selected_per_group.items():
-        c = Counter(lst)
-        groups_to[g] = {"Jongens": c.get("Jongen", 0), "Meisjes": c.get("Meisje", 0)}
-
-    for g in [grp for grp in formdata.get("new_groups[]", []) if grp.strip()]:
-        groups_to.setdefault(g, {"Jongens": 0, "Meisjes": 0})
-
-    return groups_to
-
-
-def _extract_new_students(req):
+def _extract_new_students(form):
     """Extract manually added students from form fields"""
-    firstnames = req.form.getlist("new_firstname[]")
-    lastnames = req.form.getlist("new_lastname[]")
-    genders = req.form.getlist("new_gender[]")
-    groups = req.form.getlist("new_group[]")
+    firstnames = form.getlist("new_firstname[]")
+    lastnames = form.getlist("new_lastname[]")
+    genders = form.getlist("new_gender[]")
+    groups = form.getlist("new_group[]")
 
     return [
         {"roepnaam": fn, "achternaam": ln, "geslacht": sex, "groepsnaam": gr}
@@ -218,27 +155,22 @@ def _extract_new_students(req):
     ]
 
 
-def _combine_students(candidates, selected_ids, new_students):
-    """Combine selected and new students into a single DataFrame"""
-    df_original = pd.DataFrame(candidates).set_index("key").loc[selected_ids]
-    df_new = pd.DataFrame(new_students)
-    return (
-        pd.concat([df_original, df_new])
-        .assign(uniekenaam=create_unique_name)
-        .sort_values(["groepsnaam", "uniekenaam"])
-    )
+def extract_selected_per_group(form):
+    """
+    Extract students assigned to each group from form data.
 
+    Args:
+        form: werkzeug MultiDict (e.g., request.form)
 
-def create_unique_name(df: pd.DataFrame) -> pd.Series:
-    """Find unique name per leerling. Needs roepnaam and achternaam"""
-    unique_names = df["roepnaam"] + " "
-
-    n_letters_added = 0
-    while unique_names.duplicated().any():
-        for ix in unique_names[unique_names.duplicated(keep=False)].index:
-            unique_names[ix] += df.loc[ix, "achternaam"][n_letters_added]
-        n_letters_added += 1
-    return unique_names.str.strip()
+    Returns:
+        dict[str, list[str]]: mapping of groupname → list of selected students
+    """
+    selected = defaultdict(list)
+    for key in form:
+        if key.startswith("group_students["):
+            groupname = key[len("group_students[") : -1]  # text inside [ ]
+            selected[groupname].extend(form.getlist(key))
+    return selected
 
 
 def to_validation_message(exc: Exception) -> str:
