@@ -34,7 +34,7 @@ In het volgende scherm kun je dan controleren of het allemaal klopt.
 {% else %}
   <h2>Selecteer leerlingen die doorgaan</h2>
   <p>Vink aan wie naar de volgende groep gaan. Verlengers kunnen uitgevinkt worden. Als er nog leerlingen missen kun je die onderaan toevoegen</p>
-  <form method="post">
+  <form method="post" onsubmit="return validateForm()">
     {% for student in candidates %}
       <label>
         <input type="checkbox" name="students" value="{{ student.key }}" checked>
@@ -119,6 +119,25 @@ function addGroupField() {
   row.appendChild(removeBtn);
   container.appendChild(row);
 }
+
+function validateForm() {
+    const originalStudents = document.querySelectorAll('input[name="students"]');
+    const newStudents = document.querySelectorAll('#new-students input[name="new_firstname[]"]');
+    if (originalStudents.length + newStudents.length === 0) {
+        alert("Er moeten minstens één leerling aanwezig zijn.");
+        return false;
+    }
+
+    const groupBlocks = document.querySelectorAll('#groups-to .group-block');
+    const newGroups = document.querySelectorAll('#new-groups input[name="new_groups[]"]');
+    if (groupBlocks.length + newGroups.length === 0) {
+        alert("Er moeten minstens één groep aanwezig zijn.");
+        return false;
+    }
+
+    return true;
+}
+
 
 </script>
 <style>
