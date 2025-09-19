@@ -5,12 +5,18 @@ from collections import Counter
 import pandas as pd
 
 
-def get_candidates(df: pd.DataFrame, jaargroep: int):
+def get_candidates(df: pd.DataFrame, jaargroep: int) -> list:
     """Return list of candidates for the given jaargroep."""
     df_current = df[df["jaargroep"] == jaargroep]
-    return df_current.sort_values(["groepsnaam", "roepnaam", "achternaam"])[
-        ["key", "roepnaam", "achternaam", "groepsnaam", "geslacht"]
-    ].to_dict(orient="records")
+    if df_current.empty:
+        return []
+    relevant_columns = ["key", "roepnaam", "achternaam", "groepsnaam", "geslacht"]
+
+    return (
+        df_current.reset_index()
+        .sort_values(["groepsnaam", "roepnaam", "achternaam"])[relevant_columns]
+        .to_dict(orient="records")
+    )
 
 
 def get_groups_from(df: pd.DataFrame, jaargroep: int):
