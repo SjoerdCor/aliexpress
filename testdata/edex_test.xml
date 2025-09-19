@@ -1,0 +1,3187 @@
+<?xml version="1.0" ?>
+<EDEX>
+  <groepen>
+    <groep key="223005401501_lj_1">
+      <naam>1-2 Otters (Leerkracht1 en Leerkracht2)</naam>
+      <jaargroep>1</jaargroep>
+    </groep>
+    <groep key="223005401501_lj_2">
+      <naam>1-2 Otters (Leerkracht1 en Leerkracht2)</naam>
+      <jaargroep>2</jaargroep>
+    </groep>
+    <groep key="403832645883_lj_1">
+      <naam>1-2 Haaien (Leerkracht1 en Leerkracht2)</naam>
+      <jaargroep>1</jaargroep>
+    </groep>
+    <groep key="403832645883_lj_2">
+      <naam>1-2 Haaien (Leerkracht1 en Leerkracht2)</naam>
+      <jaargroep>2</jaargroep>
+    </groep>
+    <groep key="251282538206_lj_1">
+      <naam>1-2 Vossen (Leerkracht1 en Leerkracht2)</naam>
+      <jaargroep>1</jaargroep>
+    </groep>
+    <groep key="251282538206_lj_2">
+      <naam>1-2 Vossen (Leerkracht1 en Leerkracht2)</naam>
+      <jaargroep>2</jaargroep>
+    </groep>
+    <groep key="914655221101_lj_3">
+      <naam>3-4-5 Pinguins (Leerkracht1 en Leerkracht2)</naam>
+      <jaargroep>3</jaargroep>
+    </groep>
+    <groep key="914655221101_lj_4">
+      <naam>3-4-5 Pinguins (Leerkracht1 en Leerkracht2)</naam>
+      <jaargroep>4</jaargroep>
+    </groep>
+    <groep key="914655221101_lj_5">
+      <naam>3-4-5 Pinguins (Leerkracht1 en Leerkracht2)</naam>
+      <jaargroep>5</jaargroep>
+    </groep>
+    <groep key="566392613993_lj_3">
+      <naam>3-4-5 Panda's (Leerkracht1 en Leerkracht2)</naam>
+      <jaargroep>3</jaargroep>
+    </groep>
+    <groep key="566392613993_lj_4">
+      <naam>3-4-5 Panda's (Leerkracht1 en Leerkracht2)</naam>
+      <jaargroep>4</jaargroep>
+    </groep>
+    <groep key="566392613993_lj_5">
+      <naam>3-4-5 Panda's (Leerkracht1 en Leerkracht2)</naam>
+      <jaargroep>5</jaargroep>
+    </groep>
+    <groep key="198912225902_lj_3">
+      <naam>3-4-5 Dolfijnen (Leerkracht1 en Leerkracht2)</naam>
+      <jaargroep>3</jaargroep>
+    </groep>
+    <groep key="198912225902_lj_4">
+      <naam>3-4-5 Dolfijnen (Leerkracht1 en Leerkracht2)</naam>
+      <jaargroep>4</jaargroep>
+    </groep>
+    <groep key="198912225902_lj_5">
+      <naam>3-4-5 Dolfijnen (Leerkracht1 en Leerkracht2)</naam>
+      <jaargroep>5</jaargroep>
+    </groep>
+    <groep key="655050052120_lj_6">
+      <naam>6-7-8 Otters (Leerkracht1 en Leerkracht2)</naam>
+      <jaargroep>6</jaargroep>
+    </groep>
+    <groep key="655050052120_lj_7">
+      <naam>6-7-8 Otters (Leerkracht1 en Leerkracht2)</naam>
+      <jaargroep>7</jaargroep>
+    </groep>
+    <groep key="655050052120_lj_8">
+      <naam>6-7-8 Otters (Leerkracht1 en Leerkracht2)</naam>
+      <jaargroep>8</jaargroep>
+    </groep>
+    <groep key="317158893990_lj_6">
+      <naam>6-7-8 Elanden (Leerkracht1 en Leerkracht2)</naam>
+      <jaargroep>6</jaargroep>
+    </groep>
+    <groep key="317158893990_lj_7">
+      <naam>6-7-8 Elanden (Leerkracht1 en Leerkracht2)</naam>
+      <jaargroep>7</jaargroep>
+    </groep>
+    <groep key="317158893990_lj_8">
+      <naam>6-7-8 Elanden (Leerkracht1 en Leerkracht2)</naam>
+      <jaargroep>8</jaargroep>
+    </groep>
+    <groep key="590573056992_lj_6">
+      <naam>6-7-8 Krabben (Leerkracht1 en Leerkracht2)</naam>
+      <jaargroep>6</jaargroep>
+    </groep>
+    <groep key="590573056992_lj_7">
+      <naam>6-7-8 Krabben (Leerkracht1 en Leerkracht2)</naam>
+      <jaargroep>7</jaargroep>
+    </groep>
+    <groep key="590573056992_lj_8">
+      <naam>6-7-8 Krabben (Leerkracht1 en Leerkracht2)</naam>
+      <jaargroep>8</jaargroep>
+    </groep>
+  </groepen>
+  <leerlingen>
+    <leerling>
+      <key>4657</key>
+      <achternaam>Heere</achternaam>
+      <voornamen>Ayden</voornamen>
+      <voorletters>A</voorletters>
+      <roepnaam>Ayden</roepnaam>
+      <geboortedatum>2016-11-11</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>5</jaargroep>
+      <groep key="198912225902_lj_5"/>
+      <instroomdatum>2022-01-14</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>7912</key>
+      <achternaam>Jansdr</achternaam>
+      <voornamen>Kyra</voornamen>
+      <voorletters>K</voorletters>
+      <roepnaam>Kyra</roepnaam>
+      <geboortedatum>2014-03-06</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="317158893990_lj_6"/>
+      <instroomdatum>2020-07-27</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>1434</key>
+      <achternaam>Bos</achternaam>
+      <voornamen>Bas Dirk Kay</voornamen>
+      <voorletters>BDK</voorletters>
+      <roepnaam>Bas</roepnaam>
+      <geboortedatum>2021-04-18</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>1</jaargroep>
+      <groep key="251282538206_lj_1"/>
+      <instroomdatum>2021-09-04</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>4611</key>
+      <achternaam>Manne</achternaam>
+      <voornamen>Julia Hanna</voornamen>
+      <voorletters>JH</voorletters>
+      <roepnaam>Julia</roepnaam>
+      <geboortedatum>2019-11-01</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>4</jaargroep>
+      <groep key="566392613993_lj_4"/>
+      <instroomdatum>2024-05-02</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>7924</key>
+      <achternaam>Haeften</achternaam>
+      <voornamen>Elize Mathijs</voornamen>
+      <voorletters>EM</voorletters>
+      <roepnaam>Elize</roepnaam>
+      <geboortedatum>2015-06-01</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>5</jaargroep>
+      <groep key="566392613993_lj_5"/>
+      <instroomdatum>2019-10-03</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>2674</key>
+      <achternaam>Voortman</achternaam>
+      <voornamen>Mathijs Jari</voornamen>
+      <voorletters>MJ</voorletters>
+      <roepnaam>Mathijs</roepnaam>
+      <geboortedatum>2018-06-04</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>7</jaargroep>
+      <groep key="590573056992_lj_7"/>
+      <instroomdatum>2021-07-12</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>6635</key>
+      <achternaam>Geertsen</achternaam>
+      <voornamen>Ruben</voornamen>
+      <voorletters>R</voorletters>
+      <roepnaam>Ruben</roepnaam>
+      <geboortedatum>2018-10-21</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>4</jaargroep>
+      <groep key="198912225902_lj_4"/>
+      <instroomdatum>2020-07-09</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>9785</key>
+      <achternaam>Rotteveel</achternaam>
+      <voornamen>Madelief</voornamen>
+      <voorletters>M</voorletters>
+      <roepnaam>Madelief</roepnaam>
+      <geboortedatum>2020-07-06</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>2</jaargroep>
+      <groep key="251282538206_lj_2"/>
+      <instroomdatum>2020-01-25</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>5803</key>
+      <achternaam>Hoes</achternaam>
+      <voornamen>Zara Senna</voornamen>
+      <voorletters>ZS</voorletters>
+      <roepnaam>Zara</roepnaam>
+      <geboortedatum>2014-01-14</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>4</jaargroep>
+      <groep key="914655221101_lj_4"/>
+      <instroomdatum>2022-12-02</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>1750</key>
+      <achternaam>Wolzak</achternaam>
+      <voornamen>Eline</voornamen>
+      <voorletters>E</voorletters>
+      <roepnaam>Eline</roepnaam>
+      <geboortedatum>2013-11-18</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="655050052120_lj_6"/>
+      <instroomdatum>2021-05-02</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>4814</key>
+      <achternaam>Oda</achternaam>
+      <voornamen>Livia</voornamen>
+      <voorletters>L</voorletters>
+      <roepnaam>Livia</roepnaam>
+      <geboortedatum>2014-01-20</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="590573056992_lj_6"/>
+      <instroomdatum>2022-02-28</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>3664</key>
+      <achternaam>Goedhart</achternaam>
+      <voornamen>Ruben Mathijs</voornamen>
+      <voorletters>RM</voorletters>
+      <roepnaam>Ruben</roepnaam>
+      <geboortedatum>2018-11-26</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>7</jaargroep>
+      <groep key="317158893990_lj_7"/>
+      <instroomdatum>2023-07-22</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>2169</key>
+      <achternaam>Zwijsen</achternaam>
+      <voornamen>Quinn</voornamen>
+      <voorletters>Q</voorletters>
+      <roepnaam>Quinn</roepnaam>
+      <geboortedatum>2017-03-28</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>2</jaargroep>
+      <groep key="403832645883_lj_2"/>
+      <instroomdatum>2021-06-24</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>8573</key>
+      <achternaam>Kronenberg</achternaam>
+      <voornamen>Benthe Kayleigh</voornamen>
+      <voorletters>BK</voorletters>
+      <roepnaam>Benthe</roepnaam>
+      <geboortedatum>2015-06-24</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>5</jaargroep>
+      <groep key="198912225902_lj_5"/>
+      <instroomdatum>2021-10-12</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>6313</key>
+      <achternaam>Gruijl</achternaam>
+      <voornamen>Marinus Sienna</voornamen>
+      <voorletters>MS</voorletters>
+      <roepnaam>Marinus</roepnaam>
+      <geboortedatum>2016-06-07</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>7</jaargroep>
+      <groep key="317158893990_lj_7"/>
+      <instroomdatum>2024-06-08</instroomdatum>
+      <voorvoegsel>de</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>5386</key>
+      <achternaam>Coolen</achternaam>
+      <voornamen>Kyan Maud Bastiaan</voornamen>
+      <voorletters>KMB</voorletters>
+      <roepnaam>Kyan</roepnaam>
+      <geboortedatum>2019-07-10</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>3</jaargroep>
+      <groep key="566392613993_lj_3"/>
+      <instroomdatum>2022-05-20</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>4483</key>
+      <achternaam>Dijkstra</achternaam>
+      <voornamen>Jurre Sanne</voornamen>
+      <voorletters>JS</voorletters>
+      <roepnaam>Jurre</roepnaam>
+      <geboortedatum>2018-01-19</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="317158893990_lj_6"/>
+      <instroomdatum>2024-07-10</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>5339</key>
+      <achternaam>Westfalen</achternaam>
+      <voornamen>Senn</voornamen>
+      <voorletters>S</voorletters>
+      <roepnaam>Senn</roepnaam>
+      <geboortedatum>2015-02-16</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>2</jaargroep>
+      <groep key="251282538206_lj_2"/>
+      <instroomdatum>2023-08-08</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>8019</key>
+      <achternaam>Jansdr</achternaam>
+      <voornamen>Loek Lauren Daphne</voornamen>
+      <voorletters>LLD</voorletters>
+      <roepnaam>Loek</roepnaam>
+      <geboortedatum>2017-03-02</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>3</jaargroep>
+      <groep key="566392613993_lj_3"/>
+      <instroomdatum>2024-04-13</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>9085</key>
+      <achternaam>Vroege</achternaam>
+      <voornamen>Ravi Keano</voornamen>
+      <voorletters>RK</voorletters>
+      <roepnaam>Ravi</roepnaam>
+      <geboortedatum>2021-05-14</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>7</jaargroep>
+      <groep key="317158893990_lj_7"/>
+      <instroomdatum>2020-11-15</instroomdatum>
+      <voorvoegsel>de</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>3621</key>
+      <achternaam>Garret</achternaam>
+      <voornamen>Lily Boaz Nina</voornamen>
+      <voorletters>LBN</voorletters>
+      <roepnaam>Lily</roepnaam>
+      <geboortedatum>2015-04-19</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>5</jaargroep>
+      <groep key="566392613993_lj_5"/>
+      <instroomdatum>2020-08-18</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>7252</key>
+      <achternaam>Brenen</achternaam>
+      <voornamen>Esila</voornamen>
+      <voorletters>E</voorletters>
+      <roepnaam>Esila</roepnaam>
+      <geboortedatum>2019-03-30</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>3</jaargroep>
+      <groep key="914655221101_lj_3"/>
+      <instroomdatum>2020-03-28</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>2876</key>
+      <achternaam>Mare</achternaam>
+      <voornamen>Aylin Luc</voornamen>
+      <voorletters>AL</voorletters>
+      <roepnaam>Aylin</roepnaam>
+      <geboortedatum>2012-11-22</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>4</jaargroep>
+      <groep key="566392613993_lj_4"/>
+      <instroomdatum>2024-05-27</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>2827</key>
+      <achternaam>Linden</achternaam>
+      <voornamen>Lieke</voornamen>
+      <voorletters>L</voorletters>
+      <roepnaam>Lieke</roepnaam>
+      <geboortedatum>2018-06-26</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>5</jaargroep>
+      <groep key="566392613993_lj_5"/>
+      <instroomdatum>2021-12-19</instroomdatum>
+      <voorvoegsel>van der</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>9201</key>
+      <achternaam>Soos</achternaam>
+      <voornamen>Thomas Jason Twan</voornamen>
+      <voorletters>TJT</voorletters>
+      <roepnaam>Thomas</roepnaam>
+      <geboortedatum>2017-03-06</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>2</jaargroep>
+      <groep key="403832645883_lj_2"/>
+      <instroomdatum>2019-09-23</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>9317</key>
+      <achternaam>Lagerweij</achternaam>
+      <voornamen>Amira Sanne</voornamen>
+      <voorletters>AS</voorletters>
+      <roepnaam>Amira</roepnaam>
+      <geboortedatum>2017-10-10</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>8</jaargroep>
+      <groep key="655050052120_lj_8"/>
+      <instroomdatum>2020-08-08</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>6310</key>
+      <achternaam>Manne</achternaam>
+      <voornamen>Jan Roan Linn</voornamen>
+      <voorletters>JRL</voorletters>
+      <roepnaam>Jan</roepnaam>
+      <geboortedatum>2012-09-15</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>1</jaargroep>
+      <groep key="223005401501_lj_1"/>
+      <instroomdatum>2021-01-26</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>4923</key>
+      <achternaam>Spreuwel</achternaam>
+      <voornamen>Arie Finn Sofia</voornamen>
+      <voorletters>AFS</voorletters>
+      <roepnaam>Arie</roepnaam>
+      <geboortedatum>2017-12-05</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>2</jaargroep>
+      <groep key="251282538206_lj_2"/>
+      <instroomdatum>2022-10-14</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>2403</key>
+      <achternaam>Cornelisse</achternaam>
+      <voornamen>Levi Noëlle</voornamen>
+      <voorletters>LN</voorletters>
+      <roepnaam>Levi</roepnaam>
+      <geboortedatum>2014-01-14</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>8</jaargroep>
+      <groep key="317158893990_lj_8"/>
+      <instroomdatum>2024-07-10</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>3103</key>
+      <achternaam>Santen</achternaam>
+      <voornamen>Maria Collin Zoey</voornamen>
+      <voorletters>MCZ</voorletters>
+      <roepnaam>Maria</roepnaam>
+      <geboortedatum>2014-11-02</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>4</jaargroep>
+      <groep key="198912225902_lj_4"/>
+      <instroomdatum>2024-03-25</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>5342</key>
+      <achternaam>Olst</achternaam>
+      <voornamen>Tara</voornamen>
+      <voorletters>T</voorletters>
+      <roepnaam>Tara</roepnaam>
+      <geboortedatum>2015-07-05</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="655050052120_lj_6"/>
+      <instroomdatum>2024-05-17</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>6107</key>
+      <achternaam>Brink</achternaam>
+      <voornamen>Nora Evelien Sven</voornamen>
+      <voorletters>NES</voorletters>
+      <roepnaam>Nora</roepnaam>
+      <geboortedatum>2016-02-13</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="655050052120_lj_6"/>
+      <instroomdatum>2021-07-02</instroomdatum>
+      <voorvoegsel>van der</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>9479</key>
+      <achternaam>Vroege</achternaam>
+      <voornamen>Isabelle</voornamen>
+      <voorletters>I</voorletters>
+      <roepnaam>Isabelle</roepnaam>
+      <geboortedatum>2020-02-25</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>4</jaargroep>
+      <groep key="914655221101_lj_4"/>
+      <instroomdatum>2022-11-16</instroomdatum>
+      <voorvoegsel>de</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>2049</key>
+      <achternaam>Haspengouw Hesbaye</achternaam>
+      <voornamen>Giel</voornamen>
+      <voorletters>G</voorletters>
+      <roepnaam>Giel</roepnaam>
+      <geboortedatum>2016-07-09</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>5</jaargroep>
+      <groep key="914655221101_lj_5"/>
+      <instroomdatum>2021-10-22</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>1117</key>
+      <achternaam>Vignon</achternaam>
+      <voornamen>Aron Elize Chloë</voornamen>
+      <voorletters>AEC</voorletters>
+      <roepnaam>Aron</roepnaam>
+      <geboortedatum>2016-06-11</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>2</jaargroep>
+      <groep key="223005401501_lj_2"/>
+      <instroomdatum>2021-08-27</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>2104</key>
+      <achternaam>Dries</achternaam>
+      <voornamen>Jolijn</voornamen>
+      <voorletters>J</voorletters>
+      <roepnaam>Jolijn</roepnaam>
+      <geboortedatum>2016-08-04</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>4</jaargroep>
+      <groep key="566392613993_lj_4"/>
+      <instroomdatum>2020-03-13</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>4899</key>
+      <achternaam>Borman</achternaam>
+      <voornamen>Nina Niels</voornamen>
+      <voorletters>NN</voorletters>
+      <roepnaam>Nina</roepnaam>
+      <geboortedatum>2021-06-11</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>8</jaargroep>
+      <groep key="590573056992_lj_8"/>
+      <instroomdatum>2020-04-20</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>9834</key>
+      <achternaam>Schipper</achternaam>
+      <voornamen>Isabella</voornamen>
+      <voorletters>I</voorletters>
+      <roepnaam>Isabella</roepnaam>
+      <geboortedatum>2016-05-05</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>3</jaargroep>
+      <groep key="566392613993_lj_3"/>
+      <instroomdatum>2023-10-30</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>4981</key>
+      <achternaam>Huijzing</achternaam>
+      <voornamen>Karlijn</voornamen>
+      <voorletters>K</voorletters>
+      <roepnaam>Karlijn</roepnaam>
+      <geboortedatum>2020-09-27</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="590573056992_lj_6"/>
+      <instroomdatum>2024-07-22</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>2545</key>
+      <achternaam>Noort</achternaam>
+      <voornamen>Madelief</voornamen>
+      <voorletters>M</voorletters>
+      <roepnaam>Madelief</roepnaam>
+      <geboortedatum>2015-12-09</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>7</jaargroep>
+      <groep key="590573056992_lj_7"/>
+      <instroomdatum>2023-02-28</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>7735</key>
+      <achternaam>Gerritsen</achternaam>
+      <voornamen>Inaya Thijs</voornamen>
+      <voorletters>IT</voorletters>
+      <roepnaam>Inaya</roepnaam>
+      <geboortedatum>2019-11-27</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>1</jaargroep>
+      <groep key="223005401501_lj_1"/>
+      <instroomdatum>2022-09-17</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>1993</key>
+      <achternaam>Maaren</achternaam>
+      <voornamen>Nisa Kayleigh</voornamen>
+      <voorletters>NK</voorletters>
+      <roepnaam>Nisa</roepnaam>
+      <geboortedatum>2014-05-16</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>1</jaargroep>
+      <groep key="223005401501_lj_1"/>
+      <instroomdatum>2020-02-28</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>4139</key>
+      <achternaam>Haag</achternaam>
+      <voornamen>Kaylee Olaf</voornamen>
+      <voorletters>KO</voorletters>
+      <roepnaam>Kaylee</roepnaam>
+      <geboortedatum>2016-12-05</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>8</jaargroep>
+      <groep key="317158893990_lj_8"/>
+      <instroomdatum>2020-08-17</instroomdatum>
+      <voorvoegsel>den</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>5563</key>
+      <achternaam>Lips</achternaam>
+      <voornamen>Bibi Tobias Imran</voornamen>
+      <voorletters>BTI</voorletters>
+      <roepnaam>Bibi</roepnaam>
+      <geboortedatum>2015-10-27</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="317158893990_lj_6"/>
+      <instroomdatum>2023-04-15</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>2604</key>
+      <achternaam>Liendert</achternaam>
+      <voornamen>Lorenzo Norah</voornamen>
+      <voorletters>LN</voorletters>
+      <roepnaam>Lorenzo</roepnaam>
+      <geboortedatum>2020-03-27</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="317158893990_lj_6"/>
+      <instroomdatum>2020-05-04</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>2528</key>
+      <achternaam>Cammel</achternaam>
+      <voornamen>Hannah</voornamen>
+      <voorletters>H</voorletters>
+      <roepnaam>Hannah</roepnaam>
+      <geboortedatum>2012-12-12</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>8</jaargroep>
+      <groep key="655050052120_lj_8"/>
+      <instroomdatum>2024-04-18</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>4502</key>
+      <achternaam>Oversteeg</achternaam>
+      <voornamen>Jelle Sil</voornamen>
+      <voorletters>JS</voorletters>
+      <roepnaam>Jelle</roepnaam>
+      <geboortedatum>2020-11-20</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>3</jaargroep>
+      <groep key="914655221101_lj_3"/>
+      <instroomdatum>2023-10-30</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>1035</key>
+      <achternaam>Wit</achternaam>
+      <voornamen>Roos Bryan</voornamen>
+      <voorletters>RB</voorletters>
+      <roepnaam>Roos</roepnaam>
+      <geboortedatum>2019-02-22</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>3</jaargroep>
+      <groep key="566392613993_lj_3"/>
+      <instroomdatum>2021-02-05</instroomdatum>
+      <voorvoegsel>de</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>7930</key>
+      <achternaam>Lange</achternaam>
+      <voornamen>Maarten</voornamen>
+      <voorletters>M</voorletters>
+      <roepnaam>Maarten</roepnaam>
+      <geboortedatum>2017-07-20</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>3</jaargroep>
+      <groep key="566392613993_lj_3"/>
+      <instroomdatum>2023-07-27</instroomdatum>
+      <voorvoegsel>de</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>9883</key>
+      <achternaam>Schevinghuizen</achternaam>
+      <voornamen>Jari Jonathan Melle</voornamen>
+      <voorletters>JJM</voorletters>
+      <roepnaam>Jari</roepnaam>
+      <geboortedatum>2013-09-10</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>3</jaargroep>
+      <groep key="566392613993_lj_3"/>
+      <instroomdatum>2021-07-20</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>8811</key>
+      <achternaam>Dachgelder</achternaam>
+      <voornamen>Leah Mohamed</voornamen>
+      <voorletters>LM</voorletters>
+      <roepnaam>Leah</roepnaam>
+      <geboortedatum>2013-07-20</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>5</jaargroep>
+      <groep key="914655221101_lj_5"/>
+      <instroomdatum>2020-03-08</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>9320</key>
+      <achternaam>Biezenbos</achternaam>
+      <voornamen>Selena Nadine Azra</voornamen>
+      <voorletters>SNA</voorletters>
+      <roepnaam>Selena</roepnaam>
+      <geboortedatum>2013-08-31</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>4</jaargroep>
+      <groep key="914655221101_lj_4"/>
+      <instroomdatum>2021-01-14</instroomdatum>
+      <voorvoegsel>van de</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>7615</key>
+      <achternaam>Estey</achternaam>
+      <voornamen>Nadia Johannes Collin</voornamen>
+      <voorletters>NJC</voorletters>
+      <roepnaam>Nadia</roepnaam>
+      <geboortedatum>2016-09-12</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="655050052120_lj_6"/>
+      <instroomdatum>2020-04-11</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>2343</key>
+      <achternaam>Heribert van Laon</achternaam>
+      <voornamen>Suze Pleun Ecrin</voornamen>
+      <voorletters>SPE</voorletters>
+      <roepnaam>Suze</roepnaam>
+      <geboortedatum>2013-05-16</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>5</jaargroep>
+      <groep key="198912225902_lj_5"/>
+      <instroomdatum>2021-10-16</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>6183</key>
+      <achternaam>Berkum</achternaam>
+      <voornamen>Imke</voornamen>
+      <voorletters>I</voorletters>
+      <roepnaam>Imke</roepnaam>
+      <geboortedatum>2021-08-04</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>2</jaargroep>
+      <groep key="403832645883_lj_2"/>
+      <instroomdatum>2024-08-30</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>5351</key>
+      <achternaam>Robbrechts Bruijne</achternaam>
+      <voornamen>Joël Isabella Julia</voornamen>
+      <voorletters>JIJ</voorletters>
+      <roepnaam>Joël</roepnaam>
+      <geboortedatum>2016-10-04</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>5</jaargroep>
+      <groep key="566392613993_lj_5"/>
+      <instroomdatum>2022-05-16</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>6180</key>
+      <achternaam>Ruiter</achternaam>
+      <voornamen>Hidde Isabelle Guusje</voornamen>
+      <voorletters>HIG</voorletters>
+      <roepnaam>Hidde</roepnaam>
+      <geboortedatum>2020-06-23</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>1</jaargroep>
+      <groep key="403832645883_lj_1"/>
+      <instroomdatum>2022-04-02</instroomdatum>
+      <voorvoegsel>de</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>2200</key>
+      <achternaam>Dubois</achternaam>
+      <voornamen>Alex</voornamen>
+      <voorletters>A</voorletters>
+      <roepnaam>Alex</roepnaam>
+      <geboortedatum>2014-05-26</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>7</jaargroep>
+      <groep key="317158893990_lj_7"/>
+      <instroomdatum>2023-08-06</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>2127</key>
+      <achternaam>Maath</achternaam>
+      <voornamen>Justin Amira Maarten</voornamen>
+      <voorletters>JAM</voorletters>
+      <roepnaam>Justin</roepnaam>
+      <geboortedatum>2018-08-20</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>4</jaargroep>
+      <groep key="198912225902_lj_4"/>
+      <instroomdatum>2020-10-28</instroomdatum>
+      <voorvoegsel>van der</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>9666</key>
+      <achternaam>Pierson</achternaam>
+      <voornamen>Rik Matthijs Jason</voornamen>
+      <voorletters>RMJ</voorletters>
+      <roepnaam>Rik</roepnaam>
+      <geboortedatum>2017-11-04</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>3</jaargroep>
+      <groep key="566392613993_lj_3"/>
+      <instroomdatum>2023-06-05</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>2697</key>
+      <achternaam>Arens</achternaam>
+      <voornamen>Isabel</voornamen>
+      <voorletters>I</voorletters>
+      <roepnaam>Isabel</roepnaam>
+      <geboortedatum>2017-10-16</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>5</jaargroep>
+      <groep key="914655221101_lj_5"/>
+      <instroomdatum>2024-06-01</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>3546</key>
+      <achternaam>Hulskes</achternaam>
+      <voornamen>Maarten</voornamen>
+      <voorletters>M</voorletters>
+      <roepnaam>Maarten</roepnaam>
+      <geboortedatum>2014-07-09</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>4</jaargroep>
+      <groep key="566392613993_lj_4"/>
+      <instroomdatum>2020-09-05</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>4335</key>
+      <achternaam>Schagen</achternaam>
+      <voornamen>Matthias Eva</voornamen>
+      <voorletters>ME</voorletters>
+      <roepnaam>Matthias</roepnaam>
+      <geboortedatum>2018-07-13</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>4</jaargroep>
+      <groep key="198912225902_lj_4"/>
+      <instroomdatum>2021-06-28</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>2512</key>
+      <achternaam>Roosenboom</achternaam>
+      <voornamen>Amina Zakaria</voornamen>
+      <voorletters>AZ</voorletters>
+      <roepnaam>Amina</roepnaam>
+      <geboortedatum>2013-07-24</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="317158893990_lj_6"/>
+      <instroomdatum>2021-11-01</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>6464</key>
+      <achternaam>Breukelveen</achternaam>
+      <voornamen>Melissa Mason</voornamen>
+      <voorletters>MM</voorletters>
+      <roepnaam>Melissa</roepnaam>
+      <geboortedatum>2012-10-04</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>4</jaargroep>
+      <groep key="914655221101_lj_4"/>
+      <instroomdatum>2020-01-27</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>8007</key>
+      <achternaam>Huijben</achternaam>
+      <voornamen>Floor Zoë Luuk</voornamen>
+      <voorletters>FZL</voorletters>
+      <roepnaam>Floor</roepnaam>
+      <geboortedatum>2020-03-19</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>3</jaargroep>
+      <groep key="914655221101_lj_3"/>
+      <instroomdatum>2021-01-27</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>7049</key>
+      <achternaam>Ariens Ansems</achternaam>
+      <voornamen>Finn Damian Sylvie</voornamen>
+      <voorletters>FDS</voorletters>
+      <roepnaam>Finn</roepnaam>
+      <geboortedatum>2013-04-23</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>2</jaargroep>
+      <groep key="251282538206_lj_2"/>
+      <instroomdatum>2020-12-19</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>1653</key>
+      <achternaam>Jorlink</achternaam>
+      <voornamen>Thijs Hamza Berend</voornamen>
+      <voorletters>THB</voorletters>
+      <roepnaam>Thijs</roepnaam>
+      <geboortedatum>2018-11-25</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="655050052120_lj_6"/>
+      <instroomdatum>2022-04-27</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>6794</key>
+      <achternaam>Winnrich</achternaam>
+      <voornamen>Julius</voornamen>
+      <voorletters>J</voorletters>
+      <roepnaam>Julius</roepnaam>
+      <geboortedatum>2014-06-12</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>2</jaargroep>
+      <groep key="223005401501_lj_2"/>
+      <instroomdatum>2021-10-27</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>3662</key>
+      <achternaam>Gallen</achternaam>
+      <voornamen>Zara Faye Lena</voornamen>
+      <voorletters>ZFL</voorletters>
+      <roepnaam>Zara</roepnaam>
+      <geboortedatum>2016-09-22</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="317158893990_lj_6"/>
+      <instroomdatum>2021-01-05</instroomdatum>
+      <voorvoegsel>le</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>6442</key>
+      <achternaam>Laffray</achternaam>
+      <voornamen>Olivia Stan</voornamen>
+      <voorletters>OS</voorletters>
+      <roepnaam>Olivia</roepnaam>
+      <geboortedatum>2015-10-01</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>5</jaargroep>
+      <groep key="198912225902_lj_5"/>
+      <instroomdatum>2019-11-29</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>3608</key>
+      <achternaam>Allemanië</achternaam>
+      <voornamen>Lynn</voornamen>
+      <voorletters>L</voorletters>
+      <roepnaam>Lynn</roepnaam>
+      <geboortedatum>2017-03-27</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>5</jaargroep>
+      <groep key="566392613993_lj_5"/>
+      <instroomdatum>2021-10-23</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>4644</key>
+      <achternaam>Hak</achternaam>
+      <voornamen>Ryan</voornamen>
+      <voorletters>R</voorletters>
+      <roepnaam>Ryan</roepnaam>
+      <geboortedatum>2020-09-14</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>3</jaargroep>
+      <groep key="566392613993_lj_3"/>
+      <instroomdatum>2020-01-11</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>6000</key>
+      <achternaam>Mansveld</achternaam>
+      <voornamen>Marit</voornamen>
+      <voorletters>M</voorletters>
+      <roepnaam>Marit</roepnaam>
+      <geboortedatum>2018-08-24</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>1</jaargroep>
+      <groep key="251282538206_lj_1"/>
+      <instroomdatum>2023-08-13</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>6378</key>
+      <achternaam>Oda</achternaam>
+      <voornamen>Kian Ayden</voornamen>
+      <voorletters>KA</voorletters>
+      <roepnaam>Kian</roepnaam>
+      <geboortedatum>2019-06-23</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>4</jaargroep>
+      <groep key="914655221101_lj_4"/>
+      <instroomdatum>2021-05-05</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>9346</key>
+      <achternaam>Schipper</achternaam>
+      <voornamen>Nisa Collin</voornamen>
+      <voorletters>NC</voorletters>
+      <roepnaam>Nisa</roepnaam>
+      <geboortedatum>2018-09-02</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>7</jaargroep>
+      <groep key="655050052120_lj_7"/>
+      <instroomdatum>2022-01-27</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>1452</key>
+      <achternaam>Vrome</achternaam>
+      <voornamen>Ize Milou</voornamen>
+      <voorletters>IM</voorletters>
+      <roepnaam>Ize</roepnaam>
+      <geboortedatum>2018-05-01</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>1</jaargroep>
+      <groep key="403832645883_lj_1"/>
+      <instroomdatum>2024-04-04</instroomdatum>
+      <voorvoegsel>de</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>5349</key>
+      <achternaam>Hekker</achternaam>
+      <voornamen>Noëlle</voornamen>
+      <voorletters>N</voorletters>
+      <roepnaam>Noëlle</roepnaam>
+      <geboortedatum>2015-09-26</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>4</jaargroep>
+      <groep key="566392613993_lj_4"/>
+      <instroomdatum>2021-12-02</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>6139</key>
+      <achternaam>Bresse</achternaam>
+      <voornamen>Fedde</voornamen>
+      <voorletters>F</voorletters>
+      <roepnaam>Fedde</roepnaam>
+      <geboortedatum>2018-07-31</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>2</jaargroep>
+      <groep key="403832645883_lj_2"/>
+      <instroomdatum>2023-05-25</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>5173</key>
+      <achternaam>Egisheim</achternaam>
+      <voornamen>Evelien Amélie Floris</voornamen>
+      <voorletters>EAF</voorletters>
+      <roepnaam>Evelien</roepnaam>
+      <geboortedatum>2015-12-07</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>8</jaargroep>
+      <groep key="590573056992_lj_8"/>
+      <instroomdatum>2022-12-22</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>6967</key>
+      <achternaam>Bronder</achternaam>
+      <voornamen>Jolijn Ties Aaron</voornamen>
+      <voorletters>JTA</voorletters>
+      <roepnaam>Jolijn</roepnaam>
+      <geboortedatum>2016-01-19</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>5</jaargroep>
+      <groep key="198912225902_lj_5"/>
+      <instroomdatum>2024-02-14</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>3041</key>
+      <achternaam>Dommelen</achternaam>
+      <voornamen>Collin Tess</voornamen>
+      <voorletters>CT</voorletters>
+      <roepnaam>Collin</roepnaam>
+      <geboortedatum>2018-01-14</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>5</jaargroep>
+      <groep key="566392613993_lj_5"/>
+      <instroomdatum>2022-07-04</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>6344</key>
+      <achternaam>Steenbeek</achternaam>
+      <voornamen>Amira</voornamen>
+      <voorletters>A</voorletters>
+      <roepnaam>Amira</roepnaam>
+      <geboortedatum>2019-08-24</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>7</jaargroep>
+      <groep key="590573056992_lj_7"/>
+      <instroomdatum>2022-04-30</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>7888</key>
+      <achternaam>Haag</achternaam>
+      <voornamen>Jente Melle Chloë</voornamen>
+      <voorletters>JMC</voorletters>
+      <roepnaam>Jente</roepnaam>
+      <geboortedatum>2015-12-18</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="317158893990_lj_6"/>
+      <instroomdatum>2020-10-12</instroomdatum>
+      <voorvoegsel>den</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>7653</key>
+      <achternaam>Grote</achternaam>
+      <voornamen>Ivy Lena</voornamen>
+      <voorletters>IL</voorletters>
+      <roepnaam>Ivy</roepnaam>
+      <geboortedatum>2017-10-26</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="317158893990_lj_6"/>
+      <instroomdatum>2021-03-06</instroomdatum>
+      <voorvoegsel>de</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>4443</key>
+      <achternaam>Veen</achternaam>
+      <voornamen>Merle Aaron</voornamen>
+      <voorletters>MA</voorletters>
+      <roepnaam>Merle</roepnaam>
+      <geboortedatum>2017-07-30</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>5</jaargroep>
+      <groep key="198912225902_lj_5"/>
+      <instroomdatum>2022-04-14</instroomdatum>
+      <voorvoegsel>van der</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>8238</key>
+      <achternaam>Dijk</achternaam>
+      <voornamen>Lois Elisa Evelien</voornamen>
+      <voorletters>LEE</voorletters>
+      <roepnaam>Lois</roepnaam>
+      <geboortedatum>2020-08-10</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>4</jaargroep>
+      <groep key="198912225902_lj_4"/>
+      <instroomdatum>2022-06-10</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>3780</key>
+      <achternaam>Geest</achternaam>
+      <voornamen>Isis Justin</voornamen>
+      <voorletters>IJ</voorletters>
+      <roepnaam>Isis</roepnaam>
+      <geboortedatum>2020-09-30</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>5</jaargroep>
+      <groep key="198912225902_lj_5"/>
+      <instroomdatum>2024-01-18</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>2530</key>
+      <achternaam>Flink</achternaam>
+      <voornamen>Matthijs</voornamen>
+      <voorletters>M</voorletters>
+      <roepnaam>Matthijs</roepnaam>
+      <geboortedatum>2018-05-26</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>5</jaargroep>
+      <groep key="198912225902_lj_5"/>
+      <instroomdatum>2024-01-31</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>3414</key>
+      <achternaam>Ouwerkerk</achternaam>
+      <voornamen>Ise Milan</voornamen>
+      <voorletters>IM</voorletters>
+      <roepnaam>Ise</roepnaam>
+      <geboortedatum>2016-02-01</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>7</jaargroep>
+      <groep key="655050052120_lj_7"/>
+      <instroomdatum>2021-08-10</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>2193</key>
+      <achternaam>Bloemendaal</achternaam>
+      <voornamen>Bjorn</voornamen>
+      <voorletters>B</voorletters>
+      <roepnaam>Bjorn</roepnaam>
+      <geboortedatum>2020-10-12</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>5</jaargroep>
+      <groep key="198912225902_lj_5"/>
+      <instroomdatum>2021-10-12</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>7291</key>
+      <achternaam>Hulten</achternaam>
+      <voornamen>Stef</voornamen>
+      <voorletters>S</voorletters>
+      <roepnaam>Stef</roepnaam>
+      <geboortedatum>2016-01-03</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>3</jaargroep>
+      <groep key="914655221101_lj_3"/>
+      <instroomdatum>2024-08-05</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>7965</key>
+      <achternaam>Vermandois</achternaam>
+      <voornamen>Sep Lex Jake</voornamen>
+      <voorletters>SLJ</voorletters>
+      <roepnaam>Sep</roepnaam>
+      <geboortedatum>2014-07-06</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>8</jaargroep>
+      <groep key="655050052120_lj_8"/>
+      <instroomdatum>2019-09-30</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>1822</key>
+      <achternaam>Momberg</achternaam>
+      <voornamen>Jim Maaike Veerle</voornamen>
+      <voorletters>JMV</voorletters>
+      <roepnaam>Jim</roepnaam>
+      <geboortedatum>2020-08-07</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>3</jaargroep>
+      <groep key="914655221101_lj_3"/>
+      <instroomdatum>2024-02-08</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>8612</key>
+      <achternaam>Potters</achternaam>
+      <voornamen>Sarah Myrthe Gijs</voornamen>
+      <voorletters>SMG</voorletters>
+      <roepnaam>Sarah</roepnaam>
+      <geboortedatum>2014-12-19</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>5</jaargroep>
+      <groep key="198912225902_lj_5"/>
+      <instroomdatum>2023-08-01</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>9270</key>
+      <achternaam>Horst</achternaam>
+      <voornamen>Danique Emma</voornamen>
+      <voorletters>DE</voorletters>
+      <roepnaam>Danique</roepnaam>
+      <geboortedatum>2020-03-24</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>8</jaargroep>
+      <groep key="655050052120_lj_8"/>
+      <instroomdatum>2022-05-25</instroomdatum>
+      <voorvoegsel>van der</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>8777</key>
+      <achternaam>Cuijck</achternaam>
+      <voornamen>Merel Rosalie Ceylin</voornamen>
+      <voorletters>MRC</voorletters>
+      <roepnaam>Merel</roepnaam>
+      <geboortedatum>2015-05-28</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>5</jaargroep>
+      <groep key="566392613993_lj_5"/>
+      <instroomdatum>2023-06-29</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>8939</key>
+      <achternaam>Ham</achternaam>
+      <voornamen>Lukas Lieke Loek</voornamen>
+      <voorletters>LLL</voorletters>
+      <roepnaam>Lukas</roepnaam>
+      <geboortedatum>2021-07-26</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>1</jaargroep>
+      <groep key="223005401501_lj_1"/>
+      <instroomdatum>2022-01-21</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>4841</key>
+      <achternaam>Pastoors</achternaam>
+      <voornamen>Mart Tijn</voornamen>
+      <voorletters>MT</voorletters>
+      <roepnaam>Mart</roepnaam>
+      <geboortedatum>2017-07-23</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>7</jaargroep>
+      <groep key="317158893990_lj_7"/>
+      <instroomdatum>2020-05-10</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>3267</key>
+      <achternaam>Scardino</achternaam>
+      <voornamen>Noud Muhammed Puk</voornamen>
+      <voorletters>NMP</voorletters>
+      <roepnaam>Noud</roepnaam>
+      <geboortedatum>2014-01-25</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>2</jaargroep>
+      <groep key="223005401501_lj_2"/>
+      <instroomdatum>2024-04-17</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>2052</key>
+      <achternaam>Kamp</achternaam>
+      <voornamen>Kyano Sam</voornamen>
+      <voorletters>KS</voorletters>
+      <roepnaam>Kyano</roepnaam>
+      <geboortedatum>2016-05-03</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>2</jaargroep>
+      <groep key="403832645883_lj_2"/>
+      <instroomdatum>2020-12-30</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>7812</key>
+      <achternaam>Beaumont</achternaam>
+      <voornamen>Sil Niels</voornamen>
+      <voorletters>SN</voorletters>
+      <roepnaam>Sil</roepnaam>
+      <geboortedatum>2020-08-16</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>4</jaargroep>
+      <groep key="914655221101_lj_4"/>
+      <instroomdatum>2024-04-24</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>1320</key>
+      <achternaam>David</achternaam>
+      <voornamen>Jules</voornamen>
+      <voorletters>J</voorletters>
+      <roepnaam>Jules</roepnaam>
+      <geboortedatum>2019-04-29</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>8</jaargroep>
+      <groep key="317158893990_lj_8"/>
+      <instroomdatum>2023-04-10</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>5892</key>
+      <achternaam>Gruil</achternaam>
+      <voornamen>Wout</voornamen>
+      <voorletters>W</voorletters>
+      <roepnaam>Wout</roepnaam>
+      <geboortedatum>2018-09-06</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="590573056992_lj_6"/>
+      <instroomdatum>2019-10-01</instroomdatum>
+      <voorvoegsel>de</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>8999</key>
+      <achternaam>Korte</achternaam>
+      <voornamen>Nadine Puck Vajèn</voornamen>
+      <voorletters>NPV</voorletters>
+      <roepnaam>Nadine</roepnaam>
+      <geboortedatum>2016-06-13</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>2</jaargroep>
+      <groep key="223005401501_lj_2"/>
+      <instroomdatum>2023-04-06</instroomdatum>
+      <voorvoegsel>de</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>7371</key>
+      <achternaam>Mosley</achternaam>
+      <voornamen>Mark Ties</voornamen>
+      <voorletters>MT</voorletters>
+      <roepnaam>Mark</roepnaam>
+      <geboortedatum>2013-03-11</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>2</jaargroep>
+      <groep key="223005401501_lj_2"/>
+      <instroomdatum>2023-10-30</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>8657</key>
+      <achternaam>Vervoort</achternaam>
+      <voornamen>Isabella</voornamen>
+      <voorletters>I</voorletters>
+      <roepnaam>Isabella</roepnaam>
+      <geboortedatum>2015-07-04</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>1</jaargroep>
+      <groep key="223005401501_lj_1"/>
+      <instroomdatum>2023-02-20</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>7455</key>
+      <achternaam>Hoogers</achternaam>
+      <voornamen>Feline</voornamen>
+      <voorletters>F</voorletters>
+      <roepnaam>Feline</roepnaam>
+      <geboortedatum>2013-02-26</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>8</jaargroep>
+      <groep key="655050052120_lj_8"/>
+      <instroomdatum>2024-03-29</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>8564</key>
+      <achternaam>Boddaugh</achternaam>
+      <voornamen>Dave</voornamen>
+      <voorletters>D</voorletters>
+      <roepnaam>Dave</roepnaam>
+      <geboortedatum>2015-01-03</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>2</jaargroep>
+      <groep key="403832645883_lj_2"/>
+      <instroomdatum>2023-05-06</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>6363</key>
+      <achternaam>Lansink</achternaam>
+      <voornamen>Boris</voornamen>
+      <voorletters>B</voorletters>
+      <roepnaam>Boris</roepnaam>
+      <geboortedatum>2019-02-23</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>5</jaargroep>
+      <groep key="566392613993_lj_5"/>
+      <instroomdatum>2021-11-29</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>7906</key>
+      <achternaam>Meyer</achternaam>
+      <voornamen>Twan Nick Nout</voornamen>
+      <voorletters>TNN</voorletters>
+      <roepnaam>Twan</roepnaam>
+      <geboortedatum>2017-06-07</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>5</jaargroep>
+      <groep key="566392613993_lj_5"/>
+      <instroomdatum>2022-12-03</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>1317</key>
+      <achternaam>Rademaker</achternaam>
+      <voornamen>Mette</voornamen>
+      <voorletters>M</voorletters>
+      <roepnaam>Mette</roepnaam>
+      <geboortedatum>2020-09-12</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>5</jaargroep>
+      <groep key="566392613993_lj_5"/>
+      <instroomdatum>2020-05-24</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>1659</key>
+      <achternaam>Meer</achternaam>
+      <voornamen>Bradley Tirza Pieter</voornamen>
+      <voorletters>BTP</voorletters>
+      <roepnaam>Bradley</roepnaam>
+      <geboortedatum>2013-11-12</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>8</jaargroep>
+      <groep key="317158893990_lj_8"/>
+      <instroomdatum>2021-08-09</instroomdatum>
+      <voorvoegsel>van der</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>3496</key>
+      <achternaam>Boogaerts</achternaam>
+      <voornamen>Tessa Loek</voornamen>
+      <voorletters>TL</voorletters>
+      <roepnaam>Tessa</roepnaam>
+      <geboortedatum>2013-01-16</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>8</jaargroep>
+      <groep key="590573056992_lj_8"/>
+      <instroomdatum>2021-05-24</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>8619</key>
+      <achternaam>Passchiers</achternaam>
+      <voornamen>Guus Wessel Isabella</voornamen>
+      <voorletters>GWI</voorletters>
+      <roepnaam>Guus</roepnaam>
+      <geboortedatum>2016-05-28</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>2</jaargroep>
+      <groep key="403832645883_lj_2"/>
+      <instroomdatum>2020-09-02</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>3683</key>
+      <achternaam>Remmers</achternaam>
+      <voornamen>Lisanne</voornamen>
+      <voorletters>L</voorletters>
+      <roepnaam>Lisanne</roepnaam>
+      <geboortedatum>2015-07-21</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>3</jaargroep>
+      <groep key="198912225902_lj_3"/>
+      <instroomdatum>2022-11-02</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>7149</key>
+      <achternaam>Thomas</achternaam>
+      <voornamen>Fedde Elisa</voornamen>
+      <voorletters>FE</voorletters>
+      <roepnaam>Fedde</roepnaam>
+      <geboortedatum>2018-01-02</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>5</jaargroep>
+      <groep key="198912225902_lj_5"/>
+      <instroomdatum>2019-12-01</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>4978</key>
+      <achternaam>Strigter</achternaam>
+      <voornamen>Suze Julia</voornamen>
+      <voorletters>SJ</voorletters>
+      <roepnaam>Suze</roepnaam>
+      <geboortedatum>2013-12-28</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>8</jaargroep>
+      <groep key="590573056992_lj_8"/>
+      <instroomdatum>2021-05-21</instroomdatum>
+      <voorvoegsel>de</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>6688</key>
+      <achternaam>Govarts</achternaam>
+      <voornamen>Jente Livia Michael</voornamen>
+      <voorletters>JLM</voorletters>
+      <roepnaam>Jente</roepnaam>
+      <geboortedatum>2013-05-25</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>3</jaargroep>
+      <groep key="914655221101_lj_3"/>
+      <instroomdatum>2020-09-23</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>9289</key>
+      <achternaam>Klein</achternaam>
+      <voornamen>Thijn Indy</voornamen>
+      <voorletters>TI</voorletters>
+      <roepnaam>Thijn</roepnaam>
+      <geboortedatum>2013-11-14</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>3</jaargroep>
+      <groep key="566392613993_lj_3"/>
+      <instroomdatum>2022-11-07</instroomdatum>
+      <voorvoegsel>van der</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>8102</key>
+      <achternaam>Vos</achternaam>
+      <voornamen>Ali Myrthe Stijn</voornamen>
+      <voorletters>AMS</voorletters>
+      <roepnaam>Ali</roepnaam>
+      <geboortedatum>2014-06-29</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>4</jaargroep>
+      <groep key="914655221101_lj_4"/>
+      <instroomdatum>2023-11-14</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>8135</key>
+      <achternaam>Wooning</achternaam>
+      <voornamen>Fleur Puck</voornamen>
+      <voorletters>FP</voorletters>
+      <roepnaam>Fleur</roepnaam>
+      <geboortedatum>2015-04-20</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>5</jaargroep>
+      <groep key="198912225902_lj_5"/>
+      <instroomdatum>2023-08-11</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>8616</key>
+      <achternaam>Köster</achternaam>
+      <voornamen>Kim Anouk Yasmin</voornamen>
+      <voorletters>KAY</voorletters>
+      <roepnaam>Kim</roepnaam>
+      <geboortedatum>2020-12-03</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>1</jaargroep>
+      <groep key="223005401501_lj_1"/>
+      <instroomdatum>2021-12-30</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>5022</key>
+      <achternaam>Eck</achternaam>
+      <voornamen>Megan</voornamen>
+      <voorletters>M</voorletters>
+      <roepnaam>Megan</roepnaam>
+      <geboortedatum>2018-03-07</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>1</jaargroep>
+      <groep key="223005401501_lj_1"/>
+      <instroomdatum>2021-12-24</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>7209</key>
+      <achternaam>Françoise</achternaam>
+      <voornamen>Mathijs Olivia Tom</voornamen>
+      <voorletters>MOT</voorletters>
+      <roepnaam>Mathijs</roepnaam>
+      <geboortedatum>2020-08-08</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="590573056992_lj_6"/>
+      <instroomdatum>2021-10-09</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>8988</key>
+      <achternaam>Vervoort</achternaam>
+      <voornamen>Bart Aimée Nadia</voornamen>
+      <voorletters>BAN</voorletters>
+      <roepnaam>Bart</roepnaam>
+      <geboortedatum>2015-10-16</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="590573056992_lj_6"/>
+      <instroomdatum>2022-06-18</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>5581</key>
+      <achternaam>Michiels</achternaam>
+      <voornamen>Quinn</voornamen>
+      <voorletters>Q</voorletters>
+      <roepnaam>Quinn</roepnaam>
+      <geboortedatum>2018-06-27</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>4</jaargroep>
+      <groep key="198912225902_lj_4"/>
+      <instroomdatum>2021-11-23</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>4954</key>
+      <achternaam>Schenk</achternaam>
+      <voornamen>Cornelia Alexander Annabel</voornamen>
+      <voorletters>CAA</voorletters>
+      <roepnaam>Cornelia</roepnaam>
+      <geboortedatum>2014-02-25</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>4</jaargroep>
+      <groep key="566392613993_lj_4"/>
+      <instroomdatum>2021-04-28</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>9041</key>
+      <achternaam>Gallen</achternaam>
+      <voornamen>Zakaria Cornelia Linde</voornamen>
+      <voorletters>ZCL</voorletters>
+      <roepnaam>Zakaria</roepnaam>
+      <geboortedatum>2020-10-18</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>4</jaargroep>
+      <groep key="914655221101_lj_4"/>
+      <instroomdatum>2021-09-28</instroomdatum>
+      <voorvoegsel>le</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>4630</key>
+      <achternaam>Grondelle</achternaam>
+      <voornamen>Lotte Amir</voornamen>
+      <voorletters>LA</voorletters>
+      <roepnaam>Lotte</roepnaam>
+      <geboortedatum>2017-09-14</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="317158893990_lj_6"/>
+      <instroomdatum>2020-06-28</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>8753</key>
+      <achternaam>Pelser</achternaam>
+      <voornamen>Jenna Lex Mika</voornamen>
+      <voorletters>JLM</voorletters>
+      <roepnaam>Jenna</roepnaam>
+      <geboortedatum>2018-12-23</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="655050052120_lj_6"/>
+      <instroomdatum>2024-08-23</instroomdatum>
+      <voorvoegsel>die</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>6764</key>
+      <achternaam>Horst</achternaam>
+      <voornamen>Owen Teun</voornamen>
+      <voorletters>OT</voorletters>
+      <roepnaam>Owen</roepnaam>
+      <geboortedatum>2018-04-29</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>5</jaargroep>
+      <groep key="914655221101_lj_5"/>
+      <instroomdatum>2024-05-18</instroomdatum>
+      <voorvoegsel>van der</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>4777</key>
+      <achternaam>Hoevel en van Zwindrecht</achternaam>
+      <voornamen>Marinus</voornamen>
+      <voorletters>M</voorletters>
+      <roepnaam>Marinus</roepnaam>
+      <geboortedatum>2016-12-22</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>7</jaargroep>
+      <groep key="317158893990_lj_7"/>
+      <instroomdatum>2022-04-22</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>9779</key>
+      <achternaam>Hermans</achternaam>
+      <voornamen>Juul Joost</voornamen>
+      <voorletters>JJ</voorletters>
+      <roepnaam>Juul</roepnaam>
+      <geboortedatum>2014-09-24</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>3</jaargroep>
+      <groep key="198912225902_lj_3"/>
+      <instroomdatum>2022-05-20</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>9595</key>
+      <achternaam>Lelijveld</achternaam>
+      <voornamen>Joost Kai</voornamen>
+      <voorletters>JK</voorletters>
+      <roepnaam>Joost</roepnaam>
+      <geboortedatum>2017-05-27</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>4</jaargroep>
+      <groep key="914655221101_lj_4"/>
+      <instroomdatum>2023-10-26</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>4727</key>
+      <achternaam>Schulten</achternaam>
+      <voornamen>Elias</voornamen>
+      <voorletters>E</voorletters>
+      <roepnaam>Elias</roepnaam>
+      <geboortedatum>2017-09-26</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="655050052120_lj_6"/>
+      <instroomdatum>2021-05-08</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>5494</key>
+      <achternaam>Wolters</achternaam>
+      <voornamen>Jip Michael</voornamen>
+      <voorletters>JM</voorletters>
+      <roepnaam>Jip</roepnaam>
+      <geboortedatum>2014-11-07</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>3</jaargroep>
+      <groep key="914655221101_lj_3"/>
+      <instroomdatum>2019-10-26</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>3068</key>
+      <achternaam>Bruggeman</achternaam>
+      <voornamen>Zara</voornamen>
+      <voorletters>Z</voorletters>
+      <roepnaam>Zara</roepnaam>
+      <geboortedatum>2017-09-01</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>3</jaargroep>
+      <groep key="198912225902_lj_3"/>
+      <instroomdatum>2020-02-29</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>8690</key>
+      <achternaam>Tours</achternaam>
+      <voornamen>Emir Nora Ali</voornamen>
+      <voorletters>ENA</voorletters>
+      <roepnaam>Emir</roepnaam>
+      <geboortedatum>2017-07-14</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>7</jaargroep>
+      <groep key="317158893990_lj_7"/>
+      <instroomdatum>2024-07-31</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>8827</key>
+      <achternaam>Orleans</achternaam>
+      <voornamen>Tijn Olivier Joey</voornamen>
+      <voorletters>TOJ</voorletters>
+      <roepnaam>Tijn</roepnaam>
+      <geboortedatum>2016-12-28</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>4</jaargroep>
+      <groep key="566392613993_lj_4"/>
+      <instroomdatum>2020-02-19</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>2213</key>
+      <achternaam>Heijmans</achternaam>
+      <voornamen>Maud Chris</voornamen>
+      <voorletters>MC</voorletters>
+      <roepnaam>Maud</roepnaam>
+      <geboortedatum>2021-01-23</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>7</jaargroep>
+      <groep key="590573056992_lj_7"/>
+      <instroomdatum>2023-02-08</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>2395</key>
+      <achternaam>Chrodtrud</achternaam>
+      <voornamen>Jamie James Mara</voornamen>
+      <voorletters>JJM</voorletters>
+      <roepnaam>Jamie</roepnaam>
+      <geboortedatum>2017-11-12</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="590573056992_lj_6"/>
+      <instroomdatum>2024-06-26</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>4697</key>
+      <achternaam>Post</achternaam>
+      <voornamen>Gerrit</voornamen>
+      <voorletters>G</voorletters>
+      <roepnaam>Gerrit</roepnaam>
+      <geboortedatum>2019-10-12</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>5</jaargroep>
+      <groep key="566392613993_lj_5"/>
+      <instroomdatum>2024-06-11</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>8025</key>
+      <achternaam>Nuwenhuijzen</achternaam>
+      <voornamen>Ruben Tom Saar</voornamen>
+      <voorletters>RTS</voorletters>
+      <roepnaam>Ruben</roepnaam>
+      <geboortedatum>2017-10-03</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>2</jaargroep>
+      <groep key="251282538206_lj_2"/>
+      <instroomdatum>2023-06-19</instroomdatum>
+      <voorvoegsel>van den</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>4404</key>
+      <achternaam>Strik</achternaam>
+      <voornamen>Ecrin</voornamen>
+      <voorletters>E</voorletters>
+      <roepnaam>Ecrin</roepnaam>
+      <geboortedatum>2014-05-21</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>2</jaargroep>
+      <groep key="403832645883_lj_2"/>
+      <instroomdatum>2020-03-18</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>3847</key>
+      <achternaam>Meyer</achternaam>
+      <voornamen>Maarten Indy Daniël</voornamen>
+      <voorletters>MID</voorletters>
+      <roepnaam>Maarten</roepnaam>
+      <geboortedatum>2016-10-11</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="655050052120_lj_6"/>
+      <instroomdatum>2021-01-12</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>8699</key>
+      <achternaam>Ehlert</achternaam>
+      <voornamen>Jason Abel</voornamen>
+      <voorletters>JA</voorletters>
+      <roepnaam>Jason</roepnaam>
+      <geboortedatum>2020-05-12</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>1</jaargroep>
+      <groep key="403832645883_lj_1"/>
+      <instroomdatum>2023-03-05</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>2166</key>
+      <achternaam>Smit</achternaam>
+      <voornamen>Bastiaan Kyano Max</voornamen>
+      <voorletters>BKM</voorletters>
+      <roepnaam>Bastiaan</roepnaam>
+      <geboortedatum>2020-06-03</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>1</jaargroep>
+      <groep key="223005401501_lj_1"/>
+      <instroomdatum>2022-02-07</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>2880</key>
+      <achternaam>Otto</achternaam>
+      <voornamen>Sienna Maarten Lola</voornamen>
+      <voorletters>SML</voorletters>
+      <roepnaam>Sienna</roepnaam>
+      <geboortedatum>2019-12-06</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>8</jaargroep>
+      <groep key="590573056992_lj_8"/>
+      <instroomdatum>2021-05-19</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>1977</key>
+      <achternaam>Smeede</achternaam>
+      <voornamen>Kick Hailey James</voornamen>
+      <voorletters>KHJ</voorletters>
+      <roepnaam>Kick</roepnaam>
+      <geboortedatum>2015-02-12</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>5</jaargroep>
+      <groep key="198912225902_lj_5"/>
+      <instroomdatum>2021-12-16</instroomdatum>
+      <voorvoegsel>van der</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>8195</key>
+      <achternaam>Korsman</achternaam>
+      <voornamen>Lotte</voornamen>
+      <voorletters>L</voorletters>
+      <roepnaam>Lotte</roepnaam>
+      <geboortedatum>2017-08-10</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="655050052120_lj_6"/>
+      <instroomdatum>2022-04-25</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>5460</key>
+      <achternaam>Hoelen</achternaam>
+      <voornamen>Vince</voornamen>
+      <voorletters>V</voorletters>
+      <roepnaam>Vince</roepnaam>
+      <geboortedatum>2019-07-19</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="590573056992_lj_6"/>
+      <instroomdatum>2022-04-14</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>8078</key>
+      <achternaam>Wijk</achternaam>
+      <voornamen>Britt Adriana</voornamen>
+      <voorletters>BA</voorletters>
+      <roepnaam>Britt</roepnaam>
+      <geboortedatum>2014-01-24</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>4</jaargroep>
+      <groep key="566392613993_lj_4"/>
+      <instroomdatum>2023-06-04</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>2496</key>
+      <achternaam>Vastenhouw</achternaam>
+      <voornamen>Eva</voornamen>
+      <voorletters>E</voorletters>
+      <roepnaam>Eva</roepnaam>
+      <geboortedatum>2013-02-19</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>1</jaargroep>
+      <groep key="403832645883_lj_1"/>
+      <instroomdatum>2021-10-29</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>5415</key>
+      <achternaam>Oennen</achternaam>
+      <voornamen>Victoria Isis Mia</voornamen>
+      <voorletters>VIM</voorletters>
+      <roepnaam>Victoria</roepnaam>
+      <geboortedatum>2013-01-18</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="590573056992_lj_6"/>
+      <instroomdatum>2024-08-04</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>8245</key>
+      <achternaam>Brievingh</achternaam>
+      <voornamen>Linn Lina Jesse</voornamen>
+      <voorletters>LLJ</voorletters>
+      <roepnaam>Linn</roepnaam>
+      <geboortedatum>2021-07-11</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>1</jaargroep>
+      <groep key="223005401501_lj_1"/>
+      <instroomdatum>2023-09-13</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>9056</key>
+      <achternaam>Schilt</achternaam>
+      <voornamen>Job</voornamen>
+      <voorletters>J</voorletters>
+      <roepnaam>Job</roepnaam>
+      <geboortedatum>2020-02-11</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>2</jaargroep>
+      <groep key="251282538206_lj_2"/>
+      <instroomdatum>2024-09-04</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>2713</key>
+      <achternaam>Garret</achternaam>
+      <voornamen>Vincent Philip Simon</voornamen>
+      <voorletters>VPS</voorletters>
+      <roepnaam>Vincent</roepnaam>
+      <geboortedatum>2018-02-27</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>8</jaargroep>
+      <groep key="655050052120_lj_8"/>
+      <instroomdatum>2022-07-14</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>7561</key>
+      <achternaam>Knuf</achternaam>
+      <voornamen>Niek Sjoerd</voornamen>
+      <voorletters>NS</voorletters>
+      <roepnaam>Niek</roepnaam>
+      <geboortedatum>2017-08-07</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>1</jaargroep>
+      <groep key="403832645883_lj_1"/>
+      <instroomdatum>2023-11-30</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>5135</key>
+      <achternaam>Ven</achternaam>
+      <voornamen>Ben Twan</voornamen>
+      <voorletters>BT</voorletters>
+      <roepnaam>Ben</roepnaam>
+      <geboortedatum>2018-01-18</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>4</jaargroep>
+      <groep key="914655221101_lj_4"/>
+      <instroomdatum>2020-06-12</instroomdatum>
+      <voorvoegsel>van der</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>1018</key>
+      <achternaam>Veenstra</achternaam>
+      <voornamen>Floris</voornamen>
+      <voorletters>F</voorletters>
+      <roepnaam>Floris</roepnaam>
+      <geboortedatum>2021-06-14</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>5</jaargroep>
+      <groep key="566392613993_lj_5"/>
+      <instroomdatum>2023-02-19</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>4073</key>
+      <achternaam>Pouw</achternaam>
+      <voornamen>Valentijn</voornamen>
+      <voorletters>V</voorletters>
+      <roepnaam>Valentijn</roepnaam>
+      <geboortedatum>2013-08-14</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>4</jaargroep>
+      <groep key="566392613993_lj_4"/>
+      <instroomdatum>2023-03-19</instroomdatum>
+      <voorvoegsel>van der</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>1845</key>
+      <achternaam>Broek</achternaam>
+      <voornamen>Ravi Feline</voornamen>
+      <voorletters>RF</voorletters>
+      <roepnaam>Ravi</roepnaam>
+      <geboortedatum>2020-03-20</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="590573056992_lj_6"/>
+      <instroomdatum>2023-12-09</instroomdatum>
+      <voorvoegsel>van den</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>8178</key>
+      <achternaam>Massa</achternaam>
+      <voornamen>Mads Charlotte</voornamen>
+      <voorletters>MC</voorletters>
+      <roepnaam>Mads</roepnaam>
+      <geboortedatum>2017-08-06</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>3</jaargroep>
+      <groep key="198912225902_lj_3"/>
+      <instroomdatum>2020-10-24</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>3594</key>
+      <achternaam>Saksen</achternaam>
+      <voornamen>Gijs</voornamen>
+      <voorletters>G</voorletters>
+      <roepnaam>Gijs</roepnaam>
+      <geboortedatum>2016-10-07</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>4</jaargroep>
+      <groep key="914655221101_lj_4"/>
+      <instroomdatum>2019-12-11</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>2527</key>
+      <achternaam>The Elder</achternaam>
+      <voornamen>Chloé</voornamen>
+      <voorletters>C</voorletters>
+      <roepnaam>Chloé</roepnaam>
+      <geboortedatum>2019-08-22</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>1</jaargroep>
+      <groep key="223005401501_lj_1"/>
+      <instroomdatum>2019-10-25</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>2924</key>
+      <achternaam>Niermann</achternaam>
+      <voornamen>Mila</voornamen>
+      <voorletters>M</voorletters>
+      <roepnaam>Mila</roepnaam>
+      <geboortedatum>2020-07-19</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>3</jaargroep>
+      <groep key="914655221101_lj_3"/>
+      <instroomdatum>2020-08-30</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>5479</key>
+      <achternaam>Keltenie</achternaam>
+      <voornamen>Alyssa Sophia Julia</voornamen>
+      <voorletters>ASJ</voorletters>
+      <roepnaam>Alyssa</roepnaam>
+      <geboortedatum>2021-05-10</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>7</jaargroep>
+      <groep key="317158893990_lj_7"/>
+      <instroomdatum>2022-03-07</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>4993</key>
+      <achternaam>Beeck</achternaam>
+      <voornamen>Mette</voornamen>
+      <voorletters>M</voorletters>
+      <roepnaam>Mette</roepnaam>
+      <geboortedatum>2020-09-24</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>3</jaargroep>
+      <groep key="566392613993_lj_3"/>
+      <instroomdatum>2023-10-21</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>4122</key>
+      <achternaam>Kempen</achternaam>
+      <voornamen>Chloé</voornamen>
+      <voorletters>C</voorletters>
+      <roepnaam>Chloé</roepnaam>
+      <geboortedatum>2019-03-23</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>8</jaargroep>
+      <groep key="317158893990_lj_8"/>
+      <instroomdatum>2020-12-05</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>7798</key>
+      <achternaam>Pavert</achternaam>
+      <voornamen>Leah Nynke Ian</voornamen>
+      <voorletters>LNI</voorletters>
+      <roepnaam>Leah</roepnaam>
+      <geboortedatum>2017-05-25</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>1</jaargroep>
+      <groep key="403832645883_lj_1"/>
+      <instroomdatum>2020-04-16</instroomdatum>
+      <voorvoegsel>van de</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>1042</key>
+      <achternaam>Voortman</achternaam>
+      <voornamen>Sophie Lola</voornamen>
+      <voorletters>SL</voorletters>
+      <roepnaam>Sophie</roepnaam>
+      <geboortedatum>2017-03-30</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>7</jaargroep>
+      <groep key="317158893990_lj_7"/>
+      <instroomdatum>2024-01-07</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>3434</key>
+      <achternaam>Schulten</achternaam>
+      <voornamen>Kate</voornamen>
+      <voorletters>K</voorletters>
+      <roepnaam>Kate</roepnaam>
+      <geboortedatum>2021-01-10</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>2</jaargroep>
+      <groep key="223005401501_lj_2"/>
+      <instroomdatum>2022-03-28</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>8460</key>
+      <achternaam>Goerle</achternaam>
+      <voornamen>Bo Yassin Owen</voornamen>
+      <voorletters>BYO</voorletters>
+      <roepnaam>Bo</roepnaam>
+      <geboortedatum>2019-02-11</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>3</jaargroep>
+      <groep key="914655221101_lj_3"/>
+      <instroomdatum>2022-07-11</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>7274</key>
+      <achternaam>Vandenbergh</achternaam>
+      <voornamen>Noortje</voornamen>
+      <voorletters>N</voorletters>
+      <roepnaam>Noortje</roepnaam>
+      <geboortedatum>2016-10-04</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="317158893990_lj_6"/>
+      <instroomdatum>2021-04-21</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>6213</key>
+      <achternaam>Otto</achternaam>
+      <voornamen>Nienke</voornamen>
+      <voorletters>N</voorletters>
+      <roepnaam>Nienke</roepnaam>
+      <geboortedatum>2013-06-10</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>1</jaargroep>
+      <groep key="251282538206_lj_1"/>
+      <instroomdatum>2023-03-12</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>3492</key>
+      <achternaam>Noort</achternaam>
+      <voornamen>Jolie Sanne Mara</voornamen>
+      <voorletters>JSM</voorletters>
+      <roepnaam>Jolie</roepnaam>
+      <geboortedatum>2019-04-08</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>1</jaargroep>
+      <groep key="223005401501_lj_1"/>
+      <instroomdatum>2022-12-10</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>6439</key>
+      <achternaam>Vliet</achternaam>
+      <voornamen>Yara Ben</voornamen>
+      <voorletters>YB</voorletters>
+      <roepnaam>Yara</roepnaam>
+      <geboortedatum>2021-03-30</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>5</jaargroep>
+      <groep key="566392613993_lj_5"/>
+      <instroomdatum>2020-10-09</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>8486</key>
+      <achternaam>Godfrey van Alemannië</achternaam>
+      <voornamen>Norah Mirte Tijn</voornamen>
+      <voorletters>NMT</voorletters>
+      <roepnaam>Norah</roepnaam>
+      <geboortedatum>2021-08-24</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>3</jaargroep>
+      <groep key="914655221101_lj_3"/>
+      <instroomdatum>2020-07-18</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>3529</key>
+      <achternaam>Beekman</achternaam>
+      <voornamen>Juul</voornamen>
+      <voorletters>J</voorletters>
+      <roepnaam>Juul</roepnaam>
+      <geboortedatum>2019-09-03</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="590573056992_lj_6"/>
+      <instroomdatum>2020-12-03</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>7512</key>
+      <achternaam>Ehlert</achternaam>
+      <voornamen>Vincent Lizzy</voornamen>
+      <voorletters>VL</voorletters>
+      <roepnaam>Vincent</roepnaam>
+      <geboortedatum>2018-06-16</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="655050052120_lj_6"/>
+      <instroomdatum>2021-12-14</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>6188</key>
+      <achternaam>Estey</achternaam>
+      <voornamen>Nadine Niek Nadine</voornamen>
+      <voorletters>NNN</voorletters>
+      <roepnaam>Nadine</roepnaam>
+      <geboortedatum>2019-03-01</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>1</jaargroep>
+      <groep key="223005401501_lj_1"/>
+      <instroomdatum>2024-03-27</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>5708</key>
+      <achternaam>Spreeuwel</achternaam>
+      <voornamen>Nora Carlijn Ben</voornamen>
+      <voorletters>NCB</voorletters>
+      <roepnaam>Nora</roepnaam>
+      <geboortedatum>2016-09-09</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="317158893990_lj_6"/>
+      <instroomdatum>2020-04-12</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>2646</key>
+      <achternaam>Noordijk</achternaam>
+      <voornamen>Leah Dion</voornamen>
+      <voorletters>LD</voorletters>
+      <roepnaam>Leah</roepnaam>
+      <geboortedatum>2014-05-16</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>4</jaargroep>
+      <groep key="566392613993_lj_4"/>
+      <instroomdatum>2023-05-23</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>1753</key>
+      <achternaam>Gemert</achternaam>
+      <voornamen>Jelle</voornamen>
+      <voorletters>J</voorletters>
+      <roepnaam>Jelle</roepnaam>
+      <geboortedatum>2013-03-10</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>2</jaargroep>
+      <groep key="403832645883_lj_2"/>
+      <instroomdatum>2022-03-31</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>8056</key>
+      <achternaam>Velderman</achternaam>
+      <voornamen>Loïs Brent Mehmet</voornamen>
+      <voorletters>LBM</voorletters>
+      <roepnaam>Loïs</roepnaam>
+      <geboortedatum>2019-01-28</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>4</jaargroep>
+      <groep key="198912225902_lj_4"/>
+      <instroomdatum>2022-09-30</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>3785</key>
+      <achternaam>Jochems</achternaam>
+      <voornamen>Liam Azra Sjoerd</voornamen>
+      <voorletters>LAS</voorletters>
+      <roepnaam>Liam</roepnaam>
+      <geboortedatum>2015-10-05</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>8</jaargroep>
+      <groep key="655050052120_lj_8"/>
+      <instroomdatum>2024-07-06</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>9153</key>
+      <achternaam>Kunen</achternaam>
+      <voornamen>Daniel Evie Noortje</voornamen>
+      <voorletters>DEN</voorletters>
+      <roepnaam>Daniel</roepnaam>
+      <geboortedatum>2016-10-17</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>1</jaargroep>
+      <groep key="223005401501_lj_1"/>
+      <instroomdatum>2022-12-14</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>8529</key>
+      <achternaam>Janssens</achternaam>
+      <voornamen>Kyano</voornamen>
+      <voorletters>K</voorletters>
+      <roepnaam>Kyano</roepnaam>
+      <geboortedatum>2017-01-07</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="655050052120_lj_6"/>
+      <instroomdatum>2023-08-15</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>9955</key>
+      <achternaam>Reimes</achternaam>
+      <voornamen>Isabel Alex Robin</voornamen>
+      <voorletters>IAR</voorletters>
+      <roepnaam>Isabel</roepnaam>
+      <geboortedatum>2017-08-04</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>2</jaargroep>
+      <groep key="223005401501_lj_2"/>
+      <instroomdatum>2023-08-28</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>7951</key>
+      <achternaam>Klein</achternaam>
+      <voornamen>Daan Tijs</voornamen>
+      <voorletters>DT</voorletters>
+      <roepnaam>Daan</roepnaam>
+      <geboortedatum>2017-10-14</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>4</jaargroep>
+      <groep key="914655221101_lj_4"/>
+      <instroomdatum>2022-08-21</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>7302</key>
+      <achternaam>Prins</achternaam>
+      <voornamen>Tycho Mirte</voornamen>
+      <voorletters>TM</voorletters>
+      <roepnaam>Tycho</roepnaam>
+      <geboortedatum>2016-02-01</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>7</jaargroep>
+      <groep key="590573056992_lj_7"/>
+      <instroomdatum>2022-04-08</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>5847</key>
+      <achternaam>Roijen</achternaam>
+      <voornamen>Fabian Lenn Ryan</voornamen>
+      <voorletters>FLR</voorletters>
+      <roepnaam>Fabian</roepnaam>
+      <geboortedatum>2018-10-21</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>7</jaargroep>
+      <groep key="590573056992_lj_7"/>
+      <instroomdatum>2024-07-24</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>1132</key>
+      <achternaam>Speijer</achternaam>
+      <voornamen>Arthur Zoey Melissa</voornamen>
+      <voorletters>AZM</voorletters>
+      <roepnaam>Arthur</roepnaam>
+      <geboortedatum>2017-05-14</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>7</jaargroep>
+      <groep key="590573056992_lj_7"/>
+      <instroomdatum>2023-01-24</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>4770</key>
+      <achternaam>Butselaar</achternaam>
+      <voornamen>Sam Evelien</voornamen>
+      <voorletters>SE</voorletters>
+      <roepnaam>Sam</roepnaam>
+      <geboortedatum>2017-07-26</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>2</jaargroep>
+      <groep key="223005401501_lj_2"/>
+      <instroomdatum>2023-12-04</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>3240</key>
+      <achternaam>Wigman</achternaam>
+      <voornamen>Keano Fleur</voornamen>
+      <voorletters>KF</voorletters>
+      <roepnaam>Keano</roepnaam>
+      <geboortedatum>2016-12-17</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>5</jaargroep>
+      <groep key="914655221101_lj_5"/>
+      <instroomdatum>2021-04-25</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>8222</key>
+      <achternaam>Gerritsen</achternaam>
+      <voornamen>Roos Fenna Guusje</voornamen>
+      <voorletters>RFG</voorletters>
+      <roepnaam>Roos</roepnaam>
+      <geboortedatum>2017-12-14</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>3</jaargroep>
+      <groep key="914655221101_lj_3"/>
+      <instroomdatum>2020-01-13</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>5835</key>
+      <achternaam>Bosch</achternaam>
+      <voornamen>Elisa Rayan</voornamen>
+      <voorletters>ER</voorletters>
+      <roepnaam>Elisa</roepnaam>
+      <geboortedatum>2014-03-26</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>1</jaargroep>
+      <groep key="223005401501_lj_1"/>
+      <instroomdatum>2020-10-25</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>4289</key>
+      <achternaam>Verboom</achternaam>
+      <voornamen>Leah</voornamen>
+      <voorletters>L</voorletters>
+      <roepnaam>Leah</roepnaam>
+      <geboortedatum>2015-09-08</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>8</jaargroep>
+      <groep key="590573056992_lj_8"/>
+      <instroomdatum>2023-03-26</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>9697</key>
+      <achternaam>Huijzing</achternaam>
+      <voornamen>Lois</voornamen>
+      <voorletters>L</voorletters>
+      <roepnaam>Lois</roepnaam>
+      <geboortedatum>2018-12-03</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>3</jaargroep>
+      <groep key="914655221101_lj_3"/>
+      <instroomdatum>2024-04-14</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>5210</key>
+      <achternaam>Berg</achternaam>
+      <voornamen>Sanne</voornamen>
+      <voorletters>S</voorletters>
+      <roepnaam>Sanne</roepnaam>
+      <geboortedatum>2015-07-01</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>4</jaargroep>
+      <groep key="914655221101_lj_4"/>
+      <instroomdatum>2022-01-06</instroomdatum>
+      <voorvoegsel>van de</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>2886</key>
+      <achternaam>Riet</achternaam>
+      <voornamen>Yasmine</voornamen>
+      <voorletters>Y</voorletters>
+      <roepnaam>Yasmine</roepnaam>
+      <geboortedatum>2018-06-17</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="655050052120_lj_6"/>
+      <instroomdatum>2022-03-17</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>7511</key>
+      <achternaam>Metz</achternaam>
+      <voornamen>Yara Damian</voornamen>
+      <voorletters>YD</voorletters>
+      <roepnaam>Yara</roepnaam>
+      <geboortedatum>2016-07-14</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="655050052120_lj_6"/>
+      <instroomdatum>2020-11-23</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>5332</key>
+      <achternaam>Zaal</achternaam>
+      <voornamen>Dion</voornamen>
+      <voorletters>D</voorletters>
+      <roepnaam>Dion</roepnaam>
+      <geboortedatum>2012-12-07</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>1</jaargroep>
+      <groep key="251282538206_lj_1"/>
+      <instroomdatum>2023-01-20</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>7086</key>
+      <achternaam>Linden</achternaam>
+      <voornamen>Giovanni Twan Rick</voornamen>
+      <voorletters>GTR</voorletters>
+      <roepnaam>Giovanni</roepnaam>
+      <geboortedatum>2019-03-07</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>3</jaargroep>
+      <groep key="914655221101_lj_3"/>
+      <instroomdatum>2021-12-05</instroomdatum>
+      <voorvoegsel>van der</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>4626</key>
+      <achternaam>Hak</achternaam>
+      <voornamen>Isis Lars Wesley</voornamen>
+      <voorletters>ILW</voorletters>
+      <roepnaam>Isis</roepnaam>
+      <geboortedatum>2018-04-12</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>7</jaargroep>
+      <groep key="590573056992_lj_7"/>
+      <instroomdatum>2019-11-29</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>7689</key>
+      <achternaam>Dekker</achternaam>
+      <voornamen>Fleur</voornamen>
+      <voorletters>F</voorletters>
+      <roepnaam>Fleur</roepnaam>
+      <geboortedatum>2017-11-02</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>5</jaargroep>
+      <groep key="566392613993_lj_5"/>
+      <instroomdatum>2023-08-25</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>9071</key>
+      <achternaam>Helmerhorst</achternaam>
+      <voornamen>Imran Bjorn Tara</voornamen>
+      <voorletters>IBT</voorletters>
+      <roepnaam>Imran</roepnaam>
+      <geboortedatum>2017-11-16</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>2</jaargroep>
+      <groep key="223005401501_lj_2"/>
+      <instroomdatum>2020-01-06</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>7367</key>
+      <achternaam>Hellevoort</achternaam>
+      <voornamen>Dylan</voornamen>
+      <voorletters>D</voorletters>
+      <roepnaam>Dylan</roepnaam>
+      <geboortedatum>2015-01-02</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>3</jaargroep>
+      <groep key="914655221101_lj_3"/>
+      <instroomdatum>2021-09-11</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>3531</key>
+      <achternaam>Hoevel en van Zwindrecht</achternaam>
+      <voornamen>Rik</voornamen>
+      <voorletters>R</voorletters>
+      <roepnaam>Rik</roepnaam>
+      <geboortedatum>2019-10-30</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="317158893990_lj_6"/>
+      <instroomdatum>2024-04-17</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>7686</key>
+      <achternaam>Beaumont</achternaam>
+      <voornamen>Ilse</voornamen>
+      <voorletters>I</voorletters>
+      <roepnaam>Ilse</roepnaam>
+      <geboortedatum>2021-01-08</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>1</jaargroep>
+      <groep key="403832645883_lj_1"/>
+      <instroomdatum>2020-07-16</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>8285</key>
+      <achternaam>Scholten</achternaam>
+      <voornamen>Bastiaan Jaylinn Rik</voornamen>
+      <voorletters>BJR</voorletters>
+      <roepnaam>Bastiaan</roepnaam>
+      <geboortedatum>2020-03-29</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>2</jaargroep>
+      <groep key="223005401501_lj_2"/>
+      <instroomdatum>2021-07-19</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>1992</key>
+      <achternaam>Overeem</achternaam>
+      <voornamen>Naomi Ravi Dylano</voornamen>
+      <voorletters>NRD</voorletters>
+      <roepnaam>Naomi</roepnaam>
+      <geboortedatum>2018-10-19</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>1</jaargroep>
+      <groep key="403832645883_lj_1"/>
+      <instroomdatum>2022-10-28</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>8450</key>
+      <achternaam>Vries</achternaam>
+      <voornamen>Mason</voornamen>
+      <voorletters>M</voorletters>
+      <roepnaam>Mason</roepnaam>
+      <geboortedatum>2014-10-11</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>5</jaargroep>
+      <groep key="198912225902_lj_5"/>
+      <instroomdatum>2021-04-24</instroomdatum>
+      <voorvoegsel>de</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>1828</key>
+      <achternaam>Geerling</achternaam>
+      <voornamen>Iris</voornamen>
+      <voorletters>I</voorletters>
+      <roepnaam>Iris</roepnaam>
+      <geboortedatum>2013-01-22</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>3</jaargroep>
+      <groep key="566392613993_lj_3"/>
+      <instroomdatum>2021-07-02</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>2124</key>
+      <achternaam>Verschuere</achternaam>
+      <voornamen>Lex</voornamen>
+      <voorletters>L</voorletters>
+      <roepnaam>Lex</roepnaam>
+      <geboortedatum>2016-03-10</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>8</jaargroep>
+      <groep key="655050052120_lj_8"/>
+      <instroomdatum>2020-10-08</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>6383</key>
+      <achternaam>Meijer</achternaam>
+      <voornamen>Elizabeth</voornamen>
+      <voorletters>E</voorletters>
+      <roepnaam>Elizabeth</roepnaam>
+      <geboortedatum>2016-08-29</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>8</jaargroep>
+      <groep key="590573056992_lj_8"/>
+      <instroomdatum>2021-07-14</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>3370</key>
+      <achternaam>Joosten</achternaam>
+      <voornamen>Lola Romy</voornamen>
+      <voorletters>LR</voorletters>
+      <roepnaam>Lola</roepnaam>
+      <geboortedatum>2017-05-31</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>5</jaargroep>
+      <groep key="914655221101_lj_5"/>
+      <instroomdatum>2019-09-21</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>2801</key>
+      <achternaam>Huel</achternaam>
+      <voornamen>Britt</voornamen>
+      <voorletters>B</voorletters>
+      <roepnaam>Britt</roepnaam>
+      <geboortedatum>2015-09-01</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="655050052120_lj_6"/>
+      <instroomdatum>2021-10-30</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>1258</key>
+      <achternaam>Blom</achternaam>
+      <voornamen>Hidde Amin Raf</voornamen>
+      <voorletters>HAR</voorletters>
+      <roepnaam>Hidde</roepnaam>
+      <geboortedatum>2018-03-16</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>7</jaargroep>
+      <groep key="590573056992_lj_7"/>
+      <instroomdatum>2021-09-21</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>7897</key>
+      <achternaam>Kuipers</achternaam>
+      <voornamen>Maarten</voornamen>
+      <voorletters>M</voorletters>
+      <roepnaam>Maarten</roepnaam>
+      <geboortedatum>2014-11-08</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>7</jaargroep>
+      <groep key="317158893990_lj_7"/>
+      <instroomdatum>2020-02-22</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>8344</key>
+      <achternaam>Wittenboer</achternaam>
+      <voornamen>Florian Lauren</voornamen>
+      <voorletters>FL</voorletters>
+      <roepnaam>Florian</roepnaam>
+      <geboortedatum>2020-10-19</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>1</jaargroep>
+      <groep key="223005401501_lj_1"/>
+      <instroomdatum>2020-03-28</instroomdatum>
+      <voorvoegsel>van den</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>4629</key>
+      <achternaam>Wooning</achternaam>
+      <voornamen>Angelina Emily Fedde</voornamen>
+      <voorletters>AEF</voorletters>
+      <roepnaam>Angelina</roepnaam>
+      <geboortedatum>2021-04-08</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>2</jaargroep>
+      <groep key="251282538206_lj_2"/>
+      <instroomdatum>2023-07-18</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>8504</key>
+      <achternaam>Broekhoven</achternaam>
+      <voornamen>Kaylee Loes</voornamen>
+      <voorletters>KL</voorletters>
+      <roepnaam>Kaylee</roepnaam>
+      <geboortedatum>2017-10-30</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>3</jaargroep>
+      <groep key="198912225902_lj_3"/>
+      <instroomdatum>2024-02-19</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>7984</key>
+      <achternaam>Boogaerts</achternaam>
+      <voornamen>Cas</voornamen>
+      <voorletters>C</voorletters>
+      <roepnaam>Cas</roepnaam>
+      <geboortedatum>2019-07-13</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>4</jaargroep>
+      <groep key="198912225902_lj_4"/>
+      <instroomdatum>2023-10-10</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>2323</key>
+      <achternaam>Hak</achternaam>
+      <voornamen>Aaliyah Joy Saar</voornamen>
+      <voorletters>AJS</voorletters>
+      <roepnaam>Aaliyah</roepnaam>
+      <geboortedatum>2013-12-12</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>2</jaargroep>
+      <groep key="403832645883_lj_2"/>
+      <instroomdatum>2023-06-22</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>3067</key>
+      <achternaam>Vandenbergh</achternaam>
+      <voornamen>Evi</voornamen>
+      <voorletters>E</voorletters>
+      <roepnaam>Evi</roepnaam>
+      <geboortedatum>2013-10-25</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>4</jaargroep>
+      <groep key="566392613993_lj_4"/>
+      <instroomdatum>2020-12-16</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>7240</key>
+      <achternaam>Schellekens</achternaam>
+      <voornamen>Fem Fiene Eliza</voornamen>
+      <voorletters>FFE</voorletters>
+      <roepnaam>Fem</roepnaam>
+      <geboortedatum>2018-03-25</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>1</jaargroep>
+      <groep key="251282538206_lj_1"/>
+      <instroomdatum>2024-05-12</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>2874</key>
+      <achternaam>Hoeven</achternaam>
+      <voornamen>Mehmet Twan Amina</voornamen>
+      <voorletters>MTA</voorletters>
+      <roepnaam>Mehmet</roepnaam>
+      <geboortedatum>2014-05-21</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>5</jaargroep>
+      <groep key="914655221101_lj_5"/>
+      <instroomdatum>2023-05-11</instroomdatum>
+      <voorvoegsel>van der</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>4743</key>
+      <achternaam>Heerenveen</achternaam>
+      <voornamen>Juul Noa Kai</voornamen>
+      <voorletters>JNK</voorletters>
+      <roepnaam>Juul</roepnaam>
+      <geboortedatum>2020-05-18</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>8</jaargroep>
+      <groep key="655050052120_lj_8"/>
+      <instroomdatum>2023-05-11</instroomdatum>
+      <voorvoegsel>van het</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>7815</key>
+      <achternaam>Asten</achternaam>
+      <voornamen>Olaf Meike</voornamen>
+      <voorletters>OM</voorletters>
+      <roepnaam>Olaf</roepnaam>
+      <geboortedatum>2019-06-25</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>7</jaargroep>
+      <groep key="590573056992_lj_7"/>
+      <instroomdatum>2023-07-22</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>5176</key>
+      <achternaam>Genefaas</achternaam>
+      <voornamen>Mohamed</voornamen>
+      <voorletters>M</voorletters>
+      <roepnaam>Mohamed</roepnaam>
+      <geboortedatum>2018-01-05</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>7</jaargroep>
+      <groep key="317158893990_lj_7"/>
+      <instroomdatum>2023-04-30</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>2494</key>
+      <achternaam>Bruijn</achternaam>
+      <voornamen>Vajèn Jan</voornamen>
+      <voorletters>VJ</voorletters>
+      <roepnaam>Vajèn</roepnaam>
+      <geboortedatum>2013-11-03</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="655050052120_lj_6"/>
+      <instroomdatum>2023-09-25</instroomdatum>
+      <voorvoegsel>de</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>3131</key>
+      <achternaam>Fortuyn</achternaam>
+      <voornamen>Dirk Thom</voornamen>
+      <voorletters>DT</voorletters>
+      <roepnaam>Dirk</roepnaam>
+      <geboortedatum>2019-01-14</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>2</jaargroep>
+      <groep key="403832645883_lj_2"/>
+      <instroomdatum>2020-07-09</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>3002</key>
+      <achternaam>Cosman</achternaam>
+      <voornamen>Elizabeth</voornamen>
+      <voorletters>E</voorletters>
+      <roepnaam>Elizabeth</roepnaam>
+      <geboortedatum>2018-04-22</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>3</jaargroep>
+      <groep key="914655221101_lj_3"/>
+      <instroomdatum>2024-06-22</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>5712</key>
+      <achternaam>Wel</achternaam>
+      <voornamen>Quinn</voornamen>
+      <voorletters>Q</voorletters>
+      <roepnaam>Quinn</roepnaam>
+      <geboortedatum>2013-07-28</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>2</jaargroep>
+      <groep key="251282538206_lj_2"/>
+      <instroomdatum>2023-04-19</instroomdatum>
+      <voorvoegsel>van 't</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>4485</key>
+      <achternaam>Tielemans</achternaam>
+      <voornamen>Pim</voornamen>
+      <voorletters>P</voorletters>
+      <roepnaam>Pim</roepnaam>
+      <geboortedatum>2021-04-30</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>5</jaargroep>
+      <groep key="198912225902_lj_5"/>
+      <instroomdatum>2020-07-30</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>7022</key>
+      <achternaam>Kerkhof</achternaam>
+      <voornamen>Imke Xavi Kian</voornamen>
+      <voorletters>IXK</voorletters>
+      <roepnaam>Imke</roepnaam>
+      <geboortedatum>2018-08-27</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>2</jaargroep>
+      <groep key="403832645883_lj_2"/>
+      <instroomdatum>2020-08-14</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>8030</key>
+      <achternaam>Heinrichs</achternaam>
+      <voornamen>Linn Mathijs</voornamen>
+      <voorletters>LM</voorletters>
+      <roepnaam>Linn</roepnaam>
+      <geboortedatum>2016-07-18</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>3</jaargroep>
+      <groep key="914655221101_lj_3"/>
+      <instroomdatum>2024-07-31</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>3955</key>
+      <achternaam>Blom</achternaam>
+      <voornamen>Evi Sofia</voornamen>
+      <voorletters>ES</voorletters>
+      <roepnaam>Evi</roepnaam>
+      <geboortedatum>2013-03-10</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>7</jaargroep>
+      <groep key="317158893990_lj_7"/>
+      <instroomdatum>2021-12-21</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>6751</key>
+      <achternaam>Scharroo</achternaam>
+      <voornamen>Jinthe Linn</voornamen>
+      <voorletters>JL</voorletters>
+      <roepnaam>Jinthe</roepnaam>
+      <geboortedatum>2018-06-24</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="655050052120_lj_6"/>
+      <instroomdatum>2022-04-29</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>2140</key>
+      <achternaam>Alpaidis</achternaam>
+      <voornamen>Job Noortje</voornamen>
+      <voorletters>JN</voorletters>
+      <roepnaam>Job</roepnaam>
+      <geboortedatum>2019-07-08</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="590573056992_lj_6"/>
+      <instroomdatum>2020-12-01</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>9691</key>
+      <achternaam>Jansse</achternaam>
+      <voornamen>Lara Fiene</voornamen>
+      <voorletters>LF</voorletters>
+      <roepnaam>Lara</roepnaam>
+      <geboortedatum>2014-04-05</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>8</jaargroep>
+      <groep key="590573056992_lj_8"/>
+      <instroomdatum>2019-12-17</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>7062</key>
+      <achternaam>Moenen</achternaam>
+      <voornamen>Robin Sten Twan</voornamen>
+      <voorletters>RST</voorletters>
+      <roepnaam>Robin</roepnaam>
+      <geboortedatum>2015-05-18</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>6</jaargroep>
+      <groep key="590573056992_lj_6"/>
+      <instroomdatum>2022-08-07</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>1861</key>
+      <achternaam>Thout</achternaam>
+      <voornamen>Juul</voornamen>
+      <voorletters>J</voorletters>
+      <roepnaam>Juul</roepnaam>
+      <geboortedatum>2014-02-21</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>4</jaargroep>
+      <groep key="566392613993_lj_4"/>
+      <instroomdatum>2022-06-16</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>5458</key>
+      <achternaam>Ketting</achternaam>
+      <voornamen>Jason Lily Fay</voornamen>
+      <voorletters>JLF</voorletters>
+      <roepnaam>Jason</roepnaam>
+      <geboortedatum>2014-01-31</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>5</jaargroep>
+      <groep key="198912225902_lj_5"/>
+      <instroomdatum>2020-02-14</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>5475</key>
+      <achternaam>Gelder</achternaam>
+      <voornamen>Indy Teun Youssef</voornamen>
+      <voorletters>ITY</voorletters>
+      <roepnaam>Indy</roepnaam>
+      <geboortedatum>2019-09-29</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>5</jaargroep>
+      <groep key="914655221101_lj_5"/>
+      <instroomdatum>2023-06-17</instroomdatum>
+      <voorvoegsel>van</voorvoegsel>
+    </leerling>
+    <leerling>
+      <key>2816</key>
+      <achternaam>Moensendijk</achternaam>
+      <voornamen>Lily Angelina Florian</voornamen>
+      <voorletters>LAF</voorletters>
+      <roepnaam>Lily</roepnaam>
+      <geboortedatum>2020-01-05</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>3</jaargroep>
+      <groep key="198912225902_lj_3"/>
+      <instroomdatum>2022-08-20</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>6053</key>
+      <achternaam>Schuurmans</achternaam>
+      <voornamen>Ize</voornamen>
+      <voorletters>I</voorletters>
+      <roepnaam>Ize</roepnaam>
+      <geboortedatum>2021-08-30</geboortedatum>
+      <geslacht>1</geslacht>
+      <jaargroep>7</jaargroep>
+      <groep key="590573056992_lj_7"/>
+      <instroomdatum>2023-11-02</instroomdatum>
+    </leerling>
+    <leerling>
+      <key>1125</key>
+      <achternaam>Bruggeman</achternaam>
+      <voornamen>Keano</voornamen>
+      <voorletters>K</voorletters>
+      <roepnaam>Keano</roepnaam>
+      <geboortedatum>2013-08-18</geboortedatum>
+      <geslacht>2</geslacht>
+      <jaargroep>4</jaargroep>
+      <groep key="914655221101_lj_4"/>
+      <instroomdatum>2023-01-23</instroomdatum>
+    </leerling>
+  </leerlingen>
+</EDEX>
