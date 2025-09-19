@@ -115,6 +115,19 @@ def fillin():
                 groups_to=groups_to,
                 uploaded=True,
             )
+        elif request.form.get("start_mode") == "empty":
+            candidates = []
+            groups_from = {}
+            groups_to = {}
+            temp_storage["candidates"] = candidates
+            return render_template(
+                "fillin.html",
+                candidates=candidates,
+                groups_from=groups_from,
+                groups_to=groups_to,
+                uploaded=True,
+            )
+
         else:
             new_students = _extract_new_students(request.form)
             existing_groups = extract_selected_per_group(request.form)
