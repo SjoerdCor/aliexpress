@@ -99,152 +99,167 @@ def download_template(filename):
 
 @app.route("/fillin", methods=["GET", "POST"])
 def fillin():
-    """Display the fillin page"""
+    """Display and process the fillin page"""
     if request.method == "POST":
         if "edexml" in request.files:
-            edexml = file_to_io(request.files["edexml"])
-            jaargroep = int(request.form["jaargroep"])
-
-            df = datareader.EdexReader(edexml).get_full_df()
-            candidates_doorgaan = (
-                df.loc[lambda df: df["jaargroep"] == jaargroep]
-                .sort_values(["groepsnaam", "roepnaam", "achternaam"])
-                .reset_index()
-                .filter(
-                    ["key", "roepnaam", "achternaam", "groepsnaam", "geslacht"],
-                    axis="columns",
-                )
-                .to_dict(orient="records")
-            )
-            groups_from = df.loc[
-                lambda df: df["jaargroep"] == jaargroep, "groepsnaam"
-            ].unique().tolist() + ["Anders"]
-
-            temp_storage["candidates"] = candidates_doorgaan
-
-            groupnames_to = (
-                df.loc[lambda df: df["jaargroep"] == jaargroep + 1, "groepsnaam"]
-                .unique()
-                .tolist()
-            )
-
-            groups_to = (
-                df.loc[lambda df: df["groepsnaam"].isin(groupnames_to)]
-                .assign(
-                    blijft_in_groep=lambda df: (
-                        df["jaargroep"]
-                        < df.groupby("groepsnaam")["jaargroep"].transform("max")
-                    )
-                )
-                .sort_values(["groepsnaam", "jaargroep", "geslacht"])
-                .groupby("groepsnaam")
-                .apply(
-                    lambda g: g[
-                        [
-                            "roepnaam",
-                            "achternaam",
-                            "geslacht",
-                            "jaargroep",
-                            "blijft_in_groep",
-                        ]
-                    ].to_dict(orient="records")
-                )
-                .to_dict()
-            )
-            return render_template(
-                "fillin.html",
-                candidates=candidates_doorgaan,
-                groups_from=groups_from,
-                groups_to=groups_to,
-                uploaded=True,
-            )
+            return _handle_edexml_upload(request)
         else:
-
-            formdata = request.form.to_dict(flat=False)
-            selected_per_group = defaultdict(list)
-            for key, values in formdata.items():
-                if key.startswith("group_students["):
-                    groupname = key[
-                        len("group_students[") : -1
-                    ]  # alles tussen [ ] halen
-                    selected_per_group[groupname].extend(values)
-
-            new_groups = [g for g in formdata.get("new_groups[]", []) if g.strip()]
-
-            groups_to = {}
-            for g, lst in selected_per_group.items():
-                c = Counter(lst)
-                groups_to[g] = {
-                    "Jongens": c.get("Jongen", 0),
-                    "Meisjes": c.get("Meisje", 0),
-                }
-
-            for g in new_groups:
-                groups_to.setdefault(g, {"Jongens": 0, "Meisjes": 0})
-
-            # Step 4: handle selection form after tickboxes
-            selected = request.form.getlist("students")
-
-            new_firstnames = request.form.getlist("new_firstname[]")
-            new_lastnames = request.form.getlist("new_lastname[]")
-            new_genders = request.form.getlist("new_gender[]")
-            new_groups = request.form.getlist("new_group[]")
-
-            new_students = [
-                {"roepnaam": fn, "achternaam": ln, "geslacht": sex, "groepsnaam": gr}
-                for fn, ln, sex, gr in zip(
-                    new_firstnames, new_lastnames, new_genders, new_groups
-                )
-                if fn.strip() and ln.strip()
-            ]
-
-            df_original = (
-                pd.DataFrame(temp_storage["candidates"]).set_index("key").loc[selected]
-            )
-            df_new = pd.DataFrame(new_students)
-            df_total = (
-                pd.concat([df_original, df_new])
-                .assign(uniekenaam=create_unique_name)
-                .sort_values(["groepsnaam", "uniekenaam"])
-            )
-
-            zip_buffer = BytesIO()
-            with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-
-                wb_groups = openpyxl.load_workbook("input_templates/groepen.xlsx")
-                fill_in_groups_to(groups_to, wb_groups)
-                buf_groups = BytesIO()
-                wb_groups.save(buf_groups)
-                buf_groups.seek(0)
-                zip_file.writestr("groepen.xlsx", buf_groups.read())
-
-                wb_prefs = openpyxl.load_workbook("input_templates/voorkeuren.xlsx")
-                fill_in_known_values(list(groups_to.keys()), df_total, wb_prefs)
-                add_data_validations(wb_prefs)
-                buf_prefs = BytesIO()
-                wb_prefs.save(buf_prefs)
-                buf_prefs.seek(0)
-                zip_file.writestr("voorkeuren.xlsx", buf_prefs.read())
-
-                wb_not_together = openpyxl.load_workbook(
-                    "input_templates/niet_samen.xlsx"
-                )
-                add_data_validations_not_together(wb_not_together, df_total)
-                buf_not_together = BytesIO()
-                wb_not_together.save(buf_not_together)
-                buf_not_together.seek(0)
-                zip_file.writestr("niet_samen.xlsx", buf_not_together.read())
-
-            zip_buffer.seek(0)
-
-            return send_file(
-                zip_buffer,
-                as_attachment=True,
-                download_name="invulformulieren.zip",
-                mimetype="application/zip",
-            )
+            return _handle_form_submission(request)
 
     return render_template("fillin.html")
+
+
+def _handle_edexml_upload(req):
+    """Process uploaded edexml and render candidates + groups"""
+    edexml = file_to_io(req.files["edexml"])
+    jaargroep = int(req.form["jaargroep"])
+    df = datareader.EdexReader(edexml).get_full_df()
+
+    candidates = (
+        df.loc[lambda df: df["jaargroep"] == jaargroep]
+        .sort_values(["groepsnaam", "roepnaam", "achternaam"])
+        .reset_index()
+        .filter(
+            ["key", "roepnaam", "achternaam", "groepsnaam", "geslacht"], axis="columns"
+        )
+        .to_dict(orient="records")
+    )
+    # Later the values will be retrieved based on key (which are selected in the app)
+    temp_storage["candidates"] = candidates
+
+    groups_from = (
+        df.loc[lambda df: df["jaargroep"] == jaargroep, "groepsnaam"].unique().tolist()
+    ) + ["Anders"]
+
+    groupnames_to = (
+        df.loc[lambda df: df["jaargroep"] == jaargroep + 1, "groepsnaam"]
+        .unique()
+        .tolist()
+    )
+
+    groups_to = (
+        df.loc[lambda df: df["groepsnaam"].isin(groupnames_to)]
+        .assign(
+            blijft_in_groep=lambda df: df["jaargroep"]
+            < df.groupby("groepsnaam")["jaargroep"].transform("max")
+        )
+        .sort_values(["groepsnaam", "jaargroep", "geslacht"])
+        .groupby("groepsnaam")
+        .apply(
+            lambda g: g[
+                ["roepnaam", "achternaam", "geslacht", "jaargroep", "blijft_in_groep"]
+            ].to_dict(orient="records")
+        )
+        .to_dict()
+    )
+
+    return render_template(
+        "fillin.html",
+        candidates=candidates,
+        groups_from=groups_from,
+        groups_to=groups_to,
+        uploaded=True,
+    )
+
+
+def _handle_form_submission(req):
+    """Process the form after candidates have been selected and groups defined"""
+    formdata = req.form.to_dict(flat=False)
+
+    selected_per_group = _extract_selected_per_group(formdata)
+    groups_to = _build_groups_summary(selected_per_group, formdata)
+
+    selected_ids = req.form.getlist("students")
+    new_students = _extract_new_students(req)
+
+    df_total = _combine_students(temp_storage["candidates"], selected_ids, new_students)
+
+    zip_buffer = _create_zip_with_templates(groups_to, df_total)
+
+    return send_file(
+        zip_buffer,
+        as_attachment=True,
+        download_name="invulformulieren.zip",
+        mimetype="application/zip",
+    )
+
+
+def _extract_selected_per_group(formdata):
+    """Extract students assigned to each group from formdata"""
+    selected = defaultdict(list)
+    for key, values in formdata.items():
+        if key.startswith("group_students["):
+            groupname = key[len("group_students[") : -1]  # extract text inside [ ]
+            selected[groupname].extend(values)
+    return selected
+
+
+def _build_groups_summary(selected_per_group, formdata):
+    """Build a summary of groups with counts of boys and girls"""
+    groups_to = {}
+    for g, lst in selected_per_group.items():
+        c = Counter(lst)
+        groups_to[g] = {"Jongens": c.get("Jongen", 0), "Meisjes": c.get("Meisje", 0)}
+
+    for g in [grp for grp in formdata.get("new_groups[]", []) if grp.strip()]:
+        groups_to.setdefault(g, {"Jongens": 0, "Meisjes": 0})
+
+    return groups_to
+
+
+def _extract_new_students(req):
+    """Extract manually added students from form fields"""
+    firstnames = req.form.getlist("new_firstname[]")
+    lastnames = req.form.getlist("new_lastname[]")
+    genders = req.form.getlist("new_gender[]")
+    groups = req.form.getlist("new_group[]")
+
+    return [
+        {"roepnaam": fn, "achternaam": ln, "geslacht": sex, "groepsnaam": gr}
+        for fn, ln, sex, gr in zip(firstnames, lastnames, genders, groups)
+        if fn.strip() and ln.strip()
+    ]
+
+
+def _combine_students(candidates, selected_ids, new_students):
+    """Combine selected and new students into a single DataFrame"""
+    df_original = pd.DataFrame(candidates).set_index("key").loc[selected_ids]
+    df_new = pd.DataFrame(new_students)
+    return (
+        pd.concat([df_original, df_new])
+        .assign(uniekenaam=create_unique_name)
+        .sort_values(["groepsnaam", "uniekenaam"])
+    )
+
+
+def _create_zip_with_templates(groups_to, df_total):
+    """Fill in Excel templates and package them into a ZIP file"""
+    zip_buffer = BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+
+        wb_groups = openpyxl.load_workbook("input_templates/groepen.xlsx")
+        fill_in_groups_to(groups_to, wb_groups)
+        _add_to_zip(zip_file, wb_groups, "groepen.xlsx")
+
+        wb_prefs = openpyxl.load_workbook("input_templates/voorkeuren.xlsx")
+        fill_in_known_values(list(groups_to.keys()), df_total, wb_prefs)
+        add_data_validations(wb_prefs)
+        _add_to_zip(zip_file, wb_prefs, "voorkeuren.xlsx")
+
+        wb_not_together = openpyxl.load_workbook("input_templates/niet_samen.xlsx")
+        add_data_validations_not_together(wb_not_together, df_total)
+        _add_to_zip(zip_file, wb_not_together, "niet_samen.xlsx")
+
+    zip_buffer.seek(0)
+    return zip_buffer
+
+
+def _add_to_zip(zip_file, workbook, filename):
+    """Helper to save workbook to buffer and add to ZIP"""
+    buf = BytesIO()
+    workbook.save(buf)
+    buf.seek(0)
+    zip_file.writestr(filename, buf.read())
 
 
 def create_unique_name(df: pd.DataFrame) -> pd.Series:
