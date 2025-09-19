@@ -120,7 +120,7 @@ def fillin():
             existing_groups = extract_selected_per_group(request.form)
             selected_ids = request.form.getlist("students")
             new_groups = [
-                grp for grp in request.form.get("new_groups[]", []) if grp.strip()
+                grp for grp in request.form.getlist("new_groups[]") if grp.strip()
             ]
             groups_to, df_total = candidatedetermination.handle_form_submission(
                 existing_groups,
