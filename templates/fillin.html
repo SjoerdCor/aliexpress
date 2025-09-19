@@ -28,23 +28,9 @@
       </label>
     {% endfor %}
 
-    <h3>Add new students</h3>
     <div id="new-students">
-      <div class="student-row">
-        <input type="text" name="new_firstname[]" placeholder="Voornaam">
-        <input type="text" name="new_lastname[]" placeholder="Achternaam">
-        <select name="new_gender[]">
-            <option value="Jongen">Jongen</option>
-            <option value="Meisje">Meisje</option>
-        </select>
-        <select name="new_group[]">
-          {% for g in groups_from %}
-            <option value="{{ g }}">{{ g }}</option>
-          {% endfor %}
-        </select>
     </div>
-    </div>
-    <button type="button" onclick="addStudentField()">+ Add another</button>
+    <button type="button" onclick="addStudentField()">+ Voeg leerling toe</button>
 <h2>Selecteer groepen waar ze naar toe gaan</h2>
   <div id="groups-to">
     {% for groupname, students in groups_to.items()%}
@@ -79,16 +65,22 @@ function addStudentField() {
   const row = document.createElement("div");
   row.className = "student-row";
   row.innerHTML = `
-    <input type="text" name="new_firstname[]" placeholder="Voornaam">
-    <input type="text" name="new_lastname[]" placeholder="Achternaam">
-    <select name="new_gender[]">
+    <input type="text" name="new_firstname[]" placeholder="Voornaam" required>
+    <input type="text" name="new_lastname[]" placeholder="Achternaam" required>
+    <select name="new_gender[]" required>
       <option value="Jongen">Jongen</option>
       <option value="Meisje">Meisje</option>
     </select>
-    <select name="new_group[]">
+    <select name="new_group[]" required>
         ${groupOptions}
     </select>
   `;
+  const removeBtn = document.createElement("button");
+  removeBtn.type = "button";
+  removeBtn.textContent = "✖";
+  removeBtn.onclick = () => row.remove();
+
+  row.appendChild(removeBtn);
   container.appendChild(row);
 }
 
@@ -123,6 +115,13 @@ function addGroupField() {
   }
   .student-row input, .student-row select {
     flex: 1;
+  }
+  .student-row button {
+    cursor: pointer;
+    background: none;
+    border: none;
+    font-size: 16px;
+    color: red;
   }
 
   .group-row {
