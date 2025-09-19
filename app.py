@@ -259,36 +259,6 @@ def create_unique_name(df: pd.DataFrame) -> pd.Series:
     return unique_names.str.strip()
 
 
-@app.route("/create_fillin_files", methods=["POST"])
-def create_fillin_files():
-    """Create the fillin files"""
-    edexml = file_to_io(request.files["edexml"])
-    jaargroep = int(request.form["jaargroep"])
-
-    df = datareader.EdexReader(edexml).get_full_df()
-    groep_die_doorgaat = (
-        df.loc[lambda df: df["jaargroep"] == jaargroep]
-        .assign(uniekenaam=create_unique_name)
-        .sort_values(["groepsnaam", "uniekenaam"])
-    )
-
-    wb = openpyxl.load_workbook("input_templates/voorkeuren.xlsx")
-    fill_in_known_values(df, groep_die_doorgaat, wb)
-    add_data_validations(wb)
-
-    output = BytesIO()
-    wb.save(output)
-    output.seek(0)
-    logger.debug("Opgeslagen")
-
-    return send_file(
-        output,
-        as_attachment=True,
-        download_name="resultaat.xlsx",
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    )
-
-
 def add_data_validations_not_together(wb, df):
     """Add data validations for students to not_together"""
     ws2 = wb["Sheet2"]
