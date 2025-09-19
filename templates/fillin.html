@@ -24,9 +24,14 @@ In het volgende scherm kun je dan controleren of het allemaal klopt.
     <button type="submit" class="button">Selecteer leerlingen en groepen</button>
     <br><br>
     </form>
+
+<p> Het is ook mogelijk om alles hier in te voeren. Dat is mogelijk foutgevoeliger en tijdrovender, dus aan te raden is om de EDEXML te uploaden</p>
+  <form method="post">
+  <input type="hidden" name="start_mode" value="empty">
+  <button type="submit" class="button">Begin met lege groep (afgeraden)</button>
+</form>
+
 {% else %}
-
-
   <h2>Selecteer leerlingen die doorgaan</h2>
   <p>Vink aan wie naar de volgende groep gaan. Verlengers kunnen uitgevinkt worden. Als er nog leerlingen missen kun je die onderaan toevoegen</p>
   <form method="post">
@@ -82,9 +87,7 @@ function addStudentField() {
       <option value="Jongen">Jongen</option>
       <option value="Meisje">Meisje</option>
     </select>
-    <select name="new_group[]" required>
-        ${groupOptions}
-    </select>
+    <input type="text" name="new_group[]" placeholder="Groepsnaam" required>
   `;
   const removeBtn = document.createElement("button");
   removeBtn.type = "button";

@@ -86,7 +86,10 @@ def _build_groups_summary(existing_groups, new_groups):
 
 def _combine_students(candidates, selected_ids, new_students):
     """Combine selected and new students into a single DataFrame"""
-    df_original = pd.DataFrame(candidates).set_index("key").loc[selected_ids]
+    if candidates:
+        df_original = pd.DataFrame(candidates).set_index("key").loc[selected_ids]
+    else:
+        df_original = pd.DataFrame(columns=["roepnaam", "achternaam", "groepsnaam"])
     df_new = pd.DataFrame(new_students)
     return (
         pd.concat([df_original, df_new])
