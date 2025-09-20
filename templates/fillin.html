@@ -46,25 +46,39 @@ In het volgende scherm kun je dan controleren of het allemaal klopt.
     </div>
     <button type="button" onclick="addStudentField()">+ Voeg leerling toe</button>
 <h2>Selecteer groepen waar ze naar toe gaan</h2>
-<p>Met vinkjes kun je aangeven wie achterblijven in de groepen. Deze worden automatisch geteld in de jongens/meisjes-verdeling in de groepen.
-  Als er nog leerlingen missen, kun je die telling in het excel aanpassen. Onderaan kun je ook nog een groepsnaam toevoegen als die mist.</p>
-  <div id="groups-to">
-    {% for groupname, students in groups_to.items()%}
-      <div class="group-block">
+<p>
+  Met vinkjes kun je aangeven wie achterblijven in de groepen.
+  Deze worden automatisch geteld in de jongens/meisjes-verdeling in de groepen.
+  Als er nog leerlingen missen, kun je die telling in het excel aanpassen.
+  Onderaan kun je ook nog een groepsnaam toevoegen als die mist.
+  Als er een groep tussenstaat waar geen leerlingen naartoe gaan, kun je ook de
+  hele groep uitvinken.
+</p>
+
+<div id="groups-to">
+  {% for groupname, students in groups_to.items() %}
+    <div class="group-block">
+      <label>
+        <input type="checkbox" class="group-toggle" checked data-group="{{ groupname }}">
         <strong>{{ groupname }}</strong>
-          <ul>
-            {% for s in students %}
-              <li>
-                <label>
-                  <input type="checkbox" name="group_students[{{ groupname }}]" value="{{ s.geslacht }}" {% if s.blijft_in_groep %}checked{% endif %}>
-                  {{ s.roepnaam }} {{ s.achternaam }} ({{s.jaargroep}})
-                </label>
-              </li>
-            {% endfor %}
-          </ul>
-      </div>
-    {% endfor %}
-  </div>
+      </label>
+
+      <ul class="student-list">
+        {% for s in students %}
+          <li>
+            <label>
+              <input type="checkbox"
+                     name="group_students[{{ groupname }}]"
+                     value="{{ s.geslacht }}"
+                     {% if s.blijft_in_groep %}checked{% endif %}>
+              {{ s.roepnaam }} {{ s.achternaam }} ({{ s.jaargroep }})
+            </label>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endfor %}
+</div>
 
   <div id="new-groups">
   </div>
@@ -75,6 +89,25 @@ In het volgende scherm kun je dan controleren of het allemaal klopt.
   </form>
 <script>
 const groupOptions = `{% for g in groups_from %}<option value="{{ g }}">{{ g }}</option>{% endfor %}`;
+
+  document.addEventListener("DOMContentLoaded", function() {
+    document.querySelectorAll(".group-toggle").forEach(function(groupCheckbox) {
+      groupCheckbox.addEventListener("change", function() {
+        const groupBlock = this.closest(".group-block");
+        const studentList = groupBlock.querySelector(".student-list");
+        const studentChecks = studentList.querySelectorAll("input[type=checkbox]");
+
+        if (this.checked) {
+          studentList.style.display = "";
+          studentChecks.forEach(cb => cb.disabled = false);
+        } else {
+          studentList.style.display = "none";
+          studentChecks.forEach(cb => cb.disabled = true);
+        }
+      });
+    });
+  });
+
 
 function addStudentField() {
   const container = document.getElementById("new-students");
@@ -121,17 +154,17 @@ function addGroupField() {
 }
 
 function validateForm() {
-    const originalStudents = document.querySelectorAll('input[name="students"]');
+    const originalStudents = document.querySelectorAll('input[name="students"]:checked');
     const newStudents = document.querySelectorAll('#new-students input[name="new_firstname[]"]');
     if (originalStudents.length + newStudents.length === 0) {
         alert("Er moeten minstens één leerling aanwezig zijn.");
         return false;
     }
 
-    const groupBlocks = document.querySelectorAll('#groups-to .group-block');
+    const activeGroupBlocks = document.querySelectorAll('#groups-to .group-block input.group-toggle:checked');
     const newGroups = document.querySelectorAll('#new-groups input[name="new_groups[]"]');
-    if (groupBlocks.length + newGroups.length === 0) {
-        alert("Er moeten minstens één groep aanwezig zijn.");
+    if (activeGroupBlocks.length + newGroups.length< 2) {
+        alert("Er moeten minstens twee groepen aanwezig zijn om leerlingen over te verdelen.");
         return false;
     }
 
