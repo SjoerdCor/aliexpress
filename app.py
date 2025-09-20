@@ -342,7 +342,18 @@ def schemaerror_to_validation_message(exc: pa.errors.SchemaError) -> str:
     )
 
 
-def _handle_failure(exc, task_id, log_msg):
+def _handle_failure(exc, task_id):
+    file_reading_errs = (
+        pa.errors.SchemaError,
+        ValidationError,
+        CouldNotReadFileError,
+    )
+    if isinstance(exc, file_reading_errs):
+        log_msg = "Files are incorrect"
+    elif isinstance(exc, FeasibilityError):
+        log_msg = "Problem is infeasible"
+    else:
+        log_msg = "Uncaught exception"
     logger.exception(log_msg)
     message = to_validation_message(exc)
     status_dct[task_id]["status_studentdistribution"] = "error"
@@ -398,16 +409,8 @@ def upload_files():
                 logger.info("Distributing students finished successfully")
                 status_dct[task_id]["status_studentdistribution"] = "done"
                 temp_storage[task_id]["groepsindeling"] = result
-            except (
-                pa.errors.SchemaError,
-                ValidationError,
-                CouldNotReadFileError,
-            ) as exc:
-                _handle_failure(exc, task_id, "Files are incorrect")
-            except FeasibilityError as exc:
-                _handle_failure(exc, task_id, "Problem is infeasible")
             except Exception as exc:
-                _handle_failure(exc, task_id, "Uncaught exception")
+                _handle_failure(exc, task_id)
 
         def create_sociogram(preferences, groups_to):
             try:
