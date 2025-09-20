@@ -89,6 +89,7 @@ input[type="submit"] {
   background-color: #ff9933;
   color: white;
   border-radius: 0.4rem;
+  border-color: #ff9933;
   text-decoration: none;
   cursor: pointer;
   transition: background-color 0.2s ease;
