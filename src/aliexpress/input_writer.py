@@ -23,6 +23,8 @@ def add_data_validations_not_together(wb, df):
         formula1="=Sheet2!$A:$A",
         allow_blank=True,
         showErrorMessage=True,
+        errorTitle="Onbekende leerling",
+        error="Schrijf de naam van de leerling exact zoals deze in de lijst staat.",
     )
     for col in "BCDEFGHIJKLM":
         dv.add(f"{col}2:{col}1048576")
@@ -36,14 +38,34 @@ def add_data_validations(wb):
     """
     ws1 = wb["Sheet1"]
     val_specs = [
-        ("Sheet2!$A:$A", "C"),  # jongen/meisje
-        ("Sheet2!$B:$B", "QR"),  # niet in: only groups
-        ("Sheet2!$C:$C", "EGIKMO"),  # (negative) preferences: groups + students
+        (
+            "Sheet2!$A:$A",
+            "C",
+            "Verkeerd ingevuld geslacht",
+            "Het geslacht moet of 'Jongen' of 'Meisje' zijn",
+        ),
+        (
+            "Sheet2!$B:$B",
+            "QR",
+            "Onbekende groep",
+            "Spel de groepsnaam exact zoals deze in de lijst staat",
+        ),
+        (
+            "Sheet2!$C:$C",
+            "EGIKMO",
+            "Onbekende groep of leerling",
+            "Spel de naam exact zoalsdeze in de lijst staat",
+        ),
     ]
 
-    for rng, cols_to_be_validated in val_specs:
+    for rng, cols_to_be_validated, errortitle, error in val_specs:
         dv = DataValidation(
-            type="list", formula1=f"={rng}", allow_blank=True, showErrorMessage=True
+            type="list",
+            formula1=f"={rng}",
+            allow_blank=True,
+            showErrorMessage=True,
+            errorTitle=errortitle,
+            error=error,
         )
         for col in cols_to_be_validated:
             dv.add(f"{col}4:{col}1048576")
@@ -68,7 +90,8 @@ def fill_in_groups_to(groups_to, wb):
         formula1="0",
         allow_blank=True,
         showErrorMessage=True,
-        errorTitle="Alleen niet-negatieve gehele getallen zijn toegestaan.",
+        errorTitle="Ongeldige waarde",
+        error="Alleen niet-negatieve gehele getallen zijn toegestaan.",
     )
     dv_int.add("B2:B1048576")
     dv_int.add("C2:C1048576")
