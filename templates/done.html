@@ -8,16 +8,26 @@
     style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></canvas>
 <p>Gefeliciteerd! De groepsindeling is weer gedaan :)</p>
 
+<button id="confetti-btn"
+    class="button">
+    Ik wil meer confetti 🎉
+</button>
 
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 <script>
-    confetti({
-        particleCount: 150,
-        spread: 100,
-        origin: { y: 0.6 }
-    });
-    setTimeout(() => {
-        confetti({ particleCount: 100, spread: 80, origin: { y: 0.4 } });
-    }, 800);
+    function startConfetti() {
+        confetti({
+            particleCount: 150,
+            spread: 100,
+            origin: { y: 0.6 }
+        });
+        setTimeout(() => {
+            confetti({ particleCount: 100, spread: 80, origin: { y: 0.4 } });
+        }, 800);
+    }
+
+    startConfetti();
+
+    document.getElementById("confetti-btn").addEventListener("click", startConfetti);
 </script>
 {% endblock %}
