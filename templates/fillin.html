@@ -155,9 +155,27 @@ function addGroupField() {
 
 function validateForm() {
     const originalStudents = document.querySelectorAll('input[name="students"]:checked');
-    const newStudents = document.querySelectorAll('#new-students input[name="new_firstname[]"]');
-    if (originalStudents.length + newStudents.length === 0) {
+    const newFirstnames = document.querySelectorAll('#new-students input[name="new_firstname[]"]');
+    const newLastnames = document.querySelectorAll('#new-students input[name="new_lastname[]"]');
+
+    if (originalStudents.length + newFirstnames.length === 0) {
         alert("Er moeten minstens één leerling aanwezig zijn.");
+        return false;
+    }
+
+    const studentNames = [];
+    const duplicateStudents = [];
+    for (let i = 0; i < newFirstnames.length; i++) {
+        const fullname = `${newFirstnames[i].value.trim()} ${newLastnames[i].value.trim()}`;
+        if (studentNames.includes(fullname)) {
+            duplicateStudents.push(fullname);
+        } else {
+            studentNames.push(fullname);
+        }
+    }
+
+    if (duplicateStudents.length > 0) {
+        alert("Duplicaten van leerlingen gevonden: " + [...new Set(duplicateStudents)].join(", "));
         return false;
     }
 
