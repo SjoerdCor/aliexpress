@@ -4,6 +4,9 @@ from collections import Counter
 
 import pandas as pd
 
+from aliexpress.datareader import clean_name
+from aliexpress.errors import DuplicateNameError
+
 
 def get_candidates(df: pd.DataFrame, jaargroep: int) -> list:
     """Return list of candidates for the given jaargroep."""
@@ -100,6 +103,20 @@ def _combine_students(candidates, selected_ids, new_students):
 
 def create_unique_name(df: pd.DataFrame) -> pd.Series:
     """Find unique name per leerling. Needs roepnaam and achternaam"""
+    df["roepnaam"] = df["roepnaam"].apply(clean_name)
+    df["achternaam"] = df["achternaam"].apply(clean_name)
+
+    duplicated = (df["roepnaam"] + df["achternaam"]).duplicated()
+    if duplicated.any():
+        raise DuplicateNameError(
+            "duplicate_names",
+            {
+                "duplicate_names": df.loc[
+                    duplicated, ["roepnaam", "achternaam"]
+                ].to_dict(orient="records")
+            },
+            f"Can not create unique names for {df[duplicated]}",
+        )
     unique_names = df["roepnaam"] + " "
 
     n_letters_added = 0
@@ -107,4 +124,4 @@ def create_unique_name(df: pd.DataFrame) -> pd.Series:
         for ix in unique_names[unique_names.duplicated(keep=False)].index:
             unique_names[ix] += df.loc[ix, "achternaam"][n_letters_added]
         n_letters_added += 1
-    return unique_names.str.strip()
+    return unique_names.apply(clean_name)

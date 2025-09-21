@@ -11,6 +11,10 @@ class ReadableError(Exception):
         self.technical_message = technical_message
 
 
+class DuplicateNameError(ReadableError):
+    """Raised when duplicate names are inevitable"""
+
+
 class ValidationError(ReadableError):
     """Raised when input validation fails."""
 

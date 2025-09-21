@@ -138,18 +138,24 @@ def fillin():
             ]
             if len(new_students) + len(selected_ids) == 0:
                 flash("Er moet minsten één leerling aanwezig zijn", "error")
-                redirect(url_for("fillin"))
+                return redirect(url_for("fillin"))
             if not new_groups + list(existing_groups.keys()):
                 flash("Er moet minstens één groep aanwezig zijn", "error")
-                redirect(url_for("fillin"))
-
-            groups_to, df_total = candidatedetermination.handle_form_submission(
-                existing_groups,
-                new_groups,
-                temp_storage["candidates"],
-                new_students,
-                selected_ids,
-            )
+                return redirect(url_for("fillin"))
+            try:
+                groups_to, df_total = candidatedetermination.handle_form_submission(
+                    existing_groups,
+                    new_groups,
+                    temp_storage["candidates"],
+                    new_students,
+                    selected_ids,
+                )
+            except candidatedetermination.DuplicateNameError as exc:
+                logger.exception(exc)
+                flash(
+                    f"Vond leerlingen dubbel: {exc.context['duplicate_names']}", "error"
+                )
+                return redirect(url_for("fillin"))
             zip_buffer = input_writer.create_zip_with_templates(groups_to, df_total)
 
             return send_file(
