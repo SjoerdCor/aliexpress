@@ -122,11 +122,14 @@ def toggle_negative_weights(df: pd.DataFrame, mask="Gewicht") -> pd.DataFrame:
     return df
 
 
-def clean_name(x):
+def clean_name(x, full_clean=True):
     """Clean spaces and capitals in names"""
     if isinstance(x, str):
         html_safe = re.sub(r"[<>&\"'`=/\\]", "", x)
-        return html_safe.strip().title().replace(" ", "")
+        new = html_safe.strip().title()
+        if full_clean:
+            new = new.replace(" ", "")
+        return new
     return x
 
 

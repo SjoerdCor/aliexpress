@@ -76,8 +76,10 @@ def handle_form_submission(
 
 def _build_groups_summary(existing_groups, new_groups):
     """Build a summary of groups with counts of boys and girls"""
-    existing_groups = {clean_name(k): v for k, v in existing_groups.items()}
-    new_groups = [clean_name(g) for g in new_groups]
+    existing_groups = {
+        clean_name(k, full_clean=False): v for k, v in existing_groups.items()
+    }
+    new_groups = [clean_name(g, full_clean=False) for g in new_groups]
 
     counts = Counter(new_groups)
     dupes_in_new_groups = [item for item, count in counts.items() if count > 1]
@@ -138,4 +140,4 @@ def create_unique_name(df: pd.DataFrame) -> pd.Series:
         for ix in unique_names[unique_names.duplicated(keep=False)].index:
             unique_names[ix] += df.loc[ix, "achternaam"][n_letters_added]
         n_letters_added += 1
-    return unique_names.apply(clean_name)
+    return unique_names.apply(clean_name, full_clean=False)
