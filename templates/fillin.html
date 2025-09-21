@@ -168,6 +168,23 @@ function validateForm() {
         return false;
     }
 
+    const groupNames = Array.from(newGroups).map(input => input.value.trim());
+    const nameCounts = {};
+    const duplicates = [];
+
+    groupNames.forEach(name => {
+        nameCounts[name] = (nameCounts[name] || 0) + 1;
+        if (nameCounts[name] === 2) {
+            duplicates.push(name);
+        }
+    });
+
+    if (duplicates.length > 0) {
+        alert("Elke groepsnaam moet uniek zijn. Dat is nu niet zo voor " + duplicates.join(", "));
+        return false;
+    }
+
+
     return true;
 }
 
