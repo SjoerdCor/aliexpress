@@ -15,6 +15,10 @@ class DuplicateNameError(ReadableError):
     """Raised when duplicate names are inevitable"""
 
 
+class DuplicateGroupError(ReadableError):
+    """Raised when duplicate groups are detected"""
+
+
 class ValidationError(ReadableError):
     """Raised when input validation fails."""
 

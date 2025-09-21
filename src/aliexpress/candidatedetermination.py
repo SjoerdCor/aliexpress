@@ -5,7 +5,7 @@ from collections import Counter
 import pandas as pd
 
 from aliexpress.datareader import clean_name
-from aliexpress.errors import DuplicateNameError
+from aliexpress.errors import DuplicateGroupError, DuplicateNameError
 
 
 def get_candidates(df: pd.DataFrame, jaargroep: int) -> list:
@@ -76,6 +76,20 @@ def handle_form_submission(
 
 def _build_groups_summary(existing_groups, new_groups):
     """Build a summary of groups with counts of boys and girls"""
+    existing_groups = {clean_name(k): v for k, v in existing_groups.items()}
+    new_groups = [clean_name(g) for g in new_groups]
+
+    counts = Counter(new_groups)
+    dupes_in_new_groups = [item for item, count in counts.items() if count > 1]
+    overlap_new_groups_old_groups = set(existing_groups.keys()) & set(new_groups)
+    if dupes_in_new_groups or overlap_new_groups_old_groups:
+        duplicate_groupnames = dupes_in_new_groups + list(overlap_new_groups_old_groups)
+        raise DuplicateGroupError(
+            "duplicate_group",
+            {"duplicate_groups": duplicate_groupnames},
+            f"Found duplicate groups in {existing_groups.keys()} and {new_groups}",
+        )
+
     groups_to = {}
     for g, lst in existing_groups.items():
         c = Counter(lst)

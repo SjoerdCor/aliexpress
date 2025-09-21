@@ -27,6 +27,8 @@ from flask import (
 from aliexpress import candidatedetermination, datareader, input_writer, sociogram
 from aliexpress.errors import (
     CouldNotReadFileError,
+    DuplicateGroupError,
+    DuplicateNameError,
     FeasibilityError,
     ValidationError,
 )
@@ -150,7 +152,13 @@ def fillin():
                     new_students,
                     selected_ids,
                 )
-            except candidatedetermination.DuplicateNameError as exc:
+            except DuplicateGroupError as exc:
+                logger.exception(exc)
+                flash(
+                    f"Vond dubbele groepen: {exc.context['duplicate_groups']}", "error"
+                )
+                return redirect(url_for("fillin"))
+            except DuplicateNameError as exc:
                 logger.exception(exc)
                 flash(
                     f"Vond leerlingen dubbel: {exc.context['duplicate_names']}", "error"
