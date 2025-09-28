@@ -66,9 +66,9 @@ def plateaud_lexmaxmin(
         each level
     """
     M = 100
-    eps = 1e-6
+    eps = 1e-2  # min step size
     solver = solver or pulp.PULP_CBC_CMD()
-
+    satisfaction_max = satisfaction_max or float("inf")
     level = 0
     while True:
         if n_levels_max is not None and level >= n_levels_max:
@@ -117,6 +117,8 @@ def plateaud_lexmaxmin(
         )
         delta = 1e-5
         for key in scores:
+            print(level, key, scores[key].value())
+            # TODO: check cat?!
             has_this_level_key = pulp.LpVariable.dicts(
                 f"HasLevel_{level}_{key}", [m_val + delta], cat="Binary"
             )
@@ -131,6 +133,8 @@ def plateaud_lexmaxmin(
         prob.sense = pulp.LpMaximize
         prob.setObjective(pulp.lpSum(has_this_level.values()))
         prob.solve(solver)
+        for key in scores:
+            print(level, key, has_this_level[key].value(), has_this_level[key].cat)
 
         count_at_level = sum(
             1 for key in scores if pulp.value(has_this_level[key]) > 0.5
@@ -138,7 +142,6 @@ def plateaud_lexmaxmin(
         logger.debug("Level %s, step 2 done, %s", level, count_at_level)
         if count_at_level == 0:
             logger.debug("Stopped at level %s: no more students left", level)
-
             break
         # Add as constraint
         prob += pulp.lpSum(has_this_level.values()) == count_at_level
