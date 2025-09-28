@@ -17,16 +17,17 @@ def total(scores: dict[str, pulp.LpVariable]) -> pulp.LpVariable:
 def lowest_score(
     scores: dict[str, pulp.LpVariable], prob: pulp.LpProblem
 ) -> pulp.LpVariable:
-    """Optimize lowest score, with total satisfaction as tie-breaker
+    """Optimize lowest score, with total score as tie-breaker
 
-    A very basic/first-step (and therefore much quicker) version of lexmaxmin
+    A very basic/first-step (and therefore much quicker) version of lexmaxmin,
+    which doesn't require intermediate solving the problem
     """
 
-    minimal_satisfaction = pulp.LpVariable("MinimalSatisfaction")
+    minimal_score = pulp.LpVariable("MinimalScore")
     for satisfaction in scores.values():
-        prob += minimal_satisfaction <= satisfaction
+        prob += minimal_score <= satisfaction
     M = 1_000_000
-    return M * minimal_satisfaction + pulp.lpSum(scores.values())
+    return M * minimal_score + pulp.lpSum(scores.values())
 
 
 def plateaud_lexmaxmin(
@@ -37,25 +38,32 @@ def plateaud_lexmaxmin(
     solver=None,
 ):
     """
-    Solve the approximate lexmaxmin problem for student satisfaction
+    Solve the approximate lexmaxmin problem for scores
 
-    Uses an iterative solve, making use of the fact that student satisfaction is
-    often plateaud: there are multiple students at the same level. Level by level,
-    first the next lowest plateau is determined, and then the number of students
+    Uses an iterative solve, making use of the fact that scores are often  plateaud:
+    there are multiple scores at the same level. Level by level,
+    first the next lowest plateau is determined, and then the number of values
     on that plateau. When each number is found, it is then added as a constraint and
     continues solving. Automatically stops when all students are distributed,
     or if n_levels max or satisfaction_max is reached. In that case,
-    totalstudent satisfaction is the ultimate tie breaker.
+    total score is the ultimate tie breaker.
 
     Parameters
     ----------
+    scores : dict[str, pulp.LpVariable]
+        The variables which should be optimized
+    prob : pulp.LpProblem
+        The problem to which the constraints are added
     n_levels_max : int, optional
         The max number of plateaus to use. Higher means more precision, but slightly slower,
         although the last levels are usually very quick, when the solution is already
         fixed.
-    satisfaction_max : float (default 0.8)
+    satisfaction_max : float, optional
         The satisfaction after which the relative satisfaction will be used. This prevents
         some numerical solver errors.
+    solver : optional
+        The pulp solver, which is needed because LexMaxMin requires solving the problem at
+        each level
     """
     M = 100
     eps = 1e-6
@@ -66,23 +74,23 @@ def plateaud_lexmaxmin(
         if n_levels_max is not None and level >= n_levels_max:
             break
         # Step 1: maximize minimal satisfaction = determine next plateau
-        minimal_satisfaction = pulp.LpVariable(f"MinimalSatisfaction_{level}")
+        minimal_score = pulp.LpVariable(f"MinimalScore_{level}")
         # pylint: disable=used-before-assignment
         if level == 0:
             for satisfaction in scores.values():
-                prob += minimal_satisfaction <= satisfaction
+                prob += minimal_score <= satisfaction
         else:
-            prob += minimal_satisfaction >= m_val + eps
+            prob += minimal_score >= m_val + eps
             for student, satisfaction in scores.items():
                 prob += (
-                    minimal_satisfaction
+                    minimal_score
                     <= satisfaction + (1 - has_this_level[student]) * M + eps
                 ), f"MinimalSatisfactionLT{student}_{level}"
         # pylint: enable=used-before-assignment
         prob.sense = pulp.LpMaximize
-        prob.setObjective(minimal_satisfaction)
+        prob.setObjective(minimal_score)
         prob.solve(solver)
-        m_val = minimal_satisfaction.value()
+        m_val = minimal_score.value()
         logger.debug("Level %s, step 1 done, %s", level, m_val)
 
         if m_val > satisfaction_max:
@@ -91,13 +99,13 @@ def plateaud_lexmaxmin(
 
         # Add as constraint
         if level == 0:
-            for student in scores:
-                prob += scores[student] >= m_val
+            for key in scores:
+                prob += scores[key] >= m_val
         else:
-            for student in scores:
+            for key in scores:
                 prob += (
-                    scores[student] >= m_val * has_this_level[student] - eps
-                ), f"MinimalSatisfaction_{student}_{level}"
+                    scores[key] >= m_val * has_this_level[key] - eps
+                ), f"MinimalSatisfaction_{key}_{level}"
 
         # Useful for debugging - usually from numerical errors
         # if level > 0:
@@ -108,24 +116,24 @@ def plateaud_lexmaxmin(
             f"HasThisLevel_{level}", scores.keys(), cat="Binary"
         )
         delta = 1e-5
-        for student in scores:
-            has_this_level_student = pulp.LpVariable.dicts(
-                f"HasLevel_{level}_{student}", [m_val + delta], cat="Binary"
+        for key in scores:
+            has_this_level_key = pulp.LpVariable.dicts(
+                f"HasLevel_{level}_{key}", [m_val + delta], cat="Binary"
             )
             preferences_utils.apply_threshold_constraints(
                 prob,
-                scores[student],
+                scores[key],
                 [m_val + delta],
-                has_this_level_student,
+                has_this_level_key,
                 M=100,
             )
-            prob += has_this_level[student] == has_this_level_student[m_val + delta]
+            prob += has_this_level[key] == has_this_level_key[m_val + delta]
         prob.sense = pulp.LpMaximize
         prob.setObjective(pulp.lpSum(has_this_level.values()))
         prob.solve(solver)
 
         count_at_level = sum(
-            1 for student in scores if pulp.value(has_this_level[student]) > 0.5
+            1 for key in scores if pulp.value(has_this_level[key]) > 0.5
         )
         logger.debug("Level %s, step 2 done, %s", level, count_at_level)
         if count_at_level == 0:
