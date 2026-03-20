@@ -66,7 +66,8 @@ def plateaud_lexmaxmin(
         each level
     """
     M = 100
-    eps = 1e-2  # min step size
+    eps = 1e-5  # precision
+    delta = 1e-4  # step size between plateaus
     solver = solver or pulp.PULP_CBC_CMD()
     satisfaction_max = satisfaction_max or float("inf")
     level = 0
@@ -115,31 +116,26 @@ def plateaud_lexmaxmin(
         has_this_level = pulp.LpVariable.dicts(
             f"HasThisLevel_{level}", scores.keys(), cat="Binary"
         )
-        delta = 1e-5
-        for key in scores:
-            print(level, key, scores[key].value())
-            # TODO: check cat?!
-            has_this_level_key = pulp.LpVariable.dicts(
-                f"HasLevel_{level}_{key}", [m_val + delta], cat="Binary"
+        for key, value in scores.items():
+            preferences_utils.apply_threshold_constraint(
+                prob, value, m_val + delta, has_this_level[key], M=100
             )
-            preferences_utils.apply_threshold_constraints(
-                prob,
-                scores[key],
-                [m_val + delta],
-                has_this_level_key,
-                M=100,
-            )
-            prob += has_this_level[key] == has_this_level_key[m_val + delta]
+
         prob.sense = pulp.LpMaximize
         prob.setObjective(pulp.lpSum(has_this_level.values()))
         prob.solve(solver)
         for key in scores:
-            print(level, key, has_this_level[key].value(), has_this_level[key].cat)
-
+            print(
+                level,
+                key,
+                m_val + delta,
+                has_this_level[key].value(),
+                has_this_level[key].cat,
+            )
         count_at_level = sum(
             1 for key in scores if pulp.value(has_this_level[key]) > 0.5
         )
-        logger.debug("Level %s, step 2 done, %s", level, count_at_level)
+        logger.debug("Level %s, step 2 done, %s at this level", level, count_at_level)
         if count_at_level == 0:
             logger.debug("Stopped at level %s: no more students left", level)
             break
