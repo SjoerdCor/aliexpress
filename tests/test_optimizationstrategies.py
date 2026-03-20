@@ -1,5 +1,8 @@
 """Test for optimization strategies"""
 
+# pylint: disable=redefined-outer-name
+from unittest.mock import patch
+
 import pulp
 import pytest
 
@@ -139,32 +142,31 @@ def test_lexmaxmin_three_variables_equal_distribution():
     c = pulp.LpVariable("c", lowBound=0, upBound=10)
     scores = {"a": a, "b": b, "c": c}
 
-    # Constraints zodat meerdere plateau-niveaus ontstaan
     prob += a + b + c <= 15
     prob += a >= 2
     prob += b >= 4
     prob += c >= 3
 
     with patch(
-        "strategies.preferences_utils.apply_threshold_constraints"
+        "aliexpress.preferences_utils.apply_threshold_constraints"
     ) as mock_apply:
         mock_apply.side_effect = lambda *a_, **k: None
 
-        expr = strategies.plateaud_lexmaxmin(
+        expr = optimizationstrategies.plateaud_lexmaxmin(
             scores, prob, n_levels_max=3, satisfaction_max=100
         )
         prob += expr
-
     prob.solve(pulp.PULP_CBC_CMD(msg=False))
 
     values = [pulp.value(v) for v in scores.values()]
     min_val = min(values)
     # De kleinste waarde moet gemaximaliseerd zijn
-    assert abs(min_val - 4) < 1e-3
+    assert abs(min_val - 5) < 1e-3
     assert abs(sum(values) - 15) < 1e-3
 
 
 def test_lexmaxmin_multiple_plateaus():
+    """Test that lexmaxmin finds different plateaus if needed"""
     prob = pulp.LpProblem("LexMaxMinLevel3", pulp.LpMaximize)
     a = pulp.LpVariable("a", lowBound=0, upBound=10)
     b = pulp.LpVariable("b", lowBound=0, upBound=10)
