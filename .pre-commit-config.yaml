@@ -55,5 +55,4 @@ repos:
         language: system
         stages: [pre-commit]
         entry: python -m pylint
-        args: ["--disable=R"]
         types: [python]
