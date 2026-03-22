@@ -1,5 +1,6 @@
 """The flask server that governs the app"""
 
+import json
 import logging
 import os
 import uuid
@@ -39,7 +40,7 @@ from aliexpress.main import distribute_students_once
 def setup_logger():
     """Create logging instance"""
     log = logging.getLogger(__name__)
-    log.setLevel(logging.INFO)
+    log.setLevel(logging.DEBUG)
 
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.DEBUG)
@@ -69,6 +70,7 @@ app = Flask(__name__)
 app.config.from_object(ConfigClass)
 BASE_DIR = os.path.join(app.instance_path, "storage")
 os.makedirs(BASE_DIR, exist_ok=True)
+logger.debug("Created dir if not exists: %s", BASE_DIR)
 
 
 def get_process_path(process_id):
@@ -126,7 +128,7 @@ def select_process(process_id):
         abort(404)
 
     session["process_id"] = process_id
-    return redirect(url_for("fillin"))
+    return redirect(url_for("upload_edexml"))
 
 
 def file_to_io(uploaded_file) -> BytesIO:
@@ -140,24 +142,33 @@ def download_template(filename):
     return send_from_directory("input_templates", filename, as_attachment=True)
 
 
-def _handle_file_upload():
-    edexml = file_to_io(request.files["edexml"])
+@app.route("/upload_edexml", methods=["GET", "POST"])
+def upload_edexml():
+    """Route to upload edexml"""
+    if request.method == "GET":
+        return render_template("upload_edexml.html")
+    edex_file = request.files["edexml"]
+    edex_path = get_file_path(session["process_id"], "edex.xml")
+    edex_file.save(edex_path)
+    edex_file.stream.seek(0)
+
+    edexml = file_to_io(edex_file)
     jaargroep = int(request.form["jaargroep"])
     df = datareader.EdexReader(edexml).get_full_df()
-
     candidates, groups_from, groups_to = candidatedetermination.handle_edexml_upload(
         df, jaargroep
     )
+    data = {
+        "candidates": candidates,
+        "groups_from": groups_from,
+        "groups_to": groups_to,
+    }
+    path = get_file_path(session["process_id"], "data.json")
 
-    temp_storage["candidates"] = candidates
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
 
-    return render_template(
-        "fillin.html",
-        candidates=candidates,
-        groups_from=groups_from,
-        groups_to=groups_to,
-        uploaded=True,
-    )
+    return redirect(url_for("fillin"))
 
 
 def _handle_empty_start():
@@ -172,7 +183,6 @@ def _handle_empty_start():
         candidates=candidates,
         groups_from=groups_from,
         groups_to=groups_to,
-        uploaded=True,
     )
 
 
@@ -186,7 +196,7 @@ def _validate_input(new_students, selected_ids, existing_groups, new_groups):
     return None
 
 
-def _handle_form_submission():
+def _handle_form_submission(candidates):
     new_students = _extract_new_students(request.form)
     existing_groups = extract_selected_per_group(request.form)
     selected_ids = request.form.getlist("students")
@@ -201,7 +211,7 @@ def _handle_form_submission():
         groups_to, df_total = candidatedetermination.handle_form_submission(
             existing_groups,
             new_groups,
-            temp_storage["candidates"],
+            candidates,
             new_students,
             selected_ids,
         )
@@ -227,16 +237,27 @@ def _handle_form_submission():
 @app.route("/fillin", methods=["GET", "POST"])
 def fillin():
     """Display and process the fillin page"""
-    if request.method == "GET":
-        return render_template("fillin.html")
+    data_path = get_file_path(session["process_id"], "data.json")
 
-    if "edexml" in request.files:
-        return _handle_file_upload()
+    with open(data_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    candidates = data.get("candidates", [])
+    groups_from = data.get("groups_from", {})
+    groups_to = data.get("groups_to", [])
+
+    if request.method == "GET":
+        return render_template(
+            "fillin.html",
+            candidates=candidates,
+            groups_from=groups_from,
+            groups_to=groups_to,
+        )
 
     if request.form.get("start_mode") == "empty":
         return _handle_empty_start()
 
-    return _handle_form_submission()
+    return _handle_form_submission(candidates)
 
 
 def _extract_new_students(form):

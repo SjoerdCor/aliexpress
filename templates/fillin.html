@@ -2,36 +2,6 @@
 {% set current_step = 1 %}
 {% block content %}
 
-{% if not uploaded %}
-<p> De snelste manier om tot invulformulieren te komen is door een zogenaamd EDEXML-bestand  te uploaden.
-  Deze kun je uit alle bekende leerlingadministratiesystemen downloaden. <a href="https://www.google.com/search?q=edexml+exporteren"
-     target="_blank"
-     rel="noopener noreferrer"
-     aria-label="Zoek op Google: hoe uploaden EDEXML bestand invulformulieren leerlingadministratie">
-    Zoek hoe je dat kunt doen (Google)
-  </a>. Selecteer de versie 2.1. Er hoeven geen privacy-gevoelige gegevens te worden geexporteerd.
-In het volgende scherm kun je dan controleren of het allemaal klopt.
-</p>
-<form method="post" enctype="multipart/form-data">
-    <label for="edexml">EDEXML:</label><br>
-    <input type="file" name="edexml" accept=".xml" required><br><br>
-    <label for="jaargroep"> jaargroep die moet worden ingedeeld</label>
-    <select name="jaargroep" required>
-        {% for year in range(1, 9) %}
-        <option value="{{ year }}">{{ year }}</option>
-        {% endfor %}
-    </select>
-    <button type="submit" class="button">Selecteer leerlingen en groepen</button>
-    <br><br>
-    </form>
-
-<p> Het is ook mogelijk om alles hier in te voeren. Dat is mogelijk foutgevoeliger en tijdrovender, dus aan te raden is om de EDEXML te uploaden</p>
-  <form method="post">
-  <input type="hidden" name="start_mode" value="empty">
-  <button type="submit" class="button">Begin met lege groep (afgeraden)</button>
-</form>
-
-{% else %}
   <h2>Selecteer leerlingen die doorgaan</h2>
   <p>Vink aan wie naar de volgende groep gaan. Verlengers kunnen uitgevinkt worden. Als er nog leerlingen missen kun je die onderaan toevoegen</p>
   <form method="post" onsubmit="return validateForm()">
@@ -244,9 +214,6 @@ function validateForm() {
     color: red;
   }
 </style>
-
-{% endif %}
-
 
 <div class="instructions-box">
     <h2>Invulinstructies</h2>
