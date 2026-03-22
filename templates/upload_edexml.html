@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% set current_step = 1 %}
 {% block content %}
-<p> De snelste manier om tot invulformulieren te komen is door een zogenaamd EDEXML-bestand  te uploaden.
+<p> Upload een zogenaamd EDEXML-bestand.
   Deze kun je uit alle bekende leerlingadministratiesystemen downloaden. <a href="https://www.google.com/search?q=edexml+exporteren"
      target="_blank"
      rel="noopener noreferrer"
@@ -22,10 +22,4 @@ In het volgende scherm kun je dan controleren of het allemaal klopt.
     <button type="submit" class="button">Selecteer leerlingen en groepen</button>
     <br><br>
     </form>
-
-<p> Het is ook mogelijk om alles hier in te voeren. Dat is mogelijk foutgevoeliger en tijdrovender, dus aan te raden is om de EDEXML te uploaden</p>
-  <form method="post">
-  <input type="hidden" name="start_mode" value="empty">
-  <button type="submit" class="button">Begin met lege groep (afgeraden)</button>
-</form>
 {% endblock %}
