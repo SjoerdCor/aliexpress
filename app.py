@@ -13,6 +13,7 @@ import pandera as pa
 from dotenv import load_dotenv
 from flask import (
     Flask,
+    abort,
     flash,
     jsonify,
     redirect,
@@ -66,6 +67,18 @@ else:
 
 app = Flask(__name__)
 app.config.from_object(ConfigClass)
+BASE_DIR = os.path.join(app.instance_path, "storage")
+os.makedirs(BASE_DIR, exist_ok=True)
+
+
+def get_process_path(process_id):
+    """Get directory for process"""
+    return os.path.join(BASE_DIR, process_id)
+
+
+def get_file_path(process_id, filename):
+    """Get file for a certain process"""
+    return os.path.join(get_process_path(process_id), filename)
 
 
 temp_storage = {}
@@ -82,6 +95,38 @@ status_dct = defaultdict(
 def home():
     """Display home page"""
     return render_template("home.html")
+
+
+@app.route("/processes")
+def processes():
+    """Display page to create or choose process"""
+    existing_processes = [
+        name
+        for name in os.listdir(BASE_DIR)
+        if os.path.isdir(os.path.join(BASE_DIR, name))
+    ]
+    return render_template("processes.html", processes=existing_processes)
+
+
+@app.route("/processes/create", methods=["POST"])
+def create_process():
+    """Create a new process"""
+    process_id = str(uuid.uuid4())
+    path = os.path.join(BASE_DIR, process_id)
+    os.makedirs(path)
+    session["process_id"] = process_id
+    return redirect(url_for("fillin"))
+
+
+@app.route("/processes/select/<process_id>")
+def select_process(process_id):
+    """Select process"""
+    path = get_process_path(process_id)
+    if not os.path.exists(path):
+        abort(404)
+
+    session["process_id"] = process_id
+    return redirect(url_for("fillin"))
 
 
 def file_to_io(uploaded_file) -> BytesIO:
