@@ -171,21 +171,6 @@ def upload_edexml():
     return redirect(url_for("fillin"))
 
 
-def _handle_empty_start():
-    candidates = []
-    groups_from = {}
-    groups_to = {}
-
-    temp_storage["candidates"] = candidates
-
-    return render_template(
-        "fillin.html",
-        candidates=candidates,
-        groups_from=groups_from,
-        groups_to=groups_to,
-    )
-
-
 def _validate_input(new_students, selected_ids, existing_groups, new_groups):
     if len(new_students) + len(selected_ids) == 0:
         return "Er moet minsten één leerling aanwezig zijn"
@@ -253,10 +238,6 @@ def fillin():
             groups_from=groups_from,
             groups_to=groups_to,
         )
-
-    if request.form.get("start_mode") == "empty":
-        return _handle_empty_start()
-
     return _handle_form_submission(candidates)
 
 
