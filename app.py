@@ -95,85 +95,103 @@ def download_template(filename):
     return send_from_directory("input_templates", filename, as_attachment=True)
 
 
+def _handle_file_upload():
+    edexml = file_to_io(request.files["edexml"])
+    jaargroep = int(request.form["jaargroep"])
+    df = datareader.EdexReader(edexml).get_full_df()
+
+    candidates, groups_from, groups_to = candidatedetermination.handle_edexml_upload(
+        df, jaargroep
+    )
+
+    temp_storage["candidates"] = candidates
+
+    return render_template(
+        "fillin.html",
+        candidates=candidates,
+        groups_from=groups_from,
+        groups_to=groups_to,
+        uploaded=True,
+    )
+
+
+def _handle_empty_start():
+    candidates = []
+    groups_from = {}
+    groups_to = {}
+
+    temp_storage["candidates"] = candidates
+
+    return render_template(
+        "fillin.html",
+        candidates=candidates,
+        groups_from=groups_from,
+        groups_to=groups_to,
+        uploaded=True,
+    )
+
+
+def _validate_input(new_students, selected_ids, existing_groups, new_groups):
+    if len(new_students) + len(selected_ids) == 0:
+        return "Er moet minsten één leerling aanwezig zijn"
+
+    if not new_groups + list(existing_groups.keys()):
+        return "Er moet minstens één groep aanwezig zijn"
+
+    return None
+
+
+def _handle_form_submission():
+    new_students = _extract_new_students(request.form)
+    existing_groups = extract_selected_per_group(request.form)
+    selected_ids = request.form.getlist("students")
+    new_groups = [grp for grp in request.form.getlist("new_groups[]") if grp.strip()]
+
+    error = _validate_input(new_students, selected_ids, existing_groups, new_groups)
+    if error:
+        flash(error, "error")
+        return redirect(url_for("fillin"))
+
+    try:
+        groups_to, df_total = candidatedetermination.handle_form_submission(
+            existing_groups,
+            new_groups,
+            temp_storage["candidates"],
+            new_students,
+            selected_ids,
+        )
+    except DuplicateGroupError as exc:
+        logger.exception(exc)
+        flash(f"Vond dubbele groepen: {exc.context['duplicate_groups']}", "error")
+        return redirect(url_for("fillin"))
+    except DuplicateNameError as exc:
+        logger.exception(exc)
+        flash(f"Vond leerlingen dubbel: {exc.context['duplicate_names']}", "error")
+        return redirect(url_for("fillin"))
+
+    zip_buffer = input_writer.create_zip_with_templates(groups_to, df_total)
+
+    return send_file(
+        zip_buffer,
+        as_attachment=True,
+        download_name="invulformulieren.zip",
+        mimetype="application/zip",
+    )
+
+
 @app.route("/fillin", methods=["GET", "POST"])
 def fillin():
     """Display and process the fillin page"""
-    if request.method == "POST":
-        if "edexml" in request.files:
-            edexml = file_to_io(request.files["edexml"])
-            jaargroep = int(request.form["jaargroep"])
-            df = datareader.EdexReader(edexml).get_full_df()
+    if request.method == "GET":
+        return render_template("fillin.html")
 
-            candidates, groups_from, groups_to = (
-                candidatedetermination.handle_edexml_upload(df, jaargroep)
-            )
-            # Later the values will be retrieved based on key (which are selected in the app)
-            temp_storage["candidates"] = candidates
+    if "edexml" in request.files:
+        return _handle_file_upload()
 
-            return render_template(
-                "fillin.html",
-                candidates=candidates,
-                groups_from=groups_from,
-                groups_to=groups_to,
-                uploaded=True,
-            )
-        elif request.form.get("start_mode") == "empty":
-            candidates = []
-            groups_from = {}
-            groups_to = {}
-            temp_storage["candidates"] = candidates
-            return render_template(
-                "fillin.html",
-                candidates=candidates,
-                groups_from=groups_from,
-                groups_to=groups_to,
-                uploaded=True,
-            )
+    if request.form.get("start_mode") == "empty":
+        return _handle_empty_start()
 
-        else:
-            new_students = _extract_new_students(request.form)
-            existing_groups = extract_selected_per_group(request.form)
-            selected_ids = request.form.getlist("students")
-
-            new_groups = [
-                grp for grp in request.form.getlist("new_groups[]") if grp.strip()
-            ]
-            if len(new_students) + len(selected_ids) == 0:
-                flash("Er moet minsten één leerling aanwezig zijn", "error")
-                return redirect(url_for("fillin"))
-            if not new_groups + list(existing_groups.keys()):
-                flash("Er moet minstens één groep aanwezig zijn", "error")
-                return redirect(url_for("fillin"))
-            try:
-                groups_to, df_total = candidatedetermination.handle_form_submission(
-                    existing_groups,
-                    new_groups,
-                    temp_storage["candidates"],
-                    new_students,
-                    selected_ids,
-                )
-            except DuplicateGroupError as exc:
-                logger.exception(exc)
-                flash(
-                    f"Vond dubbele groepen: {exc.context['duplicate_groups']}", "error"
-                )
-                return redirect(url_for("fillin"))
-            except DuplicateNameError as exc:
-                logger.exception(exc)
-                flash(
-                    f"Vond leerlingen dubbel: {exc.context['duplicate_names']}", "error"
-                )
-                return redirect(url_for("fillin"))
-            zip_buffer = input_writer.create_zip_with_templates(groups_to, df_total)
-
-            return send_file(
-                zip_buffer,
-                as_attachment=True,
-                download_name="invulformulieren.zip",
-                mimetype="application/zip",
-            )
-
-    return render_template("fillin.html")
+    return _handle_form_submission()
 
 
 def _extract_new_students(form):
@@ -248,6 +266,8 @@ def readableerror_to_validation_message(exc: Exception) -> str:
     )
 
 
+# Deliberately overruling pylint here; we need a branch per validation
+# pylint: disable=too-many-return-statements, too-many-branches
 def schemaerror_to_validation_message(exc: pa.errors.SchemaError) -> str:
     """Convert a pandera SchemaError to a user-friendly message
 
