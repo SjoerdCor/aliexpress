@@ -5,11 +5,12 @@ import logging
 import os
 import uuid
 import webbrowser
-from collections import defaultdict
+from collections import Counter, defaultdict
 from io import BytesIO
 from threading import Thread
 
 import numpy as np
+import pandas as pd
 import pandera as pa
 from dotenv import load_dotenv
 from flask import (
@@ -29,7 +30,6 @@ from flask import (
 from aliexpress import candidatedetermination, datareader, input_writer, sociogram
 from aliexpress.errors import (
     CouldNotReadFileError,
-    DuplicateGroupError,
     DuplicateNameError,
     FeasibilityError,
     ValidationError,
@@ -181,34 +181,59 @@ def _validate_input(new_students, selected_ids, existing_groups, new_groups):
     return None
 
 
-def _handle_form_submission(candidates):
-    new_students = _extract_new_students(request.form)
-    existing_groups = extract_selected_per_group(request.form)
-    selected_ids = request.form.getlist("students")
-    new_groups = [grp for grp in request.form.getlist("new_groups[]") if grp.strip()]
+@app.route("/fillin", methods=["GET", "POST"])
+def fillin():
+    """Display and process the fillin page"""
+    if request.method == "GET":
+        data_path = get_file_path(session["process_id"], "data.json")
+        with open(data_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        groups_to = data.get("groups_to", [])
 
-    error = _validate_input(new_students, selected_ids, existing_groups, new_groups)
-    if error:
-        flash(error, "error")
-        return redirect(url_for("fillin"))
+        return render_template("fillin.html", groups_to=groups_to)
 
-    try:
-        groups_to, df_total = candidatedetermination.handle_form_submission(
-            existing_groups,
-            new_groups,
-            candidates,
-            new_students,
-            selected_ids,
+    boy_girl_distribution = extract_selected_per_group(request.form)
+    assert len(boy_girl_distribution) > 1
+
+    path = get_file_path(session["process_id"], "groups.xlsx")
+    pd.DataFrame(boy_girl_distribution).transpose().to_excel(path)
+    return redirect(url_for("student_preferences"))
+
+
+@app.route("/student_preferences", methods=["GET", "POST"])
+def student_preferences():
+    """Display page where the teacher can add preferences for the student"""
+    data_path = get_file_path(session["process_id"], "data.json")
+    with open(data_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    candidates = data.get("candidates", [])
+    groups_from = data.get("groups_from", {})
+
+    if request.method == "GET":
+        return render_template(
+            "student_preferences.html", candidates=candidates, groups_from=groups_from
         )
-    except DuplicateGroupError as exc:
-        logger.exception(exc)
-        flash(f"Vond dubbele groepen: {exc.context['duplicate_groups']}", "error")
-        return redirect(url_for("fillin"))
+    new_students = _extract_new_students(request.form)
+    selected_ids = request.form.getlist("students")
+
+    # error = _validate_input(new_students, selected_ids, existing_groups, new_groups)
+    # if error:
+    #     flash(error, "error")
+    #     return redirect(url_for("fillin"))
+
+    # pylint: disable=fixme
+    # TODO: check wether the validate is still needed
+    try:
+        df_total = candidatedetermination.combine_students(
+            candidates, selected_ids, new_students
+        )
     except DuplicateNameError as exc:
         logger.exception(exc)
         flash(f"Vond leerlingen dubbel: {exc.context['duplicate_names']}", "error")
         return redirect(url_for("fillin"))
 
+    path = get_file_path(session["process_id"], "groups.xlsx")
+    groups_to = pd.read_excel(path, index_col=0).index.tolist()
     zip_buffer = input_writer.create_zip_with_templates(groups_to, df_total)
 
     return send_file(
@@ -217,28 +242,6 @@ def _handle_form_submission(candidates):
         download_name="invulformulieren.zip",
         mimetype="application/zip",
     )
-
-
-@app.route("/fillin", methods=["GET", "POST"])
-def fillin():
-    """Display and process the fillin page"""
-    data_path = get_file_path(session["process_id"], "data.json")
-
-    with open(data_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
-    candidates = data.get("candidates", [])
-    groups_from = data.get("groups_from", {})
-    groups_to = data.get("groups_to", [])
-
-    if request.method == "GET":
-        return render_template(
-            "fillin.html",
-            candidates=candidates,
-            groups_from=groups_from,
-            groups_to=groups_to,
-        )
-    return _handle_form_submission(candidates)
 
 
 def _extract_new_students(form):
@@ -255,22 +258,30 @@ def _extract_new_students(form):
     ]
 
 
-def extract_selected_per_group(form):
+def extract_selected_per_group(form) -> dict[str, list[str]]:
     """
-    Extract students assigned to each group from form data.
+    Find nr of Jongens and Meisjes in each key in the form that starts with "group_students[]"
 
     Args:
         form: werkzeug MultiDict (e.g., request.form)
 
     Returns:
-        dict[str, list[str]]: mapping of groupname → list of selected students
+        dict[str, list[str]]: mapping of groupname → list of values of the group
     """
     selected = defaultdict(list)
     for key in form:
         if key.startswith("group_students["):
             groupname = key[len("group_students[") : -1]  # text inside [ ]
             selected[groupname].extend(form.getlist(key))
-    return selected
+
+    gender_distribution = {}
+    for g, lst in selected.items():
+        c = Counter(lst)
+        gender_distribution[g] = {
+            "Jongens": c.get("Jongen", 0),
+            "Meisjes": c.get("Meisje", 0),
+        }
+    return gender_distribution
 
 
 def to_validation_message(exc: Exception) -> str:

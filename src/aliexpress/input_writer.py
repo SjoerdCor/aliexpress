@@ -5,6 +5,7 @@ import zipfile
 from io import BytesIO
 
 import openpyxl
+import pandas as pd
 from openpyxl.worksheet.datavalidation import DataValidation
 
 logger = logging.getLogger(__name__)
@@ -117,17 +118,18 @@ def fill_in_known_values(groups_to, groep_die_doorgaat, wb):
         ws2[f"C{i}"].value = sub
 
 
-def create_zip_with_templates(groups_to, df_total):
-    """Fill in Excel templates and package them into a ZIP file"""
+def create_zip_with_templates(groups_to: list, df_total: pd.DataFrame) -> BytesIO:
+    """Fill in Excel templates and package them into a ZIP file
+
+    groups_to : list
+        Names of the groups (necessary because there can be a preference for a group)
+    df_total : pd.DataFrame
+        The DataFrame with all the students who are being distributed
+    """
     zip_buffer = BytesIO()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-
-        wb_groups = openpyxl.load_workbook("input_templates/groepen.xlsx")
-        fill_in_groups_to(groups_to, wb_groups)
-        _add_to_zip(zip_file, wb_groups, "groepen.xlsx")
-
         wb_prefs = openpyxl.load_workbook("input_templates/voorkeuren.xlsx")
-        fill_in_known_values(list(groups_to.keys()), df_total, wb_prefs)
+        fill_in_known_values(groups_to, df_total, wb_prefs)
         add_data_validations(wb_prefs)
         _add_to_zip(zip_file, wb_prefs, "voorkeuren.xlsx")
 

@@ -64,16 +64,6 @@ def handle_edexml_upload(df: pd.DataFrame, jaargroep: int):
     return candidates, groups_from, groups_to
 
 
-def handle_form_submission(
-    existing_groups, new_groups, candidates, new_students, selected_ids
-):
-    """Process the form after candidates have been selected and groups defined"""
-
-    groups_to = _build_groups_summary(existing_groups, new_groups)
-    df_total = _combine_students(candidates, selected_ids, new_students)
-    return groups_to, df_total
-
-
 def _build_groups_summary(existing_groups, new_groups):
     """Build a summary of groups with counts of boys and girls"""
     existing_groups = {
@@ -103,7 +93,9 @@ def _build_groups_summary(existing_groups, new_groups):
     return groups_to
 
 
-def _combine_students(candidates, selected_ids, new_students):
+def combine_students(
+    candidates: dict, selected_ids: list[int], new_students: dict
+) -> pd.DataFrame:
     """Combine selected and new students into a single DataFrame"""
     if candidates:
         df_original = pd.DataFrame(candidates).set_index("key").loc[selected_ids]
