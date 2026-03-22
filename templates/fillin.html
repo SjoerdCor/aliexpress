@@ -46,7 +46,7 @@
           </li>
         {% endfor %}
       </ul>
-    </div>
+<button type="button" onclick="addStudentToExistingGroup(this)">+ Voeg leerling toe</button>    </div>
   {% endfor %}
 </div>
 
@@ -78,6 +78,65 @@ const groupOptions = `{% for g in groups_from %}<option value="{{ g }}">{{ g }}<
     });
   });
 
+function addStudentToExistingGroup(button) {
+  const groupBlock = button.closest(".group-block");
+  const studentList = groupBlock.querySelector(".student-list");
+
+  const groupName = groupBlock.querySelector("strong").textContent.trim();
+
+  const li = document.createElement("li");
+
+  li.innerHTML = `
+    <label>
+      <input type="checkbox"
+             name="group_students[${groupName}]"
+             value=""
+             checked>
+
+      <input type="text" placeholder="Voornaam" class="fn" required>
+      <input type="text" placeholder="Achternaam" class="ln" required>
+
+      <select class="gender" required>
+        <option value="">Geslacht</option>
+        <option value="Jongen">Jongen</option>
+        <option value="Meisje">Meisje</option>
+      </select>
+
+      <span class="display-name"></span>
+    </label>
+
+    <button type="button" onclick="this.closest('li').remove()">✖</button>
+  `;
+
+  // Update checkbox value + zichtbare tekst zodra iets verandert
+  const fnInput = li.querySelector(".fn");
+  const lnInput = li.querySelector(".ln");
+  const genderSelect = li.querySelector(".gender");
+  const checkbox = li.querySelector("input[type=checkbox]");
+  const display = li.querySelector(".display-name");
+
+  function updateStudent() {
+    const fn = fnInput.value.trim();
+    const ln = lnInput.value.trim();
+    const gender = genderSelect.value;
+
+    if (fn && ln && gender) {
+      const fullname = `${fn} ${ln}`;
+      checkbox.value = gender;
+      display.textContent = ` ${fullname} (${gender})`;
+
+      fnInput.style.display = "none";
+      lnInput.style.display = "none";
+      genderSelect.style.display = "none";
+    }
+  }
+
+  fnInput.addEventListener("input", updateStudent);
+  lnInput.addEventListener("input", updateStudent);
+  genderSelect.addEventListener("change", updateStudent);
+
+  studentList.appendChild(li);
+}
 
 function addStudentField() {
   const container = document.getElementById("new-students");
