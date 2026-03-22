@@ -22,13 +22,13 @@ def get_candidates(df: pd.DataFrame, jaargroep: int) -> list:
     )
 
 
-def get_groups_from(df: pd.DataFrame, jaargroep: int):
+def get_groups_from(df: pd.DataFrame, jaargroep: int) -> list:
     """Return unique group names in the current jaargroep plus 'Anders'."""
     df_current = df[df["jaargroep"] == jaargroep]
     return df_current["groepsnaam"].unique().tolist() + ["Anders"]
 
 
-def get_groups_to(df: pd.DataFrame, jaargroep: int):
+def get_groups_to(df: pd.DataFrame, jaargroep: int) -> dict:
     """Return dictionary of groups for the next jaargroep with blijft_in_groep flag."""
     next_jaargroep = jaargroep + 1
     groupnames_to = (
