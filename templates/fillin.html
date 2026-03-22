@@ -19,7 +19,6 @@
 <p>
   Met vinkjes kun je aangeven wie achterblijven in de groepen.
   Deze worden automatisch geteld in de jongens/meisjes-verdeling in de groepen.
-  Als er nog leerlingen missen, kun je die telling in het excel aanpassen.
   Onderaan kun je ook nog een groepsnaam toevoegen als die mist.
   Als er een groep tussenstaat waar geen leerlingen naartoe gaan, kun je ook de
   hele groep uitvinken.
@@ -162,24 +161,39 @@ function addStudentField() {
 
 function addGroupField() {
   const container = document.getElementById("new-groups");
-  const row = document.createElement("div");
-  row.className = "group-row";
 
-  const input = document.createElement("input");
-  input.type = "text";
-  input.name = "new_groups[]";
-  input.placeholder = "Groepsnaam";
-  input.required = true;
+  const groupBlock = document.createElement("div");
+  groupBlock.className = "group-block";
 
-  const removeBtn = document.createElement("button");
-  removeBtn.type = "button";
-  removeBtn.textContent = "✖";
-  removeBtn.style.cursor = "pointer";
-  removeBtn.onclick = () => row.remove();
+  groupBlock.innerHTML = `
+    <label>
+      <input type="checkbox" class="group-toggle" checked>
+      <strong contenteditable="true">Nieuwe groep</strong>
+    </label>
 
-  row.appendChild(input);
-  row.appendChild(removeBtn);
-  container.appendChild(row);
+    <ul class="student-list"></ul>
+
+    <button type="button" onclick="addStudentToExistingGroup(this)">+ Voeg leerling toe</button>
+
+    <button type="button" onclick="this.closest('.group-block').remove()">✖ Verwijder groep</button>
+  `;
+
+  container.appendChild(groupBlock);
+
+  const toggle = groupBlock.querySelector(".group-toggle");
+
+  toggle.addEventListener("change", function() {
+    const studentList = groupBlock.querySelector(".student-list");
+    const studentChecks = studentList.querySelectorAll("input[type=checkbox]");
+
+    if (this.checked) {
+      studentList.style.display = "";
+      studentChecks.forEach(cb => cb.disabled = false);
+    } else {
+      studentList.style.display = "none";
+      studentChecks.forEach(cb => cb.disabled = true);
+    }
+  });
 }
 
 function validateForm() {
