@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% set current_step = 1 %}
+{% block header %}Processen{% endblock %}
+{% block content %}
+    <h1>Kies of maak een proces</h1>
+
+    <h2>Bestaande processen</h2>
+    <ul>
+        {% for p in processes %}
+            <li>
+                {{ p }}
+                <a href="{{ url_for('select_process', process_id=p) }}">
+                    Open
+                </a>
+            </li>
+        {% else %}
+            <li>Geen processen gevonden</li>
+        {% endfor %}
+    </ul>
+
+    <h2>Nieuw proces</h2>
+    <form method="post" action="{{ url_for('create_process') }}">
+        <button type="submit">Nieuw proces aanmaken</button>
+    </form>
+{% endblock %}
