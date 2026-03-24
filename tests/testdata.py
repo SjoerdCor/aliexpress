@@ -13,21 +13,22 @@ random.seed(42)
 FOLDER = "testdata"
 
 
-def generate_groups(n_groups=4) -> pd.DataFrame:
+def generate_groups(n_groups=4, sample_group_names=None) -> pd.DataFrame:
     """Create the groups-DataFrame"""
     assert 1 < n_groups <= 10
-    sample_group_names = [
-        "Beren",
-        "Otters",
-        "Panda's",
-        "Flamingo's",
-        "Alpaca's",
-        "Pinguins",
-        "Vossen",
-        "Zebras",
-        "Giraffen",
-        "Stokstaartjes",
-    ]
+    if sample_group_names is None:
+        sample_group_names = [
+            "Beren",
+            "Otters",
+            "Panda's",
+            "Flamingo's",
+            "Alpaca's",
+            "Pinguins",
+            "Vossen",
+            "Zebras",
+            "Giraffen",
+            "Stokstaartjes",
+        ]
     selected_names = sample_group_names[:n_groups]
 
     rows = {}
@@ -217,12 +218,9 @@ class PreferenceExcelGenerator:
         assert 1 <= num_students <= 40, "Number of students must be between 1 and 40"
 
         selected_students = self.possible_students[:num_students]
-
         total = [name for name, _ in selected_students] + self.groups_to
 
-        rows = []
-        for student in selected_students:
-            name, gender = student
+        def build_row(name, gender):
             minimale_tevredenheid = self.generate_minimale_tevredenheid()
             stamgroep = random.choice(self.groups_from)
             wishes = self.generate_wishes(name, total)
@@ -231,13 +229,10 @@ class PreferenceExcelGenerator:
 
             row = [name, minimale_tevredenheid, gender, stamgroep]
             for i in range(5):
-                try:
-                    row.extend(wishes[i])
-                except IndexError:
-                    row.extend(["", ""])
-            row.extend(not_with)
-            row.extend(not_in)
-            rows.append(row)
+                row.extend(wishes[i] if i < len(wishes) else ["", ""])
+            return row + list(not_with) + not_in
+
+        rows = [build_row(name, gender) for name, gender in selected_students]
 
         df = pd.concat([self.df_header, pd.DataFrame(rows)])
         if fname:
@@ -260,7 +255,12 @@ def generate_niet_samen(leerlingen: list, n_groups=4, n_rules=5) -> pd.DataFrame
 
 def main(n_groups=4, n_students=35, n_rules=5):
     """Generate the three input files and write to testdata"""
-    groups = generate_groups(n_groups)
+    edexgroupnames = [
+        "3-4-5 Dolfijnen (Leerkracht1 en Leerkracht2)",
+        "3-4-5 Panda's (Leerkracht1 en Leerkracht2)",
+        "3-4-5 Pinguins (Leerkracht1 en Leerkracht2)",
+    ]
+    groups = generate_groups(n_groups, edexgroupnames)
     groups.to_excel(os.path.join(FOLDER, "groepen_generated.xlsx"), index=False)
     df_students_excel = PreferenceExcelGenerator(groups["Groepen"].tolist()).generate(
         n_students
@@ -325,4 +325,4 @@ def {function_name}():
 
 
 if __name__ == "__main__":
-    main(2, 5, 1)
+    main(3, 8, 1)
