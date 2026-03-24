@@ -196,7 +196,9 @@ def fillin():
     assert len(boy_girl_distribution) > 1
 
     path = get_file_path(session["process_id"], "groups.xlsx")
-    pd.DataFrame(boy_girl_distribution).transpose().to_excel(path)
+    pd.DataFrame(boy_girl_distribution).transpose().to_excel(
+        path, index_label="Groepen"
+    )
     return redirect(url_for("student_preferences"))
 
 
@@ -458,7 +460,7 @@ def upload_files():
     if request.method == "POST":
         logger.info("Submitted")
         preferences = file_to_io(request.files["preferences"])
-        groups_to = file_to_io(request.files["groups_to"])
+        groups_to_path = get_file_path(session["process_id"], "groups.xlsx")
         not_together = file_to_io(request.files["not_together"])
 
         try:
@@ -524,10 +526,10 @@ def upload_files():
                 logger.exception("Could not create sociogram")
 
         # pylint: enable=broad-exception-caught
-        Thread(target=create_sociogram, args=(preferences, groups_to)).start()
+        Thread(target=create_sociogram, args=(preferences, groups_to_path)).start()
         Thread(
             target=run_task,
-            args=(preferences, groups_to, not_together),
+            args=(preferences, groups_to_path, not_together),
             kwargs=kwargs,
         ).start()
 
