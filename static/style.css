@@ -406,3 +406,17 @@ table.dataframe th {
   gap: 6px;
   flex-wrap: nowrap;
 }
+
+.delete-btn {
+    background: none;
+    border: none;
+    color: red;
+    font-weight: bold;
+    font-size: 1.2em; /* iets groter voor duidelijkheid */
+    cursor: pointer;
+    padding: 0 0.2em;
+}
+
+.delete-btn:hover {
+    color: darkred;
+}

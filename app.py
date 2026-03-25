@@ -3,6 +3,8 @@
 import json
 import logging
 import os
+import re
+import shutil
 import uuid
 import webbrowser
 from collections import Counter, defaultdict
@@ -110,14 +112,40 @@ def processes():
     return render_template("processes.html", processes=existing_processes)
 
 
+def _validate_process_name(process_name, must_exist=True):
+    error = None
+    if not process_name:
+        error = "Naam is verplicht"
+    if not re.match(r"^[\w\- ]+$", process_name):
+        error = "Alleen letters, cijfers, spaties, - en _ toegestaan"
+    path = os.path.join(BASE_DIR, process_name)
+    if os.path.exists(path) and not must_exist:
+        error = "Proces bestaat niet"
+    if not os.path.exists(path) and must_exist:
+        error = "Proces bestaat al"
+    if error:
+        flash(error, "error")
+        return redirect(url_for("processes"))
+    return path
+
+
 @app.route("/processes/create", methods=["POST"])
 def create_process():
     """Create a new process"""
-    process_id = str(uuid.uuid4())
-    path = os.path.join(BASE_DIR, process_id)
+    process_name = request.form.get("process_name", "").strip()
+
+    path = _validate_process_name(process_name, must_exist=False)
     os.makedirs(path)
-    session["process_id"] = process_id
+    session["process_id"] = process_name
     return redirect(url_for("upload_edexml"))
+
+
+@app.route("/processes/delete/<process_name>", methods=["POST"])
+def delete_process(process_name):
+    """Delete a process"""
+    path = _validate_process_name(process_name, must_exist=True)
+    shutil.rmtree(path)
+    return redirect(url_for("processes"))
 
 
 @app.route("/processes/select/<process_id>")
