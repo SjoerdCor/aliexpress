@@ -117,7 +117,7 @@ def create_process():
     path = os.path.join(BASE_DIR, process_id)
     os.makedirs(path)
     session["process_id"] = process_id
-    return redirect(url_for("fillin"))
+    return redirect(url_for("upload_edexml"))
 
 
 @app.route("/processes/select/<process_id>")
@@ -168,25 +168,25 @@ def upload_edexml():
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
-    return redirect(url_for("fillin"))
+    return redirect(url_for("groups_to"))
 
 
-@app.route("/fillin", methods=["GET", "POST"])
-def fillin():
-    """Display and process the fillin page"""
+@app.route("/groups_to", methods=["GET", "POST"])
+def groups_to_page():
+    """Display and process the groups_to page"""
     if request.method == "GET":
         data_path = get_file_path(session["process_id"], "data.json")
         with open(data_path, "r", encoding="utf-8") as f:
             data = json.load(f)
-        groups_to = data.get("groups_to", [])
+        groups_to_data = data.get("groups_to", [])
 
-        return render_template("fillin.html", groups_to=groups_to)
+        return render_template("groups_to.html", groups_to=groups_to_data)
 
     boy_girl_distribution = extract_selected_per_group(request.form)
     if len(boy_girl_distribution) < 2:
         error = "Er moeten minsten twee groepen zijn om de leerlingen over te verdelen"
         flash(error, "error")
-        return redirect(url_for("fillin"))
+        return redirect(url_for("groups_to_page"))
 
     path = get_file_path(session["process_id"], "groups.xlsx")
     pd.DataFrame(boy_girl_distribution).transpose().to_excel(
