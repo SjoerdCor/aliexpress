@@ -31,17 +31,22 @@
             </label>
           </li>
         {% endfor %}
+        <li>
+          <button class="button button--small" type="button" onclick="addStudentToExistingGroup(this)">+ Voeg leerling toe</button>    </div>
+</li>
       </ul>
-<button type="button" onclick="addStudentToExistingGroup(this)">+ Voeg leerling toe</button>    </div>
   {% endfor %}
 </div>
 
   <div id="new-groups">
   </div>
-  <button type="button" onclick="addGroupField()">+ Nog een groep</button>
+  <button class="button" type="button" onclick="addGroupField()">+ Nog een groep</button>
 
     <br><br>
-    <button type="submit" class="button">Ga naar leerlingen</button>
+    <div class="step-navigation">
+      <a href="{{ url_for('upload_edexml') }}" class="button previous-step">← Naar Schoolinformatie uploaden</a>
+      <input type="submit" value="Ga naar leerlingen →" class="button next-step">
+    </div>
   </form>
 <script>
 

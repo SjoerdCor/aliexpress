@@ -95,6 +95,10 @@ input[type="submit"] {
   transition: background-color 0.2s ease;
 }
 
+.button--small {
+  padding: 0.3rem 0.8rem;
+  border-radius: 0.2rem;
+}
 .button:hover {
 	background-color: #cc8000;
 }
