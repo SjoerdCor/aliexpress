@@ -79,7 +79,9 @@ function addStudentField() {
       <option value="Jongen">Jongen</option>
       <option value="Meisje">Meisje</option>
     </select>
-    <input type="text" name="new_group[]" placeholder="Groepsnaam" required>
+    <select name="new_group[]" required>
+      ${groupOptions}
+    </select>
   `;
   const removeBtn = document.createElement("button");
   removeBtn.type = "button";
