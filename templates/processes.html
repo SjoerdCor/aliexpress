@@ -1,16 +1,18 @@
 {% extends "base.html" %}
 {% set current_step = 0 %}
-{% block header %}Processen{% endblock %}
+{% block header %}Indelingsprocessen{% endblock %}
 {% block content %}
-    <h1>Kies of maak een proces</h1>
-
-    <h2>Bestaande processen</h2>
+Ga door met een bestaand proces of creëer een nieuw indelingsproces
+<h2>Bestaande processen</h2>
     <ul>
         {% for p in processes %}
             <li>
                 {{ p }}
-                <a href="{{ url_for('select_process', process_id=p) }}">
-                    Open
+                <form method="post" action="{{ url_for('delete_process', process_name=p) }}" style="display:inline;" onsubmit="return confirmDelete();">
+            <button type="submit" class="delete-btn">✖</button>
+        </form>
+                <a href="{{ url_for('select_process', process_id=p) }}" class="button button--small">
+                    Ga door
                 </a>
             </li>
         {% else %}
@@ -19,7 +21,35 @@
     </ul>
 
     <h2>Nieuw proces</h2>
-    <form method="post" action="{{ url_for('create_process') }}">
-        <button type="submit">Nieuw proces aanmaken</button>
-    </form>
+    Als je een nieuw indelinsproces wilt beginnen, kan dat hier. Geef een naam, bijvoorbeeld "overgang obmb 2026". Gebruik alleen letters, cijfers, spaties en streepjes, en maak de naam niet te lang.
+<form id="processForm" method="post" action="{{ url_for('create_process') }}">
+    <input
+        type="text"
+        name="process_name"
+        placeholder="Naam proces"
+        required
+        maxlength="100"
+        pattern="[\w\- ]+"
+        title="Alleen letters, cijfers, spaties, - en _ toegestaan"
+        id="processName"
+    >
+    <button class="button" type="submit">Begin nieuw indelingsproces</button>
+</form>
+<script>
+    const form = document.getElementById("processForm");
+    const input = document.getElementById("processName");
+
+    form.addEventListener("submit", function(e) {
+        const value = input.value.trim();
+        if (!/^[\w\- ]+$/.test(value)) {
+            alert("Alleen letters, cijfers, spaties, - en _ toegestaan");
+            e.preventDefault();
+            return;
+        }
+    });
+    function confirmDelete() {
+    return confirm("Weet je zeker dat je dit proces wilt verwijderen? Dit kan niet ongedaan worden gemaakt.");
+}
+
+</script>
 {% endblock %}
