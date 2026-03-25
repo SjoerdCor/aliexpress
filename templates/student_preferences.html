@@ -12,9 +12,13 @@
       </label>
     {% endfor %}
 
-    <div id="new-students">
-    </div>
-    <button type="button" class="button button--small" onclick="addStudentField()">+ Voeg leerling toe</button>
+<ul class="student-list" id="new-students">
+  <li class="add-button">
+    <button type="button" class="button button--small" onclick="addStudentField(this)">
+      + Voeg leerling toe
+    </button>
+  </li>
+</ul>
     <br><br>
     <button type="submit" class="button">Download invulformulieren</button>
 <div class="instructions-box">
@@ -70,28 +74,27 @@
 <script>
 const groupOptions = `{% for g in groups_from %}<option value="{{ g }}">{{ g }}</option>{% endfor %}`;
 
-function addStudentField() {
-  const container = document.getElementById("new-students");
-  const row = document.createElement("div");
-  row.className = "student-row";
-  row.innerHTML = `
+function addStudentField(button) {
+  const studentList = document.getElementById("new-students");
+  const buttonLi = button.closest("li");
+  const li = document.createElement("li");
+
+  li.innerHTML = `
     <input type="text" name="new_firstname[]" placeholder="Voornaam" required>
     <input type="text" name="new_lastname[]" placeholder="Achternaam" required>
     <select name="new_gender[]" required>
+      <option value="">Geslacht</option>
       <option value="Jongen">Jongen</option>
       <option value="Meisje">Meisje</option>
     </select>
     <select name="new_group[]" required>
       ${groupOptions}
     </select>
+    <button type="button" onclick="this.closest('li').remove()">✖</button>
   `;
-  const removeBtn = document.createElement("button");
-  removeBtn.type = "button";
-  removeBtn.textContent = "✖";
-  removeBtn.onclick = () => row.remove();
 
-  row.appendChild(removeBtn);
-  container.appendChild(row);
+  studentList.insertBefore(li, buttonLi);
+
 }
 
 function validateForm() {
