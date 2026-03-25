@@ -393,3 +393,16 @@ table.dataframe th {
   font-size: 1.2rem;
   margin-top: 0;
 }
+
+.student-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.student-list li label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+}

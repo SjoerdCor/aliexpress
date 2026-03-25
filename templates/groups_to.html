@@ -33,7 +33,7 @@
         {% endfor %}
         <li>
           <button class="button button--small" type="button" onclick="addStudentToExistingGroup(this)">+ Voeg leerling toe</button>    </div>
-</li>
+        </li>
       </ul>
   {% endfor %}
 </div>
@@ -125,7 +125,8 @@ function addStudentToExistingGroup(button) {
   lnInput.addEventListener("input", updateStudent);
   genderSelect.addEventListener("change", updateStudent);
 
-  studentList.appendChild(li);
+  const buttonLi = button.closest("li");
+  studentList.insertBefore(li, buttonLi);
 }
 
 function addGroupField() {
