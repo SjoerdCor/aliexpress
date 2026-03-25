@@ -14,7 +14,8 @@
 
     <div id="new-students">
     </div>
-    <button type="button" onclick="addStudentField()">+ Voeg leerling toe</button>
+    <button type="button" class="button button--small" onclick="addStudentField()">+ Voeg leerling toe</button>
+    <br><br>
     <button type="submit" class="button">Download invulformulieren</button>
 <div class="instructions-box">
     <h2>Invulinstructies</h2>
@@ -62,6 +63,7 @@
 
 
 <div class="step-navigation">
+    <a href="{{ url_for('groups_to_page') }}" class="button previous-step">← Naar Groepen naartoe bepalen</a>
     <a href="{{ url_for('upload_files') }}" class="button next-step">Ik heb de invulformulieren <br>Naar uploaden →</a>
 </div>
 
