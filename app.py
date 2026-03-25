@@ -163,7 +163,7 @@ def upload_edexml():
         "groups_from": groups_from,
         "groups_to": groups_to,
     }
-    path = get_file_path(session["process_id"], "data.json")
+    path = get_file_path(session["process_id"], "relevant_students_and_groups.json")
 
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
@@ -175,7 +175,9 @@ def upload_edexml():
 def groups_to_page():
     """Display and process the groups_to page"""
     if request.method == "GET":
-        data_path = get_file_path(session["process_id"], "data.json")
+        data_path = get_file_path(
+            session["process_id"], "relevant_students_and_groups.json"
+        )
         with open(data_path, "r", encoding="utf-8") as f:
             data = json.load(f)
         groups_to_data = data.get("groups_to", [])
@@ -198,7 +200,9 @@ def groups_to_page():
 @app.route("/student_preferences", methods=["GET", "POST"])
 def student_preferences():
     """Display page where the teacher can add preferences for the student"""
-    data_path = get_file_path(session["process_id"], "data.json")
+    data_path = get_file_path(
+        session["process_id"], "relevant_students_and_groups.json"
+    )
     with open(data_path, "r", encoding="utf-8") as f:
         data = json.load(f)
     candidates = data.get("candidates", [])
