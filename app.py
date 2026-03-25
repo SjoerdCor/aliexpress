@@ -156,6 +156,12 @@ def select_process(process_id):
         abort(404)
 
     session["process_id"] = process_id
+    groups_path = os.path.join(path, "groups.xlsx")
+    if os.path.exists(groups_path):
+        return redirect(url_for("student_preferences"))
+    candidates_path = os.path.join(path, "relevant_students_and_groups.json")
+    if os.path.exists(candidates_path):
+        return redirect(url_for("groups_to_page"))
     return redirect(url_for("upload_edexml"))
 
 
