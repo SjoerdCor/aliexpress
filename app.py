@@ -168,7 +168,7 @@ def upload_edexml():
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
-    return redirect(url_for("groups_to"))
+    return redirect(url_for("groups_to_page"))
 
 
 @app.route("/groups_to", methods=["GET", "POST"])
