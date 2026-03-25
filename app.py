@@ -171,16 +171,6 @@ def upload_edexml():
     return redirect(url_for("fillin"))
 
 
-def _validate_input(new_students, selected_ids, existing_groups, new_groups):
-    if len(new_students) + len(selected_ids) == 0:
-        return "Er moet minsten één leerling aanwezig zijn"
-
-    if not new_groups + list(existing_groups.keys()):
-        return "Er moet minstens één groep aanwezig zijn"
-
-    return None
-
-
 @app.route("/fillin", methods=["GET", "POST"])
 def fillin():
     """Display and process the fillin page"""
@@ -193,7 +183,10 @@ def fillin():
         return render_template("fillin.html", groups_to=groups_to)
 
     boy_girl_distribution = extract_selected_per_group(request.form)
-    assert len(boy_girl_distribution) > 1
+    if len(boy_girl_distribution) < 2:
+        error = "Er moeten minsten twee groepen zijn om de leerlingen over te verdelen"
+        flash(error, "error")
+        return redirect(url_for("fillin"))
 
     path = get_file_path(session["process_id"], "groups.xlsx")
     pd.DataFrame(boy_girl_distribution).transpose().to_excel(
@@ -217,14 +210,11 @@ def student_preferences():
         )
     new_students = _extract_new_students(request.form)
     selected_ids = request.form.getlist("students")
+    if len(new_students) + len(selected_ids) == 0:
+        error = "Er moet minsten één leerling aanwezig zijn"
+        flash(error, "error")
+        return redirect(url_for("student_preferences"))
 
-    # error = _validate_input(new_students, selected_ids, existing_groups, new_groups)
-    # if error:
-    #     flash(error, "error")
-    #     return redirect(url_for("fillin"))
-
-    # pylint: disable=fixme
-    # TODO: check wether the validate is still needed
     try:
         df_total = candidatedetermination.combine_students(
             candidates, selected_ids, new_students
@@ -232,7 +222,7 @@ def student_preferences():
     except DuplicateNameError as exc:
         logger.exception(exc)
         flash(f"Vond leerlingen dubbel: {exc.context['duplicate_names']}", "error")
-        return redirect(url_for("fillin"))
+        return redirect(url_for("student_preferences"))
 
     path = get_file_path(session["process_id"], "groups.xlsx")
     groups_to = pd.read_excel(path, index_col=0).index.tolist()
