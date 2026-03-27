@@ -430,43 +430,53 @@ class ProblemSolver:
         self.add_constraints(feas_prob, incl_slack=True)
         slack_vars = [v for v in feas_prob.variables() if "SLACK" in v.name]
 
-        # weight historic indiferrences lower, so that we dont overreact
+        # weight historic indifferences lower
         slack_info = {
             "SLACK_diff_n_students_year": {
                 "weight": 1,
-                "original_var": self.groupbalance.max_diff_n_students_year,
+                "attr": "max_diff_n_students_year",
             },
             "SLACK_diff_n_students_total": {
                 "weight": 0.49,
-                "original_var": self.groupbalance.max_diff_n_students_total,
+                "attr": "max_diff_n_students_total",
             },
-            "SLACK_max_clique": {
-                "weight": 1,
-                "original_var": self.groupbalance.max_clique,
-            },
+            "SLACK_max_clique": {"weight": 1, "attr": "max_clique"},
             "SLACK_max_clique_sex": {
                 "weight": 1,
-                "original_var": self.groupbalance.max_clique_sex,
+                "attr": "max_clique_sex",
             },
             "SLACK_balanced_boys_girls_year": {
                 "weight": 1,
-                "original_var": self.groupbalance.max_imbalance_boys_girls_year,
+                "attr": "max_imbalance_boys_girls_year",
             },
             "SLACK_balanced_boys_girls_total": {
                 "weight": 0.49,
-                "original_var": self.groupbalance.max_imbalance_boys_girls_total,
+                "attr": "max_imbalance_boys_girls_total",
             },
         }
+
         for var in slack_vars:
-            slack_info[var.name]["slack_var"] = var
+            if var.name in slack_info:
+                slack_info[var.name]["slack_var"] = var
 
         feas_prob.setObjective(
             pulp.lpSum(dct["weight"] * dct["slack_var"] for dct in slack_info.values())
         )
+
         solver = self._get_solver()
-        feas_prob.solve(solver=solver)
+        status = feas_prob.solve(solver=solver)
+        if pulp.LpStatus[status] != "Optimal":
+            raise ValueError("Feasibility problem could not be solved")
+
         for dct in slack_info.values():
-            dct["original_var"] += dct["slack_var"].varValue
+            slack_var = dct.get("slack_var", None)
+            if slack_var is not None:
+                current_val = getattr(self.groupbalance, dct["attr"])
+                setattr(
+                    self.groupbalance,
+                    dct["attr"],
+                    int(current_val + slack_var.varValue),
+                )
 
     def calculate_feasibility(self) -> pulp.LpProblem:
         """Calculates whether the constraints for class imbalance are feasible
