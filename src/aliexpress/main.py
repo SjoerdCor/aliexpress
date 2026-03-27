@@ -20,10 +20,10 @@ FILE_NOT_TOGETHER = "niet_samen.xlsx"
 def setup_logger():
     """Set up a logger for the module."""
     log = logging.getLogger(__name__)
-    log.setLevel(logging.INFO)
+    log.setLevel(logging.DEBUG)
 
     console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
+    console_handler.setLevel(logging.DEBUG)
 
     formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
     console_handler.setFormatter(formatter)
@@ -117,27 +117,27 @@ def _check_feasibility(ps):
     slack_info = {
         "SLACK_balanced_boys_girls_total": (
             "Maximale verschil jongens/meisjes totale groep",
-            ps.max_imbalance_boys_girls_total,
+            ps.groupbalance.max_imbalance_boys_girls_total,
         ),
         "SLACK_balanced_boys_girls_year": (
             "Maximale verschil jongens/meisjes nieuwe jaarlaag",
-            ps.max_imbalance_boys_girls_year,
+            ps.groupbalance.max_imbalance_boys_girls_year,
         ),
         "SLACK_diff_n_students_total": (
             "Maximale verschil totale groepsgrootte",
-            ps.max_diff_n_students_total,
+            ps.groupbalance.max_diff_n_students_total,
         ),
         "SLACK_diff_n_students_year": (
             "Maximale verschil groepsgrootte nieuwe jaarlaag",
-            ps.max_diff_n_students_year,
+            ps.groupbalance.max_diff_n_students_year,
         ),
         "SLACK_max_clique": (
             "Maximale groep vanuit eerdere groep",
-            ps.max_clique,
+            ps.groupbalance.max_clique,
         ),
         "SLACK_max_clique_sex": (
             "Maximale groep jongens/meisjes vanuit eerdere groep",
-            ps.max_clique_sex,
+            ps.groupbalance.max_clique_sex,
         ),
     }
 
@@ -218,7 +218,9 @@ def distribute_students_once(
         optimize="lexmaxmin",
         **kwargs,
     )
-    _check_feasibility(ps)
+    ps.set_minimal_feasible_parameters()
+    logger.info("Determined group balance")
+    logger.debug(ps.groupbalance)
     on_update("Bepaald dat probleem oplosbaar is!")
 
     on_update("Aan de slag! Groepen indelen...")
