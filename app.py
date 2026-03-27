@@ -264,13 +264,13 @@ def student_preferences():
 
     path = get_file_path(session["process_id"], "groups.xlsx")
     groups_to = pd.read_excel(path, index_col=0).index.tolist()
-    zip_buffer = input_writer.create_zip_with_templates(groups_to, df_total)
+    buffer = input_writer.create_prefilled_excel(groups_to, df_total)
 
     return send_file(
-        zip_buffer,
+        buffer,
         as_attachment=True,
-        download_name="invulformulieren.zip",
-        mimetype="application/zip",
+        download_name="voorkeuren.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
 
 
