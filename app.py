@@ -489,7 +489,7 @@ def upload_files():
         logger.info("Submitted")
         preferences = file_to_io(request.files["preferences"])
         groups_to_path = get_file_path(session["process_id"], "groups.xlsx")
-        not_together = file_to_io(request.files["not_together"])
+        not_together = get_file_path(session["process_id"], "not_together.xlsx")
 
         def on_update(message):
             status_dct[task_id]["logs"].append(message)
