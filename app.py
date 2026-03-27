@@ -482,63 +482,60 @@ def _handle_failure(exc, task_id):
     status_dct[task_id]["message"] = message
 
 
-@app.route("/upload", methods=["GET", "POST"])
+@app.route("/upload", methods=["POST"])
 def upload_files():
     """Handle upload page, including form submission"""
-    if request.method == "POST":
-        logger.info("Submitted")
-        preferences = file_to_io(request.files["preferences"])
-        groups_to_path = get_file_path(session["process_id"], "groups.xlsx")
-        not_together = get_file_path(session["process_id"], "not_together.xlsx")
+    logger.info("Submitted")
+    preferences = file_to_io(request.files["preferences"])
+    groups_to_path = get_file_path(session["process_id"], "groups.xlsx")
+    not_together = get_file_path(session["process_id"], "not_together.xlsx")
 
-        def on_update(message):
-            status_dct[task_id]["logs"].append(message)
+    def on_update(message):
+        status_dct[task_id]["logs"].append(message)
 
-        logger.info("Starting distribution...")
+    logger.info("Starting distribution...")
 
-        task_id = str(uuid.uuid4())
-        temp_storage[task_id] = {}
+    task_id = str(uuid.uuid4())
+    temp_storage[task_id] = {}
 
-        # pylint: disable=broad-exception-caught
-        def run_task(*args):
-            try:
-                status_dct[task_id]["status_studentdistribution"] = "running"
-                result = distribute_students_once(*args, on_update=on_update)
-                logger.info("Distributing students finished successfully")
-                status_dct[task_id]["status_studentdistribution"] = "done"
-                temp_storage[task_id]["groepsindeling"] = result
-            except Exception as exc:
-                _handle_failure(exc, task_id)
+    # pylint: disable=broad-exception-caught
+    def run_task(*args):
+        try:
+            status_dct[task_id]["status_studentdistribution"] = "running"
+            result = distribute_students_once(*args, on_update=on_update)
+            logger.info("Distributing students finished successfully")
+            status_dct[task_id]["status_studentdistribution"] = "done"
+            temp_storage[task_id]["groepsindeling"] = result
+        except Exception as exc:
+            _handle_failure(exc, task_id)
 
-        def create_sociogram(preferences, groups_to):
-            try:
-                on_update("Sociogram tekenen...")
-                groups_to = list(datareader.read_groups_excel(groups_to).keys())
-                sg = sociogram.SociogramMaker(preferences, groups_to)
-                fig, g, pos = sg.plot_sociogram()
-                logger.info("Sociogram created")
+    def create_sociogram(preferences, groups_to):
+        try:
+            on_update("Sociogram tekenen...")
+            groups_to = list(datareader.read_groups_excel(groups_to).keys())
+            sg = sociogram.SociogramMaker(preferences, groups_to)
+            fig, g, pos = sg.plot_sociogram()
+            logger.info("Sociogram created")
 
-                fig = sociogram.networkx_to_plotly(g, pos)
-                html = fig.to_html(full_html=False, include_plotlyjs="cdn")
-                logger.info("HTML created")
-                on_update(
-                    f'<a href=/sociogram/{task_id} target="_blank" class="button">'
-                    "Bekijk het sociogram nu!</a>"
-                )
-                temp_storage[task_id]["sociogram"] = html
-            except Exception:
-                logger.exception("Could not create sociogram")
+            fig = sociogram.networkx_to_plotly(g, pos)
+            html = fig.to_html(full_html=False, include_plotlyjs="cdn")
+            logger.info("HTML created")
+            on_update(
+                f'<a href=/sociogram/{task_id} target="_blank" class="button">'
+                "Bekijk het sociogram nu!</a>"
+            )
+            temp_storage[task_id]["sociogram"] = html
+        except Exception:
+            logger.exception("Could not create sociogram")
 
-        # pylint: enable=broad-exception-caught
-        Thread(target=create_sociogram, args=(preferences, groups_to_path)).start()
-        Thread(
-            target=run_task,
-            args=(preferences, groups_to_path, not_together),
-        ).start()
+    # pylint: enable=broad-exception-caught
+    Thread(target=create_sociogram, args=(preferences, groups_to_path)).start()
+    Thread(
+        target=run_task,
+        args=(preferences, groups_to_path, not_together),
+    ).start()
 
-        return redirect(url_for("processing", task_id=task_id))
-    logger.info("Showing upload page")
-    return render_template("upload.html")
+    return redirect(url_for("processing", task_id=task_id))
 
 
 @app.route("/status/<task_id>")
