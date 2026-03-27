@@ -7,6 +7,7 @@ import logging
 import math
 import os
 import warnings
+from dataclasses import dataclass
 
 import pandas as pd
 import pulp
@@ -31,6 +32,43 @@ def setup_logger():
 logger = setup_logger()
 
 
+@dataclass
+class GroupBalance:
+    """
+    Constraints controlling how students are distributed across groups.
+
+    All values must be non-negative integers.
+    """
+
+    max_clique: int = 1
+    """The number of students that can go to the same group"""
+
+    max_clique_sex: int = 1
+    """Maximum number of students of the same sex from the same original group in a group."""
+
+    max_diff_n_students_year: int = 1
+    """Max difference between largest and smallest group per year."""
+
+    max_diff_n_students_total: int = 1
+    """Max difference between largest and smallest group overall."""
+
+    max_imbalance_boys_girls_year: int = 1
+    """Max difference between boys and girls per year in a group."""
+
+    max_imbalance_boys_girls_total: int = 1
+    """Max difference between boys and girls in total per group."""
+
+    def __post_init__(self):
+        for name, value in vars(self).items():
+            if not isinstance(value, int):
+                raise TypeError(
+                    f"{name} must be an integer, got {type(value).__name__}"
+                )
+            if value < 0:
+                raise ValueError(f"{name} must be non-negative, got {value}")
+
+
+# pylint: disable=too-many-instance-attributes, too-many-arguments, too-many-positional-arguments
 class ProblemSolver:
     """
     Create a problem to distribute students over groups
@@ -55,25 +93,8 @@ class ProblemSolver:
         A list where each element is a dictionary containing a group of students and
         a max_aantal_samen, defining how many can at most be together in a new group
 
-    max_clique, int (default = 5)
-        The number of students that can go to the same group
-
-    max_clique_sex, int (default = 3)
-        The number of students from an original group of the same sex that can go
-        to the same group
-
-    max_diff_n_students_year, float (default = 2)
-        The maximum difference between assigned students to the largest group
-        and the smallest group
-
-    max_diff_n_students_total, float (default = 3)
-        The maximum difference between largest group and the smallest group (in total)
-
-    max_imbalance_boys_girls_year, float (default = 2)
-        The maximum difference between number of boys and girls in each year in a group
-
-    max_imbalance_boys_girls_total, float (default = 3)
-        The maximum difference between number of boys and girls in the total group
+    constraints : GroupBalance
+        Configuration of group balancing constraints.
 
     optimize, str (default = "studentsatisfaction")
         What to optimize for: "studentsatisfaction" (total satisfaction of the students,
@@ -97,12 +118,7 @@ class ProblemSolver:
         students: dict,
         groups_to: dict,
         not_together: list[dict],
-        max_clique=5,
-        max_clique_sex=3,
-        max_diff_n_students_year=2,
-        max_diff_n_students_total=3,
-        max_imbalance_boys_girls_year=2,
-        max_imbalance_boys_girls_total=3,
+        groupbalance: GroupBalance = GroupBalance(),
         optimize="studentsatisfaction",
     ):
         self.preferences = preferences
@@ -111,12 +127,7 @@ class ProblemSolver:
         self.not_together = not_together
         self._validate_not_together_students_exist()
 
-        self.max_clique = max_clique
-        self.max_clique_sex = max_clique_sex
-        self.max_diff_n_students_year = max_diff_n_students_year
-        self.max_diff_n_students_total = max_diff_n_students_total
-        self.max_imbalance_boys_girls_year = max_imbalance_boys_girls_year
-        self.max_imbalance_boys_girls_total = max_imbalance_boys_girls_total
+        self.groupbalance = groupbalance
         self.optimize = optimize
         self.prob = pulp.LpProblem("studentdistribution", pulp.LpMaximize)
         self.in_group = pulp.LpVariable.dicts(
@@ -135,12 +146,12 @@ class ProblemSolver:
         """Create name from config to identify the solution"""
         attrs = [
             self.optimize,
-            self.max_clique,
-            self.max_clique_sex,
-            self.max_diff_n_students_total,
-            self.max_diff_n_students_year,
-            self.max_imbalance_boys_girls_total,
-            self.max_imbalance_boys_girls_year,
+            self.groupbalance.max_clique,
+            self.groupbalance.max_clique_sex,
+            self.groupbalance.max_diff_n_students_total,
+            self.groupbalance.max_diff_n_students_year,
+            self.groupbalance.max_imbalance_boys_girls_total,
+            self.groupbalance.max_imbalance_boys_girls_year,
         ]
         return "".join(str(s) for s in attrs)
 
@@ -175,7 +186,7 @@ class ProblemSolver:
             prob += new_students_in_group[group_to] >= min_in_group_year
         prob += (
             max_in_group_year - min_in_group_year
-            <= self.max_diff_n_students_year + slack_var
+            <= self.groupbalance.max_diff_n_students_year + slack_var
         )
 
     def _constraint_equal_total_students(self, prob, incl_slack=True):
@@ -209,7 +220,7 @@ class ProblemSolver:
             prob += total_in_group[group_to] >= min_in_group_total
         prob += (
             max_in_group_total - min_in_group_total
-            <= self.max_diff_n_students_total + slack_var
+            <= self.groupbalance.max_diff_n_students_total + slack_var
         )
 
     def _constraint_equal_students_from_previous_group(self, prob, incl_slack=False):
@@ -239,7 +250,7 @@ class ProblemSolver:
 
                 prob += (
                     from_group_to_group[(group_from, group_to)]
-                    <= self.max_clique + slack_var
+                    <= self.groupbalance.max_clique + slack_var
                 )
 
     def _constraint_clique_sex_group(self, prob, incl_slack=False):
@@ -264,7 +275,10 @@ class ProblemSolver:
                         and self.students[student]["Jongen/meisje"] == sex
                     ]
 
-                    prob += pulp.lpSum(this_clique) <= self.max_clique_sex + slack_var
+                    prob += (
+                        pulp.lpSum(this_clique)
+                        <= self.groupbalance.max_clique_sex + slack_var
+                    )
 
     def _constraint_equal_boys_girls(self, prob, incl_slack=False):
         boys_to_group = pulp.LpVariable.dicts(
@@ -298,11 +312,11 @@ class ProblemSolver:
             )
             prob += (
                 girls_to_group[group_to] - boys_to_group[group_to]
-                <= self.max_imbalance_boys_girls_year + slack_var
+                <= self.groupbalance.max_imbalance_boys_girls_year + slack_var
             )
             prob += (
                 boys_to_group[group_to] - girls_to_group[group_to]
-                <= self.max_imbalance_boys_girls_year + slack_var
+                <= self.groupbalance.max_imbalance_boys_girls_year + slack_var
             )
 
     def _constraint_balanced_boys_girls_total(self, prob, incl_slack=False):
@@ -343,11 +357,11 @@ class ProblemSolver:
             )
             prob += (
                 girls_in_group[group_to] - boys_in_group[group_to]
-                <= self.max_imbalance_boys_girls_total + slack_var
+                <= self.groupbalance.max_imbalance_boys_girls_total + slack_var
             )
             prob += (
                 boys_in_group[group_to] - girls_in_group[group_to]
-                <= self.max_imbalance_boys_girls_total + slack_var
+                <= self.groupbalance.max_imbalance_boys_girls_total + slack_var
             )
 
     def _constraint_not_in_forbidden_group(self, prob):
@@ -406,6 +420,54 @@ class ProblemSolver:
         self.add_class_balance_constraints(prob, incl_slack)
         self.add_satisfaction_constraints(prob)
 
+    def set_minimal_feasible_parameters(self):
+        """Set class balance so that the problem is feasible, with optimal balance
+
+        Changes the class balance parameters, weighting for the current year heavier
+        """
+
+        feas_prob = pulp.LpProblem("MinimumRelaxationFeasibility", pulp.LpMinimize)
+        self.add_constraints(feas_prob, incl_slack=True)
+        slack_vars = [v for v in feas_prob.variables() if "SLACK" in v.name]
+
+        # weight historic indiferrences lower, so that we dont overreact
+        slack_info = {
+            "SLACK_diff_n_students_year": {
+                "weight": 1,
+                "original_var": self.groupbalance.max_diff_n_students_year,
+            },
+            "SLACK_diff_n_students_total": {
+                "weight": 0.49,
+                "original_var": self.groupbalance.max_diff_n_students_total,
+            },
+            "SLACK_max_clique": {
+                "weight": 1,
+                "original_var": self.groupbalance.max_clique,
+            },
+            "SLACK_max_clique_sex": {
+                "weight": 1,
+                "original_var": self.groupbalance.max_clique_sex,
+            },
+            "SLACK_balanced_boys_girls_year": {
+                "weight": 1,
+                "original_var": self.groupbalance.max_imbalance_boys_girls_year,
+            },
+            "SLACK_balanced_boys_girls_total": {
+                "weight": 0.49,
+                "original_var": self.groupbalance.max_imbalance_boys_girls_total,
+            },
+        }
+        for var in slack_vars:
+            slack_info[var.name]["slack_var"] = var
+
+        feas_prob.setObjective(
+            pulp.lpSum(dct["weight"] * dct["slack_var"] for dct in slack_info.values())
+        )
+        solver = self._get_solver()
+        feas_prob.solve(solver=solver)
+        for dct in slack_info.values():
+            dct["original_var"] += dct["slack_var"].varValue
+
     def calculate_feasibility(self) -> pulp.LpProblem:
         """Calculates whether the constraints for class imbalance are feasible
 
@@ -418,9 +480,7 @@ class ProblemSolver:
             The relaxation problem, for further inspection
         """
         feas_prob = pulp.LpProblem("MinimumRelaxationFeasibility", pulp.LpMinimize)
-
-        self.add_fundamental_constraints(feas_prob)
-        self.add_class_balance_constraints(feas_prob, incl_slack=True)
+        self.add_constraints(feas_prob, incl_slack=True)
 
         slack_vars = [v for v in feas_prob.variables() if "SLACK" in v.name]
         solver = self._get_solver()
