@@ -491,30 +491,6 @@ def upload_files():
         groups_to_path = get_file_path(session["process_id"], "groups.xlsx")
         not_together = file_to_io(request.files["not_together"])
 
-        try:
-            max_diff_n_students_total = int(request.form["max_diff_n_students_total"])
-            max_diff_n_students_year = int(request.form["max_diff_n_students_year"])
-            max_imbalance_boys_girls_total = int(
-                request.form["max_imbalance_boys_girls_total"]
-            )
-            max_imbalance_boys_girls_year = int(
-                request.form["max_imbalance_boys_girls_year"]
-            )
-            max_clique = int(request.form["max_clique"])
-            max_clique_sex = int(request.form["max_clique_sex"])
-        except (KeyError, ValueError):
-            return "Alle parameters moeten positieve gehele getallen zijn", 400
-
-        kwargs = {
-            "max_diff_n_students_total": max_diff_n_students_total,
-            "max_diff_n_students_year": max_diff_n_students_year,
-            "max_imbalance_boys_girls_total": max_imbalance_boys_girls_total,
-            "max_imbalance_boys_girls_year": max_imbalance_boys_girls_year,
-            "max_clique": max_clique,
-            "max_clique_sex": max_clique_sex,
-        }
-        session["config"] = kwargs
-
         def on_update(message):
             status_dct[task_id]["logs"].append(message)
 
@@ -524,10 +500,10 @@ def upload_files():
         temp_storage[task_id] = {}
 
         # pylint: disable=broad-exception-caught
-        def run_task(*args, **kwargs):
+        def run_task(*args):
             try:
                 status_dct[task_id]["status_studentdistribution"] = "running"
-                result = distribute_students_once(*args, **kwargs, on_update=on_update)
+                result = distribute_students_once(*args, on_update=on_update)
                 logger.info("Distributing students finished successfully")
                 status_dct[task_id]["status_studentdistribution"] = "done"
                 temp_storage[task_id]["groepsindeling"] = result
@@ -558,7 +534,6 @@ def upload_files():
         Thread(
             target=run_task,
             args=(preferences, groups_to_path, not_together),
-            kwargs=kwargs,
         ).start()
 
         return redirect(url_for("processing", task_id=task_id))
