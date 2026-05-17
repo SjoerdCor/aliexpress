@@ -6,6 +6,7 @@ import itertools
 import logging
 import math
 import os
+import sys
 import warnings
 from dataclasses import dataclass
 
@@ -387,11 +388,17 @@ class ProblemSolver:
                 )
 
     def _constraint_minimal_satisfaction(self, prob):
+        fallback_satisfaction = 1e-2  # force positive satisfaction for every student
         for student, info in self.students.items():
-            if not math.isnan(info["MinimaleTevredenheid"]):
-                prob += (
-                    self.studentsatisfaction[student] >= info["MinimaleTevredenheid"]
-                ), f"MinimalSatisfaction{student}"
+            min_sat = (
+                info["MinimaleTevredenheid"]
+                if not math.isnan(info["MinimaleTevredenheid"])
+                else fallback_satisfaction
+            )
+
+            prob += (
+                self.studentsatisfaction[student] >= min_sat
+            ), f"MinimalSatisfaction{student}"
 
     def add_fundamental_constraints(self, prob):
         """Add constraints fundamental to a solution"""
@@ -658,11 +665,31 @@ class ProblemSolver:
     def _get_solver(self):
         kwargs = {"logPath": "solver.log", "msg": False}
         if pulp.HiGHS_CMD().available():
-            solver = pulp.HiGHS_CMD(**kwargs, gapRel=0)
-        else:
-            logger.warning("Falling back to CBC solver. Might be very slow!")
-            solver = pulp.PULP_CBC_CMD(**kwargs)
-        return solver
+            return pulp.HiGHS_CMD(**kwargs, gapRel=0)
+
+        # HiGHS binary not on PATH — search known locations:
+        # 1. Relative to current interpreter (conda env: python.exe lives in env root)
+        # 2. Conda envs whose Scripts directory is on PATH (e.g. aliexpress-dev)
+        candidates = [
+            os.path.join(
+                os.path.dirname(sys.executable), "Library", "bin", "highs.exe"
+            ),
+        ]
+        for path_dir in os.environ.get("PATH", "").split(os.pathsep):
+            if os.path.basename(path_dir).lower() == "scripts":
+                candidates.append(
+                    os.path.join(
+                        os.path.dirname(path_dir), "Library", "bin", "highs.exe"
+                    )
+                )
+        for candidate in candidates:
+            if os.path.exists(candidate):
+                return pulp.HiGHS_CMD(path=candidate, **kwargs, gapRel=0)
+
+        logger.warning(
+            "HiGHS binary not found. Falling back to CBC solver. Might be very slow!"
+        )
+        return pulp.PULP_CBC_CMD(**kwargs)
 
     def set_optimization_target(self, studentsatisfaction: dict) -> None:
         """Calculate the variables which can be directly optimized
