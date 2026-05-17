@@ -274,6 +274,102 @@ def student_preferences():
     )
 
 
+def write_preferences_to_excel(df, fname, **kwargs):
+    """This is a challenge because of MultiLevel index with nans
+
+    kwargs are passed to .to_excel()
+    """
+    df_header = pd.DataFrame(
+        [
+            (
+                "Leerling",
+                "MinimaleTevredenheid",
+                "Jongen/meisje",
+                "Stamgroep",
+                "Graag met",
+                "Graag met",
+                "Graag met",
+                "Graag met",
+                "Graag met",
+                "Graag met",
+                "Graag met",
+                "Graag met",
+                "Graag met",
+                "Graag met",
+                "Liever niet met",
+                "Liever niet met",
+                "Niet in",
+                "Niet in",
+            ),
+            (
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
+                1,
+                1,
+                2,
+                2,
+                3,
+                3,
+                4,
+                4,
+                5,
+                5,
+                1,
+                1,
+                1,
+                2,
+            ),
+            (
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
+                "Waarde",
+                "Gewicht",
+                "Waarde",
+                "Gewicht",
+                "Waarde",
+                "Gewicht",
+                "Waarde",
+                "Gewicht",
+                "Waarde",
+                "Gewicht",
+                "Waarde",
+                "Gewicht",
+                "Waarde",
+                "Waarde",
+            ),
+        ]
+    )
+
+    assert df_header.shape[1] == df.shape[1]
+    concatted = pd.concat(
+        [
+            df_header.set_axis(range(df_header.shape[1]), axis="columns"),
+            df.set_axis(range(df.shape[1]), axis="columns"),
+        ],
+        ignore_index=True,
+    )
+    return concatted.to_excel(fname, index=False, header=False, **kwargs)
+
+
+@app.route("/upload_preferences", methods=["POST"])
+def upload_preferences():
+    """Handle the upload of the preferences files"""
+    preferences = file_to_io(request.files["preferences"])
+    groups_to_path = get_file_path(session["process_id"], "groups.xlsx")
+    groups_to = list(datareader.read_groups_excel(groups_to_path).keys())
+    processor = datareader.VoorkeurenProcessor(preferences)
+    # The .process() validates the input further
+    processor.process(all_to_groups=groups_to)
+
+    preferences_path = get_file_path(session["process_id"], "preferences.xlsx")
+    write_preferences_to_excel(processor.input.reset_index(), preferences_path)
+    return redirect(url_for("not_together_page"))
+
+
 def _extract_new_students(form):
     """Extract manually added students from form fields"""
     firstnames = form.getlist("new_firstname[]")

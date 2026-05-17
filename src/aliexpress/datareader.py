@@ -133,6 +133,16 @@ def clean_name(x, full_clean=True):
     return x
 
 
+def to_html_id(name: str) -> str:
+    """Convert a name to a valid HTML element ID, safe against XSS injection.
+
+    Replaces spaces and characters that are special in HTML/URLs with underscores.
+    Use this for form field names and element IDs in the web UI — not for
+    matching against solver names (use clean_name for that).
+    """
+    return re.sub(r"[-<>&\"'`=/\\ ]", "_", str(name).strip())
+
+
 class VoorkeurenProcessor:
     """Read and transform the input sheet to a workable DataFrame"""
 
@@ -334,7 +344,7 @@ class VoorkeurenProcessor:
 
 def read_not_together(filename: str, students: Iterable, n_groups: int) -> list:
     """Reads the preferences for students who should not be togeter (in large groups)"""
-    df_not_together = pd.read_excel(filename)
+    df_not_together = pd.read_excel(filename).map(clean_name)
 
     def create_student_column_schema(students, nullable=True):
         return pa.Column(

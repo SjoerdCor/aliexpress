@@ -1,0 +1,1 @@
+C:\Users\sjoer\Documents\Willekeurige berekeningen\aliexpress\.venv\Scripts\python.exe: No module named pytest
