@@ -4,7 +4,7 @@ import logging
 
 import pulp
 
-from aliexpress import preferences_utils
+from . import preferences_utils
 
 logger = logging.getLogger(__name__)
 
