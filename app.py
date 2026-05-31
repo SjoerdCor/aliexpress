@@ -1,7 +1,6 @@
 """The flask server that governs the app"""
 
 import json
-import logging
 import os
 import re
 import shutil
@@ -36,28 +35,10 @@ from aliexpress.errors import (
     FeasibilityError,
     ValidationError,
 )
+from aliexpress.logging_config import setup_logger
 from aliexpress.main import distribute_students_once
 
-
-def setup_logger():
-    """Create logging instance"""
-    log = logging.getLogger(__name__)
-    log.setLevel(logging.DEBUG)
-
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.DEBUG)
-    file_handler = logging.FileHandler("aliexpress.log")
-    file_handler.setLevel(logging.DEBUG)
-
-    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-    file_handler.setFormatter(formatter)
-    console_handler.setFormatter(formatter)
-    log.addHandler(file_handler)
-    log.addHandler(console_handler)
-    return log
-
-
-logger = setup_logger()
+logger = setup_logger(__name__, logfile="aliexpress.log")
 
 
 load_dotenv()
