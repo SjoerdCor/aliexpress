@@ -2,8 +2,8 @@
 
 import pandas as pd
 
-from aliexpress.datareader import clean_name
-from aliexpress.errors import DuplicateNameError
+from .datareader import clean_name
+from .errors import DuplicateNameError
 
 
 def get_candidates(df: pd.DataFrame, jaargroep: int) -> list:

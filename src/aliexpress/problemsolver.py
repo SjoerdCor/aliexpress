@@ -11,8 +11,8 @@ from dataclasses import dataclass
 import pandas as pd
 import pulp
 
-from aliexpress import optimizationstrategies, preferences_utils, pulp_logical
-from aliexpress.logging_config import setup_logger
+from . import optimizationstrategies, preferences_utils, pulp_logical
+from .logging_config import setup_logger
 
 logger = setup_logger(__name__)
 
