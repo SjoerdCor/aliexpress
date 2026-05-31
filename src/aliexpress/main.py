@@ -2,7 +2,6 @@
 
 It has one orchestrating function that can be called from the command line or app"""
 
-import logging
 import os
 import tempfile
 from io import BytesIO
@@ -11,27 +10,15 @@ import pandas as pd
 import pandera as pa
 
 from . import datareader, errors, problemsolver, solutions
+from .logging_config import setup_logger
+from .problemsolver import GroupBalance
 
 FILE_PREFERENCES = "voorkeuren.xlsx"
 FILE_GROUPS_TO = "groepen.xlsx"
 FILE_NOT_TOGETHER = "niet_samen.xlsx"
 
 
-def setup_logger():
-    """Set up a logger for the module."""
-    log = logging.getLogger(__name__)
-    log.setLevel(logging.DEBUG)
-
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.DEBUG)
-
-    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-    console_handler.setFormatter(formatter)
-    log.addHandler(console_handler)
-    return log
-
-
-logger = setup_logger()
+logger = setup_logger(__name__)
 
 
 def jsons_to_excel(folder, preferences, input_sheet, students_info):
@@ -188,15 +175,16 @@ def distribute_students_once(
     path_groups_to=FILE_GROUPS_TO,
     path_not_together=FILE_NOT_TOGETHER,
     on_update=lambda msg: None,
-    **kwargs,
+    groupbalance: GroupBalance | None = None,
 ):
     """Distribute all students with preferences over all groups with lexmaxmin
 
-    Kwargs are passed to problemsolver
     Parameters:
         on_update : func
             Takes a user friendly message and decides what to do with it for the calling
             function. By default, ignores them
+        groupbalance : GroupBalance | None
+            Class-balance constraints. When None, ProblemSolver's defaults are used.
     """
     groups_to = _read_groups(path_groups_to)
     processor, preferences = _read_preferences(path_preferences, groups_to)
@@ -215,12 +203,10 @@ def distribute_students_once(
         students_info,
         groups_to,
         not_together,
+        groupbalance=groupbalance,
         optimize="lexmaxmin",
-        **kwargs,
     )
-    ps.set_minimal_feasible_parameters()
-    logger.info("Determined group balance")
-    logger.debug(ps.groupbalance)
+    _check_feasibility(ps)
     on_update("Bepaald dat probleem oplosbaar is!")
 
     on_update("Aan de slag! Groepen indelen...")

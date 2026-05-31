@@ -30,6 +30,9 @@ def lowest_score(
     return M * minimal_score + pulp.lpSum(scores.values())
 
 
+# Solving lexmaxmin level by level needs this many locals/branches; splitting it would
+# obscure the iterative flow. Refactor tracked as a follow-up.
+# pylint: disable=too-many-locals,too-many-branches
 def plateaud_lexmaxmin(
     scores: dict[str, pulp.LpVariable],
     prob: pulp.LpProblem,
@@ -124,14 +127,6 @@ def plateaud_lexmaxmin(
         prob.sense = pulp.LpMaximize
         prob.setObjective(pulp.lpSum(has_this_level.values()))
         prob.solve(solver)
-        for key in scores:
-            print(
-                level,
-                key,
-                m_val + delta,
-                has_this_level[key].value(),
-                has_this_level[key].cat,
-            )
         count_at_level = sum(
             1 for key in scores if pulp.value(has_this_level[key]) > 0.5
         )

@@ -4,12 +4,15 @@
 
 These tests ensure that the student distribution process works correctly
 with both small and full datasets, checking the output against expected results."""
+import re
+
 import numpy as np
 import pandas as pd
 import pytest
 
 from aliexpress import errors
 from aliexpress.main import distribute_students_once
+from aliexpress.problemsolver import GroupBalance
 
 
 def test_distribute_students_once_happy_flow_small():
@@ -19,7 +22,7 @@ def test_distribute_students_once_happy_flow_small():
         path_groups_to="tests/integration/groepen_small.xlsx",
         path_not_together="tests/integration/niet_samen_small.xlsx",
         on_update=lambda msg: None,
-        max_imbalance_boys_girls_total=7,
+        groupbalance=GroupBalance(max_imbalance_boys_girls_total=7),
     )
 
     assert isinstance(result, dict)
@@ -131,22 +134,27 @@ def test_distribute_students_once_happy_flow_infeasible():
             path_groups_to="tests/integration/groepen.xlsx",
             path_not_together="tests/integration/niet_samen.xlsx",
             on_update=lambda msg: None,
-            max_clique=1,
-            max_clique_sex=1,
-            max_diff_n_students_year=1,
-            max_diff_n_students_total=1,
-            max_imbalance_boys_girls_year=1,
-            max_imbalance_boys_girls_total=1,
+            groupbalance=GroupBalance(
+                max_clique=1,
+                max_clique_sex=1,
+                max_diff_n_students_year=1,
+                max_diff_n_students_total=1,
+                max_imbalance_boys_girls_year=1,
+                max_imbalance_boys_girls_total=1,
+            ),
         )
-    improvements = [
-        "Maximale verschil jongens/meisjes totale groep: 3 (+ 2)",
-        "Maximale verschil jongens/meisjes nieuwe jaarlaag: 2 (+ 1)",
-        "Maximale verschil groepsgrootte nieuwe jaarlaag: 2 (+ 1)",
-        "Maximale groep vanuit eerdere groep: 3 (+ 2)",
-        "Maximale groep jongens/meisjes vanuit eerdere groep: 2 (+ 1)",
-    ]
-    for line in improvements:
-        assert line in str(exc.value.context["possible_improvement"])
+    # Parse "<label>: <new value> (+ <relaxation>)" lines into {label: relaxation}.
+    msg = str(exc.value.context["possible_improvement"])
+    relaxations = {
+        m.group("label"): int(m.group("relax"))
+        for m in re.finditer(r"(?P<label>.+?): \d+ \(\+ (?P<relax>\d+)\)", msg)
+    }
+    # The problem needs a fixed minimal total relaxation (7 units) to become feasible.
+    # How that budget is split across the individual limits is a degenerate, non-unique
+    # optimum (the solver may shift it between limits), so only the total - the
+    # solver-independent invariant - is asserted, plus that a suggestion is produced.
+    assert relaxations
+    assert sum(relaxations.values()) == 7
 
 
 # pylint: disable=missing-function-docstring
