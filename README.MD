@@ -5,14 +5,22 @@
 ALI Express is designed to simplify and optimize the complex process of student group allocation. By considering various criteria and preferences, it ensures that the groupings are balanced and that as many student wishes as possible are fulfilled. This tool saves time and effort, making the process efficient and effective.
 
 ## Installation
-This app can be installed using anaconda. After this installation, include it in the PATH environment variables as well.
-Install git, clone this repository, and then run
+ALI Express is managed with [uv](https://docs.astral.sh/uv/). Install uv and git, clone this repository, and then install the dependencies:
 
 ```bash
-conda env create -f environment.yml
+uv sync
 ```
-Instead, developers can use ```conda env create -f environment_dev.yml```
 
+Developers should install the development tools (pytest, pylint, black, ...) and the pre-commit hooks as well:
+
+```bash
+uv sync --extra dev
+uv run pre-commit install
+```
+
+The HiGHS solver (`highspy`) is installed automatically as a dependency. Run any command inside the environment with `uv run`, for example `uv run pytest tests/` to run the tests.
+
+Alternatively, the project can still be installed with conda via `conda env create -f environment.yml` (or `environment_dev.yml` for developers).
 
 Create a `.env` file that contains at least
 ```
@@ -21,8 +29,6 @@ SECRET_KEY=<your-secret-key-here>
 ```
 
 Following the How to use-section, a local web app launches which details a step-by-step plan to get to the allocation of the students.
-
-Developers should also run `pre-commit install`.
 
 
 ## Detailed description
