@@ -3,7 +3,6 @@ implements different optimization targets (also known as satisfaction metrics).
 """
 
 import itertools
-import logging
 import math
 import os
 import warnings
@@ -13,23 +12,9 @@ import pandas as pd
 import pulp
 
 from aliexpress import optimizationstrategies, preferences_utils, pulp_logical
+from aliexpress.logging_config import setup_logger
 
-
-def setup_logger():
-    """Setup a logger for the module"""
-    log = logging.getLogger(__name__)
-    log.setLevel(logging.DEBUG)
-
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.DEBUG)
-
-    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-    console_handler.setFormatter(formatter)
-    log.addHandler(console_handler)
-    return log
-
-
-logger = setup_logger()
+logger = setup_logger(__name__)
 
 
 @dataclass
@@ -40,22 +25,22 @@ class GroupBalance:
     All values must be non-negative integers.
     """
 
-    max_clique: int = 1
+    max_clique: int = 5
     """The number of students that can go to the same group"""
 
-    max_clique_sex: int = 1
+    max_clique_sex: int = 3
     """Maximum number of students of the same sex from the same original group in a group."""
 
-    max_diff_n_students_year: int = 1
+    max_diff_n_students_year: int = 2
     """Max difference between largest and smallest group per year."""
 
-    max_diff_n_students_total: int = 1
+    max_diff_n_students_total: int = 3
     """Max difference between largest and smallest group overall."""
 
-    max_imbalance_boys_girls_year: int = 1
+    max_imbalance_boys_girls_year: int = 2
     """Max difference between boys and girls per year in a group."""
 
-    max_imbalance_boys_girls_total: int = 1
+    max_imbalance_boys_girls_total: int = 3
     """Max difference between boys and girls in total per group."""
 
     def __post_init__(self):
@@ -118,7 +103,7 @@ class ProblemSolver:
         students: dict,
         groups_to: dict,
         not_together: list[dict],
-        groupbalance: GroupBalance = GroupBalance(),
+        groupbalance: GroupBalance | None = None,
         optimize="studentsatisfaction",
     ):
         self.preferences = preferences
@@ -127,7 +112,9 @@ class ProblemSolver:
         self.not_together = not_together
         self._validate_not_together_students_exist()
 
-        self.groupbalance = groupbalance
+        # A mutable default (GroupBalance()) would be created once and shared by every
+        # instance; use None so each ProblemSolver gets its own default constraints.
+        self.groupbalance = groupbalance if groupbalance is not None else GroupBalance()
         self.optimize = optimize
         self.prob = pulp.LpProblem("studentdistribution", pulp.LpMaximize)
         self.in_group = pulp.LpVariable.dicts(
@@ -656,13 +643,14 @@ class ProblemSolver:
         return self.studentsatisfaction
 
     def _get_solver(self):
-        kwargs = {"logPath": "solver.log", "msg": False}
-        if pulp.HiGHS_CMD().available():
-            solver = pulp.HiGHS_CMD(**kwargs, gapRel=0)
-        else:
-            logger.warning("Falling back to CBC solver. Might be very slow!")
-            solver = pulp.PULP_CBC_CMD(**kwargs)
-        return solver
+        # gapRel=0 so we always get the proven optimum, not an early cutoff.
+        kwargs = {"logPath": "solver.log", "msg": False, "gapRel": 0}
+        if pulp.HiGHS(msg=False).available():
+            return pulp.HiGHS(**kwargs)
+        if pulp.HiGHS_CMD(msg=False).available():
+            return pulp.HiGHS_CMD(**kwargs)
+        logger.warning("Falling back to CBC solver. Might be very slow!")
+        return pulp.PULP_CBC_CMD(**kwargs)
 
     def set_optimization_target(self, studentsatisfaction: dict) -> None:
         """Calculate the variables which can be directly optimized
