@@ -498,7 +498,7 @@ class ProblemSolver:
         return feas_prob
 
     def _add_variable_in_same_group(
-        self, student1: str, student2: str
+        self, student1: str, student2: str, prob: pulp.LpProblem = None
     ) -> pulp.LpVariable:
         """Returns variable that contains wether student1 and student2 are in the same group
 
@@ -508,26 +508,36 @@ class ProblemSolver:
             Name of the first student
         student2 : str
             Name of the second student
+        prob : pulp.LpProblem, optional
+            Problem to add the constraints to. Defaults to ``self.prob``.
 
         Returns
         -------
         pulp.LpVariable
             The variable that contains whether the two students are in the same group
         """
+        prob = prob or self.prob
         group_vars = []
         for gr in self.groups_to:
             # Together in one group
             satisfied_per_group = pulp_logical.AND(
-                self.prob,
+                prob,
                 self.in_group[(student1, gr)],
                 self.in_group[(student2, gr)],
             )
             group_vars.append(satisfied_per_group)
         # Theyare in the same group if it is correct for one group
-        return pulp_logical.OR(self.prob, *group_vars)
+        return pulp_logical.OR(prob, *group_vars)
 
-    def add_variables_which_preferences_satisfied(self) -> dict:
+    def add_variables_which_preferences_satisfied(
+        self, prob: pulp.LpProblem = None
+    ) -> dict:
         """Add all preferences to the LP-problem, so we can optimize how many we can fulfill
+
+        Parameters
+        ----------
+        prob : pulp.LpProblem, optional
+            Problem to add the constraints to. Defaults to ``self.prob``.
 
         Returns
         -------
@@ -535,6 +545,7 @@ class ProblemSolver:
             Dictionary of type pulp.LpVariable.dicts
             Contains for each preference wether it is satisfied or not
         """
+        prob = prob or self.prob
         graag_met = self.preferences.xs("Graag met", level="TypeWens")
         satisfied = pulp.LpVariable.dicts(
             "Satisfied", graag_met.index.to_list(), cat="Binary"
@@ -546,20 +557,25 @@ class ProblemSolver:
             if other in self.groups_to:
                 in_same_group = self.in_group[(student, other)]
             else:
-                in_same_group = self._add_variable_in_same_group(student, other)
+                in_same_group = self._add_variable_in_same_group(
+                    student, other, prob=prob
+                )
 
             if row["Gewicht"] > 0:
-                self.prob += satisfied[key] == in_same_group
+                prob += satisfied[key] == in_same_group
             else:
-                self.prob += satisfied[key] == 1 - in_same_group
+                prob += satisfied[key] == 1 - in_same_group
         return satisfied
 
     def _calculate_n_satisfied_optimization(self, satisfied: dict) -> pulp.LpVariable:
         """Calculate the total number of satisfied preferences."""
         return pulp.lpSum(satisfied)
 
-    def _calculate_weighted_preferences(self, satisfied: dict) -> pulp.LpVariable:
+    def _calculate_weighted_preferences(
+        self, satisfied: dict, prob: pulp.LpProblem = None
+    ) -> pulp.LpVariable:
         """Calculate the weighted sum of satisfied preferences."""
+        prob = prob or self.prob
         graag_met = self.preferences.xs("Graag met", level="TypeWens")
         weights = graag_met["Gewicht"].to_dict()
         weights_pulp = pulp.LpVariable.dicts(
@@ -570,13 +586,13 @@ class ProblemSolver:
         )
 
         for key, weight in weights.items():
-            self.prob += weights_pulp[key] == weight
+            prob += weights_pulp[key] == weight
             if weight > 0:
                 # Weight is positive: you get points for getting it right
-                self.prob += weighted_satisfied[key] == (satisfied[key] * weight)
+                prob += weighted_satisfied[key] == (satisfied[key] * weight)
             else:
                 # Weight is negative: you get deduction if you do it wrong
-                self.prob += weighted_satisfied[key] == ((1 - satisfied[key]) * weight)
+                prob += weighted_satisfied[key] == ((1 - satisfied[key]) * weight)
 
         return weighted_satisfied
 
@@ -586,11 +602,14 @@ class ProblemSolver:
         weighted_satisfied = self._calculate_weighted_preferences(satisfied)
         return pulp.lpSum(weighted_satisfied)
 
-    def _calculate_student_satisfaction(self, satisfied: dict) -> pulp.LpVariable:
+    def _calculate_student_satisfaction(
+        self, satisfied: dict, prob: pulp.LpProblem = None
+    ) -> pulp.LpVariable:
+        prob = prob or self.prob
         added_satisfaction = preferences_utils.calculate_added_satisfaction(
             self.preferences
         )
-        weighted_satisfied = self._calculate_weighted_preferences(satisfied)
+        weighted_satisfied = self._calculate_weighted_preferences(satisfied, prob=prob)
 
         for student in self.students:
             student_weighted = [
@@ -606,7 +625,7 @@ class ProblemSolver:
             )
 
             preferences_utils.apply_threshold_constraints(
-                self.prob,
+                prob,
                 wp_satisfied,
                 added_satisfaction.keys(),
                 wp_satisfied_per_student,
