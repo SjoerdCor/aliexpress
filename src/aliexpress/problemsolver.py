@@ -6,6 +6,7 @@ import itertools
 import math
 import os
 import warnings
+from collections import defaultdict
 from dataclasses import dataclass
 
 import pandas as pd
@@ -407,63 +408,107 @@ class ProblemSolver:
         self.add_class_balance_constraints(prob, incl_slack)
         self.add_satisfaction_constraints(prob)
 
-    def set_minimal_feasible_parameters(self):
-        """Set class balance so that the problem is feasible, with optimal balance
+    # Per balance slack: the GroupBalance field it relaxes and its relaxation weight.
+    # Whole-group ("_total") limits are cheaper to relax than per-year ones, because
+    # per-year balance matters more for the new cohort.
+    _RELAXATION = {
+        "SLACK_diff_n_students_year": ("max_diff_n_students_year", 1),
+        "SLACK_diff_n_students_total": ("max_diff_n_students_total", 0.49),
+        "SLACK_max_clique": ("max_clique", 1),
+        "SLACK_max_clique_sex": ("max_clique_sex", 1),
+        "SLACK_balanced_boys_girls_year": ("max_imbalance_boys_girls_year", 1),
+        "SLACK_balanced_boys_girls_total": ("max_imbalance_boys_girls_total", 0.49),
+    }
 
-        Changes the class balance parameters, weighting for the current year heavier
+    def solve_within_minimal_relaxation(self):
+        """Solve, maximizing satisfaction within the *minimal* class-balance relaxation that
+        still lets every student fulfil at least one positive wish.
+
+        Picking one concrete "tightest" balance is ill-defined: several balances share the
+        same minimal relaxation yet lead to different satisfaction, so a solver would pick
+        one arbitrarily. Instead this works in two stages:
+
+        1. Compute the minimal relaxation budget ``R*`` (a unique value): the smallest
+           weighted balance relaxation under which every student can still reach a positive
+           wish. The per-student wish requirement lives *only* here, where it shapes ``R*``.
+        2. Run the normal lexmaxmin solve with the balance limits kept *soft* and their total
+           weighted relaxation capped at ``R*``.
+
+        Maximizing satisfaction over the whole minimal-relaxation region (rather than over a
+        single arbitrarily chosen balance) makes the satisfaction the unique optimum, so the
+        outcome is well-defined and solver-independent (the in-process and CLI HiGHS solvers
+        agree). Within that budget lexmaxmin maximizes the lowest satisfaction and therefore
+        already gives every student a positive wish, so no explicit wish floor is needed in
+        this stage - it belongs only to stage 1.
         """
+        self.groupbalance = GroupBalance(
+            1, 1, 1, 1, 1, 1
+        )  # strictest base; relax via slack
+        budget = self._minimal_relaxation_budget()
 
-        feas_prob = pulp.LpProblem("MinimumRelaxationFeasibility", pulp.LpMinimize)
-        self.add_constraints(feas_prob, incl_slack=True)
-        slack_vars = [v for v in feas_prob.variables() if "SLACK" in v.name]
+        self.add_fundamental_constraints(self.prob)
+        self.add_class_balance_constraints(self.prob, incl_slack=True)
+        self.add_satisfaction_constraints(self.prob)
+        satisfied = self.add_variables_which_preferences_satisfied()
+        studentsatisfaction = self._calculate_student_satisfaction(satisfied)
+        self.prob += self._weighted_relaxation(self.prob) <= budget + 1e-6
+        self.set_optimization_target(studentsatisfaction)
+        self.solve()
 
-        # weight historic indifferences lower
-        slack_info = {
-            "SLACK_diff_n_students_year": {
-                "weight": 1,
-                "attr": "max_diff_n_students_year",
-            },
-            "SLACK_diff_n_students_total": {
-                "weight": 0.49,
-                "attr": "max_diff_n_students_total",
-            },
-            "SLACK_max_clique": {"weight": 1, "attr": "max_clique"},
-            "SLACK_max_clique_sex": {
-                "weight": 1,
-                "attr": "max_clique_sex",
-            },
-            "SLACK_balanced_boys_girls_year": {
-                "weight": 1,
-                "attr": "max_imbalance_boys_girls_year",
-            },
-            "SLACK_balanced_boys_girls_total": {
-                "weight": 0.49,
-                "attr": "max_imbalance_boys_girls_total",
-            },
-        }
+    def _minimal_relaxation_budget(self) -> float:
+        """Return ``R*``: the smallest weighted class-balance relaxation under which every
+        student can still fulfil at least one positive wish.
 
-        for var in slack_vars:
-            if var.name in slack_info:
-                slack_info[var.name]["slack_var"] = var
-
-        feas_prob.setObjective(
-            pulp.lpSum(dct["weight"] * dct["slack_var"] for dct in slack_info.values())
-        )
-
-        solver = self._get_solver()
-        status = feas_prob.solve(solver=solver)
+        Built on the strictest balance (all limits 1) with the limits made soft; the unmet
+        wish slack is penalized far heavier than any balance relaxation, so the budget is
+        spent first on letting everyone (where possible) reach a wish and only then, at the
+        minimum, on extra balance room.
+        """
+        prob = pulp.LpProblem("MinimalRelaxation", pulp.LpMinimize)
+        self.add_constraints(prob, incl_slack=True)
+        satisfied = self.add_variables_which_preferences_satisfied(prob=prob)
+        self._calculate_student_satisfaction(satisfied, prob=prob)
+        wish_slacks = self._require_one_positive_wish(prob, satisfied)
+        relaxation = self._weighted_relaxation(prob)
+        prob.setObjective(relaxation + 1000 * pulp.lpSum(wish_slacks))
+        status = prob.solve(self._get_solver())
         if pulp.LpStatus[status] != "Optimal":
-            raise ValueError("Feasibility problem could not be solved")
+            raise ValueError("Could not determine the minimal class-balance relaxation")
+        return relaxation.value()
 
-        for dct in slack_info.values():
-            slack_var = dct.get("slack_var", None)
-            if slack_var is not None:
-                current_val = getattr(self.groupbalance, dct["attr"])
-                setattr(
-                    self.groupbalance,
-                    dct["attr"],
-                    int(current_val + slack_var.varValue),
-                )
+    def _weighted_relaxation(self, prob):
+        """Weighted balance-relaxation expression: the weighted slack sum plus the single
+        largest slack (so the relaxation stays spread across limits, not piled onto one).
+        """
+        slacks = {v.name: v for v in prob.variables() if v.name in self._RELAXATION}
+        max_slack = pulp.LpVariable("MAX_RELAXATION", lowBound=0)
+        for slack in slacks.values():
+            prob += max_slack >= slack
+        weighted_sum = pulp.lpSum(
+            self._RELAXATION[name][1] * slack for name, slack in slacks.items()
+        )
+        return weighted_sum + max_slack
+
+    def _require_one_positive_wish(self, prob, satisfied):
+        """Softly require each student to fulfil at least one positive wish.
+
+        Returns a per-student slack variable, positive only for students who cannot
+        structurally reach any wish (e.g. only negative preferences). Penalizing these
+        slacks (see :meth:`_minimal_relaxation_budget`) keeps the requirement effective
+        wherever it is achievable, without making the problem infeasible where it is not.
+        """
+        positive_per_student = defaultdict(list)
+        graag_met = self.preferences.xs("Graag met", level="TypeWens")
+        for key, row in graag_met.iterrows():
+            if row["Gewicht"] > 0:
+                positive_per_student[key[0]].append(satisfied[key])
+
+        wish_slacks = []
+        for wishes in positive_per_student.values():
+            slack = pulp.LpVariable(f"WISH_SLACK_{len(wish_slacks)}", lowBound=0)
+            prob += pulp.lpSum(wishes) >= 1 - slack
+            wish_slacks.append(slack)
+        return wish_slacks
 
     def calculate_feasibility(self) -> pulp.LpProblem:
         """Calculates whether the constraints for class imbalance are feasible
@@ -656,9 +701,7 @@ class ProblemSolver:
                             0, max_wishes
                         )
                         satisfaction_current_student /= max_satisfaction
-            self.prob += (
-                self.studentsatisfaction[student] == satisfaction_current_student
-            )
+            prob += self.studentsatisfaction[student] == satisfaction_current_student
         return self.studentsatisfaction
 
     def _get_solver(self):
