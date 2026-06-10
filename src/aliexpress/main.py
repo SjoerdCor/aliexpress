@@ -143,11 +143,8 @@ def _check_feasibility(ps):
     )
 
 
-def _solve_and_export(ps, preferences, processor, students_info):
-    logger.info("Finding first solution... lexmaxmin")
-    ps.run(save=False)
-    logger.info("Found solution")
-
+def _export(ps, preferences, processor, students_info):
+    """Build the download workbook and result tables from the already-solved problem."""
     with tempfile.NamedTemporaryFile(mode="w+", suffix=".json", delete=False) as tmp:
         ps.prob.toJson(tmp.name)
         tmp.flush()
@@ -177,14 +174,18 @@ def distribute_students_once(
     on_update=lambda msg: None,
     groupbalance: GroupBalance | None = None,
 ):
-    """Distribute all students with preferences over all groups with lexmaxmin
+    """Distribute all students with preferences over all groups with lexmaxmin.
 
     Parameters:
         on_update : func
             Takes a user friendly message and decides what to do with it for the calling
             function. By default, ignores them
         groupbalance : GroupBalance | None
-            Class-balance constraints. When None, ProblemSolver's defaults are used.
+            Class-balance constraints. When None (the default), the balance is determined
+            automatically: satisfaction is maximized within the minimal relaxation that
+            still lets every student fulfil a positive wish (see
+            :meth:`ProblemSolver.solve_within_minimal_relaxation`). Pass a GroupBalance to
+            override this with fixed manual limits instead.
     """
     groups_to = _read_groups(path_groups_to)
     processor, preferences = _read_preferences(path_preferences, groups_to)
@@ -206,12 +207,17 @@ def distribute_students_once(
         groupbalance=groupbalance,
         optimize="lexmaxmin",
     )
-    _check_feasibility(ps)
-    on_update("Bepaald dat probleem oplosbaar is!")
-
     on_update("Aan de slag! Groepen indelen...")
-    logger.info("Finding first solution... lexmaxmin")
-    output, dfs = _solve_and_export(ps, preferences, processor, students_info)
+    if groupbalance is None:
+        logger.info("Solving within the minimal class-balance relaxation")
+        ps.solve_within_minimal_relaxation()
+    else:
+        _check_feasibility(ps)
+        on_update("Bepaald dat probleem oplosbaar is!")
+        logger.info("Finding first solution... lexmaxmin")
+        ps.run(save=False)
+
+    output, dfs = _export(ps, preferences, processor, students_info)
     logger.info("Done!")
     on_update("Klaar!")
     return {"download": output, "dataframes": dfs}

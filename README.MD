@@ -32,7 +32,7 @@ Following the How to use-section, a local web app launches which details a step-
 
 
 ## Detailed description
-ALI Express automatically takes into account many criteria of both group balance and student satisfaction, including positiive and negative preferences for current peers, future groups, including weights, impossiblities and minimal satisfaction. For group balance, this includes group size for both total and new groups, balance between boys and girls and  maximum cliques from current groups. Additionally, it allows to specify which students should not be together, or not in too large groups.
+ALI Express automatically takes into account many criteria of both group balance and student satisfaction, including positiive and negative preferences for current peers, future groups, including weights, impossiblities and minimal satisfaction. For group balance, this includes group size for both total and new groups, balance between boys and girls and  maximum cliques from current groups. Additionally, it allows to specify which students should not be together, or not in too large groups. The strictness of the group balance is determined automatically - it is tightened as far as possible while still ensuring every student fulfils at least one positive preference - so no manual tuning is needed.
 
 ## How to use
 
