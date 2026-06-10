@@ -4,7 +4,7 @@ import logging
 
 import pulp
 
-from aliexpress import preferences_utils
+from . import preferences_utils
 
 logger = logging.getLogger(__name__)
 
@@ -30,117 +30,148 @@ def lowest_score(
     return M * minimal_score + pulp.lpSum(scores.values())
 
 
+# A stateful solver with a single entry point (solve); the level-by-level steps share
+# evolving state (m_val, has_this_level) as instance attributes, which is exactly what a
+# class is for here.
+# pylint: disable=too-few-public-methods
+class _PlateaudLexMaxMin:
+    """Approximate lexmaxmin solve for scores, level by level.
+
+    Makes use of the fact that scores are often plateaud: there are multiple scores at
+    the same level. Per level, first the next lowest plateau is determined (by maximizing
+    the minimal score), then the number of scores on that plateau is fixed, after which it
+    continues with the next level. Stops when all scores are fixed, or when ``n_levels_max``
+    or ``satisfaction_max`` is reached; the total score is the ultimate tie breaker.
+
+    Parameters
+    ----------
+    scores : dict[str, pulp.LpVariable]
+        The variables which should be optimized.
+    prob : pulp.LpProblem
+        The problem the level-by-level constraints are added to.
+    solver : optional
+        The pulp solver used to re-solve the problem at each level. Defaults to CBC.
+    """
+
+    EPS = 1e-5  # numerical precision
+    DELTA = 1e-4  # step size between plateaus
+    BIG_M = 100  # big-M for the threshold constraints
+
+    def __init__(self, scores, prob, solver):
+        self.scores = scores
+        self.prob = prob
+        self.solver = solver or pulp.PULP_CBC_CMD()
+        # Carried from the previous level into the next.
+        self.m_val = None
+        self.has_this_level = None
+
+    def solve(self, n_levels_max=None, satisfaction_max=None) -> pulp.LpVariable:
+        """Run the level-by-level optimization, adding constraints to the problem.
+
+        Parameters
+        ----------
+        n_levels_max : int, optional
+            Max number of plateaus to process. Higher is more precise but slightly slower;
+            later levels are usually quick once the solution is mostly fixed. No limit by
+            default.
+        satisfaction_max : float, optional
+            Stop once the minimal score exceeds this; prevents some numerical solver errors
+            at high satisfaction. No limit by default.
+
+        Returns
+        -------
+        pulp.LpVariable
+            The total-score expression, used as the ultimate tie breaker by the caller.
+        """
+        if satisfaction_max is None:
+            satisfaction_max = float("inf")
+        level = 0
+        while True:
+            if n_levels_max is not None and level >= n_levels_max:
+                break
+            self.m_val = self._raise_minimal_score(level)
+            logger.debug("Level %s, step 1 done, %s", level, self.m_val)
+            if self.m_val > satisfaction_max:
+                logger.debug("Minimal satisfaction reached, breaking lexmaxmin")
+                break
+            self._fix_plateau_as_lower_bound(level)
+
+            count_at_level = self._count_on_plateau(level)
+            logger.debug(
+                "Level %s, step 2 done, %s at this level", level, count_at_level
+            )
+            if count_at_level == 0:
+                logger.debug("Stopped at level %s: no more students left", level)
+                break
+            self.prob += pulp.lpSum(self.has_this_level.values()) == count_at_level
+            level += 1
+
+        return pulp.lpSum(self.scores.values())
+
+    def _raise_minimal_score(self, level: int) -> float:
+        """Maximize the minimal score to find the next plateau ``level``; return its value."""
+        minimal_score = pulp.LpVariable(f"MinimalScore_{level}")
+        if level == 0:
+            for satisfaction in self.scores.values():
+                self.prob += minimal_score <= satisfaction
+        else:
+            self.prob += minimal_score >= self.m_val + self.EPS
+            for student, satisfaction in self.scores.items():
+                self.prob += (
+                    minimal_score
+                    <= satisfaction
+                    + (1 - self.has_this_level[student]) * self.BIG_M
+                    + self.EPS
+                ), f"MinimalSatisfactionLT{student}_{level}"
+        self.prob.sense = pulp.LpMaximize
+        self.prob.setObjective(minimal_score)
+        self.prob.solve(self.solver)
+        return minimal_score.value()
+
+    def _fix_plateau_as_lower_bound(self, level: int) -> None:
+        """Lock in the plateau found at ``level`` as a lower bound for every score."""
+        if level == 0:
+            for key in self.scores:
+                self.prob += self.scores[key] >= self.m_val
+        else:
+            for key in self.scores:
+                self.prob += (
+                    self.scores[key] >= self.m_val * self.has_this_level[key] - self.EPS
+                ), f"MinimalSatisfaction_{key}_{level}"
+
+    def _count_on_plateau(self, level: int) -> int:
+        """Maximize, then count, how many scores sit on plateau ``level``."""
+        self.has_this_level = pulp.LpVariable.dicts(
+            f"HasThisLevel_{level}", self.scores.keys(), cat="Binary"
+        )
+        for key, value in self.scores.items():
+            preferences_utils.apply_threshold_constraint(
+                self.prob,
+                value,
+                self.m_val + self.DELTA,
+                self.has_this_level[key],
+                M=self.BIG_M,
+            )
+        self.prob.sense = pulp.LpMaximize
+        self.prob.setObjective(pulp.lpSum(self.has_this_level.values()))
+        self.prob.solve(self.solver)
+        return sum(
+            1 for key in self.scores if pulp.value(self.has_this_level[key]) > 0.5
+        )
+
+
 def plateaud_lexmaxmin(
     scores: dict[str, pulp.LpVariable],
     prob: pulp.LpProblem,
     n_levels_max: int = None,
     satisfaction_max: float = None,
     solver=None,
-):
+) -> pulp.LpVariable:
+    """Solve the approximate lexmaxmin problem for scores.
+
+    Thin wrapper around :class:`_PlateaudLexMaxMin`; see that class and its ``solve`` for the
+    algorithm and parameter descriptions. Returns the total-score tie-breaker expression.
     """
-    Solve the approximate lexmaxmin problem for scores
-
-    Uses an iterative solve, making use of the fact that scores are often  plateaud:
-    there are multiple scores at the same level. Level by level,
-    first the next lowest plateau is determined, and then the number of values
-    on that plateau. When each number is found, it is then added as a constraint and
-    continues solving. Automatically stops when all students are distributed,
-    or if n_levels max or satisfaction_max is reached. In that case,
-    total score is the ultimate tie breaker.
-
-    Parameters
-    ----------
-    scores : dict[str, pulp.LpVariable]
-        The variables which should be optimized
-    prob : pulp.LpProblem
-        The problem to which the constraints are added
-    n_levels_max : int, optional
-        The max number of plateaus to use. Higher means more precision, but slightly slower,
-        although the last levels are usually very quick, when the solution is already
-        fixed.
-    satisfaction_max : float, optional
-        The satisfaction after which the relative satisfaction will be used. This prevents
-        some numerical solver errors.
-    solver : optional
-        The pulp solver, which is needed because LexMaxMin requires solving the problem at
-        each level
-    """
-    M = 100
-    eps = 1e-5  # precision
-    delta = 1e-4  # step size between plateaus
-    solver = solver or pulp.PULP_CBC_CMD()
-    satisfaction_max = satisfaction_max or float("inf")
-    level = 0
-    while True:
-        if n_levels_max is not None and level >= n_levels_max:
-            break
-        # Step 1: maximize minimal satisfaction = determine next plateau
-        minimal_score = pulp.LpVariable(f"MinimalScore_{level}")
-        # pylint: disable=used-before-assignment
-        if level == 0:
-            for satisfaction in scores.values():
-                prob += minimal_score <= satisfaction
-        else:
-            prob += minimal_score >= m_val + eps
-            for student, satisfaction in scores.items():
-                prob += (
-                    minimal_score
-                    <= satisfaction + (1 - has_this_level[student]) * M + eps
-                ), f"MinimalSatisfactionLT{student}_{level}"
-        # pylint: enable=used-before-assignment
-        prob.sense = pulp.LpMaximize
-        prob.setObjective(minimal_score)
-        prob.solve(solver)
-        m_val = minimal_score.value()
-        logger.debug("Level %s, step 1 done, %s", level, m_val)
-
-        if m_val > satisfaction_max:
-            logger.debug("Minimal satisfaction reached, breaking lexmaxmin")
-            break
-
-        # Add as constraint
-        if level == 0:
-            for key in scores:
-                prob += scores[key] >= m_val
-        else:
-            for key in scores:
-                prob += (
-                    scores[key] >= m_val * has_this_level[key] - eps
-                ), f"MinimalSatisfaction_{key}_{level}"
-
-        # Useful for debugging - usually from numerical errors
-        # if level > 0:
-        #     self.prob.solve(solver)
-
-        # Step 2: minimize its occurrence
-        has_this_level = pulp.LpVariable.dicts(
-            f"HasThisLevel_{level}", scores.keys(), cat="Binary"
-        )
-        for key, value in scores.items():
-            preferences_utils.apply_threshold_constraint(
-                prob, value, m_val + delta, has_this_level[key], M=100
-            )
-
-        prob.sense = pulp.LpMaximize
-        prob.setObjective(pulp.lpSum(has_this_level.values()))
-        prob.solve(solver)
-        for key in scores:
-            print(
-                level,
-                key,
-                m_val + delta,
-                has_this_level[key].value(),
-                has_this_level[key].cat,
-            )
-        count_at_level = sum(
-            1 for key in scores if pulp.value(has_this_level[key]) > 0.5
-        )
-        logger.debug("Level %s, step 2 done, %s at this level", level, count_at_level)
-        if count_at_level == 0:
-            logger.debug("Stopped at level %s: no more students left", level)
-            break
-        # Add as constraint
-        prob += pulp.lpSum(has_this_level.values()) == count_at_level
-        level += 1
-
-    return pulp.lpSum(scores.values())
+    return _PlateaudLexMaxMin(scores, prob, solver).solve(
+        n_levels_max=n_levels_max, satisfaction_max=satisfaction_max
+    )
