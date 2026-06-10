@@ -3,34 +3,19 @@ implements different optimization targets (also known as satisfaction metrics).
 """
 
 import itertools
-import logging
 import math
 import os
-import sys
 import warnings
+from collections import defaultdict
 from dataclasses import dataclass
 
 import pandas as pd
 import pulp
 
-from aliexpress import optimizationstrategies, preferences_utils, pulp_logical
+from . import optimizationstrategies, preferences_utils, pulp_logical
+from .logging_config import setup_logger
 
-
-def setup_logger():
-    """Setup a logger for the module"""
-    log = logging.getLogger(__name__)
-    log.setLevel(logging.DEBUG)
-
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.DEBUG)
-
-    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-    console_handler.setFormatter(formatter)
-    log.addHandler(console_handler)
-    return log
-
-
-logger = setup_logger()
+logger = setup_logger(__name__)
 
 
 @dataclass
@@ -41,22 +26,22 @@ class GroupBalance:
     All values must be non-negative integers.
     """
 
-    max_clique: int = 1
+    max_clique: int = 5
     """The number of students that can go to the same group"""
 
-    max_clique_sex: int = 1
+    max_clique_sex: int = 3
     """Maximum number of students of the same sex from the same original group in a group."""
 
-    max_diff_n_students_year: int = 1
+    max_diff_n_students_year: int = 2
     """Max difference between largest and smallest group per year."""
 
-    max_diff_n_students_total: int = 1
+    max_diff_n_students_total: int = 3
     """Max difference between largest and smallest group overall."""
 
-    max_imbalance_boys_girls_year: int = 1
+    max_imbalance_boys_girls_year: int = 2
     """Max difference between boys and girls per year in a group."""
 
-    max_imbalance_boys_girls_total: int = 1
+    max_imbalance_boys_girls_total: int = 3
     """Max difference between boys and girls in total per group."""
 
     def __post_init__(self):
@@ -119,7 +104,7 @@ class ProblemSolver:
         students: dict,
         groups_to: dict,
         not_together: list[dict],
-        groupbalance: GroupBalance = GroupBalance(),
+        groupbalance: GroupBalance | None = None,
         optimize="studentsatisfaction",
     ):
         self.preferences = preferences
@@ -128,7 +113,9 @@ class ProblemSolver:
         self.not_together = not_together
         self._validate_not_together_students_exist()
 
-        self.groupbalance = groupbalance
+        # A mutable default (GroupBalance()) would be created once and shared by every
+        # instance; use None so each ProblemSolver gets its own default constraints.
+        self.groupbalance = groupbalance if groupbalance is not None else GroupBalance()
         self.optimize = optimize
         self.prob = pulp.LpProblem("studentdistribution", pulp.LpMaximize)
         self.in_group = pulp.LpVariable.dicts(
@@ -388,17 +375,11 @@ class ProblemSolver:
                 )
 
     def _constraint_minimal_satisfaction(self, prob):
-        fallback_satisfaction = 1e-2  # force positive satisfaction for every student
         for student, info in self.students.items():
-            min_sat = (
-                info["MinimaleTevredenheid"]
-                if not math.isnan(info["MinimaleTevredenheid"])
-                else fallback_satisfaction
-            )
-
-            prob += (
-                self.studentsatisfaction[student] >= min_sat
-            ), f"MinimalSatisfaction{student}"
+            if not math.isnan(info["MinimaleTevredenheid"]):
+                prob += (
+                    self.studentsatisfaction[student] >= info["MinimaleTevredenheid"]
+                ), f"MinimalSatisfaction{student}"
 
     def add_fundamental_constraints(self, prob):
         """Add constraints fundamental to a solution"""
@@ -427,63 +408,107 @@ class ProblemSolver:
         self.add_class_balance_constraints(prob, incl_slack)
         self.add_satisfaction_constraints(prob)
 
-    def set_minimal_feasible_parameters(self):
-        """Set class balance so that the problem is feasible, with optimal balance
+    # Per balance slack: the GroupBalance field it relaxes and its relaxation weight.
+    # Whole-group ("_total") limits are cheaper to relax than per-year ones, because
+    # per-year balance matters more for the new cohort.
+    _RELAXATION = {
+        "SLACK_diff_n_students_year": ("max_diff_n_students_year", 1),
+        "SLACK_diff_n_students_total": ("max_diff_n_students_total", 0.49),
+        "SLACK_max_clique": ("max_clique", 1),
+        "SLACK_max_clique_sex": ("max_clique_sex", 1),
+        "SLACK_balanced_boys_girls_year": ("max_imbalance_boys_girls_year", 1),
+        "SLACK_balanced_boys_girls_total": ("max_imbalance_boys_girls_total", 0.49),
+    }
 
-        Changes the class balance parameters, weighting for the current year heavier
+    def solve_within_minimal_relaxation(self):
+        """Solve, maximizing satisfaction within the *minimal* class-balance relaxation that
+        still lets every student fulfil at least one positive wish.
+
+        Picking one concrete "tightest" balance is ill-defined: several balances share the
+        same minimal relaxation yet lead to different satisfaction, so a solver would pick
+        one arbitrarily. Instead this works in two stages:
+
+        1. Compute the minimal relaxation budget ``R*`` (a unique value): the smallest
+           weighted balance relaxation under which every student can still reach a positive
+           wish. The per-student wish requirement lives *only* here, where it shapes ``R*``.
+        2. Run the normal lexmaxmin solve with the balance limits kept *soft* and their total
+           weighted relaxation capped at ``R*``.
+
+        Maximizing satisfaction over the whole minimal-relaxation region (rather than over a
+        single arbitrarily chosen balance) makes the satisfaction the unique optimum, so the
+        outcome is well-defined and solver-independent (the in-process and CLI HiGHS solvers
+        agree). Within that budget lexmaxmin maximizes the lowest satisfaction and therefore
+        already gives every student a positive wish, so no explicit wish floor is needed in
+        this stage - it belongs only to stage 1.
         """
+        self.groupbalance = GroupBalance(
+            1, 1, 1, 1, 1, 1
+        )  # strictest base; relax via slack
+        budget = self._minimal_relaxation_budget()
 
-        feas_prob = pulp.LpProblem("MinimumRelaxationFeasibility", pulp.LpMinimize)
-        self.add_constraints(feas_prob, incl_slack=True)
-        slack_vars = [v for v in feas_prob.variables() if "SLACK" in v.name]
+        self.add_fundamental_constraints(self.prob)
+        self.add_class_balance_constraints(self.prob, incl_slack=True)
+        self.add_satisfaction_constraints(self.prob)
+        satisfied = self.add_variables_which_preferences_satisfied()
+        studentsatisfaction = self._calculate_student_satisfaction(satisfied)
+        self.prob += self._weighted_relaxation(self.prob) <= budget + 1e-6
+        self.set_optimization_target(studentsatisfaction)
+        self.solve()
 
-        # weight historic indifferences lower
-        slack_info = {
-            "SLACK_diff_n_students_year": {
-                "weight": 1,
-                "attr": "max_diff_n_students_year",
-            },
-            "SLACK_diff_n_students_total": {
-                "weight": 0.49,
-                "attr": "max_diff_n_students_total",
-            },
-            "SLACK_max_clique": {"weight": 1, "attr": "max_clique"},
-            "SLACK_max_clique_sex": {
-                "weight": 1,
-                "attr": "max_clique_sex",
-            },
-            "SLACK_balanced_boys_girls_year": {
-                "weight": 1,
-                "attr": "max_imbalance_boys_girls_year",
-            },
-            "SLACK_balanced_boys_girls_total": {
-                "weight": 0.49,
-                "attr": "max_imbalance_boys_girls_total",
-            },
-        }
+    def _minimal_relaxation_budget(self) -> float:
+        """Return ``R*``: the smallest weighted class-balance relaxation under which every
+        student can still fulfil at least one positive wish.
 
-        for var in slack_vars:
-            if var.name in slack_info:
-                slack_info[var.name]["slack_var"] = var
-
-        feas_prob.setObjective(
-            pulp.lpSum(dct["weight"] * dct["slack_var"] for dct in slack_info.values())
-        )
-
-        solver = self._get_solver()
-        status = feas_prob.solve(solver=solver)
+        Built on the strictest balance (all limits 1) with the limits made soft; the unmet
+        wish slack is penalized far heavier than any balance relaxation, so the budget is
+        spent first on letting everyone (where possible) reach a wish and only then, at the
+        minimum, on extra balance room.
+        """
+        prob = pulp.LpProblem("MinimalRelaxation", pulp.LpMinimize)
+        self.add_constraints(prob, incl_slack=True)
+        satisfied = self.add_variables_which_preferences_satisfied(prob=prob)
+        self._calculate_student_satisfaction(satisfied, prob=prob)
+        wish_slacks = self._require_one_positive_wish(prob, satisfied)
+        relaxation = self._weighted_relaxation(prob)
+        prob.setObjective(relaxation + 1000 * pulp.lpSum(wish_slacks))
+        status = prob.solve(self._get_solver())
         if pulp.LpStatus[status] != "Optimal":
-            raise ValueError("Feasibility problem could not be solved")
+            raise ValueError("Could not determine the minimal class-balance relaxation")
+        return relaxation.value()
 
-        for dct in slack_info.values():
-            slack_var = dct.get("slack_var", None)
-            if slack_var is not None:
-                current_val = getattr(self.groupbalance, dct["attr"])
-                setattr(
-                    self.groupbalance,
-                    dct["attr"],
-                    int(current_val + slack_var.varValue),
-                )
+    def _weighted_relaxation(self, prob):
+        """Weighted balance-relaxation expression: the weighted slack sum plus the single
+        largest slack (so the relaxation stays spread across limits, not piled onto one).
+        """
+        slacks = {v.name: v for v in prob.variables() if v.name in self._RELAXATION}
+        max_slack = pulp.LpVariable("MAX_RELAXATION", lowBound=0)
+        for slack in slacks.values():
+            prob += max_slack >= slack
+        weighted_sum = pulp.lpSum(
+            self._RELAXATION[name][1] * slack for name, slack in slacks.items()
+        )
+        return weighted_sum + max_slack
+
+    def _require_one_positive_wish(self, prob, satisfied):
+        """Softly require each student to fulfil at least one positive wish.
+
+        Returns a per-student slack variable, positive only for students who cannot
+        structurally reach any wish (e.g. only negative preferences). Penalizing these
+        slacks (see :meth:`_minimal_relaxation_budget`) keeps the requirement effective
+        wherever it is achievable, without making the problem infeasible where it is not.
+        """
+        positive_per_student = defaultdict(list)
+        graag_met = self.preferences.xs("Graag met", level="TypeWens")
+        for key, row in graag_met.iterrows():
+            if row["Gewicht"] > 0:
+                positive_per_student[key[0]].append(satisfied[key])
+
+        wish_slacks = []
+        for wishes in positive_per_student.values():
+            slack = pulp.LpVariable(f"WISH_SLACK_{len(wish_slacks)}", lowBound=0)
+            prob += pulp.lpSum(wishes) >= 1 - slack
+            wish_slacks.append(slack)
+        return wish_slacks
 
     def calculate_feasibility(self) -> pulp.LpProblem:
         """Calculates whether the constraints for class imbalance are feasible
@@ -518,7 +543,7 @@ class ProblemSolver:
         return feas_prob
 
     def _add_variable_in_same_group(
-        self, student1: str, student2: str
+        self, student1: str, student2: str, prob: pulp.LpProblem = None
     ) -> pulp.LpVariable:
         """Returns variable that contains wether student1 and student2 are in the same group
 
@@ -528,26 +553,36 @@ class ProblemSolver:
             Name of the first student
         student2 : str
             Name of the second student
+        prob : pulp.LpProblem, optional
+            Problem to add the constraints to. Defaults to ``self.prob``.
 
         Returns
         -------
         pulp.LpVariable
             The variable that contains whether the two students are in the same group
         """
+        prob = prob or self.prob
         group_vars = []
         for gr in self.groups_to:
             # Together in one group
             satisfied_per_group = pulp_logical.AND(
-                self.prob,
+                prob,
                 self.in_group[(student1, gr)],
                 self.in_group[(student2, gr)],
             )
             group_vars.append(satisfied_per_group)
         # Theyare in the same group if it is correct for one group
-        return pulp_logical.OR(self.prob, *group_vars)
+        return pulp_logical.OR(prob, *group_vars)
 
-    def add_variables_which_preferences_satisfied(self) -> dict:
+    def add_variables_which_preferences_satisfied(
+        self, prob: pulp.LpProblem = None
+    ) -> dict:
         """Add all preferences to the LP-problem, so we can optimize how many we can fulfill
+
+        Parameters
+        ----------
+        prob : pulp.LpProblem, optional
+            Problem to add the constraints to. Defaults to ``self.prob``.
 
         Returns
         -------
@@ -555,6 +590,7 @@ class ProblemSolver:
             Dictionary of type pulp.LpVariable.dicts
             Contains for each preference wether it is satisfied or not
         """
+        prob = prob or self.prob
         graag_met = self.preferences.xs("Graag met", level="TypeWens")
         satisfied = pulp.LpVariable.dicts(
             "Satisfied", graag_met.index.to_list(), cat="Binary"
@@ -566,20 +602,25 @@ class ProblemSolver:
             if other in self.groups_to:
                 in_same_group = self.in_group[(student, other)]
             else:
-                in_same_group = self._add_variable_in_same_group(student, other)
+                in_same_group = self._add_variable_in_same_group(
+                    student, other, prob=prob
+                )
 
             if row["Gewicht"] > 0:
-                self.prob += satisfied[key] == in_same_group
+                prob += satisfied[key] == in_same_group
             else:
-                self.prob += satisfied[key] == 1 - in_same_group
+                prob += satisfied[key] == 1 - in_same_group
         return satisfied
 
     def _calculate_n_satisfied_optimization(self, satisfied: dict) -> pulp.LpVariable:
         """Calculate the total number of satisfied preferences."""
         return pulp.lpSum(satisfied)
 
-    def _calculate_weighted_preferences(self, satisfied: dict) -> pulp.LpVariable:
+    def _calculate_weighted_preferences(
+        self, satisfied: dict, prob: pulp.LpProblem = None
+    ) -> pulp.LpVariable:
         """Calculate the weighted sum of satisfied preferences."""
+        prob = prob or self.prob
         graag_met = self.preferences.xs("Graag met", level="TypeWens")
         weights = graag_met["Gewicht"].to_dict()
         weights_pulp = pulp.LpVariable.dicts(
@@ -590,13 +631,13 @@ class ProblemSolver:
         )
 
         for key, weight in weights.items():
-            self.prob += weights_pulp[key] == weight
+            prob += weights_pulp[key] == weight
             if weight > 0:
                 # Weight is positive: you get points for getting it right
-                self.prob += weighted_satisfied[key] == (satisfied[key] * weight)
+                prob += weighted_satisfied[key] == (satisfied[key] * weight)
             else:
                 # Weight is negative: you get deduction if you do it wrong
-                self.prob += weighted_satisfied[key] == ((1 - satisfied[key]) * weight)
+                prob += weighted_satisfied[key] == ((1 - satisfied[key]) * weight)
 
         return weighted_satisfied
 
@@ -606,11 +647,14 @@ class ProblemSolver:
         weighted_satisfied = self._calculate_weighted_preferences(satisfied)
         return pulp.lpSum(weighted_satisfied)
 
-    def _calculate_student_satisfaction(self, satisfied: dict) -> pulp.LpVariable:
+    def _calculate_student_satisfaction(
+        self, satisfied: dict, prob: pulp.LpProblem = None
+    ) -> pulp.LpVariable:
+        prob = prob or self.prob
         added_satisfaction = preferences_utils.calculate_added_satisfaction(
             self.preferences
         )
-        weighted_satisfied = self._calculate_weighted_preferences(satisfied)
+        weighted_satisfied = self._calculate_weighted_preferences(satisfied, prob=prob)
 
         for student in self.students:
             student_weighted = [
@@ -626,7 +670,7 @@ class ProblemSolver:
             )
 
             preferences_utils.apply_threshold_constraints(
-                self.prob,
+                prob,
                 wp_satisfied,
                 added_satisfaction.keys(),
                 wp_satisfied_per_student,
@@ -657,38 +701,17 @@ class ProblemSolver:
                             0, max_wishes
                         )
                         satisfaction_current_student /= max_satisfaction
-            self.prob += (
-                self.studentsatisfaction[student] == satisfaction_current_student
-            )
+            prob += self.studentsatisfaction[student] == satisfaction_current_student
         return self.studentsatisfaction
 
     def _get_solver(self):
-        kwargs = {"logPath": "solver.log", "msg": False}
-        if pulp.HiGHS_CMD().available():
-            return pulp.HiGHS_CMD(**kwargs, gapRel=0)
-
-        # HiGHS binary not on PATH — search known locations:
-        # 1. Relative to current interpreter (conda env: python.exe lives in env root)
-        # 2. Conda envs whose Scripts directory is on PATH (e.g. aliexpress-dev)
-        candidates = [
-            os.path.join(
-                os.path.dirname(sys.executable), "Library", "bin", "highs.exe"
-            ),
-        ]
-        for path_dir in os.environ.get("PATH", "").split(os.pathsep):
-            if os.path.basename(path_dir).lower() == "scripts":
-                candidates.append(
-                    os.path.join(
-                        os.path.dirname(path_dir), "Library", "bin", "highs.exe"
-                    )
-                )
-        for candidate in candidates:
-            if os.path.exists(candidate):
-                return pulp.HiGHS_CMD(path=candidate, **kwargs, gapRel=0)
-
-        logger.warning(
-            "HiGHS binary not found. Falling back to CBC solver. Might be very slow!"
-        )
+        # gapRel=0 so we always get the proven optimum, not an early cutoff.
+        kwargs = {"logPath": "solver.log", "msg": False, "gapRel": 0}
+        if pulp.HiGHS(msg=False).available():
+            return pulp.HiGHS(**kwargs)
+        if pulp.HiGHS_CMD(msg=False).available():
+            return pulp.HiGHS_CMD(**kwargs)
+        logger.warning("Falling back to CBC solver. Might be very slow!")
         return pulp.PULP_CBC_CMD(**kwargs)
 
     def set_optimization_target(self, studentsatisfaction: dict) -> None:

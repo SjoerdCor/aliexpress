@@ -1,279 +1,331 @@
-﻿# pylint: disable=too-many-lines  # Perhaps in the future switch to pytest-regression
-
 """Integration tests for the main functionality of the AliExpress application.
 
-These tests ensure that the student distribution process works correctly
-with both small and full datasets, checking the output against expected results."""
-import numpy as np
+These tests ensure the student distribution process works on both a small and a full
+dataset. The exact group *labels* of an assignment are a degenerate optimum (the groups
+can be relabelled, e.g. "Blauw" <-> "Geel", without changing who sits with whom), so the
+group-placement tables are checked on their structure and respected class balance rather
+than cell-by-cell. The per-student satisfaction - the actual optimization objective - is
+uniquely determined and is asserted in full."""
+
+import re
+
 import pandas as pd
 import pytest
 
-from aliexpress import errors, problemsolver
+from aliexpress import errors
 from aliexpress.main import distribute_students_once
+from aliexpress.problemsolver import GroupBalance
+
+_EXPECTED_KEYS = {
+    "Groepsindeling",
+    "Klassenoverzicht",
+    "Overgangsmatrix",
+    "Leerlingtevredenheid",
+    "VervuldeWensen",
+}
+
+_SMALL_SATISFACTION = {
+    "Tevredenheid": {
+        "Anna": 0.903226,
+        "Bram": 1.0,
+        "Claire": 0.944882,
+        "Daan": 0.937614,
+        "Eva": 0.0,
+    },
+    "Aantal gehonoreerde wensen": {
+        "Anna": 3.0,
+        "Bram": 3.0,
+        "Claire": 4.0,
+        "Daan": 4.0,
+        "Eva": 0.0,
+    },
+    "Aantal wensen": {
+        "Anna": 5.0,
+        "Bram": 3.0,
+        "Claire": 7.0,
+        "Daan": 13.0,
+        "Eva": 2.0,
+    },
+}
+
+_FULL_SATISFACTION = {
+    "Tevredenheid": {
+        "Adam": 0.516129,
+        "Amy": 0.6673,
+        "Anna": 0.976378,
+        "Anne": 0.785263,
+        "AnneClaire": 0.571429,
+        "Benjamin": 0.738796,
+        "Bram": 0.774194,
+        "Cas": 0.857143,
+        "Daan": 1.0,
+        "David": 0.857143,
+        "Eline": 0.932211,
+        "Emily": 0.976378,
+        "Esmee": 0.607369,
+        "Feline": 0.738796,
+        "Fenna": 0.861287,
+        "Iris": 0.571429,
+        "Jack": 0.861287,
+        "Jayden": 0.784678,
+        "Jill": 1.0,
+        "Julia": 0.984127,
+        "Julian": 0.709125,
+        "Jurre": 0.666667,
+        "Lars": 0.666667,
+        "LivA.": 0.661054,
+        "LivB.": 0.656708,
+        "Lois": 1.0,
+        "Lotte": 0.784678,
+        "Lucas": 0.571429,
+        "Lynn": 1.0,
+        "Mats": 0.88189,
+        "Max": 0.894772,
+        "Naomi": 1.0,
+        "Nina": 0.533333,
+        "Noor": 0.571429,
+        "Nora": 0.933333,
+        "SiemX.": 0.666667,
+        "SiemY.": 0.709125,
+        "Sophie": 1.0,
+        "Stijn": 0.8,
+        "Sven": 0.666667,
+        "Tijn": 0.666667,
+        "Vera": 0.533333,
+        "Zoe": 0.979573,
+    },
+    "Aantal gehonoreerde wensen": {
+        "Adam": 1.0,
+        "Amy": 1.5,
+        "Anna": 5.0,
+        "Anne": 1.5,
+        "AnneClaire": 1.0,
+        "Benjamin": 1.5,
+        "Bram": 2.0,
+        "Cas": 2.0,
+        "Daan": 2.0,
+        "David": 2.0,
+        "Eline": 3.5,
+        "Emily": 5.0,
+        "Esmee": 1.0,
+        "Feline": 1.5,
+        "Fenna": 2.5,
+        "Iris": 1.0,
+        "Jack": 2.5,
+        "Jayden": 2.0,
+        "Jill": 2.0,
+        "Julia": 5.0,
+        "Julian": 1.5,
+        "Jurre": 1.0,
+        "Lars": 1.0,
+        "LivA.": 1.5,
+        "LivB.": 1.5,
+        "Lois": 1.0,
+        "Lotte": 2.0,
+        "Lucas": 1.0,
+        "Lynn": 1.0,
+        "Mats": 3.0,
+        "Max": 3.0,
+        "Naomi": 1.0,
+        "Nina": 1.0,
+        "Noor": 1.0,
+        "Nora": 3.0,
+        "SiemX.": 1.0,
+        "SiemY.": 1.5,
+        "Sophie": 2.0,
+        "Stijn": 2.0,
+        "Sven": 1.0,
+        "Tijn": 1.0,
+        "Vera": 1.0,
+        "Zoe": 5.0,
+    },
+    "Aantal wensen": {
+        "Adam": 5.0,
+        "Amy": 5.0,
+        "Anna": 7.0,
+        "Anne": 2.5,
+        "AnneClaire": 3.0,
+        "Benjamin": 3.0,
+        "Bram": 5.0,
+        "Cas": 3.0,
+        "Daan": 2.0,
+        "David": 3.0,
+        "Eline": 5.5,
+        "Emily": 7.0,
+        "Esmee": 2.5,
+        "Feline": 3.0,
+        "Fenna": 4.5,
+        "Iris": 3.0,
+        "Jack": 4.5,
+        "Jayden": 4.5,
+        "Jill": 2.0,
+        "Julia": 6.0,
+        "Julian": 3.5,
+        "Jurre": 2.0,
+        "Lars": 2.0,
+        "LivA.": 5.5,
+        "LivB.": 6.0,
+        "Lois": 1.0,
+        "Lotte": 4.5,
+        "Lucas": 3.0,
+        "Lynn": 1.0,
+        "Mats": 7.0,
+        "Max": 5.5,
+        "Naomi": 1.0,
+        "Nina": 4.0,
+        "Noor": 3.0,
+        "Nora": 4.0,
+        "SiemX.": 2.0,
+        "SiemY.": 3.5,
+        "Sophie": 2.0,
+        "Stijn": 4.0,
+        "Sven": 2.0,
+        "Tijn": 2.0,
+        "Vera": 4.0,
+        "Zoe": 6.5,
+    },
+}
+
+
+def _tables(result):
+    """Assert the result shape and return the five output tables."""
+    assert isinstance(result, dict)
+    assert "download" in result
+    pd.read_excel(result["download"])  # download must be a readable Excel file
+
+    assert "dataframes" in result
+    dfs = result["dataframes"]
+    assert isinstance(dfs, dict)
+    assert _EXPECTED_KEYS.issubset(dfs.keys())
+
+    assert isinstance(dfs["Groepsindeling"], pd.DataFrame)
+    assert isinstance(dfs["Klassenoverzicht"], pd.DataFrame)
+    assert isinstance(dfs["Overgangsmatrix"], pd.DataFrame)
+    assert isinstance(dfs["Leerlingtevredenheid"], pd.io.formats.style.Styler)
+    assert isinstance(dfs["VervuldeWensen"], pd.io.formats.style.Styler)
+    return dfs
+
+
+def _assert_consistency(dfs, groups, stamgroepen):
+    """Structural + counting invariants that hold for any optimal assignment."""
+    groep = dfs["Groepsindeling"]
+    assert groep.columns.names == ["Groep", "Jongen/meisje"]
+    assert set(groep.columns.get_level_values("Groep")) == groups
+
+    klas = dfs["Klassenoverzicht"]
+    assert list(klas.columns) == [
+        "Jongen",
+        "Meisje",
+        "VerschilJongensMeisjes",
+        "Groepsgrootte",
+    ]
+    assert (klas["Jongen"] + klas["Meisje"] == klas["Groepsgrootte"]).all()
+    assert (
+        (klas["Jongen"] - klas["Meisje"]).abs() == klas["VerschilJongensMeisjes"]
+    ).all()
+
+    trans = dfs["Overgangsmatrix"]
+    assert trans.index.name == "Stamgroep"
+    assert set(trans.columns) == groups
+    assert set(trans.index) == stamgroepen
+
+    tevr = dfs["Leerlingtevredenheid"].data
+    wensen = dfs["VervuldeWensen"].data
+    # Every student appears once in the satisfaction tables and is placed exactly once.
+    n_students = len(tevr)
+    assert set(wensen.index) == set(tevr.index)
+    assert trans.to_numpy().sum() == n_students
+    jaar = klas[klas.index.get_level_values(1) == "Jaarlaag"]
+    assert jaar["Groepsgrootte"].sum() == n_students
+    return tevr, klas, trans
+
+
+def _assert_satisfaction(tevr, expected):
+    """The full per-student satisfaction table is the uniquely determined objective."""
+    expected_df = pd.DataFrame(expected)
+    expected_df.index.name = "Leerling"
+    pd.testing.assert_frame_equal(
+        tevr.round(6).sort_index(), expected_df.sort_index(), check_like=True
+    )
 
 
 def test_distribute_students_once_happy_flow_small():
-    """Test the student distribution with a small, quick dataset."""
+    """Small, quick dataset with a manual balance (override path)."""
     result = distribute_students_once(
         path_preferences="tests/integration/voorkeuren_small.xlsx",
         path_groups_to="tests/integration/groepen_small.xlsx",
         path_not_together="tests/integration/niet_samen_small.xlsx",
         on_update=lambda msg: None,
-        groupbalance=problemsolver.GroupBalance(max_imbalance_boys_girls_total=7),
+        groupbalance=GroupBalance(max_imbalance_boys_girls_total=7),
     )
+    dfs = _tables(result)
+    tevr, klas, trans = _assert_consistency(dfs, {"Beren", "Otters"}, {"A", "B", "D"})
+    _assert_satisfaction(tevr, _SMALL_SATISFACTION)
 
-    assert isinstance(result, dict)
-    assert "download" in result
-    # Ensure the download can be read as an Excel file
-    pd.read_excel(result["download"])
-
-    assert "dataframes" in result
-
-    dfs = result["dataframes"]
-    assert isinstance(dfs, dict)
-    expected_keys = {
-        "Groepsindeling",
-        "Klassenoverzicht",
-        "Overgangsmatrix",
-        "Leerlingtevredenheid",
-        "VervuldeWensen",
-    }
-    assert expected_keys.issubset(dfs.keys())
-    # Assert content of the DataFrames
-    groepsindeling = dfs["Groepsindeling"]
-    assert isinstance(groepsindeling, pd.DataFrame)
-    df_expected_groepsindeling = get_expected_groepsindeling_small()
-    pd.testing.assert_frame_equal(groepsindeling, df_expected_groepsindeling)
-
-    klassenoverzicht = dfs["Klassenoverzicht"]
-    assert isinstance(klassenoverzicht, pd.DataFrame)
-    df_expected_klassenoverzicht = get_expected_klassenoverzicht_small()
-    pd.testing.assert_frame_equal(klassenoverzicht, df_expected_klassenoverzicht)
-
-    overgangsmatrix = dfs["Overgangsmatrix"]
-    assert isinstance(overgangsmatrix, pd.DataFrame)
-    df_expected_overgangsmatrix = get_expected_overgangsmatrix_small()
-    pd.testing.assert_frame_equal(overgangsmatrix, df_expected_overgangsmatrix)
-
-    leerlingtevredenheid = dfs["Leerlingtevredenheid"]
-    assert isinstance(leerlingtevredenheid, pd.io.formats.style.Styler)
-    df_expected_leerlingtevredenheid = get_expected_leerlingtevredenheid_small()
-    pd.testing.assert_frame_equal(
-        leerlingtevredenheid.data, df_expected_leerlingtevredenheid
-    )
-
-    vervuldewensen = dfs["VervuldeWensen"]
-    assert isinstance(vervuldewensen, pd.io.formats.style.Styler)
-    df_expected_vervuldewensen = get_expected_vervuldewensen_small()
-    pd.testing.assert_frame_equal(vervuldewensen.data, df_expected_vervuldewensen)
+    totaal = klas[klas.index.get_level_values(1) == "Totaal"]
+    jaar = klas[klas.index.get_level_values(1) == "Jaarlaag"]
+    # Manual balance: GroupBalance(max_imbalance_boys_girls_total=7) + loose defaults.
+    assert trans.to_numpy().max() <= 5  # max_clique
+    assert totaal["VerschilJongensMeisjes"].max() <= 7  # max_imbalance_boys_girls_total
+    assert jaar["VerschilJongensMeisjes"].max() <= 2  # max_imbalance_boys_girls_year
+    assert totaal["Groepsgrootte"].max() - totaal["Groepsgrootte"].min() <= 3
+    assert jaar["Groepsgrootte"].max() - jaar["Groepsgrootte"].min() <= 2
 
 
 def test_distribute_students_once_happy_flow_full():
-    """Test the student distribution with a full dataset.
-
-    Checks the sorted satisfaction vector, which is a lexmaxmin invariant: any two
-    lexmaxmin optima of the same problem produce identical sorted satisfaction vectors.
-    This makes the test robust to solver-specific tie-breaking in group assignments.
-    """
+    """Full dataset, satisfaction maximized within the auto-determined minimal balance
+    relaxation that still lets every student fulfil at least one positive wish."""
     result = distribute_students_once(
         path_preferences="tests/integration/voorkeuren.xlsx",
         path_groups_to="tests/integration/groepen.xlsx",
         path_not_together="tests/integration/niet_samen.xlsx",
         on_update=lambda msg: None,
     )
-
-    assert isinstance(result, dict)
-    assert "download" in result
-    pd.read_excel(result["download"])
-
-    assert "dataframes" in result
-    dfs = result["dataframes"]
-    assert isinstance(dfs, dict)
-    expected_keys = {
-        "Groepsindeling",
-        "Klassenoverzicht",
-        "Overgangsmatrix",
-        "Leerlingtevredenheid",
-        "VervuldeWensen",
-    }
-    assert expected_keys.issubset(dfs.keys())
-
-    leerlingtevredenheid = dfs["Leerlingtevredenheid"]
-    assert isinstance(leerlingtevredenheid, pd.io.formats.style.Styler)
-    sorted_satisfaction = np.sort(leerlingtevredenheid.data["Tevredenheid"].values)
-    np.testing.assert_allclose(
-        sorted_satisfaction,
-        get_expected_sorted_satisfaction_full(),
-        atol=1e-5,
+    dfs = _tables(result)
+    tevr, klas, trans = _assert_consistency(
+        dfs,
+        {"Blauw", "Geel", "Groen", "Oranje"},
+        {"Kaboutertuin", "Torteltuin", "Tovertuin", "Vlindertuin"},
     )
+    _assert_satisfaction(tevr, _FULL_SATISFACTION)
+    assert (tevr["Tevredenheid"] > 0).all()  # the goal: every student ends up positive
+
+    totaal = klas[klas.index.get_level_values(1) == "Totaal"]
+    jaar = klas[klas.index.get_level_values(1) == "Jaarlaag"]
+    # Class balance realized within the auto-determined minimal relaxation.
+    assert trans.to_numpy().max() <= 3  # max students from one stamgroep in a group
+    assert totaal["VerschilJongensMeisjes"].max() <= 2
+    assert jaar["VerschilJongensMeisjes"].max() <= 3
+    assert totaal["Groepsgrootte"].max() - totaal["Groepsgrootte"].min() <= 2
+    assert jaar["Groepsgrootte"].max() - jaar["Groepsgrootte"].min() <= 1
 
 
 def test_distribute_students_once_happy_flow_infeasible():
-    """Test the student distribution with infeasible constraints
-    ensuring it raises a FeasibilityError."""
+    """Infeasible constraints must raise a FeasibilityError with a relaxation suggestion."""
     with pytest.raises(errors.FeasibilityError) as exc:
         distribute_students_once(
             path_preferences="tests/integration/voorkeuren.xlsx",
             path_groups_to="tests/integration/groepen.xlsx",
             path_not_together="tests/integration/niet_samen.xlsx",
             on_update=lambda msg: None,
-            max_clique=1,
-            max_clique_sex=1,
-            max_diff_n_students_year=1,
-            max_diff_n_students_total=1,
-            max_imbalance_boys_girls_year=1,
-            max_imbalance_boys_girls_total=1,
+            groupbalance=GroupBalance(
+                max_clique=1,
+                max_clique_sex=1,
+                max_diff_n_students_year=1,
+                max_diff_n_students_total=1,
+                max_imbalance_boys_girls_year=1,
+                max_imbalance_boys_girls_total=1,
+            ),
         )
-    improvements = [
-        "Maximale verschil jongens/meisjes totale groep: 3 (+ 2)",
-        "Maximale verschil jongens/meisjes nieuwe jaarlaag: 2 (+ 1)",
-        "Maximale verschil groepsgrootte nieuwe jaarlaag: 2 (+ 1)",
-        "Maximale groep vanuit eerdere groep: 3 (+ 2)",
-        "Maximale groep jongens/meisjes vanuit eerdere groep: 2 (+ 1)",
-    ]
-    for line in improvements:
-        assert line in str(exc.value.context["possible_improvement"])
-
-
-# pylint: disable=missing-function-docstring
-def get_expected_groepsindeling_small():
-    data = {
-        ("Beren", "Jongen"): ["Bram (D)", "", 1, 19],
-        ("Beren", "Meisje"): ["Eva (A)", "", 1, np.nan],
-        ("Otters", "Jongen"): ["Daan (A)", "", 1, 20],
-        ("Otters", "Meisje"): ["Anna (A)", "Claire (B)", 2, np.nan],
+    # Parse "<label>: <new value> (+ <relaxation>)" lines into {label: relaxation}.
+    msg = str(exc.value.context["possible_improvement"])
+    relaxations = {
+        m.group("label"): int(m.group("relax"))
+        for m in re.finditer(r"(?P<label>.+?): \d+ \(\+ (?P<relax>\d+)\)", msg)
     }
-    df = pd.DataFrame(data)
-    df.index = pd.Index([1, 2, "#", "Groepsgrootte"])
-    df.columns.names = ["Groep", "Jongen/meisje"]
-    return df
-
-
-def get_expected_klassenoverzicht_small():
-    data = {
-        "Jongen": [1, 6, 1, 7],
-        "Meisje": [1, 13, 2, 13],
-        "VerschilJongensMeisjes": [0, 7, 1, 6],
-        "Groepsgrootte": [2, 19, 3, 20],
-    }
-    df = pd.DataFrame(data)
-    df.index = pd.Index(
-        [
-            ("Beren", "Jaarlaag"),
-            ("Beren", "Totaal"),
-            ("Otters", "Jaarlaag"),
-            ("Otters", "Totaal"),
-        ]
-    )
-    return df
-
-
-def get_expected_overgangsmatrix_small():
-    data = {
-        "Beren": [1, 0, 1],
-        "Otters": [2, 1, 0],
-    }
-    df = pd.DataFrame(data)
-    df.index = pd.Index(["A", "B", "D"])
-    df.index.names = ["Stamgroep"]
-    df.columns.names = ["Group"]
-    return df
-
-
-def get_expected_leerlingtevredenheid_small():
-    data = {
-        "Tevredenheid": [0.9032258064516, 1.0, 0.9448818897637, 0.9376144548895, 0.0],
-        "Aantal gehonoreerde wensen": [3.0, 3.0, 4.0, 4.0, 0.0],
-        "Aantal wensen": [5.0, 3.0, 7.0, 13.0, 2.0],
-    }
-    df = pd.DataFrame(data)
-    df.index = pd.Index(["Anna", "Bram", "Claire", "Daan", "Eva"])
-    df.index.names = ["Leerling"]
-    return df
-
-
-def get_expected_vervuldewensen_small():
-    data = {
-        ("MinimaleTevredenheid", np.nan, np.nan): [
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-        ],
-        ("Jongen/meisje", np.nan, np.nan): [
-            "Meisje",
-            "Jongen",
-            "Meisje",
-            "Jongen",
-            "Meisje",
-        ],
-        ("Stamgroep", np.nan, np.nan): ["A", "D", "B", "A", "A"],
-        ("Graag met", 1.0, "Waarde"): ["Otters", "Eva", "Eva", "Eva", "Anna"],
-        ("Graag met", 1.0, "Gewicht"): [1.0, 3.0, 2.0, 3.0, 2.0],
-        ("Graag met", 2.0, "Waarde"): ["Beren", np.nan, "Daan", "Beren", np.nan],
-        ("Graag met", 2.0, "Gewicht"): [1.0, np.nan, 1.0, 2.0, np.nan],
-        ("Graag met", 3.0, "Waarde"): ["Bram", np.nan, "Beren", "Anna", np.nan],
-        ("Graag met", 3.0, "Gewicht"): [1.0, np.nan, 1.0, 3.0, np.nan],
-        ("Graag met", 4.0, "Waarde"): ["Daan", np.nan, "Anna", "Bram", np.nan],
-        ("Graag met", 4.0, "Gewicht"): [1.0, np.nan, 2.0, 3.0, np.nan],
-        ("Graag met", 5.0, "Waarde"): ["Claire", np.nan, "Otters", "Otters", np.nan],
-        ("Graag met", 5.0, "Gewicht"): [1.0, np.nan, 1.0, 2.0, np.nan],
-        ("Liever niet met", 1.0, "Waarde"): ["Eva", np.nan, np.nan, "Claire", np.nan],
-        ("Liever niet met", 1.0, "Gewicht"): [3.0, np.nan, np.nan, 1.0, np.nan],
-        ("Niet in", 1.0, "Waarde"): [np.nan, np.nan, np.nan, np.nan, "Otters"],
-        ("Niet in", 2.0, "Waarde"): [np.nan, np.nan, np.nan, np.nan, np.nan],
-    }
-    df = pd.DataFrame(data)
-    df.index = pd.Index(["Anna", "Bram", "Claire", "Daan", "Eva"])
-    df.index.names = ["Leerling"]
-    df.columns.names = ["TypeWens", "Nr", "TypeWaarde"]
-    return df
-
-
-def get_expected_sorted_satisfaction_full():
-    return [
-        0.5484791673189,
-        0.5714285714286,
-        0.5714285714286,
-        0.5714285714286,
-        0.5714285714286,
-        0.6567076666989,
-        0.6666666666667,
-        0.6666666666667,
-        0.6666666666667,
-        0.6666666666667,
-        0.6666666666667,
-        0.6763367534524,
-        0.709124996087,
-        0.7741935483871,
-        0.7741935483871,
-        0.7846782049872,
-        0.7852627661454,
-        0.8,
-        0.8,
-        0.8,
-        0.8418251890711,
-        0.8571428571429,
-        0.8571428571429,
-        0.8571428571429,
-        0.861287180051,
-        0.861287180051,
-        0.8947718513662,
-        0.9032258064516,
-        0.9322107953162,
-        0.9333333333333,
-        0.9448818897637,
-        0.9763779527559,
-        0.9763779527559,
-        0.984126984127,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-        1.0,
-    ]
+    # The problem needs a fixed minimal total relaxation (7 units) to become feasible.
+    # How that budget is split across the individual limits is a degenerate, non-unique
+    # optimum (the solver may shift it between limits), so only the total - the
+    # solver-independent invariant - is asserted, plus that a suggestion is produced.
+    assert relaxations
+    assert sum(relaxations.values()) == 7
