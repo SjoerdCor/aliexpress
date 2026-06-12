@@ -41,6 +41,7 @@ TABLE_STYLES = styles = [
 ]
 
 
+# pylint: disable-next=too-many-instance-attributes  # ten computed views of one solution; each is a distinct output table
 class SolutionAnalyzer:
     """Create a report about the solution found to the Linear Programming problem
 
@@ -200,6 +201,7 @@ class SolutionAnalyzer:
         series = pd.Series(constraints, name=name)
         ix = (
             series.index.to_series()
+            .astype(str)
             .str.extract(rf"{name}_\('(?P<student>.*)',_(?P<Nr>.*)\)")
             .set_index(["student", "Nr"])
             .index
