@@ -15,7 +15,7 @@ def prepare_logical_operations(func):
                 raise ValueError(
                     f"Variable {var} is not a PuLP variable but {type(var)}"
                 )
-            if (var.cat != pulp.LpBinary and var.cat != "binary") and not (
+            if (var.cat not in (pulp.LpBinary, "binary")) and not (
                 var.cat == pulp.LpInteger and var.lowBound == 0 and var.upBound == 1
             ):
                 print(var.cat, var.lowBound, var.upBound)

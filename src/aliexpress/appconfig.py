@@ -3,6 +3,7 @@
 import os
 
 
+# pylint: disable=too-few-public-methods  # Flask config classes expose settings via class attributes, not methods
 class Config:
     """Base configuration with default settings."""
 
