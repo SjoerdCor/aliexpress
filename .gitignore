@@ -162,3 +162,20 @@ cython_debug/
 *.pptx
 solver.log
 .env
+
+# PuLP / HiGHS solver artifacts
+*.mps
+*.sol
+*.HiGHS
+*.HiGHS_log
+
+# Ad-hoc test output
+test_err.txt
+test_output.txt
+
+# Claude Code project instructions (personal workflow, not project code)
+CLAUDE.md
+
+# Scratch notebooks and solver result directories
+notebooks/Untitled*.ipynb
+notebooks/*/

@@ -133,6 +133,16 @@ def clean_name(x, full_clean=True):
     return x
 
 
+def to_html_id(name: str) -> str:
+    """Convert a name to a valid HTML element ID, safe against XSS injection.
+
+    Replaces spaces and characters that are special in HTML/URLs with underscores.
+    Use this for form field names and element IDs in the web UI — not for
+    matching against solver names (use clean_name for that).
+    """
+    return re.sub(r"[-<>&\"'`=/\\ ]", "_", str(name).strip())
+
+
 class VoorkeurenProcessor:
     """Read and transform the input sheet to a workable DataFrame"""
 
@@ -332,71 +342,50 @@ class VoorkeurenProcessor:
         )
 
 
-def read_not_together(filename: str, students: Iterable, n_groups: int) -> list:
-    """Reads the preferences for students who should not be togeter (in large groups)"""
-    df_not_together = pd.read_excel(filename)
+def validate_not_together(
+    rules: list[dict], students: Iterable, n_groups: int
+) -> list[dict]:
+    """Validate not-together rules against the known student list and group count.
 
-    def create_student_column_schema(students, nullable=True):
-        return pa.Column(
-            object,
-            checks=pa.Check.isin(students),
-            nullable=nullable,
-            coerce=True,
-        )
+    Works on the list[dict] structure — no xlsx required.
+    Raises ValidationError on invalid input; returns rules unchanged when valid.
+    """
+    known = {clean_name(s) for s in students}
+    for i, rule in enumerate(rules, start=1):
+        group = rule["group"]
+        max_samen = rule["Max_aantal_samen"]
+        n_students = len(group)
 
-    students = list(students)  # pandera needs something thats picklable
+        if n_students < 2:
+            raise ValidationError(
+                "too_few_students_not_together",
+                context={"rule_index": i},
+            )
 
-    def no_duplicated_students(df: pd.DataFrame) -> pd.Series:
-        "A row is valid if there are no duplicated students in it"
-        groups = df.filter(like="Leerling").map(clean_name)
-        return ~groups.apply(lambda row: row.dropna().duplicated().any(), axis=1)
+        if max_samen < 1:
+            raise ValidationError(
+                "invalid_max_samen_not_together",
+                context={"rule_index": i, "max_samen": max_samen},
+            )
 
-    def can_be_divided(df: pd.DataFrame, n_groups: int) -> pd.Series:
-        """A row is valid if the students in it can be divided over n_groups"""
-        group_sizes = df.filter(like="Leerling").count("columns")
-        max_samen = df["Max aantal samen"]
-        return (group_sizes / max_samen) <= n_groups
+        unknown = sorted(s for s in group if s not in known)
+        if unknown:
+            raise ValidationError(
+                "unknown_student_not_together",
+                context={"unknown_students": ", ".join(unknown)},
+            )
 
-    schema = pa.DataFrameSchema(
-        {
-            "Max aantal samen": pa.Column(
-                int,
-                checks=pa.Check.greater_than_or_equal_to(1),
-                coerce=True,
-            ),
-            "Leerling 1": create_student_column_schema(students, nullable=False),
-            "Leerling 2": create_student_column_schema(students, nullable=False),
-            "Leerling 3": create_student_column_schema(students, nullable=True),
-            "Leerling 4": create_student_column_schema(students, nullable=True),
-            "Leerling 5": create_student_column_schema(students, nullable=True),
-            "Leerling 6": create_student_column_schema(students, nullable=True),
-            "Leerling 7": create_student_column_schema(students, nullable=True),
-            "Leerling 8": create_student_column_schema(students, nullable=True),
-            "Leerling 9": create_student_column_schema(students, nullable=True),
-            "Leerling 10": create_student_column_schema(students, nullable=True),
-            "Leerling 11": create_student_column_schema(students, nullable=True),
-            "Leerling 12": create_student_column_schema(students, nullable=True),
-        },
-        strict=True,
-        checks=[
-            pa.Check(no_duplicated_students, name="duplicated_students_not_together"),
-            pa.Check(can_be_divided, name="too_strict_not_together", n_groups=n_groups),
-        ],
-    )
-    validate_schema_with_filetype(df_not_together, schema, filetype="niet_samen")
-
-    result = []
-    for _, row in df_not_together.iterrows():
-        group = row.filter(like="Leerling").dropna().apply(clean_name)
-        max_aantal_samen = row["Max aantal samen"]
-
-        result.append(
-            {
-                "Max_aantal_samen": max_aantal_samen,
-                "group": set(group),
-            }
-        )
-    return result
+        if n_students / max_samen > n_groups:
+            raise ValidationError(
+                "too_strict_not_together",
+                context={
+                    "rule_index": i,
+                    "n_students": n_students,
+                    "max_samen": max_samen,
+                    "n_groups": n_groups,
+                },
+            )
+    return rules
 
 
 def read_groups_excel(path_groups_to) -> dict:
@@ -425,7 +414,7 @@ def read_groups_excel(path_groups_to) -> dict:
     )
 
 
-class EdexReader:
+class EdexReader:  # pylint: disable=too-few-public-methods  # data exposed via attributes set in __init__
     """Read EDEX file"""
 
     def __init__(self, file_loc):

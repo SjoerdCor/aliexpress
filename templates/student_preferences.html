@@ -1,10 +1,11 @@
 {% extends "base.html" %}
 {% set current_step = 3 %}
+{% block header %} Wensen van leerlingen doorgeven{% endblock %}
 {% block content %}
 
-  <h2>Selecteer leerlingen die doorgaan</h2>
+  <h2>Stap 1: Selecteer leerlingen die doorgaan</h2>
   <p>Vink aan wie naar de volgende groep gaan. Verlengers kunnen uitgevinkt worden. Als er nog leerlingen missen kun je die onderaan toevoegen</p>
-  <form method="post" onsubmit="return validateForm()">
+  <form method="post" action="{{ url_for('student_preferences') }}" onsubmit="return validateForm()">
     {% for student in candidates %}
       <label>
         <input type="checkbox" name="students" value="{{ student.key }}" checked>
@@ -20,7 +21,22 @@
   </li>
 </ul>
     <br><br>
-    <button type="submit" class="button">Download invulformulieren</button>
+<button type="submit" name="action" value="download" class="button">
+  Download invulformulier
+</button>
+</form>
+
+<h2>Stap 2: Upload het ingevulde bestand hieronder</h2>
+<form method="post" action="{{ url_for('upload_preferences') }}" enctype="multipart/form-data">
+  <label>Upload ingevuld bestand:</label><br>
+  <input type="file" name="preferences" accept=".xlsx" required><br><br>
+
+  <button type="submit" class="button next-step">
+    Naar Niet samen →
+  </button>
+</form>
+
+
 <div class="instructions-box">
     <h2>Invulinstructies</h2>
 
@@ -50,25 +66,16 @@
 
         <li> Check of je alle kolommen hebt ingevuld, en of je passende gewichten hebt ingevuld</li>
     </ul>
-    </p>
-    <h3>Niet-samen-bestand</h3>
-    <p>In dit bestand kan per regel worden weergegeven wie er helemaal niet of niet in te grote groepen bij elkaar
-        mogen. Je kunt hier denken aan kinderen die elkaar negatief versterken of zorgleerlingen die je wilt scheiden
-        om passende aandacht te kunnen geven. Houd er rekening mee dat eisen die je hier invult, de groepsindeling
-        moeilijker
-        maken en daardoor zullen leiden tot een lagere tevredenheid.
 
-        Alle namen moeten voorkomen in het voorkeuren-bestand.
-        Als je bijvoorbeeld twee leerlingen niet bij elkaar wilt, vul je die namen in bij Leerling1 en Leerling 2, en
-        max_aantal_samen 1: ze mogen dan niet samen in een groep.
-        Je zou ook de 10 zorgleerlingen kunnen invoeren en dan aangeven dat er daarvan maximaal 2 in een groep mogen.
+    Upload vervolgens het ingevulde bestand. Hij wordt automatisch gecontroleerd of hij goed gevuld is.
+    Als er iets nog niet goed gaat, komt er een foutmelding. Lees de foutmelding zorgvuldig en probeer het te verhelpen.
     </p>
 </div>
 
 
 <div class="step-navigation">
     <a href="{{ url_for('groups_to_page') }}" class="button previous-step">← Naar Groepen naartoe bepalen</a>
-    <a href="{{ url_for('upload_files') }}" class="button next-step">Ik heb de invulformulieren <br>Naar uploaden →</a>
+    <a href="{{ url_for('not_together_page') }}" class="button next-step">Naar Niet samen →</a>
 </div>
 
 <script>

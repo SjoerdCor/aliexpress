@@ -1,5 +1,7 @@
 """Create a Sociogram, displaying relations and popularity"""
 
+# pylint: disable=too-many-locals,use-dict-literal  # file is pending a full rewrite
+
 import base64
 import io
 import math
@@ -174,13 +176,13 @@ def networkx_to_plotly(g, pos):
                 x=[x0s, x1s],
                 y=[y0s, y1s],
                 mode="lines+markers",
-                line=dict(width=width, color=color),
-                marker=dict(
-                    symbol="triangle-up",
-                    size=6,
-                    color=color,
-                    angleref="previous",
-                ),
+                line={"width": width, "color": color},
+                marker={
+                    "symbol": "triangle-up",
+                    "size": 6,
+                    "color": color,
+                    "angleref": "previous",
+                },
                 hoverinfo="text",
                 text=text,
                 showlegend=False,
@@ -213,7 +215,7 @@ def networkx_to_plotly(g, pos):
         text=labels,
         textposition="top center",
         hoverinfo="text",
-        marker=dict(size=node_sizes, color="skyblue", line_width=2),
+        marker={"size": node_sizes, "color": "skyblue", "line_width": 2},
     )
     fig = go.Figure(
         data=edge_traces + [node_trace],
