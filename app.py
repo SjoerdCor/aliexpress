@@ -819,14 +819,14 @@ def result_page(task_id):
 @app.route("/download/<task_id>")
 def download(task_id):
     """Download single groepsindeling"""
-    file_buffer = temp_storage.get(task_id)
     logger.debug(task_id)
-    if file_buffer is None:
+    task = temp_storage.get(task_id, {})
+    if "groepsindeling" not in task:
         flash("Groepsindeling niet gevonden. Mogelijk nog aan het berekenen", "error")
-        return render_template("result.html", task_id=task_id)
+        return render_template("result.html", task_id=task_id, dataframes={})
 
     return send_file(
-        file_buffer["groepsindeling"]["download"],
+        task["groepsindeling"]["download"],
         as_attachment=True,
         download_name="results.xlsx",
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
