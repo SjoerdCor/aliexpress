@@ -209,6 +209,22 @@ function addRule() {
   inp.focus();
 }
 
+function initRules(rules) {
+  rules.forEach(rule => {
+    addRule();
+    const cards = document.querySelectorAll('.rule-card');
+    const card = cards[cards.length - 1];
+    const chipsArea = card.querySelector('.chips-area');
+    rule.group.forEach(name => {
+      chipsArea.appendChild(makeChip(parseInt(card.dataset.index), name));
+    });
+    updateMax(card);
+    card.querySelector('.rule-max-label input').value = rule.Max_aantal_samen;
+    updateConfirmButton(card);
+    if (chipCount(card) >= 2) setConfirmed(card);
+  });
+}
+
 function prepareAndValidate() {
   // Drop rules with no chips (silently)
   document.querySelectorAll('.rule-card').forEach(card => {
@@ -254,6 +270,10 @@ function prepareAndValidate() {
   document.getElementById('n_rules').value = remaining.length;
   return true;
 }
+
+{% if existing_rules %}
+initRules({{ existing_rules | tojson }});
+{% endif %}
 </script>
 
 {% endblock %}
