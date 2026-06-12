@@ -99,28 +99,27 @@ def processes():
 
 
 def _validate_process_name(process_name, must_exist=True):
-    error = None
+    """Return an error message, or None when the name is valid."""
     if not process_name:
-        error = "Naam is verplicht"
+        return "Naam is verplicht"
     if not re.match(r"^[\w\- ]+$", process_name):
-        error = "Alleen letters, cijfers, spaties, - en _ toegestaan"
+        return "Alleen letters, cijfers, spaties, - en _ toegestaan"
     path = os.path.join(BASE_DIR, process_name)
-    if os.path.exists(path) and not must_exist:
-        error = "Proces bestaat niet"
-    if not os.path.exists(path) and must_exist:
-        error = "Proces bestaat al"
-    if error:
-        flash(error, "error")
-        return redirect(url_for("processes"))
-    return path
+    if must_exist and not os.path.exists(path):
+        return "Proces bestaat niet"
+    if not must_exist and os.path.exists(path):
+        return "Proces bestaat al"
+    return None
 
 
 @app.route("/processes/create", methods=["POST"])
 def create_process():
     """Create a new process"""
     process_name = request.form.get("process_name", "").strip()
-
-    path = _validate_process_name(process_name, must_exist=False)
+    if error := _validate_process_name(process_name, must_exist=False):
+        flash(error, "error")
+        return redirect(url_for("processes"))
+    path = os.path.join(BASE_DIR, process_name)
     os.makedirs(path)
     session["process_id"] = process_name
     return redirect(url_for("upload_edexml"))
@@ -129,7 +128,10 @@ def create_process():
 @app.route("/processes/delete/<process_name>", methods=["POST"])
 def delete_process(process_name):
     """Delete a process"""
-    path = _validate_process_name(process_name, must_exist=True)
+    if error := _validate_process_name(process_name, must_exist=True):
+        flash(error, "error")
+        return redirect(url_for("processes"))
+    path = os.path.join(BASE_DIR, process_name)
     shutil.rmtree(path)
     return redirect(url_for("processes"))
 
