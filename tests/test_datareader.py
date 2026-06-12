@@ -619,16 +619,6 @@ def test_voorkeuren_processor_process_and_get_students_meta_info(valid_voorkeure
     assert dicts_equal_with_nan(meta, expected)
 
 
-@patch("aliexpress.datareader.pd.read_excel")
-def test_parse_not_together_excel_success(mock_read_excel):
-    """Test that parse_not_together_excel reads two students correctly."""
-    mock_read_excel.return_value = pd.DataFrame(
-        {"Max aantal samen": [2], "Leerling 1": ["Alice"], "Leerling 2": ["Bob"]}
-    )
-    result = datareader.parse_not_together_excel("dummy.xlsx")
-    assert result == [{"Max_aantal_samen": 2, "group": {"Alice", "Bob"}}]
-
-
 def test_validate_not_together_success():
     """Valid rules pass without error and are returned unchanged."""
     rules = [{"group": {"Alice", "Bob"}, "Max_aantal_samen": 1}]

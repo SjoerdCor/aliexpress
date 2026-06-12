@@ -342,26 +342,6 @@ class VoorkeurenProcessor:
         )
 
 
-def parse_not_together_excel(path: str) -> list[dict]:
-    """Read niet_samen.xlsx to rule dicts without validation.
-
-    Intended for loading test fixtures. Each dict has keys 'group' (set[str]) and
-    'Max_aantal_samen' (int). No column-count limit; reads all "Leerling X" columns
-    present. Use validate_not_together for semantic checks.
-    """
-    df = pd.read_excel(path).map(clean_name)
-    result = []
-    for _, row in df.iterrows():
-        group = set(row.filter(like="Leerling").dropna().apply(clean_name))
-        result.append(
-            {
-                "Max_aantal_samen": int(row["Max aantal samen"]),
-                "group": group,
-            }
-        )
-    return result
-
-
 def validate_not_together(
     rules: list[dict], students: Iterable, n_groups: int
 ) -> list[dict]:
