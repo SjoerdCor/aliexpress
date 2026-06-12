@@ -1,5 +1,6 @@
 """The flask server that governs the app"""
 
+import functools
 import json
 import os
 import re
@@ -69,6 +70,19 @@ def get_process_path(process_id):
 def get_file_path(process_id, filename):
     """Get file for a certain process"""
     return os.path.join(get_process_path(process_id), filename)
+
+
+def require_process(f):
+    """Route decorator: redirect to /processes when no active process is in session."""
+
+    @functools.wraps(f)
+    def wrapper(*args, **kwargs):
+        if "process_id" not in session:
+            flash("Geen actief proces geselecteerd.", "error")
+            return redirect(url_for("processes"))
+        return f(*args, **kwargs)
+
+    return wrapper
 
 
 temp_storage = {}
@@ -200,6 +214,7 @@ def upload_edexml():
 
 
 @app.route("/groups_to", methods=["GET", "POST"])
+@require_process
 def groups_to_page():
     """Display and process the groups_to page"""
     if request.method == "GET":
@@ -226,6 +241,7 @@ def groups_to_page():
 
 
 @app.route("/student_preferences", methods=["GET", "POST"])
+@require_process
 def student_preferences():
     """Display page where the teacher can add preferences for the student"""
     data_path = get_file_path(
@@ -393,17 +409,22 @@ def _parse_not_together_form(form, n_rules):
 
 
 @app.route("/not_together", methods=["GET", "POST"])
+@require_process
 def not_together_page():
     """Display and process the not-together rules page"""
     process_id = session["process_id"]
     preferences_path = get_file_path(process_id, "preferences.xlsx")
     groups_to_path = get_file_path(process_id, "groups.xlsx")
 
-    groups_to = datareader.read_groups_excel(groups_to_path)
+    try:
+        groups_to = datareader.read_groups_excel(groups_to_path)
+        processor = datareader.VoorkeurenProcessor(preferences_path)
+        processor.process(all_to_groups=list(groups_to.keys()))
+        students = sorted(processor.get_students_meta_info().keys())
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        _flash_upload_error(exc)
+        return redirect(url_for("student_preferences"))
     n_groups = len(groups_to)
-    processor = datareader.VoorkeurenProcessor(preferences_path)
-    processor.process(all_to_groups=list(groups_to.keys()))
-    students = sorted(processor.get_students_meta_info().keys())
 
     if request.method == "GET":
         nt_path = get_file_path(process_id, "not_together.json")
@@ -679,6 +700,7 @@ def _handle_failure(exc, task_id):
 
 
 @app.route("/start_distribution", methods=["GET"])
+@require_process
 def start_distribution():
     """Start the student distribution using stored input files"""
     logger.info("Starting distribution")
@@ -773,17 +795,23 @@ def handle_error():
 @app.route("/sociogram/<task_id>")
 def show_sociogram(task_id):
     """Display sociogram"""
-    html = temp_storage[task_id]["sociogram"]
-    return render_template("sociogram.html", plotly_div=html)
+    task = temp_storage.get(task_id, {})
+    if "sociogram" not in task:
+        flash("Sociogram niet beschikbaar.", "error")
+        return redirect(url_for("processes"))
+    return render_template("sociogram.html", plotly_div=task["sociogram"])
 
 
 @app.route("/result/<task_id>")
 def result_page(task_id):
     """Display result for single run"""
-
+    task = temp_storage.get(task_id, {})
+    if "groepsindeling" not in task:
+        flash("Resultaat niet beschikbaar.", "error")
+        return redirect(url_for("processes"))
     dataframes = {
         k: df.to_html(na_rep="")
-        for k, df in temp_storage[task_id]["groepsindeling"]["dataframes"].items()
+        for k, df in task["groepsindeling"]["dataframes"].items()
     }
     return render_template("result.html", task_id=task_id, dataframes=dataframes)
 
@@ -791,14 +819,14 @@ def result_page(task_id):
 @app.route("/download/<task_id>")
 def download(task_id):
     """Download single groepsindeling"""
-    file_buffer = temp_storage.get(task_id)
     logger.debug(task_id)
-    if file_buffer is None:
+    task = temp_storage.get(task_id, {})
+    if "groepsindeling" not in task:
         flash("Groepsindeling niet gevonden. Mogelijk nog aan het berekenen", "error")
-        return render_template("result.html", task_id=task_id)
+        return render_template("result.html", task_id=task_id, dataframes={})
 
     return send_file(
-        file_buffer["groepsindeling"]["download"],
+        task["groepsindeling"]["download"],
         as_attachment=True,
         download_name="results.xlsx",
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

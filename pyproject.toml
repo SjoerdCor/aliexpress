@@ -46,7 +46,7 @@ ali-express = "aliexpress.main:main"
 aliexpress = "aliexpress.main:main"
 
 [tool.pytest.ini_options]
-addopts = "--cov=aliexpress --cov-report=term-missing --cov-report=xml"
+addopts = "--cov=aliexpress --cov=app --cov-report=term-missing --cov-report=xml"
 pythonpath = ["."]
 
 [tool.pylint.main]
