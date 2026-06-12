@@ -892,3 +892,18 @@ def test_edge_cases(reader_edge):
     df = reader_edge.df_leerlingen
     assert df.loc["L5", "geslacht"] == "Onbekend"
     assert df.loc["L6", "geslacht"] == "Niet gespecificeerd"
+
+
+def test_niet_in_second_column_accepts_group_name(valid_voorkeuren_df):
+    """Regression: second Niet-in column must accept a group name, not be validated as a float.
+
+    Bug: ("Niet in", 2.0, "Waarde") was mapped to gewicht_check instead of waarde_check,
+    causing a DATATYPE_COERCION error when a teacher fills in a second forbidden group.
+    """
+    df = valid_voorkeuren_df.copy()
+    df[("Niet in", 2.0, "Waarde")] = df[("Niet in", 2.0, "Waarde")].astype(object)
+    df.loc["John", ("Niet in", 2.0, "Waarde")] = "Blauw"
+
+    processor = datareader.VoorkeurenProcessor.__new__(datareader.VoorkeurenProcessor)
+    result = processor._validate_input(df)
+    assert result.loc["John", ("Niet in", 2.0, "Waarde")] == "Blauw"
