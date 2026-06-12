@@ -215,7 +215,7 @@ class VoorkeurenProcessor:
                 ("Liever niet met", 1.0, "Waarde"): waarde_check,
                 ("Liever niet met", 1.0, "Gewicht"): gewicht_check,
                 ("Niet in", 1.0, "Waarde"): waarde_check,
-                ("Niet in", 2.0, "Waarde"): gewicht_check,
+                ("Niet in", 2.0, "Waarde"): waarde_check,
             },
             index=pa.Index(pa.String, unique=True, coerce=True),
             checks=[create_check_empty_df()],
