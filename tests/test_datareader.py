@@ -620,92 +620,60 @@ def test_voorkeuren_processor_process_and_get_students_meta_info(valid_voorkeure
 
 
 @patch("aliexpress.datareader.pd.read_excel")
-def test_read_not_together_success(mock_read_excel):
-    """Test that read_not_together reads a DataFrame with two students correctly."""
-    data = {
-        "Max aantal samen": [2],
-        "Leerling 1": ["Alice"],
-        "Leerling 2": ["Bob"],
-    }
-    for llnr in range(3, 13):
-        data[f"Leerling {llnr}"] = pd.NA
-
-    mock_read_excel.return_value = pd.DataFrame(data)
-    students = ["Alice", "Bob"]
-    result = datareader.read_not_together("dummy.xlsx", students, n_groups=2)
+def test_parse_not_together_excel_success(mock_read_excel):
+    """Test that parse_not_together_excel reads two students correctly."""
+    mock_read_excel.return_value = pd.DataFrame(
+        {"Max aantal samen": [2], "Leerling 1": ["Alice"], "Leerling 2": ["Bob"]}
+    )
+    result = datareader.parse_not_together_excel("dummy.xlsx")
     assert result == [{"Max_aantal_samen": 2, "group": {"Alice", "Bob"}}]
 
 
-def test_read_not_together_incompletely_filled():
-    """Test that read_not_together raises an error for incompletely filled DataFrame."""
-    df = pd.DataFrame(
-        {
-            "Max aantal samen": [2],
-            "Leerling 1": ["Alice"],
-        }
+def test_validate_not_together_success():
+    """Valid rules pass without error and are returned unchanged."""
+    rules = [{"group": {"Alice", "Bob"}, "Max_aantal_samen": 1}]
+    assert (
+        datareader.validate_not_together(rules, ["Alice", "Bob"], n_groups=2) == rules
     )
-    for llnr in range(2, 13):
-        df[f"Leerling {llnr}"] = pd.NA
-    with patch("aliexpress.datareader.pd.read_excel", return_value=df):
-        with pytest.raises(pa.errors.SchemaError) as exc:
-            datareader.read_not_together("dummy.xlsx", ["Alice"], 2)
-    assert exc.value.reason_code == pa.errors.SchemaErrorReason.SERIES_CONTAINS_NULLS
-    assert exc.value.column_name == "Leerling 2"
 
 
-@patch("aliexpress.datareader.pd.read_excel")
-def test_read_not_together_duplicate_student_error(mock_read_excel):
-    """Test that read_not_together raises an error for duplicated students in the DataFrame."""
-    data = {
-        "Max aantal samen": [2],
-        "Leerling 1": ["Alice"],
-        "Leerling 2": ["Alice"],
-    }
-    for llnr in range(3, 13):
-        data[f"Leerling {llnr}"] = pd.NA
-    mock_read_excel.return_value = pd.DataFrame(data)
-    with pytest.raises(pa.errors.SchemaError) as exc:
-        datareader.read_not_together("dummy.xlsx", ["Alice"], 2)
-    assert exc.value.reason_code == pa.errors.SchemaErrorReason.DATAFRAME_CHECK
-    assert exc.value.check.name == "duplicated_students_not_together"
+def test_validate_not_together_empty():
+    """Empty rule list is always valid."""
+    # pylint: disable-next=use-implicit-booleaness-not-comparison  # exact return type matters
+    assert datareader.validate_not_together([], ["Alice", "Bob"], n_groups=2) == []
 
 
-def test_read_not_together_unknown_student():
-    """Test that read_not_together raises an error for unknown students in the DataFrame."""
-    df = pd.DataFrame(
-        {
-            "Max aantal samen": [2],
-            "Leerling 1": ["Alice"],
-            "Leerling 2": ["Unknown"],
-        }
-    )
-    for llnr in range(3, 13):
-        df[f"Leerling {llnr}"] = pd.NA
-    with patch("aliexpress.datareader.pd.read_excel", return_value=df):
-        with pytest.raises(pa.errors.SchemaError) as exc:
-            datareader.read_not_together("dummy.xlsx", ["Alice"], 2)
-    assert exc.value.reason_code == pa.errors.SchemaErrorReason.DATAFRAME_CHECK
-    assert exc.value.check.name == "isin" and exc.value.filetype == "niet_samen"
-    assert exc.value.failure_cases["failure_case"].squeeze() == "Unknown"
+def test_validate_not_together_too_few_students():
+    """A rule with fewer than 2 students raises an error."""
+    rules = [{"group": {"Alice"}, "Max_aantal_samen": 1}]
+    with pytest.raises(errors.ValidationError) as exc:
+        datareader.validate_not_together(rules, ["Alice", "Bob"], n_groups=2)
+    assert exc.value.code == "too_few_students_not_together"
 
 
-def test_read_not_together_too_strict():
-    """Test that read_not_together raises an error for impossibly strict conditions"""
-    df = pd.DataFrame(
-        {
-            "Max aantal samen": [1],
-            "Leerling 1": ["Alice"],
-            "Leerling 2": ["Bob"],
-            "Leerling 3": ["Charlie"],
-        }
-    )
-    for llnr in range(4, 13):
-        df[f"Leerling {llnr}"] = pd.NA
-    with patch("aliexpress.datareader.pd.read_excel", return_value=df):
-        with pytest.raises(pa.errors.SchemaError) as exc:
-            datareader.read_not_together("dummy.xlsx", ["Alice", "Bob", "Charlie"], 2)
-    assert exc.value.reason_code == pa.errors.SchemaErrorReason.DATAFRAME_CHECK
-    assert exc.value.check.name == "too_strict_not_together"
+def test_validate_not_together_unknown_student():
+    """A student not in the known list raises an error."""
+    rules = [{"group": {"Alice", "Unknown"}, "Max_aantal_samen": 1}]
+    with pytest.raises(errors.ValidationError) as exc:
+        datareader.validate_not_together(rules, ["Alice", "Bob"], n_groups=2)
+    assert exc.value.code == "unknown_student_not_together"
+    assert "Unknown" in exc.value.context["unknown_students"]
+
+
+def test_validate_not_together_too_strict():
+    """A rule that cannot be distributed over n_groups raises an error."""
+    rules = [{"group": {"Alice", "Bob", "Charlie"}, "Max_aantal_samen": 1}]
+    with pytest.raises(errors.ValidationError) as exc:
+        datareader.validate_not_together(rules, ["Alice", "Bob", "Charlie"], n_groups=2)
+    assert exc.value.code == "too_strict_not_together"
+
+
+def test_validate_not_together_invalid_max_samen():
+    """max_samen < 1 raises an error."""
+    rules = [{"group": {"Alice", "Bob"}, "Max_aantal_samen": 0}]
+    with pytest.raises(errors.ValidationError) as exc:
+        datareader.validate_not_together(rules, ["Alice", "Bob"], n_groups=2)
+    assert exc.value.code == "invalid_max_samen_not_together"
 
 
 @patch("aliexpress.datareader.pd.read_excel")

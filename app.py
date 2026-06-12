@@ -351,6 +351,80 @@ def upload_preferences():
     return redirect(url_for("not_together_page"))
 
 
+def _parse_not_together_form(form, n_rules):
+    """Parse not-together form fields into rule dicts. Returns (rules, error_msg)."""
+    rules = []
+    for i in range(n_rules):
+        names_raw = form.getlist(f"rule_students[{i}]")
+        cleaned = [datareader.clean_name(n) for n in names_raw if n.strip()]
+        if len(cleaned) != len(set(cleaned)):
+            return (
+                None,
+                f"Niet-samen-regel {i + 1} bevat dezelfde leerling meerdere keren.",
+            )
+        max_samen_raw = form.get(f"rule_max[{i}]", "").strip()
+        if not max_samen_raw:
+            return None, f"Vul het maximale aantal samen in voor regel {i + 1}."
+        try:
+            max_samen = int(max_samen_raw)
+        except ValueError:
+            return (
+                None,
+                f"Maximale aantal samen moet een heel getal zijn (regel {i + 1}).",
+            )
+        if cleaned:
+            rules.append({"group": set(cleaned), "Max_aantal_samen": max_samen})
+    return rules, None
+
+
+@app.route("/not_together", methods=["GET", "POST"])
+def not_together_page():
+    """Display and process the not-together rules page"""
+    process_id = session["process_id"]
+    preferences_path = get_file_path(process_id, "preferences.xlsx")
+    groups_to_path = get_file_path(process_id, "groups.xlsx")
+
+    groups_to = datareader.read_groups_excel(groups_to_path)
+    n_groups = len(groups_to)
+    processor = datareader.VoorkeurenProcessor(preferences_path)
+    processor.process(all_to_groups=list(groups_to.keys()))
+    students = sorted(processor.get_students_meta_info().keys())
+
+    if request.method == "GET":
+        return render_template(
+            "not_together.html", students=students, n_groups=n_groups
+        )
+
+    if request.form.get("action") == "skip":
+        _save_not_together(process_id, [])
+        return redirect(url_for("start_distribution"))
+
+    n_rules = int(request.form.get("n_rules", 0))
+    rules, error = _parse_not_together_form(request.form, n_rules)
+    if error is None:
+        try:
+            datareader.validate_not_together(rules, students, n_groups)
+        except ValidationError as exc:
+            error = to_validation_message(exc)
+    if error:
+        flash(error, "error")
+        return redirect(url_for("not_together_page"))
+
+    _save_not_together(process_id, rules)
+    return redirect(url_for("start_distribution"))
+
+
+def _save_not_together(process_id, rules):
+    """Persist not-together rules as JSON (sets serialised as lists)."""
+    data = [
+        {"group": list(r["group"]), "Max_aantal_samen": r["Max_aantal_samen"]}
+        for r in rules
+    ]
+    path = get_file_path(process_id, "not_together.json")
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(data, fh, ensure_ascii=False)
+
+
 def _extract_new_students(form):
     """Extract manually added students from form fields"""
     firstnames = form.getlist("new_firstname[]")
@@ -419,6 +493,21 @@ def readableerror_to_validation_message(exc: Exception) -> str:
         "internal_error": (
             "Er is iets onverwachts misgegaan. Het probleem is gelogd. "
             "Laat de maker dit onderzoeken."
+        ),
+        "too_few_students_not_together": (
+            "Niet-samen-regel {rule_index} heeft minder dan 2 leerlingen. "
+            "Voeg minstens 2 leerlingen toe."
+        ),
+        "invalid_max_samen_not_together": (
+            "Niet-samen-regel {rule_index}: het maximale aantal samen moet minstens 1 zijn."
+        ),
+        "unknown_student_not_together": (
+            "In de niet-samen-regels staan onbekende leerlingen: {unknown_students}. "
+            "Controleer of de namen overeenkomen met het voorkeuren-bestand."
+        ),
+        "too_strict_not_together": (
+            "Niet-samen-regel {rule_index}: met {n_groups} groepen is het niet mogelijk om "
+            "{n_students} leerlingen te verdelen met maximaal {max_samen} bij elkaar."
         ),
     }
 
@@ -559,27 +648,41 @@ def _handle_failure(exc, task_id):
     status_dct[task_id]["message"] = message
 
 
-@app.route("/upload", methods=["POST"])
-def upload_files():
-    """Handle upload page, including form submission"""
-    logger.info("Submitted")
-    preferences = file_to_io(request.files["preferences"])
-    groups_to_path = get_file_path(session["process_id"], "groups.xlsx")
-    not_together = get_file_path(session["process_id"], "not_together.xlsx")
+@app.route("/start_distribution", methods=["GET"])
+def start_distribution():
+    """Start the student distribution using stored input files"""
+    logger.info("Starting distribution")
+    process_id = session["process_id"]
+    preferences_path = get_file_path(process_id, "preferences.xlsx")
+    groups_to_path = get_file_path(process_id, "groups.xlsx")
 
-    def on_update(message):
-        status_dct[task_id]["logs"].append(message)
+    not_together_path = get_file_path(process_id, "not_together.json")
+    if os.path.exists(not_together_path):
+        with open(not_together_path, "r", encoding="utf-8") as fh:
+            raw = json.load(fh)
+        not_together = [
+            {"group": set(r["group"]), "Max_aantal_samen": r["Max_aantal_samen"]}
+            for r in raw
+        ]
+    else:
+        not_together = []
 
-    logger.info("Starting distribution...")
+    with open(preferences_path, "rb") as fh:
+        preferences_bytes = BytesIO(fh.read())
 
     task_id = str(uuid.uuid4())
     temp_storage[task_id] = {}
 
+    def on_update(message):
+        status_dct[task_id]["logs"].append(message)
+
     # pylint: disable=broad-exception-caught
-    def run_task(*args):
+    def run_task():
         try:
             status_dct[task_id]["status_studentdistribution"] = "running"
-            result = distribute_students_once(*args, on_update=on_update)
+            result = distribute_students_once(
+                preferences_path, groups_to_path, not_together, on_update=on_update
+            )
             logger.info("Distributing students finished successfully")
             status_dct[task_id]["status_studentdistribution"] = "done"
             temp_storage[task_id]["groepsindeling"] = result
@@ -606,11 +709,8 @@ def upload_files():
             logger.exception("Could not create sociogram")
 
     # pylint: enable=broad-exception-caught
-    Thread(target=create_sociogram, args=(preferences, groups_to_path)).start()
-    Thread(
-        target=run_task,
-        args=(preferences, groups_to_path, not_together),
-    ).start()
+    Thread(target=create_sociogram, args=(preferences_bytes, groups_to_path)).start()
+    Thread(target=run_task).start()
 
     return redirect(url_for("processing", task_id=task_id))
 

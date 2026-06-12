@@ -37,7 +37,7 @@ repos:
         name: Sort import statements
         stages: [pre-commit]
         language: system
-        entry: python -m isort
+        entry: uv run python -m isort
         args: ["--profile", "black"]
         types: [python]
 
@@ -46,7 +46,7 @@ repos:
         name: Format code using black
         stages: [pre-commit]
         language: system
-        entry: python -m black
+        entry: uv run python -m black
         types: [python]
 
       # Lint with pylint.
@@ -54,5 +54,5 @@ repos:
         name: Check code style using pylint
         language: system
         stages: [pre-commit]
-        entry: python -m pylint
+        entry: uv run python -m pylint
         types: [python]
