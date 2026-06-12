@@ -1,6 +1,0 @@
-solution_file=medium-pulp.sol
-write_solution_to_file=true
-write_solution_style=0
-log_to_console=false
-mip_rel_gap=0
-log_file=medium-pulp.HiGHS_log
