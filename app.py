@@ -172,27 +172,30 @@ def upload_edexml():
     """Route to upload edexml"""
     if request.method == "GET":
         return render_template("upload_edexml.html")
-    edex_file = request.files["edexml"]
-    edex_path = get_file_path(session["process_id"], "edex.xml")
-    edex_file.save(edex_path)
-    edex_file.stream.seek(0)
+    try:
+        edex_file = request.files["edexml"]
+        edex_path = get_file_path(session["process_id"], "edex.xml")
+        edex_file.save(edex_path)
+        edex_file.stream.seek(0)
 
-    edexml = file_to_io(edex_file)
-    jaargroep = int(request.form["jaargroep"])
-    df = datareader.EdexReader(edexml).get_full_df()
-    candidates, groups_from, groups_to = candidatedetermination.handle_edexml_upload(
-        df, jaargroep
-    )
-    data = {
-        "candidates": candidates,
-        "groups_from": groups_from,
-        "groups_to": groups_to,
-    }
-    path = get_file_path(session["process_id"], "relevant_students_and_groups.json")
+        edexml = file_to_io(edex_file)
+        jaargroep = int(request.form["jaargroep"])
+        df = datareader.EdexReader(edexml).get_full_df()
+        candidates, groups_from, groups_to = (
+            candidatedetermination.handle_edexml_upload(df, jaargroep)
+        )
+        data = {
+            "candidates": candidates,
+            "groups_from": groups_from,
+            "groups_to": groups_to,
+        }
+        path = get_file_path(session["process_id"], "relevant_students_and_groups.json")
 
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
-
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        _flash_upload_error(exc)
+        return redirect(url_for("upload_edexml"))
     return redirect(url_for("groups_to_page"))
 
 
@@ -349,15 +352,17 @@ def write_preferences_to_excel(df, fname, **kwargs):
 @app.route("/upload_preferences", methods=["POST"])
 def upload_preferences():
     """Handle the upload of the preferences files"""
-    preferences = file_to_io(request.files["preferences"])
-    groups_to_path = get_file_path(session["process_id"], "groups.xlsx")
-    groups_to = list(datareader.read_groups_excel(groups_to_path).keys())
-    processor = datareader.VoorkeurenProcessor(preferences)
-    # The .process() validates the input further
-    processor.process(all_to_groups=groups_to)
-
-    preferences_path = get_file_path(session["process_id"], "preferences.xlsx")
-    write_preferences_to_excel(processor.input.reset_index(), preferences_path)
+    try:
+        preferences = file_to_io(request.files["preferences"])
+        groups_to_path = get_file_path(session["process_id"], "groups.xlsx")
+        groups_to = list(datareader.read_groups_excel(groups_to_path).keys())
+        processor = datareader.VoorkeurenProcessor(preferences)
+        processor.process(all_to_groups=groups_to)  # validates further
+        preferences_path = get_file_path(session["process_id"], "preferences.xlsx")
+        write_preferences_to_excel(processor.input.reset_index(), preferences_path)
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        _flash_upload_error(exc)
+        return redirect(url_for("student_preferences"))
     return redirect(url_for("not_together_page"))
 
 
@@ -494,6 +499,12 @@ def to_validation_message(exc: Exception) -> str:
         "Er is iets onverwachts misgegaan. Het probleem is gelogd. "
         "Laat de maker dit onderzoeken."
     )
+
+
+def _flash_upload_error(exc: Exception) -> None:
+    """Log a rejected upload and flash a friendly Dutch message to the user."""
+    logger.exception("Upload rejected")
+    flash(to_validation_message(exc), "error")
 
 
 def readableerror_to_validation_message(exc: Exception) -> str:
