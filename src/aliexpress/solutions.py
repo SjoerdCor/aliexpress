@@ -356,6 +356,14 @@ class SolutionAnalyzer:
                     preferences_incl_liever_niet.index[i]
                 )
 
+        if not mapping:
+            return pd.DataFrame(
+                columns=["Satisfied", "WeightedSatisfied"],
+                index=pd.MultiIndex.from_tuples(
+                    [], names=["Leerling", "TypeWens", "Nr"]
+                ),
+            )
+
         df = pd.DataFrame(mapping, index=["Leerling", "TypeWens", "Nr"]).transpose()
         df.index.names = ["student", "Nr"]
 
