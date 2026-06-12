@@ -169,8 +169,8 @@ def distribute_students_once(
 
     Parameters:
         not_together : list[dict] | None
-            Not-together rules as produced by parse_not_together_excel or built from
-            web-form data. Each dict has keys 'group' (set[str]) and
+            Not-together rules built from web-form data or constructed in tests.
+            Each dict has keys 'group' (set[str]) and
             'Max_aantal_samen' (int). Pass None or omit for no constraints.
         on_update : func
             Takes a user friendly message and decides what to do with it for the calling
