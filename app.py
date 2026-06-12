@@ -35,10 +35,12 @@ from aliexpress.errors import (
     FeasibilityError,
     ValidationError,
 )
-from aliexpress.logging_config import setup_logger
+from aliexpress.logging_config import add_file_handler, setup_logger
 from aliexpress.main import distribute_students_once
 
-logger = setup_logger(__name__, logfile="aliexpress.log")
+logger = setup_logger(
+    __name__
+)  # file handler added below, after instance path is known
 
 
 load_dotenv()
@@ -51,6 +53,9 @@ else:
 
 app = Flask(__name__)
 app.config.from_object(ConfigClass)
+LOG_DIR = os.path.join(app.instance_path, "logs")
+os.makedirs(LOG_DIR, exist_ok=True)
+add_file_handler(logger, os.path.join(LOG_DIR, "aliexpress.log"))
 BASE_DIR = os.path.join(app.instance_path, "storage")
 os.makedirs(BASE_DIR, exist_ok=True)
 logger.debug("Created dir if not exists: %s", BASE_DIR)

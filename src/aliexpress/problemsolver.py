@@ -5,6 +5,7 @@ implements different optimization targets (also known as satisfaction metrics).
 import itertools
 import math
 import os
+import tempfile
 import warnings
 from collections import defaultdict
 from dataclasses import dataclass
@@ -706,7 +707,9 @@ class ProblemSolver:
 
     def _get_solver(self):
         # gapRel=0 so we always get the proven optimum, not an early cutoff.
-        kwargs = {"logPath": "solver.log", "msg": False, "gapRel": 0}
+        # logPath goes to the OS temp dir so HiGHS never writes into the project root.
+        log_path = os.path.join(tempfile.gettempdir(), "aliexpress-solver.log")
+        kwargs = {"logPath": log_path, "msg": False, "gapRel": 0}
         if pulp.HiGHS(msg=False).available():
             return pulp.HiGHS(**kwargs)
         if pulp.HiGHS_CMD(msg=False).available():

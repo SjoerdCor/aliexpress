@@ -175,3 +175,7 @@ test_output.txt
 
 # Claude Code project instructions (personal workflow, not project code)
 CLAUDE.md
+
+# Scratch notebooks and solver result directories
+notebooks/Untitled*.ipynb
+notebooks/*/
