@@ -172,3 +172,6 @@ solver.log
 # Ad-hoc test output
 test_err.txt
 test_output.txt
+
+# Claude Code project instructions (personal workflow, not project code)
+CLAUDE.md
