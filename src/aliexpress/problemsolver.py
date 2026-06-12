@@ -5,6 +5,7 @@ implements different optimization targets (also known as satisfaction metrics).
 import itertools
 import math
 import os
+import tempfile
 import warnings
 from collections import defaultdict
 from dataclasses import dataclass
@@ -498,7 +499,7 @@ class ProblemSolver:
         wherever it is achievable, without making the problem infeasible where it is not.
         """
         positive_per_student = defaultdict(list)
-        graag_met = self.preferences.xs("Graag met", level="TypeWens")
+        graag_met = preferences_utils.get_graag_met(self.preferences)
         for key, row in graag_met.iterrows():
             if row["Gewicht"] > 0:
                 positive_per_student[key[0]].append(satisfied[key])
@@ -591,7 +592,7 @@ class ProblemSolver:
             Contains for each preference wether it is satisfied or not
         """
         prob = prob or self.prob
-        graag_met = self.preferences.xs("Graag met", level="TypeWens")
+        graag_met = preferences_utils.get_graag_met(self.preferences)
         satisfied = pulp.LpVariable.dicts(
             "Satisfied", graag_met.index.to_list(), cat="Binary"
         )
@@ -621,7 +622,7 @@ class ProblemSolver:
     ) -> pulp.LpVariable:
         """Calculate the weighted sum of satisfied preferences."""
         prob = prob or self.prob
-        graag_met = self.preferences.xs("Graag met", level="TypeWens")
+        graag_met = preferences_utils.get_graag_met(self.preferences)
         weights = graag_met["Gewicht"].to_dict()
         weights_pulp = pulp.LpVariable.dicts(
             "Weights_preferences", graag_met.index.to_list(), cat="Continuous"
@@ -706,7 +707,9 @@ class ProblemSolver:
 
     def _get_solver(self):
         # gapRel=0 so we always get the proven optimum, not an early cutoff.
-        kwargs = {"logPath": "solver.log", "msg": False, "gapRel": 0}
+        # logPath goes to the OS temp dir so HiGHS never writes into the project root.
+        log_path = os.path.join(tempfile.gettempdir(), "aliexpress-solver.log")
+        kwargs = {"logPath": log_path, "msg": False, "gapRel": 0}
         if pulp.HiGHS(msg=False).available():
             return pulp.HiGHS(**kwargs)
         if pulp.HiGHS_CMD(msg=False).available():

@@ -41,6 +41,7 @@ TABLE_STYLES = styles = [
 ]
 
 
+# pylint: disable-next=too-many-instance-attributes  # ten computed views of one solution; each is a distinct output table
 class SolutionAnalyzer:
     """Create a report about the solution found to the Linear Programming problem
 
@@ -200,6 +201,7 @@ class SolutionAnalyzer:
         series = pd.Series(constraints, name=name)
         ix = (
             series.index.to_series()
+            .astype(str)
             .str.extract(rf"{name}_\('(?P<student>.*)',_(?P<Nr>.*)\)")
             .set_index(["student", "Nr"])
             .index
@@ -353,6 +355,14 @@ class SolutionAnalyzer:
                 mapping[self.preferences.reset_index("TypeWens").index[i]] = (
                     preferences_incl_liever_niet.index[i]
                 )
+
+        if not mapping:
+            return pd.DataFrame(
+                columns=["Satisfied", "WeightedSatisfied"],
+                index=pd.MultiIndex.from_tuples(
+                    [], names=["Leerling", "TypeWens", "Nr"]
+                ),
+            )
 
         df = pd.DataFrame(mapping, index=["Leerling", "TypeWens", "Nr"]).transpose()
         df.index.names = ["student", "Nr"]

@@ -407,6 +407,96 @@ table.dataframe th {
   flex-wrap: nowrap;
 }
 
+/* niet-samen formulier */
+.rule-card {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  border: 2px solid #ffcc99;
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  background: #fff7f0;
+}
+
+.rule-card[data-state="confirmed"] {
+  border-color: #81c784;
+  background: #f1f8f1;
+}
+
+.chips-area {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.student-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #ff9933;
+  color: white;
+  border-radius: 12px;
+  padding: 3px 10px;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.student-chip .delete-btn {
+  color: white;
+}
+
+.student-chip .delete-btn:hover {
+  color: #f0e0d0;
+}
+
+.rule-add-area {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.rule-add-area input[type="text"] {
+  width: 145px;
+  padding: 4px 8px;
+  margin: 0;
+  font-size: 14px;
+}
+
+.rule-add-error {
+  color: #c0392b;
+  font-size: 0.85em;
+}
+
+.rule-max-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  font-weight: bold;
+  color: #555;
+}
+
+.rule-max-label input[type="number"] {
+  width: 52px;
+  padding: 4px 6px;
+  margin: 0;
+  font-size: 14px;
+  text-align: center;
+}
+
+.rule-max-label input[type="number"]:read-only {
+  background: #e8e8e8;
+  border-color: #ccc;
+}
+
+.confirm-rule-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .delete-btn {
     background: none;
     border: none;

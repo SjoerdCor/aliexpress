@@ -16,6 +16,20 @@ from aliexpress import errors
 from aliexpress.main import distribute_students_once
 from aliexpress.problemsolver import GroupBalance
 
+_NOT_TOGETHER_SMALL = [
+    {"group": {"Claire", "Bram", "Eva", "Daan"}, "Max_aantal_samen": 2},
+]
+
+_NOT_TOGETHER_FULL = [
+    {"group": {"Daan", "Anne"}, "Max_aantal_samen": 1},
+    {"group": {"Noor", "Naomi"}, "Max_aantal_samen": 1},
+    {
+        "group": {"Stijn", "Cas", "David", "Adam", "Julian", "Jurre", "Tijn", "Jayden"},
+        "Max_aantal_samen": 3,
+    },
+]
+
+
 _EXPECTED_KEYS = {
     "Groepsindeling",
     "Klassenoverzicht",
@@ -254,7 +268,7 @@ def test_distribute_students_once_happy_flow_small():
     result = distribute_students_once(
         path_preferences="tests/integration/voorkeuren_small.xlsx",
         path_groups_to="tests/integration/groepen_small.xlsx",
-        path_not_together="tests/integration/niet_samen_small.xlsx",
+        not_together=_NOT_TOGETHER_SMALL,
         on_update=lambda msg: None,
         groupbalance=GroupBalance(max_imbalance_boys_girls_total=7),
     )
@@ -278,7 +292,7 @@ def test_distribute_students_once_happy_flow_full():
     result = distribute_students_once(
         path_preferences="tests/integration/voorkeuren.xlsx",
         path_groups_to="tests/integration/groepen.xlsx",
-        path_not_together="tests/integration/niet_samen.xlsx",
+        not_together=_NOT_TOGETHER_FULL,
         on_update=lambda msg: None,
     )
     dfs = _tables(result)
@@ -306,7 +320,7 @@ def test_distribute_students_once_happy_flow_infeasible():
         distribute_students_once(
             path_preferences="tests/integration/voorkeuren.xlsx",
             path_groups_to="tests/integration/groepen.xlsx",
-            path_not_together="tests/integration/niet_samen.xlsx",
+            not_together=_NOT_TOGETHER_FULL,
             on_update=lambda msg: None,
             groupbalance=GroupBalance(
                 max_clique=1,

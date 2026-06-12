@@ -6,7 +6,7 @@ import pandas as pd
 import pulp
 
 
-def apply_threshold_constraint(
+def apply_threshold_constraint(  # pylint: disable=too-many-arguments  # LP interface: each arg is a distinct mathematical parameter
     prob, value, threshold, threshold_var=None, sense=">=", *, M=1_000_000, eps=1e-6
 ):
     """
@@ -56,7 +56,7 @@ def apply_threshold_constraint(
     return threshold_var
 
 
-def apply_threshold_constraints(
+def apply_threshold_constraints(  # pylint: disable=too-many-arguments  # LP interface: each arg is a distinct mathematical parameter
     prob, value, thresholds, threshold_vars, *, M=1_000_000, eps=1e-6
 ):
     """
@@ -100,6 +100,16 @@ def _all_unique_sums(iterable):
     return {sum(l) for l in powerset(iterable)}
 
 
+def get_graag_met(preferences: pd.DataFrame) -> pd.DataFrame:
+    """Return the 'Graag met' slice of preferences; empty DataFrame when none present.
+
+    Equivalent to preferences.xs("Graag met", level="TypeWens") but safe when
+    no positive preferences exist.
+    """
+    mask = preferences.index.get_level_values("TypeWens") == "Graag met"
+    return preferences.loc[mask].droplevel("TypeWens")
+
+
 def get_possible_weighted_preferences(preferences: pd.DataFrame) -> set:
     """
     Get all the possible number of weighted preferences
@@ -115,7 +125,7 @@ def get_possible_weighted_preferences(preferences: pd.DataFrame) -> set:
         with levels ("Leerling", "TypeWens") with columns ("Waarde" & "Gewicht")
     """
     unique_weighted_preferences_per_student = (
-        preferences.xs("Graag met", level="TypeWens")
+        get_graag_met(preferences)
         .groupby("Leerling")["Gewicht"]
         .apply(_all_unique_sums)
     )

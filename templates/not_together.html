@@ -1,0 +1,279 @@
+{% extends "base.html" %}
+{% set current_step = 4 %}
+{% block header %}Wie gaan er niet samen?{% endblock %}
+
+{% block content %}
+
+<datalist id="student-list">
+  {% for s in students %}<option value="{{ s }}">{% endfor %}
+</datalist>
+
+<div class="instructions-box">
+  Geef hier aan welke leerlingen niet (of niet te veel) bij elkaar mogen — denk aan
+  leerlingen die elkaar negatief versterken, of zorgleerlingen die je wilt spreiden.
+  <br><br>
+  Per groepje: voeg leerlingen toe via het invoerveld en klik op "+ Toevoegen". Stel daarna
+  het maximale aantal in per klas en klik "✓ Bevestig" om de groep af te ronden.
+  Om twee leerlingen te scheiden: voeg ze toe en zet max op 1.
+  Zonder regels: klik direct op "Opslaan &amp; Indeling starten".
+</div>
+
+<form method="post" action="{{ url_for('not_together_page') }}"
+      onsubmit="return prepareAndValidate()">
+  <input type="hidden" name="n_rules" id="n_rules" value="0">
+
+  <div id="rules-container"></div>
+
+  <div style="margin: 1rem 0;">
+    <button type="button" class="button button--small" onclick="addRule()">
+      + Niet-samen-groep toevoegen
+    </button>
+  </div>
+
+  <div class="step-navigation">
+    <a href="{{ url_for('student_preferences') }}" class="button previous-step">
+      ← Naar Voorkeuren
+    </a>
+    <button type="submit" class="button next-step">
+      Opslaan &amp; Indeling starten →
+    </button>
+  </div>
+</form>
+
+<script>
+const studentNames = new Set({{ students | tojson }});
+const nGroups = {{ n_groups }};
+let ruleCount = 0;
+
+function chipCount(card) {
+  return card.querySelectorAll('.student-chip').length;
+}
+
+function getChipNames(card) {
+  return Array.from(card.querySelectorAll('.student-chip input[type="hidden"]'))
+    .map(h => h.value);
+}
+
+function updateMax(card) {
+  const n = chipCount(card);
+  const maxInput = card.querySelector('.rule-max-label input');
+  if (maxInput) maxInput.value = Math.max(1, Math.floor(n / nGroups) + 1);
+}
+
+function updateConfirmButton(card) {
+  const btn = card.querySelector('.confirm-rule-btn');
+  if (btn) btn.disabled = chipCount(card) < 2;
+}
+
+function makeChip(ruleIndex, name) {
+  const chip = document.createElement('span');
+  chip.className = 'student-chip';
+
+  const lbl = document.createElement('span');
+  lbl.textContent = name;
+
+  const del = document.createElement('button');
+  del.type = 'button';
+  del.className = 'delete-btn chip-del';
+  del.title = 'Verwijder leerling';
+  del.textContent = '✖';
+  del.onclick = () => {
+    const card = chip.closest('.rule-card');
+    chip.remove();
+    updateMax(card);
+    updateConfirmButton(card);
+    if (card.dataset.state === 'confirmed' && chipCount(card) < 2) {
+      setEditing(card);
+    }
+  };
+
+  const hidden = document.createElement('input');
+  hidden.type = 'hidden';
+  hidden.name = `rule_students[${ruleIndex}]`;
+  hidden.value = name;
+
+  chip.append(lbl, del, hidden);
+  return chip;
+}
+
+function setConfirmed(card) {
+  card.dataset.state = 'confirmed';
+  card.querySelector('.rule-add-area').style.display = 'none';
+  card.querySelectorAll('.chip-del').forEach(b => { b.style.display = 'none'; });
+  const btn = card.querySelector('.confirm-rule-btn');
+  btn.textContent = '✎ Bewerk';
+  btn.disabled = false;
+  card.querySelector('.rule-max-label input').readOnly = true;
+}
+
+function setEditing(card) {
+  card.dataset.state = 'editing';
+  card.querySelector('.rule-add-area').style.display = '';
+  card.querySelectorAll('.chip-del').forEach(b => { b.style.display = ''; });
+  const btn = card.querySelector('.confirm-rule-btn');
+  btn.textContent = '✓ Bevestig';
+  btn.disabled = chipCount(card) < 2;
+  card.querySelector('.rule-max-label input').readOnly = false;
+}
+
+function addStudentToRule(card) {
+  const inp = card.querySelector('.rule-add-area input[type="text"]');
+  const errSpan = card.querySelector('.rule-add-error');
+  const name = inp.value.trim();
+
+  if (!name) {
+    errSpan.textContent = 'Voer een naam in.';
+    return;
+  }
+  if (!studentNames.has(name)) {
+    errSpan.textContent = `"${name}" is geen bekende leerling.`;
+    return;
+  }
+  if (getChipNames(card).includes(name)) {
+    errSpan.textContent = `${name} is al in deze groep.`;
+    return;
+  }
+
+  errSpan.textContent = '';
+  inp.value = '';
+  card.querySelector('.chips-area').appendChild(makeChip(parseInt(card.dataset.index), name));
+  updateMax(card);
+  updateConfirmButton(card);
+  inp.focus();
+}
+
+function addRule() {
+  const index = ruleCount++;
+  const container = document.getElementById('rules-container');
+
+  const card = document.createElement('div');
+  card.className = 'rule-card';
+  card.dataset.state = 'editing';
+  card.dataset.index = index;
+
+  const chipsArea = document.createElement('span');
+  chipsArea.className = 'chips-area';
+
+  const addArea = document.createElement('span');
+  addArea.className = 'rule-add-area';
+
+  const inp = document.createElement('input');
+  inp.type = 'text';
+  inp.setAttribute('list', 'student-list');
+  inp.placeholder = 'Leerlingnaam…';
+  inp.autocomplete = 'off';
+  inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); addStudentToRule(card); } };
+
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.className = 'button button--small';
+  addBtn.textContent = '+ Toevoegen';
+  addBtn.onclick = () => addStudentToRule(card);
+
+  const errSpan = document.createElement('span');
+  errSpan.className = 'rule-add-error';
+
+  addArea.append(inp, addBtn, errSpan);
+
+  const maxLabel = document.createElement('label');
+  maxLabel.className = 'rule-max-label';
+  const maxInput = document.createElement('input');
+  maxInput.type = 'number';
+  maxInput.name = `rule_max[${index}]`;
+  maxInput.min = '1';
+  maxInput.value = 1;
+  maxLabel.append('Max samen: ', maxInput);
+
+  const confirmBtn = document.createElement('button');
+  confirmBtn.type = 'button';
+  confirmBtn.className = 'button button--small confirm-rule-btn';
+  confirmBtn.textContent = '✓ Bevestig';
+  confirmBtn.disabled = true;
+  confirmBtn.onclick = () => {
+    if (card.dataset.state === 'editing') {
+      if (chipCount(card) >= 2) setConfirmed(card);
+    } else {
+      setEditing(card);
+    }
+  };
+
+  const delRule = document.createElement('button');
+  delRule.type = 'button';
+  delRule.className = 'delete-btn';
+  delRule.title = 'Verwijder regel';
+  delRule.textContent = '✖ Verwijder';
+  delRule.onclick = () => card.remove();
+
+  card.append(chipsArea, addArea, maxLabel, confirmBtn, delRule);
+  container.appendChild(card);
+  inp.focus();
+}
+
+function initRules(rules) {
+  rules.forEach(rule => {
+    addRule();
+    const cards = document.querySelectorAll('.rule-card');
+    const card = cards[cards.length - 1];
+    const chipsArea = card.querySelector('.chips-area');
+    rule.group.forEach(name => {
+      chipsArea.appendChild(makeChip(parseInt(card.dataset.index), name));
+    });
+    updateMax(card);
+    card.querySelector('.rule-max-label input').value = rule.Max_aantal_samen;
+    updateConfirmButton(card);
+    if (chipCount(card) >= 2) setConfirmed(card);
+  });
+}
+
+function prepareAndValidate() {
+  // Drop rules with no chips (silently)
+  document.querySelectorAll('.rule-card').forEach(card => {
+    if (chipCount(card) === 0) card.remove();
+  });
+
+  const remaining = Array.from(document.querySelectorAll('.rule-card'));
+
+  for (let i = 0; i < remaining.length; i++) {
+    const card = remaining[i];
+    const label = `Niet-samen-groep ${i + 1}`;
+
+    if (card.dataset.state === 'editing') {
+      alert(`${label} is nog niet bevestigd. Klik op "✓ Bevestig" of verwijder de groep.`);
+      card.querySelector('.confirm-rule-btn').focus();
+      return false;
+    }
+
+    const names = getChipNames(card);
+    const maxInput = card.querySelector('.rule-max-label input');
+    const maxVal = parseInt(maxInput.value, 10);
+
+    if (isNaN(maxVal) || maxVal < 1) {
+      setEditing(card);
+      alert(`${label}: "Max samen" moet minimaal 1 zijn.`);
+      maxInput.focus();
+      return false;
+    }
+    if (names.length / maxVal > nGroups) {
+      setEditing(card);
+      alert(`${label}: met ${nGroups} nieuwe klassen is het niet mogelijk ${names.length} leerlingen te verdelen met maximaal ${maxVal} per klas.`);
+      maxInput.focus();
+      return false;
+    }
+
+    // Renumber for sequential submission
+    card.querySelectorAll('.student-chip input[type="hidden"]').forEach(h => {
+      h.name = `rule_students[${i}]`;
+    });
+    maxInput.name = `rule_max[${i}]`;
+  }
+
+  document.getElementById('n_rules').value = remaining.length;
+  return true;
+}
+
+{% if existing_rules %}
+initRules({{ existing_rules | tojson }});
+{% endif %}
+</script>
+
+{% endblock %}

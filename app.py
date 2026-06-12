@@ -35,10 +35,12 @@ from aliexpress.errors import (
     FeasibilityError,
     ValidationError,
 )
-from aliexpress.logging_config import setup_logger
+from aliexpress.logging_config import add_file_handler, setup_logger
 from aliexpress.main import distribute_students_once
 
-logger = setup_logger(__name__, logfile="aliexpress.log")
+logger = setup_logger(
+    __name__
+)  # file handler added below, after instance path is known
 
 
 load_dotenv()
@@ -51,6 +53,9 @@ else:
 
 app = Flask(__name__)
 app.config.from_object(ConfigClass)
+LOG_DIR = os.path.join(app.instance_path, "logs")
+os.makedirs(LOG_DIR, exist_ok=True)
+add_file_handler(logger, os.path.join(LOG_DIR, "aliexpress.log"))
 BASE_DIR = os.path.join(app.instance_path, "storage")
 os.makedirs(BASE_DIR, exist_ok=True)
 logger.debug("Created dir if not exists: %s", BASE_DIR)
@@ -137,6 +142,9 @@ def select_process(process_id):
         abort(404)
 
     session["process_id"] = process_id
+    preferences_path = os.path.join(path, "preferences.xlsx")
+    if os.path.exists(preferences_path):
+        return redirect(url_for("not_together_page"))
     groups_path = os.path.join(path, "groups.xlsx")
     if os.path.exists(groups_path):
         return redirect(url_for("student_preferences"))
@@ -245,14 +253,193 @@ def student_preferences():
 
     path = get_file_path(session["process_id"], "groups.xlsx")
     groups_to = pd.read_excel(path, index_col=0).index.tolist()
-    zip_buffer = input_writer.create_zip_with_templates(groups_to, df_total)
+    buffer = input_writer.create_prefilled_excel(groups_to, df_total)
 
     return send_file(
-        zip_buffer,
+        buffer,
         as_attachment=True,
-        download_name="invulformulieren.zip",
-        mimetype="application/zip",
+        download_name="voorkeuren.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+
+
+def write_preferences_to_excel(df, fname, **kwargs):
+    """This is a challenge because of MultiLevel index with nans
+
+    kwargs are passed to .to_excel()
+    """
+    df_header = pd.DataFrame(
+        [
+            (
+                "Leerling",
+                "MinimaleTevredenheid",
+                "Jongen/meisje",
+                "Stamgroep",
+                "Graag met",
+                "Graag met",
+                "Graag met",
+                "Graag met",
+                "Graag met",
+                "Graag met",
+                "Graag met",
+                "Graag met",
+                "Graag met",
+                "Graag met",
+                "Liever niet met",
+                "Liever niet met",
+                "Niet in",
+                "Niet in",
+            ),
+            (
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
+                1,
+                1,
+                2,
+                2,
+                3,
+                3,
+                4,
+                4,
+                5,
+                5,
+                1,
+                1,
+                1,
+                2,
+            ),
+            (
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
+                "Waarde",
+                "Gewicht",
+                "Waarde",
+                "Gewicht",
+                "Waarde",
+                "Gewicht",
+                "Waarde",
+                "Gewicht",
+                "Waarde",
+                "Gewicht",
+                "Waarde",
+                "Gewicht",
+                "Waarde",
+                "Waarde",
+            ),
+        ]
+    )
+
+    assert df_header.shape[1] == df.shape[1]
+    concatted = pd.concat(
+        [
+            df_header.set_axis(range(df_header.shape[1]), axis="columns"),
+            df.set_axis(range(df.shape[1]), axis="columns"),
+        ],
+        ignore_index=True,
+    )
+    return concatted.to_excel(fname, index=False, header=False, **kwargs)
+
+
+@app.route("/upload_preferences", methods=["POST"])
+def upload_preferences():
+    """Handle the upload of the preferences files"""
+    preferences = file_to_io(request.files["preferences"])
+    groups_to_path = get_file_path(session["process_id"], "groups.xlsx")
+    groups_to = list(datareader.read_groups_excel(groups_to_path).keys())
+    processor = datareader.VoorkeurenProcessor(preferences)
+    # The .process() validates the input further
+    processor.process(all_to_groups=groups_to)
+
+    preferences_path = get_file_path(session["process_id"], "preferences.xlsx")
+    write_preferences_to_excel(processor.input.reset_index(), preferences_path)
+    return redirect(url_for("not_together_page"))
+
+
+def _parse_not_together_form(form, n_rules):
+    """Parse not-together form fields into rule dicts. Returns (rules, error_msg)."""
+    rules = []
+    for i in range(n_rules):
+        names_raw = form.getlist(f"rule_students[{i}]")
+        cleaned = [datareader.clean_name(n) for n in names_raw if n.strip()]
+        if len(cleaned) != len(set(cleaned)):
+            return (
+                None,
+                f"Niet-samen-regel {i + 1} bevat dezelfde leerling meerdere keren.",
+            )
+        max_samen_raw = form.get(f"rule_max[{i}]", "").strip()
+        if not max_samen_raw:
+            return None, f"Vul het maximale aantal samen in voor regel {i + 1}."
+        try:
+            max_samen = int(max_samen_raw)
+        except ValueError:
+            return (
+                None,
+                f"Maximale aantal samen moet een heel getal zijn (regel {i + 1}).",
+            )
+        if cleaned:
+            rules.append({"group": set(cleaned), "Max_aantal_samen": max_samen})
+    return rules, None
+
+
+@app.route("/not_together", methods=["GET", "POST"])
+def not_together_page():
+    """Display and process the not-together rules page"""
+    process_id = session["process_id"]
+    preferences_path = get_file_path(process_id, "preferences.xlsx")
+    groups_to_path = get_file_path(process_id, "groups.xlsx")
+
+    groups_to = datareader.read_groups_excel(groups_to_path)
+    n_groups = len(groups_to)
+    processor = datareader.VoorkeurenProcessor(preferences_path)
+    processor.process(all_to_groups=list(groups_to.keys()))
+    students = sorted(processor.get_students_meta_info().keys())
+
+    if request.method == "GET":
+        nt_path = get_file_path(process_id, "not_together.json")
+        if os.path.exists(nt_path):
+            with open(nt_path, encoding="utf-8") as fh:
+                existing_rules = json.load(fh)
+        else:
+            existing_rules = []
+        return render_template(
+            "not_together.html",
+            students=students,
+            n_groups=n_groups,
+            existing_rules=existing_rules,
+        )
+
+    if request.form.get("action") == "skip":
+        _save_not_together(process_id, [])
+        return redirect(url_for("start_distribution"))
+
+    n_rules = int(request.form.get("n_rules", 0))
+    rules, error = _parse_not_together_form(request.form, n_rules)
+    if error is None:
+        try:
+            datareader.validate_not_together(rules, students, n_groups)
+        except ValidationError as exc:
+            error = to_validation_message(exc)
+    if error:
+        flash(error, "error")
+        return redirect(url_for("not_together_page"))
+
+    _save_not_together(process_id, rules)
+    return redirect(url_for("start_distribution"))
+
+
+def _save_not_together(process_id, rules):
+    """Persist not-together rules as JSON (sets serialised as lists)."""
+    data = [
+        {"group": list(r["group"]), "Max_aantal_samen": r["Max_aantal_samen"]}
+        for r in rules
+    ]
+    path = get_file_path(process_id, "not_together.json")
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(data, fh, ensure_ascii=False)
 
 
 def _extract_new_students(form):
@@ -323,6 +510,21 @@ def readableerror_to_validation_message(exc: Exception) -> str:
         "internal_error": (
             "Er is iets onverwachts misgegaan. Het probleem is gelogd. "
             "Laat de maker dit onderzoeken."
+        ),
+        "too_few_students_not_together": (
+            "Niet-samen-regel {rule_index} heeft minder dan 2 leerlingen. "
+            "Voeg minstens 2 leerlingen toe."
+        ),
+        "invalid_max_samen_not_together": (
+            "Niet-samen-regel {rule_index}: het maximale aantal samen moet minstens 1 zijn."
+        ),
+        "unknown_student_not_together": (
+            "In de niet-samen-regels staan onbekende leerlingen: {unknown_students}. "
+            "Controleer of de namen overeenkomen met het voorkeuren-bestand."
+        ),
+        "too_strict_not_together": (
+            "Niet-samen-regel {rule_index}: met {n_groups} groepen is het niet mogelijk om "
+            "{n_students} leerlingen te verdelen met maximaal {max_samen} bij elkaar."
         ),
     }
 
@@ -463,63 +665,71 @@ def _handle_failure(exc, task_id):
     status_dct[task_id]["message"] = message
 
 
-@app.route("/upload", methods=["GET", "POST"])
-def upload_files():
-    """Handle upload page, including form submission"""
-    if request.method == "POST":
-        logger.info("Submitted")
-        preferences = file_to_io(request.files["preferences"])
-        groups_to_path = get_file_path(session["process_id"], "groups.xlsx")
-        not_together = file_to_io(request.files["not_together"])
+@app.route("/start_distribution", methods=["GET"])
+def start_distribution():
+    """Start the student distribution using stored input files"""
+    logger.info("Starting distribution")
+    process_id = session["process_id"]
+    preferences_path = get_file_path(process_id, "preferences.xlsx")
+    groups_to_path = get_file_path(process_id, "groups.xlsx")
 
-        def on_update(message):
-            status_dct[task_id]["logs"].append(message)
+    not_together_path = get_file_path(process_id, "not_together.json")
+    if os.path.exists(not_together_path):
+        with open(not_together_path, "r", encoding="utf-8") as fh:
+            raw = json.load(fh)
+        not_together = [
+            {"group": set(r["group"]), "Max_aantal_samen": r["Max_aantal_samen"]}
+            for r in raw
+        ]
+    else:
+        not_together = []
 
-        logger.info("Starting distribution...")
+    with open(preferences_path, "rb") as fh:
+        preferences_bytes = BytesIO(fh.read())
 
-        task_id = str(uuid.uuid4())
-        temp_storage[task_id] = {}
+    task_id = str(uuid.uuid4())
+    temp_storage[task_id] = {}
 
-        # pylint: disable=broad-exception-caught
-        def run_task(*args):
-            try:
-                status_dct[task_id]["status_studentdistribution"] = "running"
-                result = distribute_students_once(*args, on_update=on_update)
-                logger.info("Distributing students finished successfully")
-                status_dct[task_id]["status_studentdistribution"] = "done"
-                temp_storage[task_id]["groepsindeling"] = result
-            except Exception as exc:
-                _handle_failure(exc, task_id)
+    def on_update(message):
+        status_dct[task_id]["logs"].append(message)
 
-        def create_sociogram(preferences, groups_to):
-            try:
-                on_update("Sociogram tekenen...")
-                groups_to = list(datareader.read_groups_excel(groups_to).keys())
-                sg = sociogram.SociogramMaker(preferences, groups_to)
-                fig, g, pos = sg.plot_sociogram()
-                logger.info("Sociogram created")
+    # pylint: disable=broad-exception-caught
+    def run_task():
+        try:
+            status_dct[task_id]["status_studentdistribution"] = "running"
+            result = distribute_students_once(
+                preferences_path, groups_to_path, not_together, on_update=on_update
+            )
+            logger.info("Distributing students finished successfully")
+            status_dct[task_id]["status_studentdistribution"] = "done"
+            temp_storage[task_id]["groepsindeling"] = result
+        except Exception as exc:
+            _handle_failure(exc, task_id)
 
-                fig = sociogram.networkx_to_plotly(g, pos)
-                html = fig.to_html(full_html=False, include_plotlyjs="cdn")
-                logger.info("HTML created")
-                on_update(
-                    f'<a href=/sociogram/{task_id} target="_blank" class="button">'
-                    "Bekijk het sociogram nu!</a>"
-                )
-                temp_storage[task_id]["sociogram"] = html
-            except Exception:
-                logger.exception("Could not create sociogram")
+    def create_sociogram(preferences, groups_to):
+        try:
+            on_update("Sociogram tekenen...")
+            groups_to = list(datareader.read_groups_excel(groups_to).keys())
+            sg = sociogram.SociogramMaker(preferences, groups_to)
+            fig, g, pos = sg.plot_sociogram()
+            logger.info("Sociogram created")
 
-        # pylint: enable=broad-exception-caught
-        Thread(target=create_sociogram, args=(preferences, groups_to_path)).start()
-        Thread(
-            target=run_task,
-            args=(preferences, groups_to_path, not_together),
-        ).start()
+            fig = sociogram.networkx_to_plotly(g, pos)
+            html = fig.to_html(full_html=False, include_plotlyjs="cdn")
+            logger.info("HTML created")
+            on_update(
+                f'<a href=/sociogram/{task_id} target="_blank" class="button">'
+                "Bekijk het sociogram nu!</a>"
+            )
+            temp_storage[task_id]["sociogram"] = html
+        except Exception:
+            logger.exception("Could not create sociogram")
 
-        return redirect(url_for("processing", task_id=task_id))
-    logger.info("Showing upload page")
-    return render_template("upload.html")
+    # pylint: enable=broad-exception-caught
+    Thread(target=create_sociogram, args=(preferences_bytes, groups_to_path)).start()
+    Thread(target=run_task).start()
+
+    return redirect(url_for("processing", task_id=task_id))
 
 
 @app.route("/status/<task_id>")

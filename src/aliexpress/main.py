@@ -15,7 +15,6 @@ from .problemsolver import GroupBalance
 
 FILE_PREFERENCES = "voorkeuren.xlsx"
 FILE_GROUPS_TO = "groepen.xlsx"
-FILE_NOT_TOGETHER = "niet_samen.xlsx"
 
 
 logger = setup_logger(__name__)
@@ -63,14 +62,6 @@ def _read_preferences(path, groups_to):
         _inner,
         filetype="voorkeuren",
         technical_message="Could not read preferences",
-    )
-
-
-def _read_not_together(path, students, groups_to):
-    return _safe_read(
-        lambda: datareader.read_not_together(path, students, len(groups_to)),
-        filetype="niet-samen",
-        technical_message="Could not read not_together",
     )
 
 
@@ -170,13 +161,17 @@ def _export(ps, preferences, processor, students_info):
 def distribute_students_once(
     path_preferences=FILE_PREFERENCES,
     path_groups_to=FILE_GROUPS_TO,
-    path_not_together=FILE_NOT_TOGETHER,
+    not_together: list[dict] | None = None,
     on_update=lambda msg: None,
     groupbalance: GroupBalance | None = None,
 ):
     """Distribute all students with preferences over all groups with lexmaxmin.
 
     Parameters:
+        not_together : list[dict] | None
+            Not-together rules built from web-form data or constructed in tests.
+            Each dict has keys 'group' (set[str]) and
+            'Max_aantal_samen' (int). Pass None or omit for no constraints.
         on_update : func
             Takes a user friendly message and decides what to do with it for the calling
             function. By default, ignores them
@@ -191,9 +186,9 @@ def distribute_students_once(
     processor, preferences = _read_preferences(path_preferences, groups_to)
 
     students_info = processor.get_students_meta_info()
-    not_together = _read_not_together(
-        path_not_together, students_info.keys(), groups_to
-    )
+    if not_together is None:
+        not_together = []
+    datareader.validate_not_together(not_together, students_info.keys(), len(groups_to))
     on_update("Alle bestanden zijn gevalideerd!")
     logger.info("All files read")
 
