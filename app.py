@@ -137,6 +137,9 @@ def select_process(process_id):
         abort(404)
 
     session["process_id"] = process_id
+    preferences_path = os.path.join(path, "preferences.xlsx")
+    if os.path.exists(preferences_path):
+        return redirect(url_for("not_together_page"))
     groups_path = os.path.join(path, "groups.xlsx")
     if os.path.exists(groups_path):
         return redirect(url_for("student_preferences"))
@@ -391,8 +394,17 @@ def not_together_page():
     students = sorted(processor.get_students_meta_info().keys())
 
     if request.method == "GET":
+        nt_path = get_file_path(process_id, "not_together.json")
+        if os.path.exists(nt_path):
+            with open(nt_path, encoding="utf-8") as fh:
+                existing_rules = json.load(fh)
+        else:
+            existing_rules = []
         return render_template(
-            "not_together.html", students=students, n_groups=n_groups
+            "not_together.html",
+            students=students,
+            n_groups=n_groups,
+            existing_rules=existing_rules,
         )
 
     if request.form.get("action") == "skip":
