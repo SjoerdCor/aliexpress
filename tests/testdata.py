@@ -8,6 +8,8 @@ import string
 import numpy as np
 import pandas as pd
 
+from aliexpress.datareader import VOORKEUREN_SCHEMA
+
 random.seed(42)
 
 FOLDER = "testdata"
@@ -52,70 +54,15 @@ class PreferenceExcelGenerator:
         Number of groups the students are coming from, by default 4
     """
 
+    _keys = list(VOORKEUREN_SCHEMA.columns.keys())
     df_header = pd.DataFrame(
         [
-            (
-                "Leerling",
-                "MinimaleTevredenheid",
-                "Jongen/meisje",
-                "Stamgroep",
-                "Graag met",
-                "Graag met",
-                "Graag met",
-                "Graag met",
-                "Graag met",
-                "Graag met",
-                "Graag met",
-                "Graag met",
-                "Graag met",
-                "Graag met",
-                "Liever niet met",
-                "Liever niet met",
-                "Niet in",
-                "Niet in",
-            ),
-            (
-                np.nan,
-                np.nan,
-                np.nan,
-                np.nan,
-                1,
-                1,
-                2,
-                2,
-                3,
-                3,
-                4,
-                4,
-                5,
-                5,
-                1,
-                1,
-                1,
-                2,
-            ),
-            (
-                np.nan,
-                np.nan,
-                np.nan,
-                np.nan,
-                "Waarde",
-                "Gewicht",
-                "Waarde",
-                "Gewicht",
-                "Waarde",
-                "Gewicht",
-                "Waarde",
-                "Gewicht",
-                "Waarde",
-                "Gewicht",
-                "Waarde",
-                "Gewicht",
-                "Waarde",
-                "Waarde",
-            ),
+            ["Leerling"] + [k[0] for k in _keys],
+            [np.nan] + [k[1] for k in _keys],
+            [np.nan] + [k[2] for k in _keys],
         ]
     )
+    del _keys
     possible_students = [
         ("Anna", "Meisje"),
         ("Bram", "Jongen"),
