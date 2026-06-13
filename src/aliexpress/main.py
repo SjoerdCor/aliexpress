@@ -3,11 +3,11 @@
 It has one orchestrating function that can be called from the command line or app"""
 
 import os
-import tempfile
 from io import BytesIO
 
 import pandas as pd
 import pandera as pa
+import pulp
 
 from . import datareader, errors, problemsolver, solutions
 from .logging_config import setup_logger
@@ -25,10 +25,11 @@ def jsons_to_excel(folder, preferences, input_sheet, students_info):
     for file in os.listdir(folder):
         if file.endswith(".json"):
             fname = os.path.join(folder, file)
+            prob_vars, _ = pulp.LpProblem.from_json(fname)
             sa = solutions.SolutionAnalyzer(
-                fname, preferences, input_sheet, students_info
+                prob_vars, preferences, input_sheet, students_info
             )
-            sa.to_excel()
+            sa.to_excel(fname.replace(".json", ".xlsx"))
 
 
 def _safe_read(fn, *, filetype, technical_message, catch=Exception):
@@ -136,12 +137,9 @@ def _check_feasibility(ps):
 
 def _export(ps, preferences, processor, students_info):
     """Build the download workbook and result tables from the already-solved problem."""
-    with tempfile.NamedTemporaryFile(mode="w+", suffix=".json", delete=False) as tmp:
-        ps.prob.toJson(tmp.name)
-        tmp.flush()
-        sa = solutions.SolutionAnalyzer(
-            tmp.name, preferences, processor.input, students_info
-        )
+    sa = solutions.SolutionAnalyzer(
+        ps.prob.variablesDict(), preferences, processor.input, students_info
+    )
 
     output = BytesIO()
     sa.to_excel(output)

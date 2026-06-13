@@ -1,7 +1,6 @@
 """Class to create a report about the solution that was found"""
 
 import pandas as pd
-import pulp
 from IPython.display import display
 from openpyxl.styles import Alignment, numbers
 from openpyxl.utils import get_column_letter
@@ -51,13 +50,12 @@ class SolutionAnalyzer:
 
     def __init__(
         self,
-        fname,
+        prob_vars: dict,
         preferences: pd.DataFrame,
         input_sheet: pd.DataFrame,
         students_info: dict,
     ):
-        self.fname = fname
-        self.prob_vars, _ = pulp.LpProblem.from_json(fname)
+        self.prob_vars = prob_vars
         self.preferences = preferences
         self.input_sheet = input_sheet
         self.students_info = students_info
@@ -448,7 +446,7 @@ class SolutionAnalyzer:
                 adjusted_width
             )
 
-    def to_excel(self, fname=None) -> None:
+    def to_excel(self, fname) -> None:
         """Put the most important outcomes of the solution in an Excel file
 
         Uses the three most important outcomes:
@@ -463,10 +461,8 @@ class SolutionAnalyzer:
         Parameters
         ----------
         fname : str
-            The filename to save to. By default the name of the json that was loaded
+            The filename (or file-like object) to write the workbook to
         """
-        if fname is None:
-            fname = self.fname.replace("json", "xlsx")
         # https://github.com/PyCQA/pylint/issues/3060 pylint: disable=abstract-class-instantiated
         with pd.ExcelWriter(fname, engine="openpyxl") as writer:
             self._write_groepsindeling(writer)
@@ -556,7 +552,7 @@ class SolutionAnalyzer:
                 f" --> {row['RelativeSatisfaction_other']:.1%}"
             )
 
-    def show_all(self, to_excel=True):
+    def show_all(self, fname="solution.xlsx", to_excel=True):
         """Show all views of the outcome. Only works in Jupyter notebooks"""
         display(self.display_groepsindeling())
         display(self.group_report)
@@ -564,4 +560,4 @@ class SolutionAnalyzer:
         display(self.display_transition_matrix())
         display(self.display_satisfied_preferences())
         if to_excel:
-            self.to_excel()
+            self.to_excel(fname)
