@@ -124,17 +124,20 @@ def _check_feasibility(ps):
 
 def _export(ps, preferences, processor, students_info, group_display):
     """Build the download workbook and result tables from the already-solved problem."""
-    sa = solutions.SolutionAnalyzer(
+    display_names = solutions.DisplayNames(
+        student=processor.student_display,
+        group=group_display,
+        stamgroep=processor.stamgroep_display,
+    )
+    # The solver works on matching keys; translate to names as entered before reporting.
+    result, preferences, input_sheet, students_info = solutions.to_display_names(
         ps.extract_solution(),
         preferences,
         processor.input,
         students_info,
-        display_names=solutions.DisplayNames(
-            student=processor.student_display,
-            group=group_display,
-            stamgroep=processor.stamgroep_display,
-        ),
+        display_names,
     )
+    sa = solutions.SolutionAnalyzer(result, preferences, input_sheet, students_info)
 
     output = BytesIO()
     sa.to_excel(output)

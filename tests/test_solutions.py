@@ -3,7 +3,7 @@
 import pandas as pd
 
 from aliexpress.problemsolver import GroupComposition, SolutionResult
-from aliexpress.solutions import DisplayNames, SolutionAnalyzer
+from aliexpress.solutions import DisplayNames, SolutionAnalyzer, to_display_names
 
 
 def _analyzer() -> SolutionAnalyzer:
@@ -84,20 +84,22 @@ def _result_for_students(assignment: dict, students: list) -> SolutionResult:
 
 
 def test_display_names_shown_as_entered():
-    """Students and groups are reported with the name as entered, not the matching key."""
+    """to_display_names maps the matching keys back to the names as entered."""
     result = _result_for_students(
         {"AnneClaire": "Groen", "Obrien": "Groen"}, ["AnneClaire", "Obrien"]
     )
-    analyzer = SolutionAnalyzer(
+    display = DisplayNames(
+        student={"AnneClaire": "Anne Claire", "Obrien": "O'Brien"},
+        group={"Groen": "Groen"},
+    )
+    result, preferences, input_sheet, students_info = to_display_names(
         result,
         pd.DataFrame(),
         pd.DataFrame(),
         {"AnneClaire": {"Stamgroep": "X"}, "Obrien": {"Stamgroep": "X"}},
-        display_names=DisplayNames(
-            student={"AnneClaire": "Anne Claire", "Obrien": "O'Brien"},
-            group={"Groen": "Groen"},
-        ),
+        display,
     )
+    analyzer = SolutionAnalyzer(result, preferences, input_sheet, students_info)
     naam_to_group = analyzer.groepsindeling.set_index("Naam")["Group"].to_dict()
     assert naam_to_group == {"Anne Claire": "Groen", "O'Brien": "Groen"}
     assert set(analyzer.student_performance.index) == {"Anne Claire", "O'Brien"}
@@ -106,15 +108,11 @@ def test_display_names_shown_as_entered():
 def test_display_student_performance_escapes_html():
     """Student names are HTML-escaped in the table (it is rendered raw via | safe)."""
     result = _result_for_students({"Boef": "Groen"}, ["Boef"])
-    analyzer = SolutionAnalyzer(
-        result,
-        pd.DataFrame(),
-        pd.DataFrame(),
-        {"Boef": {"Stamgroep": "X"}},
-        display_names=DisplayNames(
-            student={"Boef": "<b>Boef</b>"}, group={"Groen": "Groen"}
-        ),
+    display = DisplayNames(student={"Boef": "<b>Boef</b>"}, group={"Groen": "Groen"})
+    result, preferences, input_sheet, students_info = to_display_names(
+        result, pd.DataFrame(), pd.DataFrame(), {"Boef": {"Stamgroep": "X"}}, display
     )
+    analyzer = SolutionAnalyzer(result, preferences, input_sheet, students_info)
     html = analyzer.display_student_performance().to_html()
     assert "<b>Boef</b>" not in html
     assert "&lt;b&gt;Boef&lt;/b&gt;" in html

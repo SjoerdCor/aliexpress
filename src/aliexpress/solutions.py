@@ -56,38 +56,129 @@ class DisplayNames:
     stamgroep: dict = dataclasses.field(default_factory=dict)
 
 
+def _relabel_result(result, display_names: DisplayNames):
+    """Rewrite the solver result from matching keys to names as entered."""
+
+    def student(key):
+        return display_names.student.get(key, key)
+
+    def group(key):
+        return display_names.group.get(key, key)
+
+    return dataclasses.replace(
+        result,
+        assignment={student(s): group(g) for s, g in result.assignment.items()},
+        student_satisfaction={
+            student(s): v for s, v in result.student_satisfaction.items()
+        },
+        satisfied={(student(s), nr): v for (s, nr), v in result.satisfied.items()},
+        weighted_satisfied={
+            (student(s), nr): v for (s, nr), v in result.weighted_satisfied.items()
+        },
+        weights={(student(s), nr): v for (s, nr), v in result.weights.items()},
+        group_composition={
+            group(g): comp for g, comp in result.group_composition.items()
+        },
+    )
+
+
+def _relabel_preferences(
+    preferences: pd.DataFrame, display_names: DisplayNames
+) -> pd.DataFrame:
+    """Relabel the Leerling index level so it matches the display-keyed result."""
+    if "Leerling" not in preferences.index.names:
+        return preferences
+    new = preferences.copy()
+    new.index = pd.MultiIndex.from_arrays(
+        [
+            new.index.get_level_values("Leerling").map(
+                lambda s: display_names.student.get(s, s)
+            ),
+            new.index.get_level_values("TypeWens"),
+            new.index.get_level_values("Nr"),
+        ],
+        names=["Leerling", "TypeWens", "Nr"],
+    )
+    return new
+
+
+def _relabel_students_info(students_info: dict, display_names: DisplayNames) -> dict:
+    """Relabel student keys and their Stamgroep value to names as entered."""
+    relabeled = {}
+    for student, info in students_info.items():
+        info = dict(info)
+        if "Stamgroep" in info:
+            info["Stamgroep"] = display_names.stamgroep.get(
+                info["Stamgroep"], info["Stamgroep"]
+            )
+        relabeled[display_names.student.get(student, student)] = info
+    return relabeled
+
+
+def _relabel_input_sheet(
+    input_sheet: pd.DataFrame, display_names: DisplayNames
+) -> pd.DataFrame:
+    """Relabel the original input sheet (index + name cells) to names as entered.
+
+    Column-aware: 'Niet in' targets are groups, 'Graag met'/'Liever niet met' targets
+    are a classmate or a group, and the Stamgroep column is a current group.
+    """
+    df = input_sheet.copy()
+    df.index = df.index.map(lambda s: display_names.student.get(s, s))
+    student_or_group = {**display_names.group, **display_names.student}
+    for col in df.columns:
+        type_wens = col[0] if isinstance(col, tuple) else col
+        type_waarde = col[2] if isinstance(col, tuple) and len(col) > 2 else None
+        if type_wens == "Stamgroep":
+            df[col] = df[col].map(lambda v: display_names.stamgroep.get(v, v))
+        elif type_waarde == "Waarde" and type_wens == "Niet in":
+            df[col] = df[col].map(lambda v: display_names.group.get(v, v))
+        elif type_waarde == "Waarde" and type_wens in ("Graag met", "Liever niet met"):
+            df[col] = df[col].map(lambda v: student_or_group.get(v, v))
+    return df
+
+
+def to_display_names(
+    result,
+    preferences: pd.DataFrame,
+    input_sheet: pd.DataFrame,
+    students_info,
+    display_names: DisplayNames,
+):
+    """Translate a result and its input views from matching keys to names as entered.
+
+    The solver works on matching keys; this maps everything the report layer shows back to
+    the names the user typed (via ``display_names``). Returns the four artefacts relabeled,
+    ready to hand to :class:`SolutionAnalyzer` — which itself stays unaware of matching keys.
+    """
+    return (
+        _relabel_result(result, display_names),
+        _relabel_preferences(preferences, display_names),
+        _relabel_input_sheet(input_sheet, display_names),
+        _relabel_students_info(students_info, display_names),
+    )
+
+
 # pylint: disable-next=too-many-instance-attributes  # ten computed views of one solution; each is a distinct output table
 class SolutionAnalyzer:
     """Create a report about the solution found to the Linear Programming problem
 
     Which students were put together, how satisfied is everybody, which preferences
-    were fulfilled, etc.
+    were fulfilled, etc. Inputs are expected in display space (names as entered); see
+    :func:`to_display_names` for the translation from solver matching keys.
     """
 
-    # Takes the solver result plus the three original-data views and an optional
-    # display-name bundle; revisit for a cleaner split (see avoid-pylint-disable note).
-    # pylint: disable-next=too-many-arguments,too-many-positional-arguments
     def __init__(
         self,
         result,
         preferences: pd.DataFrame,
         input_sheet: pd.DataFrame,
         students_info: dict,
-        display_names: "DisplayNames | None" = None,
     ):
-        # The solver works on matching keys; everything below this point is in display
-        # space, so we relabel the solver output, the input sheet, the preferences and the
-        # student metadata up front and leave every view method to work on names as the
-        # user typed them.
-        display_names = display_names or DisplayNames()
-        self.student_display = display_names.student
-        self.group_display = display_names.group
-        self.stamgroep_display = display_names.stamgroep
-
-        self.result = self._relabel_result(result)
-        self.preferences = self._relabel_preferences(preferences)
-        self.input_sheet = self._relabel_input_sheet(input_sheet)
-        self.students_info = self._relabel_students_info(students_info)
+        self.result = result
+        self.preferences = preferences
+        self.input_sheet = input_sheet
+        self.students_info = students_info
 
         self.groepsindeling = self._get_outcome()
         self.group_report = self._calculate_group_report()
@@ -95,92 +186,6 @@ class SolutionAnalyzer:
         self.satisfied_constraints = self._calculate_satisfied_constraints()
         self.student_performance = self._calculate_performance_per_student()
         self.solution_performance = self._calculate_solution_performance()
-
-    def _student_name(self, key):
-        """Display name for a student matching key."""
-        return self.student_display.get(key, key)
-
-    def _group_name(self, key):
-        """Display name for a group matching key."""
-        return self.group_display.get(key, key)
-
-    def _relabel_result(self, result):
-        """Rewrite the solver result from matching keys to names as entered."""
-        return dataclasses.replace(
-            result,
-            assignment={
-                self._student_name(s): self._group_name(g)
-                for s, g in result.assignment.items()
-            },
-            student_satisfaction={
-                self._student_name(s): v for s, v in result.student_satisfaction.items()
-            },
-            satisfied={
-                (self._student_name(s), nr): v
-                for (s, nr), v in result.satisfied.items()
-            },
-            weighted_satisfied={
-                (self._student_name(s), nr): v
-                for (s, nr), v in result.weighted_satisfied.items()
-            },
-            weights={
-                (self._student_name(s), nr): v for (s, nr), v in result.weights.items()
-            },
-            group_composition={
-                self._group_name(g): comp
-                for g, comp in result.group_composition.items()
-            },
-        )
-
-    def _relabel_preferences(self, preferences: pd.DataFrame) -> pd.DataFrame:
-        """Relabel the Leerling index level to match the display-keyed result."""
-        if "Leerling" not in preferences.index.names:
-            return preferences
-        new = preferences.copy()
-        new.index = pd.MultiIndex.from_arrays(
-            [
-                new.index.get_level_values("Leerling").map(self._student_name),
-                new.index.get_level_values("TypeWens"),
-                new.index.get_level_values("Nr"),
-            ],
-            names=["Leerling", "TypeWens", "Nr"],
-        )
-        return new
-
-    def _relabel_students_info(self, students_info: dict) -> dict:
-        """Relabel student keys and their Stamgroep value to names as entered."""
-        relabeled = {}
-        for student, info in students_info.items():
-            info = dict(info)
-            if "Stamgroep" in info:
-                info["Stamgroep"] = self.stamgroep_display.get(
-                    info["Stamgroep"], info["Stamgroep"]
-                )
-            relabeled[self._student_name(student)] = info
-        return relabeled
-
-    def _relabel_input_sheet(self, input_sheet: pd.DataFrame) -> pd.DataFrame:
-        """Relabel the original input sheet (index + name cells) to names as entered.
-
-        Column-aware: 'Niet in' targets are groups, 'Graag met'/'Liever niet met' targets
-        are a classmate or a group, and the Stamgroep column is a current group.
-        """
-        df = input_sheet.copy()
-        df.index = df.index.map(self._student_name)
-        student_or_group = {**self.group_display, **self.student_display}
-        for col in df.columns:
-            type_wens = col[0] if isinstance(col, tuple) else col
-            type_waarde = col[2] if isinstance(col, tuple) and len(col) > 2 else None
-            if type_wens == "Stamgroep":
-                df[col] = df[col].map(lambda v: self.stamgroep_display.get(v, v))
-            elif type_waarde == "Waarde" and type_wens == "Niet in":
-                df[col] = df[col].map(lambda v: self.group_display.get(v, v))
-            elif type_waarde == "Waarde" and type_wens in (
-                "Graag met",
-                "Liever niet met",
-            ):
-                df[col] = df[col].map(lambda v: student_or_group.get(v, v))
-        return df
 
     def _get_outcome(self) -> pd.DataFrame:
         """Restructure the student -> group assignment into a [Naam, Group] DataFrame."""
