@@ -3,6 +3,7 @@ implements different optimization targets (also known as satisfaction metrics).
 """
 
 import itertools
+import logging
 import math
 import os
 import tempfile
@@ -14,9 +15,8 @@ import pandas as pd
 import pulp
 
 from . import optimizationstrategies, preferences_utils, pulp_logical
-from .logging_config import setup_logger
 
-logger = setup_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 @dataclass
