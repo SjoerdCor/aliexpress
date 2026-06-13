@@ -1,7 +1,6 @@
 """Class to create a report about the solution that was found"""
 
 import pandas as pd
-import pulp
 from IPython.display import display
 from openpyxl.styles import Alignment, numbers
 from openpyxl.utils import get_column_letter
@@ -51,13 +50,12 @@ class SolutionAnalyzer:
 
     def __init__(
         self,
-        fname,
+        result,
         preferences: pd.DataFrame,
         input_sheet: pd.DataFrame,
         students_info: dict,
     ):
-        self.fname = fname
-        self.prob_vars, _ = pulp.LpProblem.from_json(fname)
+        self.result = result
         self.preferences = preferences
         self.input_sheet = input_sheet
         self.students_info = students_info
@@ -70,23 +68,26 @@ class SolutionAnalyzer:
         self.solution_performance = self._calculate_solution_performance()
 
     def _get_outcome(self) -> pd.DataFrame:
-        """
-        Restructure the Problem Variables in a nice DataFrame
+        """Restructure the student -> group assignment into a [Naam, Group] DataFrame."""
+        return (
+            pd.Series(self.result.assignment, name="Group")
+            .rename_axis("Naam")
+            .reset_index()
+        )
 
-        Parameters
-        ----------
-        vars: list of pulp.LpVariables
-            The result of prob.variables()
+    @staticmethod
+    def _indexed_series(mapping: dict, name: str) -> pd.Series:
+        """Build a (student, Nr)-indexed Series from a {(student, Nr): value} mapping.
+
+        Handles the empty case (no positive preferences) without losing the index names
+        that the per-student aggregations rely on.
         """
-        chosen_groups = [
-            var.name
-            for name, var in self.prob_vars.items()
-            if round(var.value()) == 1 and name.startswith("group")
-        ]
-        df = pd.DataFrame(chosen_groups)
-        df[["Naam", "Group"]] = df[0].str.extract(r"group_\('(.*)',_'(.*)'\)")
-        assert df.notna().all().all(), df.loc[lambda df: df.isna().any(axis="columns")]
-        return df.drop(columns=[0])
+        series = pd.Series(mapping, name=name)
+        if len(series):
+            series.index = series.index.set_names(["student", "Nr"])
+        else:
+            series.index = pd.MultiIndex.from_arrays([[], []], names=["student", "Nr"])
+        return series
 
     def display_transition_matrix(self):
         """Create a transition matrix of the groups
@@ -147,16 +148,11 @@ class SolutionAnalyzer:
 
     def _calculate_group_report(self) -> pd.DataFrame:
         distribution = {}
-        for geslacht in "Jongen", "Meisje":
-            sex = "boys" if geslacht == "Jongen" else "girls"
-            for gedeelte in "Totaal", "Jaarlaag":
-                part = "in" if gedeelte == "Totaal" else "to"
-                # pylint: disable=unsubscriptable-object
-                for group in self.groepsindeling["Group"].unique():
-                    varname = f"{sex}_{part}_group_{group}"
-                    distribution[(group, gedeelte, geslacht)] = round(
-                        self.prob_vars[varname].value()
-                    )
+        for group, comp in self.result.group_composition.items():
+            distribution[(group, "Totaal", "Jongen")] = comp.boys_total
+            distribution[(group, "Totaal", "Meisje")] = comp.girls_total
+            distribution[(group, "Jaarlaag", "Jongen")] = comp.boys_year
+            distribution[(group, "Jaarlaag", "Meisje")] = comp.girls_year
 
         df_group_report = (
             pd.Series(distribution)
@@ -170,92 +166,32 @@ class SolutionAnalyzer:
 
         return df_group_report
 
-    @staticmethod
-    def _probvars_to_series(prob_vars: dict, name: str, not_in_name: str) -> pd.Series:
-        """
-        Extract (accounted) preferences from problem to a series
-
-        Will extract student name and preference number as index, and whether accounted
-        for as value
-
-        Parameters
-        ----------
-        prob_vars : dict
-            Dictionary with name as key and LpVar as value
-        name: str
-            The beginning of the variable name, will also be the name of the Series
-        not_in_name: str
-            substring that can not appear in the variable name
-
-        Returns
-        -------
-        pd.Series
-            the values of the variables
-
-        """
-        constraints = {
-            varname: var.value()
-            for varname, var in prob_vars.items()
-            if varname.startswith(name) and not not_in_name in varname
-        }
-        series = pd.Series(constraints, name=name)
-        ix = (
-            series.index.to_series()
-            .astype(str)
-            .str.extract(rf"{name}_\('(?P<student>.*)',_(?P<Nr>.*)\)")
-            .set_index(["student", "Nr"])
-            .index
-        )
-
-        series.index = ix
-        return series
-
     def _calculate_satisfied_constraints(self) -> pd.DataFrame:
-        """
-        Calculate which constraints and for whom are accommodated
-
-        Parameters
-        ----------
-        prob: pulp.LpProblem
-            The result of prob.variables()
+        """Per (student, Nr): whether the wish is satisfied and its weighted value.
 
         Returns
         -------
-            pd.DataFrame with Satisfied and WeightedSatisfied preferences
+            pd.DataFrame with Satisfied (boolean) and WeightedSatisfied preferences
         """
-        satisfied = (
-            self._probvars_to_series(self.prob_vars, "Satisfied", "per_group")
-            .round()  # Clean up numerical issues
-            .astype("boolean")
+        satisfied = self._indexed_series(self.result.satisfied, "Satisfied").astype(
+            "boolean"
         )
-        weighted_satisfied = self._probvars_to_series(
-            self.prob_vars, "WeightedSatisfied", "per_group"
+        weighted_satisfied = self._indexed_series(
+            self.result.weighted_satisfied, "WeightedSatisfied"
         )
-        df = pd.concat([satisfied, weighted_satisfied], axis="columns")
-        df.index = df.index.set_levels(pd.to_numeric(df.index.levels[1]), level=1)
-        return df
+        return pd.concat([satisfied, weighted_satisfied], axis="columns")
 
     def _calculate_performance_per_student(self):
         """
         Calculate basic performance metrics per student
 
         Performance is better when more preferences are more accommodated
-
-        Parameters
-        ----------
-        satisfied_constraints: pd.DataFrame
-            The output of calculate_satisfied_constraints
         """
         studentsatisfaction = pd.Series(
-            {
-                k.replace("studentsatisfaction_", ""): v.value()
-                for k, v in self.prob_vars.items()
-                if k.startswith("studentsatisfaction")
-            },
-            name="RelativeSatisfaction",
+            self.result.student_satisfaction, name="RelativeSatisfaction"
         )
         n_weighted_preferencs = (
-            self._probvars_to_series(self.prob_vars, "Weights_preferences", "qqqq")
+            self._indexed_series(self.result.weights, "Weights_preferences")
             .where(lambda s: s.gt(0))
             .groupby("student")
             .sum()
@@ -448,7 +384,7 @@ class SolutionAnalyzer:
                 adjusted_width
             )
 
-    def to_excel(self, fname=None) -> None:
+    def to_excel(self, fname) -> None:
         """Put the most important outcomes of the solution in an Excel file
 
         Uses the three most important outcomes:
@@ -463,10 +399,8 @@ class SolutionAnalyzer:
         Parameters
         ----------
         fname : str
-            The filename to save to. By default the name of the json that was loaded
+            The filename (or file-like object) to write the workbook to
         """
-        if fname is None:
-            fname = self.fname.replace("json", "xlsx")
         # https://github.com/PyCQA/pylint/issues/3060 pylint: disable=abstract-class-instantiated
         with pd.ExcelWriter(fname, engine="openpyxl") as writer:
             self._write_groepsindeling(writer)
@@ -556,7 +490,7 @@ class SolutionAnalyzer:
                 f" --> {row['RelativeSatisfaction_other']:.1%}"
             )
 
-    def show_all(self, to_excel=True):
+    def show_all(self, fname="solution.xlsx", to_excel=True):
         """Show all views of the outcome. Only works in Jupyter notebooks"""
         display(self.display_groepsindeling())
         display(self.group_report)
@@ -564,4 +498,4 @@ class SolutionAnalyzer:
         display(self.display_transition_matrix())
         display(self.display_satisfied_preferences())
         if to_excel:
-            self.to_excel()
+            self.to_excel(fname)
