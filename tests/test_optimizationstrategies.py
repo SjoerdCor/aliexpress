@@ -165,6 +165,50 @@ def test_lexmaxmin_three_variables_equal_distribution():
     assert abs(sum(values) - 15) < 1e-3
 
 
+def test_lexmaxmin_raises_clear_error_on_first_non_optimal_solve():
+    """Non-optimal first sub-solve raises RuntimeError (not TypeError) via plateaud_lexmaxmin."""
+    prob = pulp.LpProblem("TestNonOptimal", pulp.LpMaximize)
+    scores = {
+        "a": pulp.LpVariable("a", lowBound=0, upBound=10),
+        "b": pulp.LpVariable("b", lowBound=0, upBound=10),
+    }
+    prob += scores["a"] + scores["b"] <= 10
+
+    def infeasible_solve(*_args, **_kwargs):
+        prob.status = -1  # pulp.LpStatusInfeasible
+        return -1
+
+    with patch.object(prob, "solve", infeasible_solve):
+        with pytest.raises(RuntimeError, match="level 0.*Infeasible"):
+            optimizationstrategies.plateaud_lexmaxmin(scores, prob)
+
+
+def test_lexmaxmin_raises_clear_error_on_second_non_optimal_solve():
+    """Non-optimal second sub-solve (count phase) raises RuntimeError via plateaud_lexmaxmin."""
+    prob = pulp.LpProblem("TestNonOptimal2", pulp.LpMaximize)
+    scores = {
+        "a": pulp.LpVariable("a", lowBound=0, upBound=10),
+        "b": pulp.LpVariable("b", lowBound=0, upBound=10),
+    }
+    prob += scores["a"] + scores["b"] <= 10
+
+    original_solve = prob.solve
+    call_count = [0]
+
+    def mock_solve(*args, **kwargs):
+        call_count[0] += 1
+        if call_count[0] == 1:
+            return original_solve(
+                *args, **kwargs
+            )  # first call: real solve to get past _raise_minimal_score
+        prob.status = -1  # Infeasible on the second call (count phase)
+        return -1
+
+    with patch.object(prob, "solve", mock_solve):
+        with pytest.raises(RuntimeError, match="Infeasible"):
+            optimizationstrategies.plateaud_lexmaxmin(scores, prob)
+
+
 def test_lexmaxmin_multiple_plateaus():
     """Test that lexmaxmin finds different plateaus if needed"""
     prob = pulp.LpProblem("LexMaxMinLevel3", pulp.LpMaximize)
