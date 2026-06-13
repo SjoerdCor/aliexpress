@@ -18,7 +18,6 @@ def prepare_logical_operations(func):
             if (var.cat not in (pulp.LpBinary, "binary")) and not (
                 var.cat == pulp.LpInteger and var.lowBound == 0 and var.upBound == 1
             ):
-                print(var.cat, var.lowBound, var.upBound)
                 raise ValueError(f"Variable {var} is not a binary, but {var.cat}")
 
         if result_var is None:

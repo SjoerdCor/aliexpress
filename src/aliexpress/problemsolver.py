@@ -3,6 +3,7 @@ implements different optimization targets (also known as satisfaction metrics).
 """
 
 import itertools
+import logging
 import math
 import os
 import tempfile
@@ -14,9 +15,8 @@ import pandas as pd
 import pulp
 
 from . import optimizationstrategies, preferences_utils, pulp_logical
-from .logging_config import setup_logger
 
-logger = setup_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -117,9 +117,9 @@ class ProblemSolver:
 
     optimize, str (default = "studentsatisfaction")
         What to optimize for: "studentsatisfaction" (total satisfaction of the students,
-        where satisfaction is dominated by getting at least 1 preferences),
-        "least_satisfied" (formally, the least satisfied student), "n_preferences"
-        or "weighted_preferences"
+        where satisfaction is dominated by getting at least 1 preference),
+        "least_satisfied" (formally, the least satisfied student), or "lexmaxmin"
+        (plateaud lexicographic max-min over student satisfaction)
     """
 
     def _validate_not_together_students_exist(self):

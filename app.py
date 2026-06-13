@@ -2,6 +2,7 @@
 
 import functools
 import json
+import logging
 import os
 import re
 import shutil
@@ -36,12 +37,11 @@ from aliexpress.errors import (
     FeasibilityError,
     ValidationError,
 )
-from aliexpress.logging_config import add_file_handler, setup_logger
+from aliexpress.logging_config import add_file_handler, configure_logging
 from aliexpress.main import distribute_students_once
 
-logger = setup_logger(
-    __name__
-)  # file handler added below, after instance path is known
+configure_logging()
+logger = logging.getLogger("aliexpress.app")  # file handler added below
 
 
 load_dotenv()
@@ -56,7 +56,7 @@ app = Flask(__name__)
 app.config.from_object(ConfigClass)
 LOG_DIR = os.path.join(app.instance_path, "logs")
 os.makedirs(LOG_DIR, exist_ok=True)
-add_file_handler(logger, os.path.join(LOG_DIR, "aliexpress.log"))
+add_file_handler(os.path.join(LOG_DIR, "aliexpress.log"))
 BASE_DIR = os.path.join(app.instance_path, "storage")
 os.makedirs(BASE_DIR, exist_ok=True)
 logger.debug("Created dir if not exists: %s", BASE_DIR)
@@ -766,4 +766,4 @@ def done():
 
 if __name__ == "__main__":
     webbrowser.open("http://localhost:5000")
-    app.run(debug=True)
+    app.run(debug=env == "development")
