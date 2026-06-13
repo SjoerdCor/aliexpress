@@ -11,7 +11,7 @@ from aliexpress import preferences_utils
 
 def test_get_satisfaction_integral_basic():
     """Test satisfaction integral"""
-    return pytest.approx(preferences_utils.get_satisfaction_integral(0, 1)) == 0.5
+    assert preferences_utils.get_satisfaction_integral(0, 1) == pytest.approx(0.5)
 
 
 def test_get_satisfaction_integral_decreasing_importance():

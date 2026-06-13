@@ -20,8 +20,6 @@ uv run pre-commit install
 
 The HiGHS solver (`highspy`) is installed automatically as a dependency. Run any command inside the environment with `uv run`, for example `uv run pytest tests/` to run the tests.
 
-Alternatively, the project can still be installed with conda via `conda env create -f environment.yml` (or `environment_dev.yml` for developers).
-
 Create a `.env` file that contains at least
 ```
 FLASK_ENV=production

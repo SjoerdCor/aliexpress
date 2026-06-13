@@ -2,20 +2,20 @@
 
 It has one orchestrating function that can be called from the command line or app"""
 
+import logging
 from io import BytesIO
 
 import pandas as pd
 import pandera as pa
 
 from . import datareader, errors, problemsolver, solutions
-from .logging_config import setup_logger
 from .problemsolver import GroupBalance
 
 FILE_PREFERENCES = "voorkeuren.xlsx"
 FILE_GROUPS_TO = "groepen.xlsx"
 
 
-logger = setup_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def _safe_read(fn, *, filetype, technical_message, catch=Exception):
