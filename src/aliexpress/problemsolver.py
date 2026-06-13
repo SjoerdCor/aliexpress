@@ -55,6 +55,38 @@ class GroupBalance:
                 raise ValueError(f"{name} must be non-negative, got {value}")
 
 
+@dataclass(frozen=True)
+class GroupComposition:
+    """Boys/girls counts for one target group: total and for the new cohort (year)."""
+
+    boys_total: int
+    girls_total: int
+    boys_year: int
+    girls_year: int
+
+
+@dataclass(frozen=True)
+class SolutionResult:
+    """Structured outcome of a solved distribution, read straight from the solver.
+
+    Consumed by :class:`~aliexpress.solutions.SolutionAnalyzer`; it replaces parsing the
+    solution back out of pulp variable names. Every field holds plain Python values (no
+    pulp objects), so the result is straightforward to serialise once a persistence route
+    is needed.
+
+    The ``(student, Nr)`` keys index the positive ("Graag met") wishes: ``Nr`` is the
+    wish's sequence number within that student's wishes; its target (a classmate or group)
+    lives in ``preferences.loc[(student, "Graag met", Nr), "Waarde"]``.
+    """
+
+    assignment: dict[str, str]  # student -> assigned group
+    student_satisfaction: dict[str, float]  # student -> relative satisfaction (0..1)
+    satisfied: dict[tuple[str, int], bool]  # (student, Nr) -> wish fulfilled
+    weighted_satisfied: dict[tuple[str, int], float]  # (student, Nr) -> weighted value
+    weights: dict[tuple[str, int], float]  # (student, Nr) -> wish weight (signed)
+    group_composition: dict[str, GroupComposition]  # group -> boys/girls counts
+
+
 # pylint: disable=too-many-instance-attributes, too-many-arguments, too-many-positional-arguments
 class ProblemSolver:
     """
@@ -129,20 +161,17 @@ class ProblemSolver:
         )
         self.known_solutions = []
 
-        self.calculate_feasibility()
+        # Solver outputs captured during the main solve, read back by extract_solution.
+        # They stay None until a main solve runs (the subproblems do not set them).
+        self.satisfied = None
+        self.weighted_satisfied = None
+        self.weights = None
+        self.boys_in_group = None
+        self.girls_in_group = None
+        self.boys_to_group = None
+        self.girls_to_group = None
 
-    def get_solution_name(self):
-        """Create name from config to identify the solution"""
-        attrs = [
-            self.optimize,
-            self.groupbalance.max_clique,
-            self.groupbalance.max_clique_sex,
-            self.groupbalance.max_diff_n_students_total,
-            self.groupbalance.max_diff_n_students_year,
-            self.groupbalance.max_imbalance_boys_girls_total,
-            self.groupbalance.max_imbalance_boys_girls_year,
-        ]
-        return "".join(str(s) for s in attrs)
+        self.calculate_feasibility()
 
     def _constraint_student_to_exactly_one_group(self, prob):
         for student in self.students:
@@ -308,6 +337,11 @@ class ProblemSolver:
                 <= self.groupbalance.max_imbalance_boys_girls_year + slack_var
             )
 
+        # Keep the new-cohort (year) counts of the main problem for the solution report.
+        if prob is self.prob:
+            self.boys_to_group = boys_to_group
+            self.girls_to_group = girls_to_group
+
     def _constraint_balanced_boys_girls_total(self, prob, incl_slack=False):
         boys_in_group = pulp.LpVariable.dicts(
             "boys_in_group", self.groups_to.keys(), cat="Integer"
@@ -352,6 +386,11 @@ class ProblemSolver:
                 boys_in_group[group_to] - girls_in_group[group_to]
                 <= self.groupbalance.max_imbalance_boys_girls_total + slack_var
             )
+
+        # Keep the total (current + new) counts of the main problem for the solution report.
+        if prob is self.prob:
+            self.boys_in_group = boys_in_group
+            self.girls_in_group = girls_in_group
 
     def _constraint_not_in_forbidden_group(self, prob):
         """Some students can not move int other groups (e.g. a brother/sister is already there)"""
@@ -451,6 +490,7 @@ class ProblemSolver:
         self.add_class_balance_constraints(self.prob, incl_slack=True)
         self.add_satisfaction_constraints(self.prob)
         satisfied = self.add_variables_which_preferences_satisfied()
+        self.satisfied = satisfied
         studentsatisfaction = self._calculate_student_satisfaction(satisfied)
         self.prob += self._weighted_relaxation(self.prob) <= budget + 1e-6
         self.set_optimization_target(studentsatisfaction)
@@ -640,6 +680,12 @@ class ProblemSolver:
                 # Weight is negative: you get deduction if you do it wrong
                 prob += weighted_satisfied[key] == ((1 - satisfied[key]) * weight)
 
+        # Keep the main problem's weighted preferences and their (signed) weights for
+        # the solution report.
+        if prob is self.prob:
+            self.weighted_satisfied = weighted_satisfied
+            self.weights = weights
+
         return weighted_satisfied
 
     def _calculate_weighted_preference_optimization(
@@ -804,17 +850,11 @@ class ProblemSolver:
             {k: round(v.value()) for k, v in self.in_group.items()}
         )
 
-    def run(
-        self, save=True, overwrite=False, n_solutions=1, distance=1
-    ) -> pulp.LpProblem:
+    def run(self, n_solutions=1, distance=1) -> pulp.LpProblem:
         """Set up and solve the LpProblem
 
         Parameters
         ----------
-        save : bool (default = True)
-            Whether to save the outcomes
-        overwrite : bool
-            Whether to allow overwriting previous solution file
         n_solutions : int, (default = 1)
             The number of solutions to find.
         distance : int
@@ -829,11 +869,10 @@ class ProblemSolver:
             raise NotImplementedError(
                 "Can not generate multiple solutions for lexmaxmin"
             )
-        if save:
-            os.makedirs(self.get_solution_name(), exist_ok=True)
         if not self.prob.constraints and self.prob.objective is None:
             self.add_constraints()
             satisfied = self.add_variables_which_preferences_satisfied()
+            self.satisfied = satisfied
             studentsatisfaction = self._calculate_student_satisfaction(satisfied)
             self.set_optimization_target(studentsatisfaction)
 
@@ -843,33 +882,54 @@ class ProblemSolver:
                 self.solve(solutions_to_ignore=solutions_to_ignore)
             except RuntimeError as e:
                 raise RuntimeError(f"Failed to find {i + 1} solution(s)") from e
-            if save:
-                fname = os.path.join(
-                    self.get_solution_name(), f"{len(self.known_solutions)}.json"
-                )
-                self.save(fname, overwrite=overwrite)
         return self.prob
 
-    def save(self, fname: str, overwrite=False) -> None:
-        """
-        Save variables and model to a json file
+    def extract_solution(self) -> SolutionResult:
+        """Read the solved problem into a structured :class:`SolutionResult`.
 
-        Parameters
-        ----------
+        Reads ``.value()`` straight off the solver variables captured during the main
+        solve - no serialisation and no parsing of variable names. Must be called after
+        a solve (``run`` or ``solve_within_minimal_relaxation``).
 
-        fname : str
-            The file name to write to
-        overwrite : bool
-            Whether to allow overwriting previous solution file
         Raises
         ------
-            FileExistsError
-            If overwrite isn't allowed, but file exists
+        RuntimeError
+            If the problem has not been solved to optimality.
         """
-        if not overwrite and os.path.exists(fname):
-            raise FileExistsError(
-                f"The file '{fname}' already exists. Operation aborted."
-            )
         if pulp.LpStatus[self.prob.status] != "Optimal":
-            warnings.warn("Writing non-optimal solution")
-        self.prob.to_json(fname)
+            raise RuntimeError(
+                f"Can not extract a solution, status {pulp.LpStatus[self.prob.status]!r}"
+            )
+
+        assignment = {
+            student: group
+            for (student, group), var in self.in_group.items()
+            if round(var.value()) == 1
+        }
+        return SolutionResult(
+            assignment=assignment,
+            student_satisfaction={
+                student: var.value()
+                for student, var in self.studentsatisfaction.items()
+            },
+            satisfied={
+                key: bool(round(var.value())) for key, var in self.satisfied.items()
+            },
+            weighted_satisfied={
+                key: var.value() for key, var in self.weighted_satisfied.items()
+            },
+            weights=dict(self.weights),
+            group_composition=self._group_composition(),
+        )
+
+    def _group_composition(self) -> dict[str, GroupComposition]:
+        """Per target group, the boys/girls counts read from the solved count variables."""
+        return {
+            group: GroupComposition(
+                boys_total=round(self.boys_in_group[group].value()),
+                girls_total=round(self.girls_in_group[group].value()),
+                boys_year=round(self.boys_to_group[group].value()),
+                girls_year=round(self.girls_to_group[group].value()),
+            )
+            for group in self.groups_to
+        }

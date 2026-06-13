@@ -2,12 +2,10 @@
 
 It has one orchestrating function that can be called from the command line or app"""
 
-import os
 from io import BytesIO
 
 import pandas as pd
 import pandera as pa
-import pulp
 
 from . import datareader, errors, problemsolver, solutions
 from .logging_config import setup_logger
@@ -18,18 +16,6 @@ FILE_GROUPS_TO = "groepen.xlsx"
 
 
 logger = setup_logger(__name__)
-
-
-def jsons_to_excel(folder, preferences, input_sheet, students_info):
-    """Write all solution-jsons in folder to comprehensible excel overview"""
-    for file in os.listdir(folder):
-        if file.endswith(".json"):
-            fname = os.path.join(folder, file)
-            prob_vars, _ = pulp.LpProblem.from_json(fname)
-            sa = solutions.SolutionAnalyzer(
-                prob_vars, preferences, input_sheet, students_info
-            )
-            sa.to_excel(fname.replace(".json", ".xlsx"))
 
 
 def _safe_read(fn, *, filetype, technical_message, catch=Exception):
@@ -138,7 +124,7 @@ def _check_feasibility(ps):
 def _export(ps, preferences, processor, students_info):
     """Build the download workbook and result tables from the already-solved problem."""
     sa = solutions.SolutionAnalyzer(
-        ps.prob.variablesDict(), preferences, processor.input, students_info
+        ps.extract_solution(), preferences, processor.input, students_info
     )
 
     output = BytesIO()
@@ -208,7 +194,7 @@ def distribute_students_once(
         _check_feasibility(ps)
         on_update("Bepaald dat probleem oplosbaar is!")
         logger.info("Finding first solution... lexmaxmin")
-        ps.run(save=False)
+        ps.run()
 
     output, dfs = _export(ps, preferences, processor, students_info)
     logger.info("Done!")
