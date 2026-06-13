@@ -437,7 +437,7 @@ def test_voorkeuren_processor_wrong_datatype(valid_voorkeuren_df):
     processor = datareader.VoorkeurenProcessor.__new__(datareader.VoorkeurenProcessor)
 
     df = valid_voorkeuren_df.copy()
-    df.loc["John", ("MinimaleTevredenheid", np.nan, np.nan)] = "String"
+    df.loc["john", ("MinimaleTevredenheid", np.nan, np.nan)] = "String"
     with pytest.raises(pa.errors.SchemaError) as excinfo:
         processor._validate_input(df)
 
@@ -447,7 +447,7 @@ def test_voorkeuren_processor_wrong_datatype(valid_voorkeuren_df):
     assert exc.filetype == "voorkeuren"
 
     df = valid_voorkeuren_df.copy()
-    df.loc["John", ("Liever niet met", 1.0, "Gewicht")] = "String"
+    df.loc["john", ("Liever niet met", 1.0, "Gewicht")] = "String"
     with pytest.raises(pa.errors.SchemaError) as excinfo:
         processor._validate_input(df)
     exc = excinfo.value
