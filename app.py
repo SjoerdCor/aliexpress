@@ -371,7 +371,8 @@ def upload_preferences():
     try:
         preferences = file_to_io(request.files["preferences"])
         groups_to_path = get_file_path(session["process_id"], "groups.xlsx")
-        groups_to = list(datareader.read_groups_excel(groups_to_path).keys())
+        groups_to_data, _ = datareader.read_groups_excel(groups_to_path)
+        groups_to = list(groups_to_data.keys())
         processor = datareader.VoorkeurenProcessor(preferences)
         processor.process(all_to_groups=groups_to)  # validates further
         preferences_path = get_file_path(session["process_id"], "preferences.xlsx")
@@ -387,8 +388,10 @@ def _parse_not_together_form(form, n_rules):
     rules = []
     for i in range(n_rules):
         names_raw = form.getlist(f"rule_students[{i}]")
-        cleaned = [datareader.clean_name(n) for n in names_raw if n.strip()]
-        if len(cleaned) != len(set(cleaned)):
+        # Keep the names as entered for display; dedupe on the matching key so the same
+        # student picked twice (in any spelling) is caught.
+        cleaned = [datareader.display_name(n) for n in names_raw if n.strip()]
+        if len({datareader.matching_key(n) for n in cleaned}) != len(cleaned):
             return (
                 None,
                 f"Niet-samen-regel {i + 1} bevat dezelfde leerling meerdere keren.",
@@ -417,10 +420,11 @@ def not_together_page():
     groups_to_path = get_file_path(process_id, "groups.xlsx")
 
     try:
-        groups_to = datareader.read_groups_excel(groups_to_path)
+        groups_to, _ = datareader.read_groups_excel(groups_to_path)
         processor = datareader.VoorkeurenProcessor(preferences_path)
         processor.process(all_to_groups=list(groups_to.keys()))
-        students = sorted(processor.get_students_meta_info().keys())
+        # Show names as entered in the dropdown; matching happens on the key on submit.
+        students = sorted(processor.student_display.values())
     except Exception as exc:  # pylint: disable=broad-exception-caught
         _flash_upload_error(exc)
         return redirect(url_for("student_preferences"))
@@ -744,8 +748,8 @@ def start_distribution():
     def create_sociogram(preferences, groups_to):
         try:
             on_update("Sociogram tekenen...")
-            groups_to = list(datareader.read_groups_excel(groups_to).keys())
-            sg = sociogram.SociogramMaker(preferences, groups_to)
+            groups_to_data, _ = datareader.read_groups_excel(groups_to)
+            sg = sociogram.SociogramMaker(preferences, list(groups_to_data.keys()))
             fig, g, pos = sg.plot_sociogram()
             logger.info("Sociogram created")
 
