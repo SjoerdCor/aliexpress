@@ -108,6 +108,24 @@ class _PlateaudLexMaxMin:
 
         return pulp.lpSum(self.scores.values())
 
+    def _solve_and_check(self, level: int) -> None:
+        """Solve the sub-problem and raise RuntimeError if the result is not Optimal.
+
+        Raises
+        ------
+        RuntimeError
+            If the solve does not reach optimality, naming the level and actual status.
+            Without this check a non-optimal solve leaves variable values as ``None``,
+            which causes a cryptic ``TypeError`` downstream.
+        """
+        self.prob.solve(self.solver)
+        status = pulp.LpStatus[self.prob.status]
+        if status != "Optimal":
+            raise RuntimeError(
+                f"Lexmaxmin sub-solve at level {level} did not reach optimality "
+                f"(status: {status!r})"
+            )
+
     def _raise_minimal_score(self, level: int) -> float:
         """Maximize the minimal score to find the next plateau ``level``; return its value."""
         minimal_score = pulp.LpVariable(f"MinimalScore_{level}")
@@ -125,7 +143,7 @@ class _PlateaudLexMaxMin:
                 ), f"MinimalSatisfactionLT{student}_{level}"
         self.prob.sense = pulp.LpMaximize
         self.prob.setObjective(minimal_score)
-        self.prob.solve(self.solver)
+        self._solve_and_check(level)
         return minimal_score.value()
 
     def _fix_plateau_as_lower_bound(self, level: int) -> None:
@@ -154,7 +172,7 @@ class _PlateaudLexMaxMin:
             )
         self.prob.sense = pulp.LpMaximize
         self.prob.setObjective(pulp.lpSum(self.has_this_level.values()))
-        self.prob.solve(self.solver)
+        self._solve_and_check(level)
         return sum(
             1 for key in self.scores if pulp.value(self.has_this_level[key]) > 0.5
         )
