@@ -3,9 +3,12 @@
 import logging
 from io import BytesIO
 
+import numpy as np
 import openpyxl
 import pandas as pd
 from openpyxl.worksheet.datavalidation import DataValidation
+
+from .datareader import VOORKEUREN_SCHEMA
 
 logger = logging.getLogger(__name__)
 
@@ -82,3 +85,29 @@ def create_prefilled_excel(groups_to: list, df_total: pd.DataFrame) -> BytesIO:
     output.seek(0)
 
     return output
+
+
+def write_preferences_to_excel(df, fname, **kwargs):
+    """Write a voorkeuren DataFrame to Excel, prepending the three-row MultiIndex header.
+
+    Pandas cannot write a MultiIndex-with-nan column header directly, so the header is
+    materialised as plain rows derived from VOORKEUREN_SCHEMA.  kwargs are forwarded to
+    .to_excel().
+    """
+    keys = list(VOORKEUREN_SCHEMA.columns.keys())
+    df_header = pd.DataFrame(
+        [
+            ["Leerling"] + [k[0] for k in keys],
+            [np.nan] + [k[1] for k in keys],
+            [np.nan] + [k[2] for k in keys],
+        ]
+    )
+    assert df_header.shape[1] == df.shape[1]
+    concatted = pd.concat(
+        [
+            df_header.set_axis(range(df_header.shape[1]), axis="columns"),
+            df.set_axis(range(df.shape[1]), axis="columns"),
+        ],
+        ignore_index=True,
+    )
+    return concatted.to_excel(fname, index=False, header=False, **kwargs)

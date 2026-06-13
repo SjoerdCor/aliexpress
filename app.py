@@ -284,87 +284,6 @@ def student_preferences():
     )
 
 
-def write_preferences_to_excel(df, fname, **kwargs):
-    """This is a challenge because of MultiLevel index with nans
-
-    kwargs are passed to .to_excel()
-    """
-    df_header = pd.DataFrame(
-        [
-            (
-                "Leerling",
-                "MinimaleTevredenheid",
-                "Jongen/meisje",
-                "Stamgroep",
-                "Graag met",
-                "Graag met",
-                "Graag met",
-                "Graag met",
-                "Graag met",
-                "Graag met",
-                "Graag met",
-                "Graag met",
-                "Graag met",
-                "Graag met",
-                "Liever niet met",
-                "Liever niet met",
-                "Niet in",
-                "Niet in",
-            ),
-            (
-                np.nan,
-                np.nan,
-                np.nan,
-                np.nan,
-                1,
-                1,
-                2,
-                2,
-                3,
-                3,
-                4,
-                4,
-                5,
-                5,
-                1,
-                1,
-                1,
-                2,
-            ),
-            (
-                np.nan,
-                np.nan,
-                np.nan,
-                np.nan,
-                "Waarde",
-                "Gewicht",
-                "Waarde",
-                "Gewicht",
-                "Waarde",
-                "Gewicht",
-                "Waarde",
-                "Gewicht",
-                "Waarde",
-                "Gewicht",
-                "Waarde",
-                "Gewicht",
-                "Waarde",
-                "Waarde",
-            ),
-        ]
-    )
-
-    assert df_header.shape[1] == df.shape[1]
-    concatted = pd.concat(
-        [
-            df_header.set_axis(range(df_header.shape[1]), axis="columns"),
-            df.set_axis(range(df.shape[1]), axis="columns"),
-        ],
-        ignore_index=True,
-    )
-    return concatted.to_excel(fname, index=False, header=False, **kwargs)
-
-
 @app.route("/upload_preferences", methods=["POST"])
 def upload_preferences():
     """Handle the upload of the preferences files"""
@@ -376,7 +295,9 @@ def upload_preferences():
         processor = datareader.VoorkeurenProcessor(preferences)
         processor.process(all_to_groups=groups_to)  # validates further
         preferences_path = get_file_path(session["process_id"], "preferences.xlsx")
-        write_preferences_to_excel(processor.input.reset_index(), preferences_path)
+        input_writer.write_preferences_to_excel(
+            processor.input.reset_index(), preferences_path
+        )
     except Exception as exc:  # pylint: disable=broad-exception-caught
         _flash_upload_error(exc)
         return redirect(url_for("student_preferences"))
