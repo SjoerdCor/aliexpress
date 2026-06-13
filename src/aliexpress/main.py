@@ -32,6 +32,7 @@ def _safe_read(fn, *, filetype, technical_message, catch=Exception):
 
 
 def _read_groups(path):
+    """Return ``(groups_to, group_display)`` for the target groups file."""
     return _safe_read(
         lambda: datareader.read_groups_excel(path),
         filetype="groepen",
@@ -121,11 +122,22 @@ def _check_feasibility(ps):
     )
 
 
-def _export(ps, preferences, processor, students_info):
+def _export(ps, preferences, processor, students_info, group_display):
     """Build the download workbook and result tables from the already-solved problem."""
-    sa = solutions.SolutionAnalyzer(
-        ps.extract_solution(), preferences, processor.input, students_info
+    display_names = solutions.DisplayNames(
+        student=processor.student_display,
+        group=group_display,
+        stamgroep=processor.stamgroep_display,
     )
+    # The solver works on matching keys; translate to names as entered before reporting.
+    result, preferences, input_sheet, students_info = solutions.to_display_names(
+        ps.extract_solution(),
+        preferences,
+        processor.input,
+        students_info,
+        display_names,
+    )
+    sa = solutions.SolutionAnalyzer(result, preferences, input_sheet, students_info)
 
     output = BytesIO()
     sa.to_excel(output)
@@ -166,13 +178,18 @@ def distribute_students_once(
             :meth:`ProblemSolver.solve_within_minimal_relaxation`). Pass a GroupBalance to
             override this with fixed manual limits instead.
     """
-    groups_to = _read_groups(path_groups_to)
+    groups_to, group_display = _read_groups(path_groups_to)
     processor, preferences = _read_preferences(path_preferences, groups_to)
 
     students_info = processor.get_students_meta_info()
     if not_together is None:
         not_together = []
     datareader.validate_not_together(not_together, students_info.keys(), len(groups_to))
+    # Rule groups hold names as entered; the solver matches on the same keys as students.
+    not_together = [
+        {**rule, "group": {datareader.matching_key(s) for s in rule["group"]}}
+        for rule in not_together
+    ]
     on_update("Alle bestanden zijn gevalideerd!")
     logger.info("All files read")
 
@@ -196,7 +213,7 @@ def distribute_students_once(
         logger.info("Finding first solution... lexmaxmin")
         ps.run()
 
-    output, dfs = _export(ps, preferences, processor, students_info)
+    output, dfs = _export(ps, preferences, processor, students_info, group_display)
     logger.info("Done!")
     on_update("Klaar!")
     return {"download": output, "dataframes": dfs}

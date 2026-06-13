@@ -1,5 +1,7 @@
 """Class to create a report about the solution that was found"""
 
+import dataclasses
+
 import pandas as pd
 from IPython.display import display
 from openpyxl.styles import Alignment, numbers
@@ -40,12 +42,130 @@ TABLE_STYLES = styles = [
 ]
 
 
+@dataclasses.dataclass(frozen=True)
+class DisplayNames:
+    """Maps matching keys back to the names as entered, per namespace, for reporting.
+
+    The solver works on matching keys; these maps let the report layer show students,
+    target groups and current groups (Stamgroep) exactly as the user typed them. Each
+    defaults to empty, in which case keys are shown unchanged.
+    """
+
+    student: dict = dataclasses.field(default_factory=dict)
+    group: dict = dataclasses.field(default_factory=dict)
+    stamgroep: dict = dataclasses.field(default_factory=dict)
+
+
+def _relabel_result(result, display_names: DisplayNames):
+    """Rewrite the solver result from matching keys to names as entered."""
+
+    def student(key):
+        return display_names.student.get(key, key)
+
+    def group(key):
+        return display_names.group.get(key, key)
+
+    return dataclasses.replace(
+        result,
+        assignment={student(s): group(g) for s, g in result.assignment.items()},
+        student_satisfaction={
+            student(s): v for s, v in result.student_satisfaction.items()
+        },
+        satisfied={(student(s), nr): v for (s, nr), v in result.satisfied.items()},
+        weighted_satisfied={
+            (student(s), nr): v for (s, nr), v in result.weighted_satisfied.items()
+        },
+        weights={(student(s), nr): v for (s, nr), v in result.weights.items()},
+        group_composition={
+            group(g): comp for g, comp in result.group_composition.items()
+        },
+    )
+
+
+def _relabel_preferences(
+    preferences: pd.DataFrame, display_names: DisplayNames
+) -> pd.DataFrame:
+    """Relabel the Leerling index level so it matches the display-keyed result."""
+    if "Leerling" not in preferences.index.names:
+        return preferences
+    new = preferences.copy()
+    new.index = pd.MultiIndex.from_arrays(
+        [
+            new.index.get_level_values("Leerling").map(
+                lambda s: display_names.student.get(s, s)
+            ),
+            new.index.get_level_values("TypeWens"),
+            new.index.get_level_values("Nr"),
+        ],
+        names=["Leerling", "TypeWens", "Nr"],
+    )
+    return new
+
+
+def _relabel_students_info(students_info: dict, display_names: DisplayNames) -> dict:
+    """Relabel student keys and their Stamgroep value to names as entered."""
+    relabeled = {}
+    for student, info in students_info.items():
+        info = dict(info)
+        if "Stamgroep" in info:
+            info["Stamgroep"] = display_names.stamgroep.get(
+                info["Stamgroep"], info["Stamgroep"]
+            )
+        relabeled[display_names.student.get(student, student)] = info
+    return relabeled
+
+
+def _relabel_input_sheet(
+    input_sheet: pd.DataFrame, display_names: DisplayNames
+) -> pd.DataFrame:
+    """Relabel the original input sheet (index + name cells) to names as entered.
+
+    Column-aware: 'Niet in' targets are groups, 'Graag met'/'Liever niet met' targets
+    are a classmate or a group, and the Stamgroep column is a current group.
+    """
+    df = input_sheet.copy()
+    df.index = df.index.map(lambda s: display_names.student.get(s, s))
+    student_or_group = {**display_names.group, **display_names.student}
+    for col in df.columns:
+        type_wens = col[0] if isinstance(col, tuple) else col
+        type_waarde = col[2] if isinstance(col, tuple) and len(col) > 2 else None
+        if type_wens == "Stamgroep":
+            df[col] = df[col].map(lambda v: display_names.stamgroep.get(v, v))
+        elif type_waarde == "Waarde" and type_wens == "Niet in":
+            df[col] = df[col].map(lambda v: display_names.group.get(v, v))
+        elif type_waarde == "Waarde" and type_wens in ("Graag met", "Liever niet met"):
+            df[col] = df[col].map(lambda v: student_or_group.get(v, v))
+    return df
+
+
+def to_display_names(
+    result,
+    preferences: pd.DataFrame,
+    input_sheet: pd.DataFrame,
+    students_info,
+    display_names: DisplayNames,
+):
+    """Translate a result and its input views from matching keys to names as entered.
+
+    The solver works on matching keys; this maps everything the report layer shows back to
+    the names the user typed (via ``display_names``). Returns the four artefacts relabeled,
+    ready to hand to :class:`SolutionAnalyzer` — which itself stays unaware of matching keys.
+    """
+    return (
+        _relabel_result(result, display_names),
+        _relabel_preferences(preferences, display_names),
+        _relabel_input_sheet(input_sheet, display_names),
+        _relabel_students_info(students_info, display_names),
+    )
+
+
 # pylint: disable-next=too-many-instance-attributes  # ten computed views of one solution; each is a distinct output table
 class SolutionAnalyzer:
     """Create a report about the solution found to the Linear Programming problem
 
     Which students were put together, how satisfied is everybody, which preferences
-    were fulfilled, etc.
+    were fulfilled, etc. Inputs are expected in display space (names as entered); see
+    :func:`to_display_names` for the translation from solver matching keys.
     """
 
     def __init__(
@@ -242,6 +362,8 @@ class SolutionAnalyzer:
                 },
                 na_rep="",
             )
+            # Student names live in the index and are rendered raw via | safe; escape them.
+            .format_index(escape="html", axis="index")
             .set_table_styles(TABLE_STYLES)
         )
 
@@ -364,8 +486,10 @@ class SolutionAnalyzer:
             satisfied_preferences_original_index=satisfied_preferences_original_index,
         )
         return (
-            styled.format(na_rep="")
+            # Cells (wish targets) and the student index are rendered raw via | safe.
+            styled.format(na_rep="", escape="html")
             .format_index(na_rep="", axis="columns")
+            .format_index(escape="html", axis="index")
             .set_table_styles(TABLE_STYLES)
         )
 

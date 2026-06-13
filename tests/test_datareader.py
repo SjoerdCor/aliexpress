@@ -41,45 +41,26 @@ def valid_voorkeuren_df():
         [
             0.5,
             "Jongen",
-            "A",
-            "Jane",
+            "a",
+            "jane",
             1,
-            "Alice",
+            "alice",
             2,
-            "Blauw",
+            "blauw",
             0.5,
             np.nan,
             np.nan,
             np.nan,
             np.nan,
-            "Eve",
+            "eve",
             2,
-            "Oranje",
+            "oranje",
             np.nan,
         ],
         [
             np.nan,
             "Meisje",
-            "B",
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-        ],
-        [
-            np.nan,
-            "Meisje",
-            "B",
+            "b",
             np.nan,
             np.nan,
             np.nan,
@@ -98,7 +79,26 @@ def valid_voorkeuren_df():
         [
             np.nan,
             "Meisje",
-            "B",
+            "b",
+            np.nan,
+            np.nan,
+            np.nan,
+            np.nan,
+            np.nan,
+            np.nan,
+            np.nan,
+            np.nan,
+            np.nan,
+            np.nan,
+            np.nan,
+            np.nan,
+            np.nan,
+            np.nan,
+        ],
+        [
+            np.nan,
+            "Meisje",
+            "b",
             np.nan,
             np.nan,
             np.nan,
@@ -119,7 +119,7 @@ def valid_voorkeuren_df():
     df = pd.DataFrame(
         data,
         columns=columns,
-        index=pd.Index(["John", "Jane", "Alice", "Eve"], name="Leerling"),
+        index=pd.Index(["john", "jane", "alice", "eve"], name="Leerling"),
     )
     return df
 
@@ -174,16 +174,39 @@ def test_toggle_negative_weights_liever_niet_met():
 @pytest.mark.parametrize(
     "input_str,expected",
     [
-        ("  John  ", "John"),
-        ("<script>", "Script"),
-        ("ANNa-MAriE", "Anna-Marie"),
-        ("Anne marie", "AnneMarie"),
+        ("  John  ", "john"),
+        ("<script>", "script"),  # HTML-unsafe chars stripped
+        ("ANNa-MAriE", "anna-marie"),
+        ("Anne marie", "annemarie"),  # spaces removed, case folded
         (42, 42),  # not a string
     ],
 )
-def test_clean_name(input_str, expected):
-    """Test that clean_name function correctly cleans names."""
-    assert datareader.clean_name(input_str) == expected
+def test_matching_key(input_str, expected):
+    """matching_key strips HTML-unsafe chars and spaces, and folds case."""
+    assert datareader.matching_key(input_str) == expected
+
+
+@pytest.mark.parametrize(
+    "input_str,expected",
+    [
+        ("  John  ", "John"),  # only edge whitespace trimmed
+        ("Anne Claire", "Anne Claire"),  # spaces preserved
+        ("van der Berg", "van der Berg"),  # capitals/spaces preserved
+        ("McDonald", "McDonald"),
+        ("O'Brien", "O'Brien"),  # apostrophe kept
+        (42, 42),  # not a string
+    ],
+)
+def test_display_name(input_str, expected):
+    """display_name keeps the name as entered, only trimming edge whitespace."""
+    assert datareader.display_name(input_str) == expected
+
+
+def test_matching_key_collapses_case_and_space():
+    """A wish and a student spelled with different case/spacing match on the same key."""
+    assert datareader.matching_key("anne claire") == datareader.matching_key(
+        "Anne Claire"
+    )
 
 
 @patch("aliexpress.datareader.pd.read_excel")
@@ -414,7 +437,7 @@ def test_voorkeuren_processor_wrong_datatype(valid_voorkeuren_df):
     processor = datareader.VoorkeurenProcessor.__new__(datareader.VoorkeurenProcessor)
 
     df = valid_voorkeuren_df.copy()
-    df.loc["John", ("MinimaleTevredenheid", np.nan, np.nan)] = "String"
+    df.loc["john", ("MinimaleTevredenheid", np.nan, np.nan)] = "String"
     with pytest.raises(pa.errors.SchemaError) as excinfo:
         processor._validate_input(df)
 
@@ -424,7 +447,7 @@ def test_voorkeuren_processor_wrong_datatype(valid_voorkeuren_df):
     assert exc.filetype == "voorkeuren"
 
     df = valid_voorkeuren_df.copy()
-    df.loc["John", ("Liever niet met", 1.0, "Gewicht")] = "String"
+    df.loc["john", ("Liever niet met", 1.0, "Gewicht")] = "String"
     with pytest.raises(pa.errors.SchemaError) as excinfo:
         processor._validate_input(df)
     exc = excinfo.value
@@ -434,15 +457,18 @@ def test_voorkeuren_processor_wrong_datatype(valid_voorkeuren_df):
 
 
 def test_voorkeuren_processor_clean_input():
-    """Test that VoorkeurenProcessor cleans input DataFrame correctly."""
+    """Index and wish-target Waarde cells are normalized to matching keys."""
     df = pd.DataFrame(
-        {("A", "B", "C"): ["  john ", "<script>"]}, index=[" alice ", "bob"]
+        {("Graag met", 1.0, "Waarde"): ["  John Doe ", "<script>"]},
+        index=[" Alice ", "bob"],
     )
     processor = datareader.VoorkeurenProcessor.__new__(datareader.VoorkeurenProcessor)
     cleaned = processor.clean_input(df)
-    assert "John" in cleaned.iloc[:, 0].values
-    assert "Script" in cleaned.iloc[:, 0].values
-    assert "Alice" in cleaned.index
+    assert "johndoe" in cleaned.iloc[:, 0].values
+    assert "script" in cleaned.iloc[:, 0].values
+    assert "alice" in cleaned.index
+    # The display map keeps the name as entered (edge-stripped).
+    assert processor.student_display["alice"] == "Alice"
 
 
 def test_voorkeuren_processor_process(valid_voorkeuren_df):
@@ -455,18 +481,18 @@ def test_voorkeuren_processor_process(valid_voorkeuren_df):
     expected = pd.DataFrame(
         {
             "Waarde": {
-                ("John", "Graag met", 1.0): "Jane",
-                ("John", "Graag met", 2.0): "Alice",
-                ("John", "Graag met", 3.0): "Blauw",
-                ("John", "Liever niet met", 1.0): "Eve",
-                ("John", "Niet in", 1.0): "Oranje",
+                ("john", "Graag met", 1.0): "jane",
+                ("john", "Graag met", 2.0): "alice",
+                ("john", "Graag met", 3.0): "blauw",
+                ("john", "Liever niet met", 1.0): "eve",
+                ("john", "Niet in", 1.0): "oranje",
             },
             "Gewicht": {
-                ("John", "Graag met", 1.0): 1.0,
-                ("John", "Graag met", 2.0): 2.0,
-                ("John", "Graag met", 3.0): 0.5,
-                ("John", "Liever niet met", 1.0): 2.0,
-                ("John", "Niet in", 1.0): 1.0,
+                ("john", "Graag met", 1.0): 1.0,
+                ("john", "Graag met", 2.0): 2.0,
+                ("john", "Graag met", 3.0): 0.5,
+                ("john", "Liever niet met", 1.0): 2.0,
+                ("john", "Niet in", 1.0): 1.0,
             },
         }
     )
@@ -520,7 +546,7 @@ def test_voorkeuren_processor_validate_input_duplicated_values(valid_voorkeuren_
 def test_voorkeuren_processor_negative_gewicht(valid_voorkeuren_df):
     """Test that VoorkeurenProcessor raises on negative gewicht."""
     df = valid_voorkeuren_df.copy()
-    df.loc["John", ("Graag met", 1, "Gewicht")] = -1
+    df.loc["john", ("Graag met", 1, "Gewicht")] = -1
 
     processor = datareader.VoorkeurenProcessor.__new__(datareader.VoorkeurenProcessor)
     processor.input = df
@@ -528,7 +554,7 @@ def test_voorkeuren_processor_negative_gewicht(valid_voorkeuren_df):
     processor.restructure()
 
     with pytest.raises(pa.errors.SchemaError) as excinfo:
-        processor.validate_preferences(["Oranje", "Blauw"])
+        processor.validate_preferences(["oranje", "blauw"])
     err = excinfo.value
     assert err.reason_code == pa.errors.SchemaErrorReason.DATAFRAME_CHECK
     assert err.check.name == "greater_than" and "Gewicht" in err.column_name
@@ -545,7 +571,7 @@ def test_voorkeuren_processor_validate_preferences_invalid_values(valid_voorkeur
     processor.restructure()
 
     with pytest.raises(pa.errors.SchemaError) as excinfo:
-        processor.validate_preferences(["Blauw"])
+        processor.validate_preferences(["blauw"])
     err = excinfo.value
     assert err.reason_code == pa.errors.SchemaErrorReason.DATAFRAME_CHECK
     assert err.check.name == "invalid_values_preferences"
@@ -554,14 +580,14 @@ def test_voorkeuren_processor_validate_preferences_invalid_values(valid_voorkeur
 def test_voorkeuren_processor_weight_missing_name(valid_voorkeuren_df):
     """Test that VoorkeurenProcessor raises an error for missing name in weight column."""
     df = valid_voorkeuren_df.copy()
-    df.loc["John", ("Graag met", 1, "Waarde")] = np.nan
+    df.loc["john", ("Graag met", 1, "Waarde")] = np.nan
     processor = datareader.VoorkeurenProcessor.__new__(datareader.VoorkeurenProcessor)
     processor.df = df
     processor.input = df
     processor.restructure()
 
     with pytest.raises(pa.errors.SchemaError) as exc:
-        processor.validate_preferences(["Blauw", "Oranje"])
+        processor.validate_preferences(["blauw", "oranje"])
     assert exc.value.reason_code == pa.errors.SchemaErrorReason.SERIES_CONTAINS_NULLS
 
 
@@ -574,25 +600,25 @@ def test_voorkeuren_processor_process_and_get_students_meta_info(valid_voorkeure
 
     meta = processor.get_students_meta_info()
     expected = {
-        "John": {
+        "john": {
             "MinimaleTevredenheid": 0.5,
             "Jongen/meisje": "Jongen",
-            "Stamgroep": "A",
+            "Stamgroep": "a",
         },
-        "Jane": {
+        "jane": {
             "MinimaleTevredenheid": float("nan"),
             "Jongen/meisje": "Meisje",
-            "Stamgroep": "B",
+            "Stamgroep": "b",
         },
-        "Alice": {
+        "alice": {
             "MinimaleTevredenheid": float("nan"),
             "Jongen/meisje": "Meisje",
-            "Stamgroep": "B",
+            "Stamgroep": "b",
         },
-        "Eve": {
+        "eve": {
             "MinimaleTevredenheid": float("nan"),
             "Jongen/meisje": "Meisje",
-            "Stamgroep": "B",
+            "Stamgroep": "b",
         },
     }
 
@@ -677,8 +703,9 @@ def test_read_groups_excel_success(mock_read_excel):
         }
     )
     mock_read_excel.return_value = df
-    result = datareader.read_groups_excel("groups.xlsx")
-    assert result == {"DeFlamingos": {"Jongens": 5, "Meisjes": 6}}
+    groups_to, group_display = datareader.read_groups_excel("groups.xlsx")
+    assert groups_to == {"deflamingos": {"Jongens": 5, "Meisjes": 6}}
+    assert group_display == {"deflamingos": "De Flamingo's"}
 
 
 @patch("aliexpress.datareader.pd.read_excel")
@@ -902,8 +929,8 @@ def test_niet_in_second_column_accepts_group_name(valid_voorkeuren_df):
     """
     df = valid_voorkeuren_df.copy()
     df[("Niet in", 2.0, "Waarde")] = df[("Niet in", 2.0, "Waarde")].astype(object)
-    df.loc["John", ("Niet in", 2.0, "Waarde")] = "Blauw"
+    df.loc["john", ("Niet in", 2.0, "Waarde")] = "Blauw"
 
     processor = datareader.VoorkeurenProcessor.__new__(datareader.VoorkeurenProcessor)
     result = processor._validate_input(df)
-    assert result.loc["John", ("Niet in", 2.0, "Waarde")] == "Blauw"
+    assert result.loc["john", ("Niet in", 2.0, "Waarde")] == "Blauw"

@@ -2,7 +2,7 @@
 
 import pandas as pd
 
-from .datareader import clean_name
+from .datareader import display_name, matching_key
 from .errors import DuplicateNameError
 
 
@@ -79,11 +79,19 @@ def combine_students(
 
 
 def create_unique_name(df: pd.DataFrame) -> pd.Series:
-    """Find unique name per leerling. Needs roepnaam and achternaam"""
-    df["roepnaam"] = df["roepnaam"].apply(clean_name)
-    df["achternaam"] = df["achternaam"].apply(clean_name)
+    """Find a unique display name per leerling, from roepnaam and achternaam.
 
-    duplicated = (df["roepnaam"] + df["achternaam"]).duplicated()
+    Names are kept as entered (only edge-stripped, see ``display_name``); uniqueness is
+    decided on the ``matching_key`` so case/space variants count as the same person.
+    Because display-equal names are necessarily key-equal, unique keys guarantee unique
+    display names.
+    """
+    df["roepnaam"] = df["roepnaam"].apply(display_name)
+    df["achternaam"] = df["achternaam"].apply(display_name)
+
+    duplicated = (
+        df["roepnaam"].apply(matching_key) + df["achternaam"].apply(matching_key)
+    ).duplicated()
     if duplicated.any():
         raise DuplicateNameError(
             "duplicate_names",
@@ -97,8 +105,10 @@ def create_unique_name(df: pd.DataFrame) -> pd.Series:
     unique_names = df["roepnaam"] + " "
 
     n_letters_added = 0
-    while unique_names.duplicated().any():
-        for ix in unique_names[unique_names.duplicated(keep=False)].index:
+    while unique_names.apply(matching_key).duplicated().any():
+        for ix in unique_names[
+            unique_names.apply(matching_key).duplicated(keep=False)
+        ].index:
             unique_names[ix] += df.loc[ix, "achternaam"][n_letters_added]
         n_letters_added += 1
-    return unique_names.apply(clean_name, full_clean=False)
+    return unique_names.apply(display_name)
