@@ -122,14 +122,30 @@ def toggle_negative_weights(df: pd.DataFrame, mask="Gewicht") -> pd.DataFrame:
     return df
 
 
-def clean_name(x, full_clean=True):
-    """Clean spaces and capitals in names"""
+def display_name(x):
+    """Return the name exactly as entered, with only surrounding whitespace trimmed.
+
+    Capitals, internal spaces, apostrophes and hyphens are preserved, so names such as
+    ``O'Brien``, ``van der Berg`` and ``McDonald`` stay intact. This is the form shown to
+    the user; HTML-safety of displayed names is handled at render time (the report tables
+    escape their cells), not by mangling the name here.
+    """
+    if isinstance(x, str):
+        return x.strip()
+    return x
+
+
+def matching_key(x):
+    """Normalize a name to the internal key that matches wishes to students/groups.
+
+    Strips HTML/URL-unsafe characters, removes spaces and folds case, so that e.g.
+    ``Anne claire`` and ``Anne Claire`` collapse to the same key. The key feeds pulp
+    variable names and dict lookups (and is the only form rendered raw in the sociogram),
+    so keeping it free of dangerous characters is a cheap, internal safety guarantee.
+    """
     if isinstance(x, str):
         html_safe = re.sub(r"[<>&\"'`=/\\]", "", x)
-        new = html_safe.strip().title()
-        if full_clean:
-            new = new.replace(" ", "")
-        return new
+        return html_safe.strip().title().replace(" ", "")
     return x
 
 
@@ -138,7 +154,7 @@ def to_html_id(name: str) -> str:
 
     Replaces spaces and characters that are special in HTML/URLs with underscores.
     Use this for form field names and element IDs in the web UI — not for
-    matching against solver names (use clean_name for that).
+    matching against solver names (use matching_key for that).
     """
     return re.sub(r"[-<>&\"'`=/\\ ]", "_", str(name).strip())
 
@@ -150,6 +166,9 @@ class VoorkeurenProcessor:
 
     def __init__(self, filename: str = "voorkeuren.xlsx"):
         self.filename = filename
+        # Filled by clean_input: matching_key -> name as entered, for the report layer.
+        self.student_display: dict = {}
+        self.stamgroep_display: dict = {}
         self.input = self._read_voorkeuren().pipe(self.clean_input)
         self.df = self.input.copy()
 
@@ -174,13 +193,26 @@ class VoorkeurenProcessor:
         df = df.iloc[3:].pipe(self._validate_input)
         return df
 
-    def clean_input(self, df):
-        """Cleans strings of all columns and index in the DataFrame if possible."""
-        df.index = df.index.map(clean_name)
+    @staticmethod
+    def _display_map(values) -> dict:
+        """Map each name's matching key back to the name as entered."""
+        return {matching_key(v): display_name(v) for v in values if isinstance(v, str)}
 
+    def clean_input(self, df):
+        """Normalize index and string columns to matching keys; capture display maps.
+
+        The working DataFrame is keyed by ``matching_key`` so wishes match students and
+        groups regardless of case or spaces. ``student_display`` and ``stamgroep_display``
+        map those keys back to the name as entered, for the report layer.
+        """
+        self.student_display = self._display_map(df.index)
+
+        df.index = df.index.map(matching_key)
         for col in df.columns:
             if df[col].dtype == "object":
-                df[col] = df[col].apply(clean_name)
+                if isinstance(col, tuple) and col[0] == "Stamgroep":
+                    self.stamgroep_display = self._display_map(df[col])
+                df[col] = df[col].apply(matching_key)
         return df
 
     def _validate_input(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -350,7 +382,7 @@ def validate_not_together(
     Works on the list[dict] structure — no xlsx required.
     Raises ValidationError on invalid input; returns rules unchanged when valid.
     """
-    known = {clean_name(s) for s in students}
+    known = {matching_key(s) for s in students}
     for i, rule in enumerate(rules, start=1):
         group = rule["group"]
         max_samen = rule["Max_aantal_samen"]
@@ -388,8 +420,16 @@ def validate_not_together(
     return rules
 
 
-def read_groups_excel(path_groups_to) -> dict:
-    """Reads the information about the groups to from excel to dict"""
+def read_groups_excel(path_groups_to) -> tuple[dict, dict]:
+    """Read the target groups from excel.
+
+    Returns
+    -------
+    tuple[dict, dict]
+        ``(groups_to, group_display)``. ``groups_to`` is keyed by ``matching_key`` (so it
+        matches the keyed wish targets); ``group_display`` maps each key back to the group
+        name as entered, for the report layer.
+    """
     df = pd.read_excel(path_groups_to)
     schema = pa.DataFrameSchema(
         {
@@ -407,11 +447,13 @@ def read_groups_excel(path_groups_to) -> dict:
 
     df = validate_schema_with_filetype(df, schema, filetype="groepen")
 
-    return (
-        df.assign(Groepen=lambda df: df["Groepen"].apply(clean_name))
+    group_display = {matching_key(g): display_name(g) for g in df["Groepen"]}
+    groups_to = (
+        df.assign(Groepen=lambda df: df["Groepen"].apply(matching_key))
         .set_index("Groepen")
         .to_dict(orient="index")
     )
+    return groups_to, group_display
 
 
 class EdexReader:  # pylint: disable=too-few-public-methods  # data exposed via attributes set in __init__
