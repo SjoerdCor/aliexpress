@@ -32,11 +32,13 @@ def _safe_read(fn, *, filetype, technical_message, catch=Exception):
 
 
 def _read_groups(path):
-    return _safe_read(
+    """Return the target groups dict (keyed by matching_key)."""
+    groups_to, _group_display = _safe_read(
         lambda: datareader.read_groups_excel(path),
         filetype="groepen",
         technical_message="Could not read groups_to",
     )
+    return groups_to
 
 
 def _read_preferences(path, groups_to):

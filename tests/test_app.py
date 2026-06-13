@@ -122,7 +122,7 @@ class TestUploadErrors:
         monkeypatch.setattr(
             flask_module.datareader,
             "read_groups_excel",
-            lambda _path: {"Klas A": None},
+            lambda _path: ({"Klas A": None}, {"Klas A": "Klas A"}),
         )
 
         response = client.post(
@@ -145,7 +145,7 @@ class TestUploadErrors:
         monkeypatch.setattr(
             flask_module.datareader,
             "read_groups_excel",
-            lambda _path: {"Klas A": None},
+            lambda _path: ({"Klas A": None}, {"Klas A": "Klas A"}),
         )
 
         # VoorkeurenProcessor reads with header=None and accesses rows 0-2 to build
@@ -350,7 +350,10 @@ class TestNotTogetherPage:
         monkeypatch.setattr(
             flask_module.datareader,
             "read_groups_excel",
-            lambda _: {"Klas A": None, "Klas B": None},
+            lambda _: (
+                {"Klas A": None, "Klas B": None},
+                {"Klas A": "Klas A", "Klas B": "Klas B"},
+            ),
         )
         mock_proc = MagicMock()
         mock_proc.get_students_meta_info.return_value = {"Alice": {}, "Bob": {}}
@@ -403,7 +406,9 @@ class TestStartDistribution:
             flask_module, "distribute_students_once", MagicMock(return_value={})
         )
         monkeypatch.setattr(
-            flask_module.datareader, "read_groups_excel", lambda _: {"Klas A": None}
+            flask_module.datareader,
+            "read_groups_excel",
+            lambda _: ({"Klas A": None}, {"Klas A": "Klas A"}),
         )
         monkeypatch.setattr(flask_module.sociogram, "SociogramMaker", MagicMock())
         monkeypatch.setattr(flask_module.sociogram, "networkx_to_plotly", MagicMock())

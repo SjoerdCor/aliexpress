@@ -175,15 +175,31 @@ def test_toggle_negative_weights_liever_niet_met():
     "input_str,expected",
     [
         ("  John  ", "John"),
-        ("<script>", "Script"),
+        ("<script>", "Script"),  # HTML-unsafe chars stripped
         ("ANNa-MAriE", "Anna-Marie"),
-        ("Anne marie", "AnneMarie"),
+        ("Anne marie", "AnneMarie"),  # spaces removed, case folded
         (42, 42),  # not a string
     ],
 )
-def test_clean_name(input_str, expected):
-    """Test that clean_name function correctly cleans names."""
-    assert datareader.clean_name(input_str) == expected
+def test_matching_key(input_str, expected):
+    """matching_key strips HTML-unsafe chars and spaces, and folds case."""
+    assert datareader.matching_key(input_str) == expected
+
+
+@pytest.mark.parametrize(
+    "input_str,expected",
+    [
+        ("  John  ", "John"),  # only edge whitespace trimmed
+        ("Anne Claire", "Anne Claire"),  # spaces preserved
+        ("van der Berg", "van der Berg"),  # capitals/spaces preserved
+        ("McDonald", "McDonald"),
+        ("O'Brien", "O'Brien"),  # apostrophe kept
+        (42, 42),  # not a string
+    ],
+)
+def test_display_name(input_str, expected):
+    """display_name keeps the name as entered, only trimming edge whitespace."""
+    assert datareader.display_name(input_str) == expected
 
 
 @patch("aliexpress.datareader.pd.read_excel")
@@ -677,8 +693,9 @@ def test_read_groups_excel_success(mock_read_excel):
         }
     )
     mock_read_excel.return_value = df
-    result = datareader.read_groups_excel("groups.xlsx")
-    assert result == {"DeFlamingos": {"Jongens": 5, "Meisjes": 6}}
+    groups_to, group_display = datareader.read_groups_excel("groups.xlsx")
+    assert groups_to == {"DeFlamingos": {"Jongens": 5, "Meisjes": 6}}
+    assert group_display == {"DeFlamingos": "De Flamingo's"}
 
 
 @patch("aliexpress.datareader.pd.read_excel")
