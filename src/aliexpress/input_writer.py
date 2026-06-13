@@ -13,6 +13,31 @@ from .datareader import VOORKEUREN_SCHEMA
 logger = logging.getLogger(__name__)
 
 
+def _column_dropdown(type_wens, type_waarde):
+    """Return the dropdown category for a schema column, or None if no dropdown applies."""
+    if type_wens == "Jongen/meisje":
+        return "geslacht"
+    if type_wens == "Niet in" and type_waarde == "Waarde":
+        return "groepen"
+    if type_wens in ("Graag met", "Liever niet met") and type_waarde == "Waarde":
+        return "leerlingen_en_groepen"
+    return None
+
+
+def _dropdown_columns(dropdown_type):
+    """Return the concatenated Excel column letters for schema columns of the given type.
+
+    Column A is the Leerling row index; schema columns start at B (position 0 → B).
+    """
+    return "".join(
+        chr(ord("B") + i)
+        for i, (type_wens, _, type_waarde) in enumerate(
+            VOORKEUREN_SCHEMA.columns.keys()
+        )
+        if _column_dropdown(type_wens, type_waarde) == dropdown_type
+    )
+
+
 def add_data_validations(wb):
     """Add data validations to workbook
 
@@ -22,19 +47,19 @@ def add_data_validations(wb):
     val_specs = [
         (
             "Sheet2!$A:$A",
-            "C",
+            _dropdown_columns("geslacht"),
             "Verkeerd ingevuld geslacht",
             "Het geslacht moet of 'Jongen' of 'Meisje' zijn",
         ),
         (
             "Sheet2!$B:$B",
-            "QR",
+            _dropdown_columns("groepen"),
             "Onbekende groep",
             "Spel de groepsnaam exact zoals deze in de lijst staat",
         ),
         (
             "Sheet2!$C:$C",
-            "EGIKMO",
+            _dropdown_columns("leerlingen_en_groepen"),
             "Onbekende groep of leerling",
             "Spel de naam exact zoalsdeze in de lijst staat",
         ),
