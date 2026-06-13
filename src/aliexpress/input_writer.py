@@ -3,11 +3,39 @@
 import logging
 from io import BytesIO
 
+import numpy as np
 import openpyxl
 import pandas as pd
 from openpyxl.worksheet.datavalidation import DataValidation
 
+from .datareader import VOORKEUREN_SCHEMA
+
 logger = logging.getLogger(__name__)
+
+
+def _column_dropdown(type_wens, type_waarde):
+    """Return the dropdown category for a schema column, or None if no dropdown applies."""
+    if type_wens == "Jongen/meisje":
+        return "geslacht"
+    if type_wens == "Niet in" and type_waarde == "Waarde":
+        return "groepen"
+    if type_wens in ("Graag met", "Liever niet met") and type_waarde == "Waarde":
+        return "leerlingen_en_groepen"
+    return None
+
+
+def _dropdown_columns(dropdown_type):
+    """Return the concatenated Excel column letters for schema columns of the given type.
+
+    Column A is the Leerling row index; schema columns start at B (position 0 → B).
+    """
+    return "".join(
+        chr(ord("B") + i)
+        for i, (type_wens, _, type_waarde) in enumerate(
+            VOORKEUREN_SCHEMA.columns.keys()
+        )
+        if _column_dropdown(type_wens, type_waarde) == dropdown_type
+    )
 
 
 def add_data_validations(wb):
@@ -19,19 +47,19 @@ def add_data_validations(wb):
     val_specs = [
         (
             "Sheet2!$A:$A",
-            "C",
+            _dropdown_columns("geslacht"),
             "Verkeerd ingevuld geslacht",
             "Het geslacht moet of 'Jongen' of 'Meisje' zijn",
         ),
         (
             "Sheet2!$B:$B",
-            "QR",
+            _dropdown_columns("groepen"),
             "Onbekende groep",
             "Spel de groepsnaam exact zoals deze in de lijst staat",
         ),
         (
             "Sheet2!$C:$C",
-            "EGIKMO",
+            _dropdown_columns("leerlingen_en_groepen"),
             "Onbekende groep of leerling",
             "Spel de naam exact zoalsdeze in de lijst staat",
         ),
@@ -82,3 +110,29 @@ def create_prefilled_excel(groups_to: list, df_total: pd.DataFrame) -> BytesIO:
     output.seek(0)
 
     return output
+
+
+def write_preferences_to_excel(df, fname, **kwargs):
+    """Write a voorkeuren DataFrame to Excel, prepending the three-row MultiIndex header.
+
+    Pandas cannot write a MultiIndex-with-nan column header directly, so the header is
+    materialised as plain rows derived from VOORKEUREN_SCHEMA.  kwargs are forwarded to
+    .to_excel().
+    """
+    keys = list(VOORKEUREN_SCHEMA.columns.keys())
+    df_header = pd.DataFrame(
+        [
+            ["Leerling"] + [k[0] for k in keys],
+            [np.nan] + [k[1] for k in keys],
+            [np.nan] + [k[2] for k in keys],
+        ]
+    )
+    assert df_header.shape[1] == df.shape[1]
+    concatted = pd.concat(
+        [
+            df_header.set_axis(range(df_header.shape[1]), axis="columns"),
+            df.set_axis(range(df.shape[1]), axis="columns"),
+        ],
+        ignore_index=True,
+    )
+    return concatted.to_excel(fname, index=False, header=False, **kwargs)

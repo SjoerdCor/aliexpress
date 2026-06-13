@@ -159,6 +159,51 @@ def to_html_id(name: str) -> str:
     return re.sub(r"[-<>&\"'`=/\\ ]", "_", str(name).strip())
 
 
+# ---------------------------------------------------------------------------
+# Voorkeuren column schema — single source of truth
+#
+# All downstream representations (Excel header rows, data-validation column
+# letters in the fill-in template) are derived from this schema's column
+# keys.  Edit here to change every consumer at once.
+# ---------------------------------------------------------------------------
+
+_waarde_check = pa.Column(object, nullable=True, coerce=True)
+_gewicht_check = pa.Column(
+    float, checks=pa.Check.greater_than(0), nullable=True, coerce=True
+)
+
+VOORKEUREN_SCHEMA = pa.DataFrameSchema(
+    {
+        ("MinimaleTevredenheid", np.nan, np.nan): pa.Column(
+            float,
+            checks=pa.Check.less_than_or_equal_to(1),
+            nullable=True,
+            coerce=True,
+        ),
+        ("Jongen/meisje", np.nan, np.nan): pa.Column(
+            str, checks=pa.Check.isin(["Jongen", "Meisje"]), coerce=True
+        ),
+        ("Stamgroep", np.nan, np.nan): pa.Column(str),
+        ("Graag met", 1.0, "Waarde"): _waarde_check,
+        ("Graag met", 1.0, "Gewicht"): _gewicht_check,
+        ("Graag met", 2.0, "Waarde"): _waarde_check,
+        ("Graag met", 2.0, "Gewicht"): _gewicht_check,
+        ("Graag met", 3.0, "Waarde"): _waarde_check,
+        ("Graag met", 3.0, "Gewicht"): _gewicht_check,
+        ("Graag met", 4.0, "Waarde"): _waarde_check,
+        ("Graag met", 4.0, "Gewicht"): _gewicht_check,
+        ("Graag met", 5.0, "Waarde"): _waarde_check,
+        ("Graag met", 5.0, "Gewicht"): _gewicht_check,
+        ("Liever niet met", 1.0, "Waarde"): _waarde_check,
+        ("Liever niet met", 1.0, "Gewicht"): _gewicht_check,
+        ("Niet in", 1.0, "Waarde"): _waarde_check,
+        ("Niet in", 2.0, "Waarde"): _waarde_check,
+    },
+    index=pa.Index(pa.String, unique=True, coerce=True),
+    checks=[create_check_empty_df()],
+)
+
+
 class VoorkeurenProcessor:
     """Read and transform the input sheet to a workable DataFrame"""
 
@@ -222,53 +267,18 @@ class VoorkeurenProcessor:
             df[col] = df[col].apply(matching_key)
         return df
 
-    def _validate_input(self, df: pd.DataFrame) -> pd.DataFrame:
-        # This "coerce" in pandera is a bit ugly, not separating concerns
-        # But it does work very easily
-        waarde_check = pa.Column(object, nullable=True, coerce=True)
-        gewicht_check = pa.Column(
-            float, checks=pa.Check.greater_than(0), nullable=True, coerce=True
-        )
-        schema = pa.DataFrameSchema(
-            {
-                ("MinimaleTevredenheid", np.nan, np.nan): pa.Column(
-                    float,
-                    checks=pa.Check.less_than_or_equal_to(1),
-                    nullable=True,
-                    coerce=True,
-                ),
-                ("Jongen/meisje", np.nan, np.nan): pa.Column(
-                    str, checks=pa.Check.isin(["Jongen", "Meisje"]), coerce=True
-                ),
-                ("Stamgroep", np.nan, np.nan): pa.Column(str),
-                ("Graag met", 1.0, "Waarde"): waarde_check,
-                ("Graag met", 1.0, "Gewicht"): gewicht_check,
-                ("Graag met", 2.0, "Waarde"): waarde_check,
-                ("Graag met", 2.0, "Gewicht"): gewicht_check,
-                ("Graag met", 3.0, "Waarde"): waarde_check,
-                ("Graag met", 3.0, "Gewicht"): gewicht_check,
-                ("Graag met", 4.0, "Waarde"): waarde_check,
-                ("Graag met", 4.0, "Gewicht"): gewicht_check,
-                ("Graag met", 5.0, "Waarde"): waarde_check,
-                ("Graag met", 5.0, "Gewicht"): gewicht_check,
-                ("Liever niet met", 1.0, "Waarde"): waarde_check,
-                ("Liever niet met", 1.0, "Gewicht"): gewicht_check,
-                ("Niet in", 1.0, "Waarde"): waarde_check,
-                ("Niet in", 2.0, "Waarde"): waarde_check,
-            },
-            index=pa.Index(pa.String, unique=True, coerce=True),
-            checks=[create_check_empty_df()],
-        )
+    @staticmethod
+    def _validate_input(df: pd.DataFrame) -> pd.DataFrame:
         # This check does not seem to work in pandera (perhaps because
         # of np.nan in the Index)
         expected_columns = pd.MultiIndex.from_tuples(
-            schema.columns.keys(),
+            VOORKEUREN_SCHEMA.columns.keys(),
             names=["TypeWens", "Nr", "TypeWaarde"],
         )
         validate_columns(df, expected_columns, "preferences")
-
-        df = validate_schema_with_filetype(df, schema, filetype="voorkeuren")
-        return df
+        return validate_schema_with_filetype(
+            df, VOORKEUREN_SCHEMA, filetype="voorkeuren"
+        )
 
     def restructure(self) -> None:
         """Restructures voorkeuren DataFrame from wide to long format with default values."""
