@@ -117,9 +117,9 @@ class ProblemSolver:
 
     optimize, str (default = "studentsatisfaction")
         What to optimize for: "studentsatisfaction" (total satisfaction of the students,
-        where satisfaction is dominated by getting at least 1 preferences),
-        "least_satisfied" (formally, the least satisfied student), "n_preferences"
-        or "weighted_preferences"
+        where satisfaction is dominated by getting at least 1 preference),
+        "least_satisfied" (formally, the least satisfied student), or "lexmaxmin"
+        (plateaud lexicographic max-min over student satisfaction)
     """
 
     def _validate_not_together_students_exist(self):
