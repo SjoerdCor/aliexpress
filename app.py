@@ -423,7 +423,8 @@ def not_together_page():
         groups_to, _ = datareader.read_groups_excel(groups_to_path)
         processor = datareader.VoorkeurenProcessor(preferences_path)
         processor.process(all_to_groups=list(groups_to.keys()))
-        students = sorted(processor.get_students_meta_info().keys())
+        # Show names as entered in the dropdown; matching happens on the key on submit.
+        students = sorted(processor.student_display.values())
     except Exception as exc:  # pylint: disable=broad-exception-caught
         _flash_upload_error(exc)
         return redirect(url_for("student_preferences"))

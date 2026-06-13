@@ -356,7 +356,8 @@ class TestNotTogetherPage:
             ),
         )
         mock_proc = MagicMock()
-        mock_proc.get_students_meta_info.return_value = {"Alice": {}, "Bob": {}}
+        # The dropdown lists the names as entered (display map values).
+        mock_proc.student_display = {"alice": "Alice", "bob": "Bob"}
         monkeypatch.setattr(
             flask_module.datareader, "VoorkeurenProcessor", lambda _: mock_proc
         )
