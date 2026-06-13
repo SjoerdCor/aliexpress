@@ -182,6 +182,11 @@ def distribute_students_once(
     if not_together is None:
         not_together = []
     datareader.validate_not_together(not_together, students_info.keys(), len(groups_to))
+    # Rule groups hold names as entered; the solver matches on the same keys as students.
+    not_together = [
+        {**rule, "group": {datareader.matching_key(s) for s in rule["group"]}}
+        for rule in not_together
+    ]
     on_update("Alle bestanden zijn gevalideerd!")
     logger.info("All files read")
 

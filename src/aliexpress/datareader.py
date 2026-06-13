@@ -145,7 +145,7 @@ def matching_key(x):
     """
     if isinstance(x, str):
         html_safe = re.sub(r"[<>&\"'`=/\\]", "", x)
-        return html_safe.strip().title().replace(" ", "")
+        return html_safe.strip().casefold().replace(" ", "")
     return x
 
 
@@ -199,20 +199,27 @@ class VoorkeurenProcessor:
         return {matching_key(v): display_name(v) for v in values if isinstance(v, str)}
 
     def clean_input(self, df):
-        """Normalize index and string columns to matching keys; capture display maps.
+        """Normalize the name columns to matching keys; capture display maps.
 
-        The working DataFrame is keyed by ``matching_key`` so wishes match students and
-        groups regardless of case or spaces. ``student_display`` and ``stamgroep_display``
-        map those keys back to the name as entered, for the report layer.
+        Only name-bearing fields are normalized: the Leerling index, the Stamgroep column
+        and the wish-target 'Waarde' columns. Other fields (Jongen/meisje,
+        MinimaleTevredenheid, Gewicht) are left untouched, so case-folding the keys cannot
+        corrupt e.g. the sex labels. The working DataFrame ends up keyed by ``matching_key``
+        so wishes match students and groups regardless of case or spaces;
+        ``student_display`` and ``stamgroep_display`` map those keys back to the name as
+        entered, for the report layer.
         """
         self.student_display = self._display_map(df.index)
-
         df.index = df.index.map(matching_key)
+
         for col in df.columns:
-            if df[col].dtype == "object":
-                if isinstance(col, tuple) and col[0] == "Stamgroep":
-                    self.stamgroep_display = self._display_map(df[col])
-                df[col] = df[col].apply(matching_key)
+            type_wens = col[0] if isinstance(col, tuple) else col
+            type_waarde = col[2] if isinstance(col, tuple) and len(col) > 2 else None
+            if type_wens == "Stamgroep":
+                self.stamgroep_display = self._display_map(df[col])
+            elif type_waarde != "Waarde":
+                continue
+            df[col] = df[col].apply(matching_key)
         return df
 
     def _validate_input(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -379,8 +386,10 @@ def validate_not_together(
 ) -> list[dict]:
     """Validate not-together rules against the known student list and group count.
 
-    Works on the list[dict] structure — no xlsx required.
-    Raises ValidationError on invalid input; returns rules unchanged when valid.
+    Rule groups hold names as entered; matching is done on the ``matching_key`` so case
+    and spacing do not matter, while any error message reports the name as the user typed
+    it. Works on the list[dict] structure — no xlsx required. Raises ValidationError on
+    invalid input; returns rules unchanged when valid.
     """
     known = {matching_key(s) for s in students}
     for i, rule in enumerate(rules, start=1):
@@ -400,7 +409,7 @@ def validate_not_together(
                 context={"rule_index": i, "max_samen": max_samen},
             )
 
-        unknown = sorted(s for s in group if s not in known)
+        unknown = sorted(s for s in group if matching_key(s) not in known)
         if unknown:
             raise ValidationError(
                 "unknown_student_not_together",
