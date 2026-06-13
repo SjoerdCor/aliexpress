@@ -48,9 +48,9 @@ load_dotenv()
 
 env = os.getenv("FLASK_ENV", "production")
 if env == "development":
-    from src.aliexpress.appconfig import DevelopmentConfig as ConfigClass
+    from aliexpress.appconfig import DevelopmentConfig as ConfigClass
 else:
-    from src.aliexpress.appconfig import ProductionConfig as ConfigClass
+    from aliexpress.appconfig import ProductionConfig as ConfigClass
 
 app = Flask(__name__)
 app.config.from_object(ConfigClass)
