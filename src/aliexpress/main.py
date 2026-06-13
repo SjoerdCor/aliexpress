@@ -32,13 +32,12 @@ def _safe_read(fn, *, filetype, technical_message, catch=Exception):
 
 
 def _read_groups(path):
-    """Return the target groups dict (keyed by matching_key)."""
-    groups_to, _group_display = _safe_read(
+    """Return ``(groups_to, group_display)`` for the target groups file."""
+    return _safe_read(
         lambda: datareader.read_groups_excel(path),
         filetype="groepen",
         technical_message="Could not read groups_to",
     )
-    return groups_to
 
 
 def _read_preferences(path, groups_to):
@@ -123,10 +122,18 @@ def _check_feasibility(ps):
     )
 
 
-def _export(ps, preferences, processor, students_info):
+def _export(ps, preferences, processor, students_info, group_display):
     """Build the download workbook and result tables from the already-solved problem."""
     sa = solutions.SolutionAnalyzer(
-        ps.extract_solution(), preferences, processor.input, students_info
+        ps.extract_solution(),
+        preferences,
+        processor.input,
+        students_info,
+        display_names=solutions.DisplayNames(
+            student=processor.student_display,
+            group=group_display,
+            stamgroep=processor.stamgroep_display,
+        ),
     )
 
     output = BytesIO()
@@ -168,7 +175,7 @@ def distribute_students_once(
             :meth:`ProblemSolver.solve_within_minimal_relaxation`). Pass a GroupBalance to
             override this with fixed manual limits instead.
     """
-    groups_to = _read_groups(path_groups_to)
+    groups_to, group_display = _read_groups(path_groups_to)
     processor, preferences = _read_preferences(path_preferences, groups_to)
 
     students_info = processor.get_students_meta_info()
@@ -198,7 +205,7 @@ def distribute_students_once(
         logger.info("Finding first solution... lexmaxmin")
         ps.run()
 
-    output, dfs = _export(ps, preferences, processor, students_info)
+    output, dfs = _export(ps, preferences, processor, students_info, group_display)
     logger.info("Done!")
     on_update("Klaar!")
     return {"download": output, "dataframes": dfs}

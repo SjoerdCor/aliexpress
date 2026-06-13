@@ -202,6 +202,13 @@ def test_display_name(input_str, expected):
     assert datareader.display_name(input_str) == expected
 
 
+def test_matching_key_collapses_case_and_space():
+    """A wish and a student spelled with different case/spacing match on the same key."""
+    assert datareader.matching_key("anne claire") == datareader.matching_key(
+        "Anne Claire"
+    )
+
+
 @patch("aliexpress.datareader.pd.read_excel")
 def test_voorkeuren_processor_init(mock_read_excel, valid_voorkeuren_df):
     """Test that VoorkeurenProcessor initializes correctly with a valid DataFrame."""
