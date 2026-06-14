@@ -21,6 +21,12 @@
     {% endwith %}
 
     <div class="container">
+        {% if current_user.is_authenticated %}
+        <div class="school-bar">
+            <span>{{ current_user.naam }}</span>
+            <a href="{{ url_for('logout') }}" class="logout-link">Uitloggen</a>
+        </div>
+        {% endif %}
         <div class="stepper">
             <div class="step {% if current_step > 1 %}done{% elif current_step == 1 %}active{% endif %}">
                 <span>Schoolinformatie<br>uploaden</span>

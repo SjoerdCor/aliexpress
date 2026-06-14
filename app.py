@@ -11,7 +11,6 @@ from dataclasses import dataclass
 from io import BytesIO
 from threading import Thread
 
-import numpy as np
 import pandas as pd
 import pandera as pa
 from dotenv import load_dotenv
@@ -28,6 +27,8 @@ from flask import (
     session,
     url_for,
 )
+from flask_login import current_user, login_required, login_user, logout_user
+from werkzeug.security import check_password_hash
 
 from aliexpress import candidatedetermination, datareader, input_writer, sociogram
 from aliexpress.cli import schools as schools_cli
@@ -41,6 +42,7 @@ from aliexpress.extensions import db, login_manager
 from aliexpress.logging_config import add_file_handler, configure_logging
 from aliexpress.main import distribute_students_once
 from aliexpress.models import LogLine, Run, School
+from aliexpress.validation_messages import to_validation_message
 
 configure_logging()
 logger = logging.getLogger("aliexpress.app")  # file handler added below
@@ -153,7 +155,33 @@ def home():
     return render_template("home.html")
 
 
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    """Show and handle the school login form."""
+    if current_user.is_authenticated:
+        return redirect(url_for("processes"))
+    if request.method == "POST":
+        schoolcode = request.form.get("schoolcode", "").strip()
+        password = request.form.get("wachtwoord", "")
+        school = db.session.get(School, schoolcode)
+        if school is None or not check_password_hash(school.password_hash, password):
+            flash("Ongeldige schoolcode of wachtwoord.", "error")
+            return render_template("login.html")
+        login_user(school, remember=False)
+        return redirect(url_for("processes"))
+    return render_template("login.html")
+
+
+@app.route("/logout")
+@login_required
+def logout():
+    """Log the school out and redirect to the login page."""
+    logout_user()
+    return redirect(url_for("login"))
+
+
 @app.route("/processes")
+@login_required
 def processes():
     """Display page to create or choose process"""
     existing_processes = [
@@ -179,6 +207,7 @@ def _validate_process_name(process_name, must_exist=True):
 
 
 @app.route("/processes/create", methods=["POST"])
+@login_required
 def create_process():
     """Create a new process"""
     process_name = request.form.get("process_name", "").strip()
@@ -192,6 +221,7 @@ def create_process():
 
 
 @app.route("/processes/delete/<process_name>", methods=["POST"])
+@login_required
 def delete_process(process_name):
     """Delete a process"""
     if error := _validate_process_name(process_name, must_exist=True):
@@ -203,6 +233,7 @@ def delete_process(process_name):
 
 
 @app.route("/processes/select/<process_id>")
+@login_required
 def select_process(process_id):
     """Select process"""
     path = get_process_path(process_id)
@@ -234,6 +265,7 @@ def download_template(filename):
 
 
 @app.route("/download_preferences")
+@login_required
 @require_process
 def download_preferences():
     """Download the original, filled-in preferences file as the teacher uploaded it.
@@ -260,6 +292,7 @@ def download_preferences():
 
 
 @app.route("/upload_edexml", methods=["GET", "POST"])
+@login_required
 def upload_edexml():
     """Route to upload edexml"""
     if request.method == "GET":
@@ -308,6 +341,7 @@ def _load_groups_to_state(process_id):
 
 
 @app.route("/groups_to", methods=["GET", "POST"])
+@login_required
 @require_process
 def groups_to_page():
     """Display and process the groups_to page"""
@@ -366,6 +400,7 @@ def _save_student_selection(process_id, selected_ids, new_students):
 
 
 @app.route("/student_preferences", methods=["GET", "POST"])
+@login_required
 @require_process
 def student_preferences():
     """Display page where the teacher can add preferences for the student"""
@@ -421,6 +456,7 @@ def student_preferences():
 
 
 @app.route("/upload_preferences", methods=["POST"])
+@login_required
 @require_process
 def upload_preferences():
     """Handle the upload of the preferences file, or continue with an earlier upload.
@@ -496,6 +532,7 @@ def _parse_not_together_form(form, n_rules):
 
 
 @app.route("/not_together", methods=["GET", "POST"])
+@login_required
 @require_process
 def not_together_page():
     """Display and process the not-together rules page"""
@@ -643,181 +680,10 @@ def parse_groups_to_form(form, groups_to: dict) -> GroupsToSubmission:
     return GroupsToSubmission(distribution=distribution, state=state)
 
 
-def to_validation_message(exc: Exception) -> str:
-    """Convert a validation exception to a user-friendly message"""
-    if isinstance(exc, pa.errors.SchemaError):
-        return schemaerror_to_validation_message(exc)
-    if isinstance(exc, (ValidationError, CouldNotReadFileError, FeasibilityError)):
-        return readableerror_to_validation_message(exc)
-    return (
-        "Er is iets onverwachts misgegaan. Het probleem is gelogd. "
-        "Laat de maker dit onderzoeken."
-    )
-
-
 def _flash_upload_error(exc: Exception) -> None:
     """Log a rejected upload and flash a friendly Dutch message to the user."""
     logger.exception("Upload rejected")
     flash(to_validation_message(exc), "error")
-
-
-def readableerror_to_validation_message(exc: Exception) -> str:
-    """Convert a validation exception to a user-friendly message"""
-    friendly_templates = {
-        "wrong_columns_preferences": (
-            "Het voorkeuren-bestand heeft de verkeerde kolommen. Controleer of je het goede"
-            " bestand hebt geupload en het meest recente template hebt gebruikt. "
-            "\n{wrong_columns}"
-        ),
-        "infeasible_problem": (
-            "Met deze vereiste klassenbalans en verdeling van leerlingen die overgaan is het"
-            "niet mogelijk. Overweeg de volgende versoepelingen om het probleem wel op te "
-            "lossen:\n {possible_improvement}"
-        ),
-        "internal_error": (
-            "Er is iets onverwachts misgegaan. Het probleem is gelogd. "
-            "Laat de maker dit onderzoeken."
-        ),
-        "too_few_students_not_together": (
-            "Niet-samen-regel {rule_index} heeft minder dan 2 leerlingen. "
-            "Voeg minstens 2 leerlingen toe."
-        ),
-        "invalid_max_samen_not_together": (
-            "Niet-samen-regel {rule_index}: het maximale aantal samen moet minstens 1 zijn."
-        ),
-        "unknown_student_not_together": (
-            "In de niet-samen-regels staan onbekende leerlingen: {unknown_students}. "
-            "Controleer of de namen overeenkomen met het voorkeuren-bestand."
-        ),
-        "too_strict_not_together": (
-            "Niet-samen-regel {rule_index}: met {n_groups} groepen is het niet mogelijk om "
-            "{n_students} leerlingen te verdelen met maximaal {max_samen} bij elkaar."
-        ),
-    }
-
-    template = friendly_templates.get(exc.code, None)
-    if template:
-        return template.format(**exc.context)
-    return (
-        "Er is iets onverwachts misgegaan. Het probleem is gelogd. "
-        "Laat de maker dit onderzoeken."
-    )
-
-
-# Deliberately overruling pylint here; we need a branch per validation
-# pylint: disable=too-many-return-statements, too-many-branches
-def schemaerror_to_validation_message(exc: pa.errors.SchemaError) -> str:
-    """Convert a pandera SchemaError to a user-friendly message
-
-    This SchemaError must have been modified to contain a 'filetype' attribute.
-    """
-    if exc.reason_code in (
-        pa.errors.SchemaErrorReason.COLUMN_NOT_IN_SCHEMA,
-        pa.errors.SchemaErrorReason.COLUMN_NOT_IN_DATAFRAME,
-    ):
-        return (
-            f"Het {exc.filetype}-bestand heeft de verkeerde kolommen. Controleer of je het goede"
-            " bestand hebt geupload en het meest recente template hebt gebruikt. "
-            f"\n{exc.failure_cases}"
-        )
-    if exc.reason_code == pa.errors.SchemaErrorReason.DATATYPE_COERCION:
-        return (
-            f"Ongeldige waarden gevonden in kolom {exc.schema.name} "
-            f"van het {exc.filetype}-bestand"
-        )
-    if exc.reason_code == pa.errors.SchemaErrorReason.SERIES_CONTAINS_NULLS:
-        students = getattr(exc, "offending_students", [])
-        if students:
-            return (
-                f"In het {exc.filetype}-bestand mist een waarde bij: "
-                f"{', '.join(students)}. Vul bij elke wens een naam of groep in, of haal "
-                "het bijbehorende gewicht weg als er geen wens is."
-            )
-        return (
-            f"In het {exc.filetype}-bestand zijn niet alle verplichte velden gevuld "
-            f"(kolom {exc.column_name})."
-        )
-    if exc.reason_code == pa.errors.SchemaErrorReason.SERIES_CONTAINS_DUPLICATES:
-        if exc.filetype == "voorkeuren":
-            duplicates = ", ".join(exc.failure_cases["failure_case"])
-            return (
-                f"In voorkeuren is de volgende naam/namen niet uniek: {duplicates}\n"
-                "Voeg de eerste letter van de achternaam toe om de leerlingen van "
-                "elkaar te onderscheiden."
-            )
-        return (
-            f"In het {exc.filetype}-bestand zijn dubbelingen ingevuld "
-            f"in kolom {exc.column_name}"
-        )
-
-    if exc.reason_code == pa.errors.SchemaErrorReason.DATAFRAME_CHECK:
-        if exc.check.name == "empty_df":
-            return (
-                f"Het {exc.filetype}-bestand was helemaal leeg. Daardoor kan er "
-                "geen groepsindeling worden berekend"
-            )
-        if exc.column_name == ("Jongen/meisje", np.nan, np.nan):
-            return f"Verkeerd ingevuld geslacht voor {', '.join(exc.failure_cases['index'])}"
-        if exc.check.name == "greater_than" and "Gewicht" in exc.column_name:
-            return "Er zijn negatieve gewichten in het voorkeurenbestand."
-        if exc.check.name == "duplicated_values_preferences":
-            students_with_duplicates = ", ".join(
-                set(exc.failure_cases["index"].get_level_values("Leerling"))
-            )
-            return (
-                "In het voorkeuren-bestand is voor "
-                f"{students_with_duplicates} een leerling of groep gevonden die "
-                "dubbel voorkomt. Tel ze op of streep ze tegen elkaar weg om "
-                "dubbelingen te voorkomen."
-            )
-        if exc.check.name == "invalid_values_preferences":
-            invalid_values = ", ".join(
-                set(
-                    exc.failure_cases.loc[
-                        lambda df: df["column"] == "Waarde", "failure_case"
-                    ]
-                )
-            )
-            return f"Onbekende leerling of groep in categorie: {invalid_values}"
-        if exc.check.name == "isin" and exc.filetype == "niet_samen":
-            unknown_students = ", ".join(exc.failure_cases["failure_case"].astype(str))
-            return (
-                f"In het niet-samen-bestand komt {unknown_students} voor, "
-                "die niet in het voorkeurenbestand voorkomt"
-            )
-        if exc.check.name == "duplicated_students_not_together":
-            rows = ", ".join(set(exc.failure_cases["index"].add(1).astype(str)))
-            duplicated_students = ", ".join(
-                exc.failure_cases.groupby("index")["failure_case"].apply(
-                    lambda s: s[s.duplicated()]
-                )
-            )
-            return (
-                f"In het niet-samen-bestand wordt in de {rows}e "
-                f"groep dezelfde leerling meerdere keren genoemd: {duplicated_students}"
-            )
-        if exc.check.name == "too_strict_not_together":
-            rows = ", ".join(set(exc.failure_cases["index"].add(1).astype(str)))
-            max_samen = ", ".join(
-                exc.failure_cases.loc[
-                    lambda df: df["column"] == "Max aantal samen", "failure_case"
-                ].astype(str)
-            )
-            nr_students = ", ".join(
-                exc.failure_cases.groupby("index").size().sub(1).astype(str)
-            )
-
-            return (
-                f"In het niet-samen-bestand op de {rows}e rij is de maximale "
-                f"groepsgrootte te klein: met dit aantal groepen lukt het niet om {nr_students} "
-                f"leerlingen te verdelen met maximaal {max_samen} bij elkaar."
-            )
-
-    return (
-        f"Er is iets onverwachts misgegaan bij het lezen van {exc.filetype}. "
-        "Controleer het bestand goed en of je het meest recente template hebt gebruikt. "
-        "Als het probleem blijft bestaan, laat de maker dit onderzoeken."
-    )
 
 
 def _handle_failure(exc, process_id):
@@ -837,6 +703,7 @@ def _handle_failure(exc, process_id):
 
 
 @app.route("/start_distribution", methods=["GET"])
+@login_required
 @require_process
 def start_distribution():
     """Start the student distribution using stored input files"""
@@ -914,6 +781,7 @@ def start_distribution():
 
 
 @app.route("/status")
+@login_required
 @require_process
 def status():
     """Return the current process's run status and log lines as JSON."""
@@ -930,6 +798,7 @@ def status():
 
 
 @app.route("/processing")
+@login_required
 @require_process
 def processing():
     """Display processing page"""
@@ -937,6 +806,7 @@ def processing():
 
 
 @app.route("/handle-error", methods=["POST"])
+@login_required
 def handle_error():
     """Show information about errors to user"""
     data = request.get_json()
@@ -947,6 +817,7 @@ def handle_error():
 
 
 @app.route("/sociogram")
+@login_required
 @require_process
 def show_sociogram():
     """Display the sociogram for the current process"""
@@ -960,6 +831,7 @@ def show_sociogram():
 
 
 @app.route("/result")
+@login_required
 @require_process
 def result_page():
     """Display result for the current process"""
@@ -973,6 +845,7 @@ def result_page():
 
 
 @app.route("/download")
+@login_required
 @require_process
 def download():
     """Download the groepsindeling for the current process"""
@@ -990,6 +863,7 @@ def download():
 
 
 @app.route("/done")
+@login_required
 def done():
     """Show done page"""
     return render_template("done.html")
