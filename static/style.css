@@ -419,6 +419,12 @@ table.dataframe th {
   opacity: 0.5;
 }
 
+/* A switched-off group keeps its ticks (they still submit, to be restored later) but
+   must not be editable; the header button stays clickable to switch it back on. */
+.group-block.group-disabled .student-list {
+  pointer-events: none;
+}
+
 .group-header {
   display: flex;
   align-items: center;
