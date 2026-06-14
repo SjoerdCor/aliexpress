@@ -181,6 +181,32 @@ def download_template(filename):
     return send_from_directory("input_templates", filename, as_attachment=True)
 
 
+@app.route("/download_preferences")
+@require_process
+def download_preferences():
+    """Download the original, filled-in preferences file as the teacher uploaded it.
+
+    This is the richly-formatted upload (with column help and dropdown validations), not
+    the normalised processed file, so the teacher can keep editing it safely.
+    """
+    path = get_file_path(session["process_id"], "preferences_original.xlsx")
+    if not os.path.exists(path):
+        logger.warning(
+            "Download of filled-in preferences requested but none stored for process %s",
+            session["process_id"],
+        )
+        abort(404)
+    logger.info(
+        "Serving stored preferences upload for process %s", session["process_id"]
+    )
+    return send_file(
+        path,
+        as_attachment=True,
+        download_name="voorkeuren (ingevuld).xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+
 @app.route("/upload_edexml", methods=["GET", "POST"])
 def upload_edexml():
     """Route to upload edexml"""
@@ -253,8 +279,14 @@ def student_preferences():
     groups_from = data.get("groups_from", {})
 
     if request.method == "GET":
+        preferences_uploaded = os.path.exists(
+            get_file_path(session["process_id"], "preferences_original.xlsx")
+        )
         return render_template(
-            "student_preferences.html", candidates=candidates, groups_from=groups_from
+            "student_preferences.html",
+            candidates=candidates,
+            groups_from=groups_from,
+            preferences_uploaded=preferences_uploaded,
         )
     new_students = _extract_new_students(request.form)
     selected_ids = request.form.getlist("students")
@@ -288,15 +320,28 @@ def student_preferences():
 def upload_preferences():
     """Handle the upload of the preferences files"""
     try:
-        preferences = file_to_io(request.files["preferences"])
+        raw = request.files["preferences"].read()
         groups_to_path = get_file_path(session["process_id"], "groups.xlsx")
         groups_to_data, _ = datareader.read_groups_excel(groups_to_path)
         groups_to = list(groups_to_data.keys())
-        processor = datareader.VoorkeurenProcessor(preferences)
+        processor = datareader.VoorkeurenProcessor(BytesIO(raw))
         processor.process(all_to_groups=groups_to)  # validates further
         preferences_path = get_file_path(session["process_id"], "preferences.xlsx")
         input_writer.write_preferences_to_excel(
             processor.input.reset_index(), preferences_path
+        )
+        # Keep the original upload so the teacher can download and keep editing the
+        # richly-formatted file with all wishes intact (the processed file above is
+        # normalised and stripped of formatting/validations).
+        original_path = get_file_path(
+            session["process_id"], "preferences_original.xlsx"
+        )
+        with open(original_path, "wb") as fh:
+            fh.write(raw)
+        logger.info(
+            "Preferences accepted for process %s: %d students; kept original upload",
+            session["process_id"],
+            len(processor.input.index),
         )
     except Exception as exc:  # pylint: disable=broad-exception-caught
         _flash_upload_error(exc)
