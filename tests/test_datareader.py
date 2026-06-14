@@ -934,3 +934,23 @@ def test_niet_in_second_column_accepts_group_name(valid_voorkeuren_df):
     processor = datareader.VoorkeurenProcessor.__new__(datareader.VoorkeurenProcessor)
     result = processor._validate_input(df)
     assert result.loc["john", ("Niet in", 2.0, "Waarde")] == "Blauw"
+
+
+def test_missing_wish_value_attaches_student_as_entered():
+    """Regression: a Gewicht without a wish (missing Waarde) must raise a SchemaError
+    that names the offending student by the name as entered, not the matching key."""
+    processor = datareader.VoorkeurenProcessor.__new__(datareader.VoorkeurenProcessor)
+    processor.student_display = {"bob": "Bob B", "alice": "Alice K"}
+    index = pd.MultiIndex.from_tuples(
+        [("bob", "Graag met", 1.0), ("alice", "Graag met", 1.0)],
+        names=["Leerling", "TypeWens", "Nr"],
+    )
+    # 'bob' has a weight but no wish value -> a null in the Waarde column.
+    processor.df = pd.DataFrame(
+        {"Waarde": [np.nan, "alice"], "Gewicht": [2.0, 1.0]}, index=index
+    )
+    processor.input = processor.df
+
+    with pytest.raises(pa.errors.SchemaError) as info:
+        processor.validate_preferences(all_to_groups=["groen"])
+    assert info.value.offending_students == ["Bob B"]

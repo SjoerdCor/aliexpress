@@ -93,10 +93,11 @@
   }
 
   function setGroupEnabled(groupBlock, enabled) {
+    // Only the group's identity is dropped from the submission when switched off; its
+    // checkboxes stay enabled so their ticks are remembered and restored on return.
+    // Interaction is blocked via the .group-disabled CSS, not by disabling them.
     groupBlock.classList.toggle("group-disabled", !enabled);
     groupBlock.querySelector(".group-name-field").disabled = !enabled;
-    groupBlock.querySelectorAll(".student-list input[type=checkbox]")
-      .forEach(cb => cb.disabled = !enabled);
     const btn = groupBlock.querySelector(".group-disable");
     if (btn) btn.textContent = enabled ? "Groep uitzetten" : "Groep aanzetten";
   }
