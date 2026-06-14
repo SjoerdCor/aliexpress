@@ -23,6 +23,16 @@ uv run pre-commit install
 
 The HiGHS solver (`highspy`) is installed automatically as a dependency. Run any command inside the environment with `uv run`, for example `uv run pytest tests/` to run the tests.
 
+The `tests/browser/` suite uses Playwright to drive the real app and cover the page
+JavaScript. It needs the browser installed once:
+
+```bash
+uv run playwright install chromium
+```
+
+The quick loop skips the slow suites with
+`uv run pytest tests/ --ignore=tests/integration --ignore=tests/browser`.
+
 Create a `.env` file containing at least:
 
 ```
