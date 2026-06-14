@@ -8,7 +8,8 @@ import re
 import shutil
 import uuid
 import webbrowser
-from collections import Counter, defaultdict
+from collections import defaultdict
+from dataclasses import dataclass
 from io import BytesIO
 from threading import Thread
 
@@ -239,29 +240,56 @@ def upload_edexml():
     return redirect(url_for("groups_to_page"))
 
 
+def _load_groups_to(process_id) -> dict:
+    """Load the groups-to mapping (groupname → students) from the candidates JSON."""
+    path = get_file_path(process_id, "relevant_students_and_groups.json")
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f).get("groups_to", {})
+
+
+def _load_groups_to_state(process_id):
+    """Load the saved groups-to form state, or None when the page was not filled yet."""
+    path = get_file_path(process_id, "groups_to_state.json")
+    if not os.path.exists(path):
+        return None
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
 @app.route("/groups_to", methods=["GET", "POST"])
 @require_process
 def groups_to_page():
     """Display and process the groups_to page"""
+    process_id = session["process_id"]
+    groups_to = _load_groups_to(process_id)
+
     if request.method == "GET":
-        data_path = get_file_path(
-            session["process_id"], "relevant_students_and_groups.json"
+        return render_template(
+            "groups_to.html",
+            groups_to=groups_to,
+            state=_load_groups_to_state(process_id),
         )
-        with open(data_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        groups_to_data = data.get("groups_to", [])
 
-        return render_template("groups_to.html", groups_to=groups_to_data)
-
-    boy_girl_distribution = extract_selected_per_group(request.form)
-    if len(boy_girl_distribution) < 2:
+    submission = parse_groups_to_form(request.form, groups_to)
+    if len(submission.distribution) < 2:
         error = "Er moeten minsten twee groepen zijn om de leerlingen over te verdelen"
         flash(error, "error")
         return redirect(url_for("groups_to_page"))
 
-    path = get_file_path(session["process_id"], "groups.xlsx")
-    pd.DataFrame(boy_girl_distribution).transpose().to_excel(
+    path = get_file_path(process_id, "groups.xlsx")
+    pd.DataFrame(submission.distribution).transpose().to_excel(
         path, index_label="Groepen"
+    )
+    with open(
+        get_file_path(process_id, "groups_to_state.json"), "w", encoding="utf-8"
+    ) as f:
+        json.dump(submission.state, f, ensure_ascii=False)
+    logger.info(
+        "Groups-to saved for process %s: %d active group(s), %d disabled, %d new",
+        process_id,
+        len(submission.distribution),
+        len(submission.state["disabled_groups"]),
+        len(submission.state["new_groups"]),
     )
     return redirect(url_for("student_preferences"))
 
@@ -468,35 +496,69 @@ def _extract_new_students(form):
     ]
 
 
-def extract_selected_per_group(form) -> dict[str, dict[str, int]]:
+@dataclass
+class GroupsToSubmission:
+    """Parsed groups-to form.
+
+    ``distribution`` holds the retained boy/girl counts per group (written to
+    ``groups.xlsx`` for the solver); ``state`` captures exactly what the teacher did so
+    the page can be restored on return (written to ``groups_to_state.json``).
     """
-    Count the retained boys and girls per group from the submitted form.
 
-    The active groups come from the ``group`` fields, so a group without any
-    retained students is still represented (with a 0/0 count). Per-student
-    genders arrive under ``group_students[<groupname>]``.
+    distribution: dict[str, dict[str, int]]
+    state: dict
 
-    Args:
-        form: werkzeug MultiDict (e.g., request.form)
 
-    Returns:
-        dict[str, dict[str, int]]: groupname → {"Jongens": int, "Meisjes": int}
+def _checked_indices(form, groupname: str, n_students: int) -> list[int]:
+    """Return the submitted student indices for a group, bounded to the known students.
+
+    Checkbox values are the student's position in the groups-to list (not the gender),
+    so the server can both count genders and remember exactly who was ticked.
     """
-    distribution = {
-        groupname: {"Jongens": 0, "Meisjes": 0} for groupname in form.getlist("group")
+    indices = []
+    for raw in form.getlist(f"group_students[{groupname}]"):
+        try:
+            index = int(raw)
+        except ValueError:
+            continue
+        if 0 <= index < n_students:
+            indices.append(index)
+    return indices
+
+
+def parse_groups_to_form(form, groups_to: dict) -> GroupsToSubmission:
+    """Turn the submitted groups-to form into retained counts and a restore state.
+
+    Active groups come from the ``group`` fields. An original group missing from that
+    list was switched off (disabled groups do not submit their name); a submitted name
+    that is not an original group is a teacher-added empty group. Genders are looked up
+    from ``groups_to`` by the submitted student indices, so the counts cannot drift from
+    the source data.
+    """
+    submitted = form.getlist("group")
+    distribution: dict[str, dict[str, int]] = {}
+    original_state: dict[str, dict] = {}
+    new_groups: list[str] = []
+
+    for name in submitted:
+        if name in groups_to:
+            students = groups_to[name]
+            indices = _checked_indices(form, name, len(students))
+            distribution[name] = {
+                "Jongens": sum(students[i]["geslacht"] == "Jongen" for i in indices),
+                "Meisjes": sum(students[i]["geslacht"] == "Meisje" for i in indices),
+            }
+            original_state[name] = {"checked_indices": indices}
+        else:
+            distribution[name] = {"Jongens": 0, "Meisjes": 0}
+            new_groups.append(name)
+
+    state = {
+        "original_groups": original_state,
+        "disabled_groups": [name for name in groups_to if name not in submitted],
+        "new_groups": new_groups,
     }
-
-    for key in form:
-        if not key.startswith("group_students["):
-            continue
-        groupname = key[len("group_students[") : -1]  # text inside [ ]
-        if groupname not in distribution:
-            continue
-        counts = Counter(form.getlist(key))
-        distribution[groupname]["Jongens"] += counts.get("Jongen", 0)
-        distribution[groupname]["Meisjes"] += counts.get("Meisje", 0)
-
-    return distribution
+    return GroupsToSubmission(distribution=distribution, state=state)
 
 
 def to_validation_message(exc: Exception) -> str:

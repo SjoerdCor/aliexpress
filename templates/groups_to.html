@@ -20,7 +20,9 @@
 <form method="post" onsubmit="return validateForm()">
   <div id="groups-to">
     {% for groupname, students in groups_to.items() %}
-      <div class="group-block" data-group="{{ groupname }}">
+      {% set checked_idx = state.original_groups.get(groupname, {}).get('checked_indices', []) if state else none %}
+      {% set is_disabled = state and groupname in state.disabled_groups %}
+      <div class="group-block {% if is_disabled %}group-disabled{% endif %}" data-group="{{ groupname }}">
         <input type="hidden" name="group" value="{{ groupname }}" class="group-name-field">
 
         <div class="group-header">
@@ -35,9 +37,10 @@
               <label>
                 <input type="checkbox"
                        name="group_students[{{ groupname }}]"
-                       value="{{ s.geslacht }}"
+                       value="{{ loop.index0 }}"
                        data-gender="{{ s.geslacht }}"
-                       {% if s.blijft_in_groep %}checked{% endif %}>
+                       {% if state %}{% if loop.index0 in checked_idx %}checked{% endif %}
+                       {% elif s.blijft_in_groep %}checked{% endif %}>
                 {{ s.roepnaam }} {{ s.achternaam }} ({{ s.jaargroep }})
               </label>
             </li>
@@ -47,7 +50,22 @@
     {% endfor %}
   </div>
 
-  <div id="new-groups"></div>
+  <div id="new-groups">
+    {% if state %}
+      {% for name in state.new_groups %}
+        <div class="group-block">
+          <div class="group-header">
+            <input type="text" name="group" class="group-name-field group-name-input" value="{{ name }}" required>
+            <span class="group-count">Jongens: 0 · Meisjes: 0 · Totaal: 0</span>
+            <button type="button" class="button button--small group-remove">Verwijderen</button>
+          </div>
+          <ul class="student-list">
+            <li class="empty-hint">Geen achterblijvers — deze groep wordt gevuld met te verdelen leerlingen.</li>
+          </ul>
+        </div>
+      {% endfor %}
+    {% endif %}
+  </div>
 
   <button class="button" type="button" onclick="addEmptyGroup()">+ Nieuwe lege groep</button>
 
@@ -98,11 +116,15 @@
       <ul class="student-list">
         <li class="empty-hint">Geen achterblijvers — deze groep wordt gevuld met te verdelen leerlingen.</li>
       </ul>`;
-    block.querySelector(".group-remove").addEventListener("click", () => block.remove());
     document.getElementById("new-groups").appendChild(block);
   }
 
   document.addEventListener("DOMContentLoaded", function () {
+    // Restored groups can come in switched off; apply that state to disable their inputs.
+    document.querySelectorAll("#groups-to .group-block.group-disabled")
+      .forEach(block => setGroupEnabled(block, false));
+    // Continue numbering new groups after any that were restored from a previous visit.
+    newGroupSeq = document.querySelectorAll("#new-groups .group-block").length;
     document.querySelectorAll("#groups-to .group-block").forEach(updateCount);
 
     document.addEventListener("change", function (e) {
@@ -115,6 +137,9 @@
       if (e.target.matches(".group-disable")) {
         const block = e.target.closest(".group-block");
         setGroupEnabled(block, block.classList.contains("group-disabled"));
+      }
+      if (e.target.matches(".group-remove")) {
+        e.target.closest(".group-block").remove();
       }
     });
   });
