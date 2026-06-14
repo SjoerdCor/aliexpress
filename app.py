@@ -294,27 +294,49 @@ def groups_to_page():
     return redirect(url_for("student_preferences"))
 
 
+def _load_student_selection(process_id):
+    """Load the saved student selection, or None when the page was not used yet."""
+    path = get_file_path(process_id, "student_selection.json")
+    if not os.path.exists(path):
+        return None
+    with open(path, encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def _save_student_selection(process_id, selected_ids, new_students):
+    """Persist which candidates were ticked and which students were added by hand."""
+    path = get_file_path(process_id, "student_selection.json")
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(
+            {"selected_ids": selected_ids, "new_students": new_students},
+            fh,
+            ensure_ascii=False,
+        )
+
+
 @app.route("/student_preferences", methods=["GET", "POST"])
 @require_process
 def student_preferences():
     """Display page where the teacher can add preferences for the student"""
-    data_path = get_file_path(
-        session["process_id"], "relevant_students_and_groups.json"
-    )
+    process_id = session["process_id"]
+    data_path = get_file_path(process_id, "relevant_students_and_groups.json")
     with open(data_path, "r", encoding="utf-8") as f:
         data = json.load(f)
     candidates = data.get("candidates", [])
     groups_from = data.get("groups_from", {})
 
     if request.method == "GET":
-        preferences_uploaded = os.path.exists(
-            get_file_path(session["process_id"], "preferences_original.xlsx")
-        )
+        selection = _load_student_selection(process_id)
         return render_template(
             "student_preferences.html",
             candidates=candidates,
             groups_from=groups_from,
-            preferences_uploaded=preferences_uploaded,
+            preferences_uploaded=os.path.exists(
+                get_file_path(process_id, "preferences_original.xlsx")
+            ),
+            # None means "first visit": default to all candidates ticked.
+            selected_ids=set(selection["selected_ids"]) if selection else None,
+            saved_new_students=selection["new_students"] if selection else [],
         )
     new_students = _extract_new_students(request.form)
     selected_ids = request.form.getlist("students")
@@ -332,7 +354,10 @@ def student_preferences():
         flash(f"Vond leerlingen dubbel: {exc.context['duplicate_names']}", "error")
         return redirect(url_for("student_preferences"))
 
-    path = get_file_path(session["process_id"], "groups.xlsx")
+    # Remember exactly what the teacher selected so the page restores on return.
+    _save_student_selection(process_id, selected_ids, new_students)
+
+    path = get_file_path(process_id, "groups.xlsx")
     groups_to = pd.read_excel(path, index_col=0).index.tolist()
     buffer = input_writer.create_prefilled_excel(groups_to, df_total)
 

@@ -8,12 +8,28 @@
   <form method="post" action="{{ url_for('student_preferences') }}" onsubmit="return validateForm()">
     {% for student in candidates %}
       <label>
-        <input type="checkbox" name="students" value="{{ student.key }}" checked>
+        <input type="checkbox" name="students" value="{{ student.key }}"
+               {% if selected_ids is none or (student.key|string) in selected_ids %}checked{% endif %}>
         {{ student.roepnaam }} {{ student.achternaam }} ({{ student.groepsnaam }})
       </label>
     {% endfor %}
 
 <ul class="student-list" id="new-students">
+  {% for ns in saved_new_students %}
+  <li>
+    <input type="text" name="new_firstname[]" placeholder="Voornaam" value="{{ ns.roepnaam }}" required>
+    <input type="text" name="new_lastname[]" placeholder="Achternaam" value="{{ ns.achternaam }}" required>
+    <select name="new_gender[]" required>
+      <option value="">Geslacht</option>
+      <option value="Jongen" {% if ns.geslacht == 'Jongen' %}selected{% endif %}>Jongen</option>
+      <option value="Meisje" {% if ns.geslacht == 'Meisje' %}selected{% endif %}>Meisje</option>
+    </select>
+    <select name="new_group[]" required>
+      {% for g in groups_from %}<option value="{{ g }}" {% if g == ns.groepsnaam %}selected{% endif %}>{{ g }}</option>{% endfor %}
+    </select>
+    <button type="button" onclick="this.closest('li').remove()">✖</button>
+  </li>
+  {% endfor %}
   <li class="add-button">
     <button type="button" class="button button--small" onclick="addStudentField(this)">
       + Voeg leerling toe
