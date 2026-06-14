@@ -53,7 +53,10 @@ def _read_preferences(path, groups_to):
     )
 
 
-def _log_initial_state(groups_to, students_info, on_update):
+def _log_initial_state(groups_to, students_info, on_update, stamgroep_display=None):
+    # students_info is keyed by matching key; map the Stamgroep back to the name as
+    # entered for the user-facing messages (logs may keep the internal keys).
+    stamgroep_display = stamgroep_display or {}
     df_groups = pd.DataFrame.from_dict(groups_to, orient="index")
     logger.info(
         "Current groups:\n%s",
@@ -71,7 +74,8 @@ def _log_initial_state(groups_to, students_info, on_update):
     logger.info("Current boy/girl distribution:\n%s", sex_dist)
 
     on_update("Komen uit de volgende groepen:")
-    for group, value in df_students["Stamgroep"].value_counts().items():
+    stamgroepen = df_students["Stamgroep"].map(lambda g: stamgroep_display.get(g, g))
+    for group, value in stamgroepen.value_counts().items():
         on_update(f"{group}: {value}")
 
 
@@ -193,7 +197,7 @@ def distribute_students_once(
     on_update("Alle bestanden zijn gevalideerd!")
     logger.info("All files read")
 
-    _log_initial_state(groups_to, students_info, on_update)
+    _log_initial_state(groups_to, students_info, on_update, processor.stamgroep_display)
 
     ps = problemsolver.ProblemSolver(
         preferences,
