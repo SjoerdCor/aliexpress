@@ -3,6 +3,7 @@
 # pylint: disable=redefined-outer-name  # standard pytest fixture pattern
 
 import json
+import re
 from collections import defaultdict
 from io import BytesIO
 from unittest.mock import MagicMock
@@ -305,6 +306,18 @@ class TestSessionGuard:
         assert response.headers["Location"].endswith("/processes")
 
 
+def _write_groups_to_json(proc_dir, groups_to):
+    """Persist a candidates JSON whose groups_to maps each group to student dicts."""
+    (proc_dir / "relevant_students_and_groups.json").write_text(
+        json.dumps({"groups_to": groups_to}), encoding="utf-8"
+    )
+
+
+def _g(*genders):
+    """Build a list of minimal student dicts with the given genders, in order."""
+    return [{"geslacht": sex, "roepnaam": "x", "achternaam": "y"} for sex in genders]
+
+
 class TestGroupsToPage:
     """Tests for GET/POST /groups_to."""
 
@@ -312,32 +325,34 @@ class TestGroupsToPage:
         """GET /groups_to reads the candidates JSON and renders group names in the page."""
         proc_dir = _setup_process(client, tmp_path)
         # groups_to is a dict {groupname: [students]}; the template calls .items()
-        (proc_dir / "relevant_students_and_groups.json").write_text(
-            json.dumps({"groups_to": {"Klas A": [], "Klas B": []}}), encoding="utf-8"
-        )
+        _write_groups_to_json(proc_dir, {"Klas A": [], "Klas B": []})
         response = client.get("/groups_to")
         assert response.status_code == 200
         assert b"Klas A" in response.data
 
     def test_post_too_few_groups_flashes_error(self, client, tmp_path):
         """POST /groups_to with fewer than 2 groups flashes an error and redirects back."""
-        _setup_process(client, tmp_path)
+        proc_dir = _setup_process(client, tmp_path)
+        _write_groups_to_json(proc_dir, {"Klas A": _g("Jongen")})
         response = client.post(
             "/groups_to",
-            data={"group": ["Klas A"], "group_students[Klas A]": ["Jongen"]},
+            data={"group": ["Klas A"], "group_students[Klas A]": ["0"]},
         )
         assert response.status_code == 302
         assert any(cat == "error" for cat, _ in _flashes(client))
 
     def test_post_two_groups_redirects_to_student_preferences(self, client, tmp_path):
         """POST /groups_to with ≥2 groups saves groups.xlsx and redirects to student_preferences."""
-        _setup_process(client, tmp_path)
+        proc_dir = _setup_process(client, tmp_path)
+        _write_groups_to_json(
+            proc_dir, {"Klas A": _g("Jongen", "Meisje"), "Klas B": _g("Jongen")}
+        )
         response = client.post(
             "/groups_to",
             data={
                 "group": ["Klas A", "Klas B"],
-                "group_students[Klas A]": ["Jongen", "Meisje"],
-                "group_students[Klas B]": ["Jongen"],
+                "group_students[Klas A]": ["0", "1"],
+                "group_students[Klas B]": ["0"],
             },
         )
         assert response.status_code == 302
@@ -346,11 +361,12 @@ class TestGroupsToPage:
     def test_post_empty_group_is_kept_with_zero_counts(self, client, tmp_path):
         """A group submitted via 'group' but without retained students is kept at 0/0."""
         proc_dir = _setup_process(client, tmp_path)
+        _write_groups_to_json(proc_dir, {"Klas A": _g("Jongen", "Meisje", "Meisje")})
         response = client.post(
             "/groups_to",
             data={
                 "group": ["Klas A", "Nieuwe groep 1"],
-                "group_students[Klas A]": ["Jongen", "Meisje", "Meisje"],
+                "group_students[Klas A]": ["0", "1", "2"],
             },
         )
         assert response.status_code == 302
@@ -361,38 +377,104 @@ class TestGroupsToPage:
         assert saved.loc["Nieuwe groep 1", "Jongens"] == 0
         assert saved.loc["Nieuwe groep 1", "Meisjes"] == 0
 
+    def test_post_persists_restore_state(self, client, tmp_path):
+        """POST writes groups_to_state.json capturing ticks, disabled and new groups."""
+        proc_dir = _setup_process(client, tmp_path)
+        _write_groups_to_json(
+            proc_dir, {"Klas A": _g("Jongen", "Meisje"), "Klas B": _g("Jongen")}
+        )
+        client.post(
+            "/groups_to",
+            data={
+                # Klas B switched off (absent from 'group'); a new empty group added.
+                "group": ["Klas A", "Nieuwe groep 1"],
+                "group_students[Klas A]": ["1"],
+            },
+        )
+        state = json.loads((proc_dir / "groups_to_state.json").read_text("utf-8"))
+        assert state["original_groups"]["Klas A"]["checked_indices"] == [1]
+        assert state["disabled_groups"] == ["Klas B"]
+        assert state["new_groups"] == ["Nieuwe groep 1"]
 
-class TestExtractSelectedPerGroup:
-    """Tests for the form-parsing helper extract_selected_per_group."""
+    def test_get_restores_state_into_the_form(self, client, tmp_path):
+        """GET after a save pre-ticks the right boxes and marks a disabled group."""
+        proc_dir = _setup_process(client, tmp_path)
+        _write_groups_to_json(
+            proc_dir, {"Klas A": _g("Jongen", "Meisje"), "Klas B": _g("Jongen")}
+        )
+        (proc_dir / "groups_to_state.json").write_text(
+            json.dumps(
+                {
+                    "original_groups": {"Klas A": {"checked_indices": [1]}},
+                    "disabled_groups": ["Klas B"],
+                    "new_groups": ["Nieuwe groep 1"],
+                }
+            ),
+            encoding="utf-8",
+        )
+        html = client.get("/groups_to").data.decode("utf-8")
+        checkboxes = re.findall(r'<input type="checkbox".*?>', html, re.DOTALL)
+        ticked = [c for c in checkboxes if "checked" in c]
+        # Exactly one box is ticked: the second student of Klas A (index 1).
+        assert len(ticked) == 1
+        assert 'value="1"' in ticked[0]
+        assert "group-disabled" in html  # Klas B comes in switched off
+        assert "Nieuwe groep 1" in html  # restored new group is rendered
+
+
+class TestParseGroupsToForm:
+    """Tests for the form-parsing helper parse_groups_to_form."""
 
     def test_counts_genders_and_keeps_empty_group(self):
-        """Active groups come from 'group'; one without students stays at 0/0."""
+        """Genders are looked up by index; a submitted group without ticks stays 0/0."""
+        groups_to = {"Klas A": _g("Jongen", "Meisje", "Jongen"), "Klas B": _g("Jongen")}
         form = MultiDict(
             [
                 ("group", "Klas A"),
                 ("group", "Klas B"),
-                ("group_students[Klas A]", "Jongen"),
-                ("group_students[Klas A]", "Meisje"),
-                ("group_students[Klas A]", "Jongen"),
+                ("group_students[Klas A]", "0"),
+                ("group_students[Klas A]", "1"),
+                ("group_students[Klas A]", "2"),
             ]
         )
-        assert flask_module.extract_selected_per_group(form) == {
+        result = flask_module.parse_groups_to_form(form, groups_to)
+        assert result.distribution == {
             "Klas A": {"Jongens": 2, "Meisjes": 1},
             "Klas B": {"Jongens": 0, "Meisjes": 0},
         }
+        assert result.state["original_groups"]["Klas A"]["checked_indices"] == [0, 1, 2]
+        assert result.state["disabled_groups"] == []
+        assert result.state["new_groups"] == []
 
-    def test_ignores_students_of_inactive_group(self):
-        """group_students for a group not in 'group' (e.g. switched off) is ignored."""
+    def test_disabled_and_new_groups_are_recorded(self):
+        """An original group absent from 'group' is disabled; an unknown name is new."""
+        groups_to = {"Klas A": _g("Jongen", "Meisje"), "Klas B": _g("Jongen")}
         form = MultiDict(
             [
                 ("group", "Klas A"),
-                ("group_students[Klas A]", "Jongen"),
-                ("group_students[Uit]", "Meisje"),
+                ("group", "Nieuwe groep 1"),
+                ("group_students[Klas A]", "0"),
             ]
         )
-        assert flask_module.extract_selected_per_group(form) == {
-            "Klas A": {"Jongens": 1, "Meisjes": 0},
-        }
+        result = flask_module.parse_groups_to_form(form, groups_to)
+        assert result.state["disabled_groups"] == ["Klas B"]
+        assert result.state["new_groups"] == ["Nieuwe groep 1"]
+        assert result.distribution["Nieuwe groep 1"] == {"Jongens": 0, "Meisjes": 0}
+
+    def test_out_of_range_or_non_numeric_indices_are_ignored(self):
+        """Tampered indices that fall outside the student list are dropped safely."""
+        groups_to = {"Klas A": _g("Jongen")}
+        form = MultiDict(
+            [
+                ("group", "Klas A"),
+                ("group_students[Klas A]", "0"),
+                ("group_students[Klas A]", "9"),
+                ("group_students[Klas A]", "x"),
+            ]
+        )
+        result = flask_module.parse_groups_to_form(form, groups_to)
+        assert result.distribution["Klas A"] == {"Jongens": 1, "Meisjes": 0}
+        assert result.state["original_groups"]["Klas A"]["checked_indices"] == [0]
 
 
 class TestNotTogetherPage:
