@@ -8,7 +8,9 @@ from collections import defaultdict
 from io import BytesIO
 from unittest.mock import MagicMock
 
+import numpy as np
 import pandas as pd
+import pandera as pa
 import pytest
 from werkzeug.datastructures import MultiDict
 
@@ -461,6 +463,23 @@ class TestParseGroupsToForm:
         assert result.state["new_groups"] == ["Nieuwe groep 1"]
         assert result.distribution["Nieuwe groep 1"] == {"Jongens": 0, "Meisjes": 0}
 
+    def test_switched_off_group_keeps_its_ticks(self):
+        """A switched-off group still submits its boxes, so its ticks are remembered."""
+        groups_to = {"Klas A": _g("Jongen"), "Klas B": _g("Jongen", "Meisje")}
+        form = MultiDict(
+            [
+                ("group", "Klas A"),
+                ("group_students[Klas A]", "0"),
+                # Klas B is switched off (absent from 'group') but its boxes still submit.
+                ("group_students[Klas B]", "1"),
+            ]
+        )
+        result = flask_module.parse_groups_to_form(form, groups_to)
+        assert result.state["disabled_groups"] == ["Klas B"]
+        assert result.state["original_groups"]["Klas B"]["checked_indices"] == [1]
+        # Switched-off groups must not reach groups.xlsx.
+        assert "Klas B" not in result.distribution
+
     def test_out_of_range_or_non_numeric_indices_are_ignored(self):
         """Tampered indices that fall outside the student list are dropped safely."""
         groups_to = {"Klas A": _g("Jongen")}
@@ -773,3 +792,29 @@ class TestErrorMessages:
         )
         msg = readableerror_to_validation_message(exc)
         assert "Jan Jansen" in msg
+
+    @staticmethod
+    def _nulls_schema_error():
+        """A real pandera SERIES_CONTAINS_NULLS error, as a missing value would raise."""
+        schema = pa.DataFrameSchema({"Waarde": pa.Column(str, nullable=False)})
+        try:
+            schema.validate(pd.DataFrame({"Waarde": [np.nan]}))
+        except pa.errors.SchemaError as exc:
+            exc.filetype = "voorkeuren"
+            return exc
+        raise AssertionError("expected a SchemaError")
+
+    def test_missing_value_names_the_student_as_entered(self):
+        """A missing required value (e.g. a Gewicht without a wish) yields a friendly
+        message naming the student as entered, instead of a 500 (regression test)."""
+        exc = self._nulls_schema_error()
+        # datareader attaches the offending students by the name as entered.
+        exc.offending_students = ["Bob B"]
+        msg = flask_module.schemaerror_to_validation_message(exc)
+        assert "Bob B" in msg
+        assert "voorkeuren" in msg
+
+    def test_missing_value_without_student_context_does_not_crash(self):
+        """Without attached students the message still renders (no KeyError/500)."""
+        msg = flask_module.schemaerror_to_validation_message(self._nulls_schema_error())
+        assert "voorkeuren" in msg

@@ -555,25 +555,31 @@ def parse_groups_to_form(form, groups_to: dict) -> GroupsToSubmission:
     """Turn the submitted groups-to form into retained counts and a restore state.
 
     Active groups come from the ``group`` fields. An original group missing from that
-    list was switched off (disabled groups do not submit their name); a submitted name
-    that is not an original group is a teacher-added empty group. Genders are looked up
-    from ``groups_to`` by the submitted student indices, so the counts cannot drift from
-    the source data.
+    list was switched off; a submitted name that is not an original group is a
+    teacher-added empty group. Genders are looked up from ``groups_to`` by the submitted
+    student indices, so the counts cannot drift from the source data.
+
+    Every original group's ticks are remembered (their checkboxes submit even when the
+    group is switched off), so switching a group back on restores exactly who was ticked.
+    Only active groups contribute to ``distribution`` (and thus to ``groups.xlsx``).
     """
     submitted = form.getlist("group")
+    # Remember the ticks of every original group, including switched-off ones.
+    original_state = {
+        name: {"checked_indices": _checked_indices(form, name, len(students))}
+        for name, students in groups_to.items()
+    }
     distribution: dict[str, dict[str, int]] = {}
-    original_state: dict[str, dict] = {}
     new_groups: list[str] = []
 
     for name in submitted:
         if name in groups_to:
             students = groups_to[name]
-            indices = _checked_indices(form, name, len(students))
+            indices = original_state[name]["checked_indices"]
             distribution[name] = {
                 "Jongens": sum(students[i]["geslacht"] == "Jongen" for i in indices),
                 "Meisjes": sum(students[i]["geslacht"] == "Meisje" for i in indices),
             }
-            original_state[name] = {"checked_indices": indices}
         else:
             distribution[name] = {"Jongens": 0, "Meisjes": 0}
             new_groups.append(name)
@@ -669,10 +675,16 @@ def schemaerror_to_validation_message(exc: pa.errors.SchemaError) -> str:
             f"van het {exc.filetype}-bestand"
         )
     if exc.reason_code == pa.errors.SchemaErrorReason.SERIES_CONTAINS_NULLS:
+        students = getattr(exc, "offending_students", [])
+        if students:
+            return (
+                f"In het {exc.filetype}-bestand mist een waarde bij: "
+                f"{', '.join(students)}. Vul bij elke wens een naam of groep in, of haal "
+                "het bijbehorende gewicht weg als er geen wens is."
+            )
         return (
-            f"In het {exc.filetype}-bestand zijn niet alle verplichte kolommen gevuld: "
-            f"controleer {exc.column_name} bij regel "
-            f"{', '.join(exc.failure_cases[', '].astype(str))}"
+            f"In het {exc.filetype}-bestand zijn niet alle verplichte velden gevuld "
+            f"(kolom {exc.column_name})."
         )
     if exc.reason_code == pa.errors.SchemaErrorReason.SERIES_CONTAINS_DUPLICATES:
         if exc.filetype == "voorkeuren":

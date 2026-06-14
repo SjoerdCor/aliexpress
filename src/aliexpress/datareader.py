@@ -356,7 +356,26 @@ class VoorkeurenProcessor:
             coerce=True,
         )
 
-        validate_schema_with_filetype(self.df, schema, filetype="voorkeuren")
+        try:
+            validate_schema_with_filetype(self.df, schema, filetype="voorkeuren")
+        except pa.errors.SchemaError as exc:
+            # Surface the offending students by the name as entered, not the matching key,
+            # so the Dutch error message in the app layer is recognisable to the teacher.
+            exc.offending_students = self._students_in_failed_column(exc)
+            raise
+
+    def _students_in_failed_column(self, exc) -> list:
+        """Names (as entered) of students with a missing value in the failed column.
+
+        Best-effort and side-effect free: used to enrich a SchemaError before it bubbles
+        up to the app layer. Returns an empty list when the column is not recognisable.
+        """
+        column = getattr(exc, "column_name", None)
+        if column not in self.df.columns:
+            return []
+        student_display = getattr(self, "student_display", {})
+        missing = self.df.index[self.df[column].isna()].get_level_values("Leerling")
+        return list(dict.fromkeys(student_display.get(key, key) for key in missing))
 
     def process(self, all_to_groups: list) -> pd.DataFrame:
         """Runs the full processing pipeline.
