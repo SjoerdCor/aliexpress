@@ -8,7 +8,8 @@ import re
 import shutil
 import uuid
 import webbrowser
-from collections import Counter, defaultdict
+from collections import defaultdict
+from dataclasses import dataclass
 from io import BytesIO
 from threading import Thread
 
@@ -181,6 +182,32 @@ def download_template(filename):
     return send_from_directory("input_templates", filename, as_attachment=True)
 
 
+@app.route("/download_preferences")
+@require_process
+def download_preferences():
+    """Download the original, filled-in preferences file as the teacher uploaded it.
+
+    This is the richly-formatted upload (with column help and dropdown validations), not
+    the normalised processed file, so the teacher can keep editing it safely.
+    """
+    path = get_file_path(session["process_id"], "preferences_original.xlsx")
+    if not os.path.exists(path):
+        logger.warning(
+            "Download of filled-in preferences requested but none stored for process %s",
+            session["process_id"],
+        )
+        abort(404)
+    logger.info(
+        "Serving stored preferences upload for process %s", session["process_id"]
+    )
+    return send_file(
+        path,
+        as_attachment=True,
+        download_name="voorkeuren (ingevuld).xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+
 @app.route("/upload_edexml", methods=["GET", "POST"])
 def upload_edexml():
     """Route to upload edexml"""
@@ -213,48 +240,103 @@ def upload_edexml():
     return redirect(url_for("groups_to_page"))
 
 
+def _load_groups_to(process_id) -> dict:
+    """Load the groups-to mapping (groupname → students) from the candidates JSON."""
+    path = get_file_path(process_id, "relevant_students_and_groups.json")
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f).get("groups_to", {})
+
+
+def _load_groups_to_state(process_id):
+    """Load the saved groups-to form state, or None when the page was not filled yet."""
+    path = get_file_path(process_id, "groups_to_state.json")
+    if not os.path.exists(path):
+        return None
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
 @app.route("/groups_to", methods=["GET", "POST"])
 @require_process
 def groups_to_page():
     """Display and process the groups_to page"""
+    process_id = session["process_id"]
+    groups_to = _load_groups_to(process_id)
+
     if request.method == "GET":
-        data_path = get_file_path(
-            session["process_id"], "relevant_students_and_groups.json"
+        return render_template(
+            "groups_to.html",
+            groups_to=groups_to,
+            state=_load_groups_to_state(process_id),
         )
-        with open(data_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        groups_to_data = data.get("groups_to", [])
 
-        return render_template("groups_to.html", groups_to=groups_to_data)
-
-    boy_girl_distribution = extract_selected_per_group(request.form)
-    if len(boy_girl_distribution) < 2:
+    submission = parse_groups_to_form(request.form, groups_to)
+    if len(submission.distribution) < 2:
         error = "Er moeten minsten twee groepen zijn om de leerlingen over te verdelen"
         flash(error, "error")
         return redirect(url_for("groups_to_page"))
 
-    path = get_file_path(session["process_id"], "groups.xlsx")
-    pd.DataFrame(boy_girl_distribution).transpose().to_excel(
+    path = get_file_path(process_id, "groups.xlsx")
+    pd.DataFrame(submission.distribution).transpose().to_excel(
         path, index_label="Groepen"
     )
+    with open(
+        get_file_path(process_id, "groups_to_state.json"), "w", encoding="utf-8"
+    ) as f:
+        json.dump(submission.state, f, ensure_ascii=False)
+    logger.info(
+        "Groups-to saved for process %s: %d active group(s), %d disabled, %d new",
+        process_id,
+        len(submission.distribution),
+        len(submission.state["disabled_groups"]),
+        len(submission.state["new_groups"]),
+    )
     return redirect(url_for("student_preferences"))
+
+
+def _load_student_selection(process_id):
+    """Load the saved student selection, or None when the page was not used yet."""
+    path = get_file_path(process_id, "student_selection.json")
+    if not os.path.exists(path):
+        return None
+    with open(path, encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def _save_student_selection(process_id, selected_ids, new_students):
+    """Persist which candidates were ticked and which students were added by hand."""
+    path = get_file_path(process_id, "student_selection.json")
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(
+            {"selected_ids": selected_ids, "new_students": new_students},
+            fh,
+            ensure_ascii=False,
+        )
 
 
 @app.route("/student_preferences", methods=["GET", "POST"])
 @require_process
 def student_preferences():
     """Display page where the teacher can add preferences for the student"""
-    data_path = get_file_path(
-        session["process_id"], "relevant_students_and_groups.json"
-    )
+    process_id = session["process_id"]
+    data_path = get_file_path(process_id, "relevant_students_and_groups.json")
     with open(data_path, "r", encoding="utf-8") as f:
         data = json.load(f)
     candidates = data.get("candidates", [])
     groups_from = data.get("groups_from", {})
 
     if request.method == "GET":
+        selection = _load_student_selection(process_id)
         return render_template(
-            "student_preferences.html", candidates=candidates, groups_from=groups_from
+            "student_preferences.html",
+            candidates=candidates,
+            groups_from=groups_from,
+            preferences_uploaded=os.path.exists(
+                get_file_path(process_id, "preferences_original.xlsx")
+            ),
+            # None means "first visit": default to all candidates ticked.
+            selected_ids=set(selection["selected_ids"]) if selection else None,
+            saved_new_students=selection["new_students"] if selection else [],
         )
     new_students = _extract_new_students(request.form)
     selected_ids = request.form.getlist("students")
@@ -272,7 +354,10 @@ def student_preferences():
         flash(f"Vond leerlingen dubbel: {exc.context['duplicate_names']}", "error")
         return redirect(url_for("student_preferences"))
 
-    path = get_file_path(session["process_id"], "groups.xlsx")
+    # Remember exactly what the teacher selected so the page restores on return.
+    _save_student_selection(process_id, selected_ids, new_students)
+
+    path = get_file_path(process_id, "groups.xlsx")
     groups_to = pd.read_excel(path, index_col=0).index.tolist()
     buffer = input_writer.create_prefilled_excel(groups_to, df_total)
 
@@ -285,18 +370,45 @@ def student_preferences():
 
 
 @app.route("/upload_preferences", methods=["POST"])
+@require_process
 def upload_preferences():
-    """Handle the upload of the preferences files"""
+    """Handle the upload of the preferences file, or continue with an earlier upload.
+
+    Re-uploading is optional when going back and forth: if no new file is chosen but a
+    valid preferences file was uploaded earlier, the teacher simply continues with it.
+    """
+    process_id = session["process_id"]
+    upload = request.files.get("preferences")
+    if not (upload and upload.filename):
+        if os.path.exists(get_file_path(process_id, "preferences.xlsx")):
+            logger.info(
+                "No new preferences upload for process %s; continuing with stored file",
+                process_id,
+            )
+            return redirect(url_for("not_together_page"))
+        flash("Upload eerst het ingevulde bestand om verder te gaan.", "error")
+        return redirect(url_for("student_preferences"))
     try:
-        preferences = file_to_io(request.files["preferences"])
-        groups_to_path = get_file_path(session["process_id"], "groups.xlsx")
+        raw = upload.read()
+        groups_to_path = get_file_path(process_id, "groups.xlsx")
         groups_to_data, _ = datareader.read_groups_excel(groups_to_path)
         groups_to = list(groups_to_data.keys())
-        processor = datareader.VoorkeurenProcessor(preferences)
+        processor = datareader.VoorkeurenProcessor(BytesIO(raw))
         processor.process(all_to_groups=groups_to)  # validates further
-        preferences_path = get_file_path(session["process_id"], "preferences.xlsx")
+        preferences_path = get_file_path(process_id, "preferences.xlsx")
         input_writer.write_preferences_to_excel(
             processor.input.reset_index(), preferences_path
+        )
+        # Keep the original upload so the teacher can download and keep editing the
+        # richly-formatted file with all wishes intact (the processed file above is
+        # normalised and stripped of formatting/validations).
+        original_path = get_file_path(process_id, "preferences_original.xlsx")
+        with open(original_path, "wb") as fh:
+            fh.write(raw)
+        logger.info(
+            "Preferences accepted for process %s: %d students; kept original upload",
+            process_id,
+            len(processor.input.index),
         )
     except Exception as exc:  # pylint: disable=broad-exception-caught
         _flash_upload_error(exc)
@@ -409,35 +521,75 @@ def _extract_new_students(form):
     ]
 
 
-def extract_selected_per_group(form) -> dict[str, dict[str, int]]:
+@dataclass
+class GroupsToSubmission:
+    """Parsed groups-to form.
+
+    ``distribution`` holds the retained boy/girl counts per group (written to
+    ``groups.xlsx`` for the solver); ``state`` captures exactly what the teacher did so
+    the page can be restored on return (written to ``groups_to_state.json``).
     """
-    Count the retained boys and girls per group from the submitted form.
 
-    The active groups come from the ``group`` fields, so a group without any
-    retained students is still represented (with a 0/0 count). Per-student
-    genders arrive under ``group_students[<groupname>]``.
+    distribution: dict[str, dict[str, int]]
+    state: dict
 
-    Args:
-        form: werkzeug MultiDict (e.g., request.form)
 
-    Returns:
-        dict[str, dict[str, int]]: groupname → {"Jongens": int, "Meisjes": int}
+def _checked_indices(form, groupname: str, n_students: int) -> list[int]:
+    """Return the submitted student indices for a group, bounded to the known students.
+
+    Checkbox values are the student's position in the groups-to list (not the gender),
+    so the server can both count genders and remember exactly who was ticked.
     """
-    distribution = {
-        groupname: {"Jongens": 0, "Meisjes": 0} for groupname in form.getlist("group")
+    indices = []
+    for raw in form.getlist(f"group_students[{groupname}]"):
+        try:
+            index = int(raw)
+        except ValueError:
+            continue
+        if 0 <= index < n_students:
+            indices.append(index)
+    return indices
+
+
+def parse_groups_to_form(form, groups_to: dict) -> GroupsToSubmission:
+    """Turn the submitted groups-to form into retained counts and a restore state.
+
+    Active groups come from the ``group`` fields. An original group missing from that
+    list was switched off; a submitted name that is not an original group is a
+    teacher-added empty group. Genders are looked up from ``groups_to`` by the submitted
+    student indices, so the counts cannot drift from the source data.
+
+    Every original group's ticks are remembered (their checkboxes submit even when the
+    group is switched off), so switching a group back on restores exactly who was ticked.
+    Only active groups contribute to ``distribution`` (and thus to ``groups.xlsx``).
+    """
+    submitted = form.getlist("group")
+    # Remember the ticks of every original group, including switched-off ones.
+    original_state = {
+        name: {"checked_indices": _checked_indices(form, name, len(students))}
+        for name, students in groups_to.items()
     }
+    distribution: dict[str, dict[str, int]] = {}
+    new_groups: list[str] = []
 
-    for key in form:
-        if not key.startswith("group_students["):
-            continue
-        groupname = key[len("group_students[") : -1]  # text inside [ ]
-        if groupname not in distribution:
-            continue
-        counts = Counter(form.getlist(key))
-        distribution[groupname]["Jongens"] += counts.get("Jongen", 0)
-        distribution[groupname]["Meisjes"] += counts.get("Meisje", 0)
+    for name in submitted:
+        if name in groups_to:
+            students = groups_to[name]
+            indices = original_state[name]["checked_indices"]
+            distribution[name] = {
+                "Jongens": sum(students[i]["geslacht"] == "Jongen" for i in indices),
+                "Meisjes": sum(students[i]["geslacht"] == "Meisje" for i in indices),
+            }
+        else:
+            distribution[name] = {"Jongens": 0, "Meisjes": 0}
+            new_groups.append(name)
 
-    return distribution
+    state = {
+        "original_groups": original_state,
+        "disabled_groups": [name for name in groups_to if name not in submitted],
+        "new_groups": new_groups,
+    }
+    return GroupsToSubmission(distribution=distribution, state=state)
 
 
 def to_validation_message(exc: Exception) -> str:
@@ -523,10 +675,16 @@ def schemaerror_to_validation_message(exc: pa.errors.SchemaError) -> str:
             f"van het {exc.filetype}-bestand"
         )
     if exc.reason_code == pa.errors.SchemaErrorReason.SERIES_CONTAINS_NULLS:
+        students = getattr(exc, "offending_students", [])
+        if students:
+            return (
+                f"In het {exc.filetype}-bestand mist een waarde bij: "
+                f"{', '.join(students)}. Vul bij elke wens een naam of groep in, of haal "
+                "het bijbehorende gewicht weg als er geen wens is."
+            )
         return (
-            f"In het {exc.filetype}-bestand zijn niet alle verplichte kolommen gevuld: "
-            f"controleer {exc.column_name} bij regel "
-            f"{', '.join(exc.failure_cases[', '].astype(str))}"
+            f"In het {exc.filetype}-bestand zijn niet alle verplichte velden gevuld "
+            f"(kolom {exc.column_name})."
         )
     if exc.reason_code == pa.errors.SchemaErrorReason.SERIES_CONTAINS_DUPLICATES:
         if exc.filetype == "voorkeuren":
