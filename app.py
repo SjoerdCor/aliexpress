@@ -38,6 +38,7 @@ from aliexpress.errors import (
     FeasibilityError,
     ValidationError,
 )
+from aliexpress.extensions import db
 from aliexpress.logging_config import add_file_handler, configure_logging
 from aliexpress.main import distribute_students_once
 
@@ -61,6 +62,12 @@ add_file_handler(os.path.join(LOG_DIR, "aliexpress.log"))
 BASE_DIR = os.path.join(app.instance_path, "storage")
 os.makedirs(BASE_DIR, exist_ok=True)
 logger.debug("Created dir if not exists: %s", BASE_DIR)
+
+# A relative SQLite URI is resolved against the instance folder, which must exist first.
+os.makedirs(app.instance_path, exist_ok=True)
+db.init_app(app)
+with app.app_context():
+    db.create_all()
 
 
 def get_process_path(process_id):
