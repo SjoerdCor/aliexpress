@@ -63,3 +63,7 @@ The result is shown in the browser; download the full Excel workbook for the sch
 ### Special constraints
 
 - **"Niet samen" rules** — specified pairs or groups of students must not be placed together, or at most a given number of them may end up in the same group
+
+## Known limitations
+
+- **Retained students are counted only toward total-group balance, not cohort balance.** Marking a student as staying ("blijft in groep") adjusts the destination group's total boy/girl counts, but does not add them to the redistributed cohort. For a retained student in a year-layer *between* the cohort and the destination — e.g. a group-4 repeater in a 4/5/6 class, onto whom the distributed group-3 cohort is added — only the total-group effect is modelled, not the effect on the cohort's own balance. Forced placement of an individual student into a chosen group is likewise not supported.
