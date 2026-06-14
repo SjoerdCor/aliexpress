@@ -25,6 +25,11 @@ def live_server(tmp_path, monkeypatch):
     flask_module.app.config["TESTING"] = True
     flask_module.app.config["SECRET_KEY"] = "browser-test-secret"
 
+    # The database lives in a throwaway file (see tests/conftest.py); reset its tables.
+    with flask_module.app.app_context():
+        flask_module.db.drop_all()
+        flask_module.db.create_all()
+
     server = make_server("127.0.0.1", 0, flask_module.app)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()

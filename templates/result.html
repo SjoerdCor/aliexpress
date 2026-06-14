@@ -5,7 +5,7 @@
 
 {% block content %}
 
-<a href="{{ url_for('show_sociogram', task_id=task_id) }}" target="_blank" class="button primary">Bekijk sociogram</a>
+<a href="{{ url_for('show_sociogram') }}" target="_blank" class="button primary">Bekijk sociogram</a>
 
 <p>Onderzoek de groepsindeling goed en bekijk samen of je er tevreden mee bent </p>
 <div class="tabs-wrapper">
@@ -27,7 +27,7 @@
     {% endfor %}
 </div>
 <p>Je kunt de groepsindeling hier ook downloaden:</p>
-<a href="{{ url_for('download', task_id=task_id) }}" class="button primary">Download groepsindeling</a>
+<a href="{{ url_for('download') }}" class="button primary">Download groepsindeling</a>
 <p><br>Ben je er tevreden mee?</p>
 
 <div class="step-navigation">
