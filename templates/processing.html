@@ -16,7 +16,7 @@
 
 <script>
     setInterval(() => {
-        fetch("/status/{{ task_id }}")
+        fetch("/status")
             .then(r => r.json())
             .then(data => {
                 console.log(data.status_studentdistribution)
@@ -28,7 +28,7 @@
                 }
                 else if (data.status_studentdistribution === "done") {
                     document.querySelector('.loading-spinner').style.display = 'none';
-                    window.location.href = "/result/{{ task_id }}";
+                    window.location.href = "/result";
                 } else if (data.status_studentdistribution === "error") {
                     document.querySelector('.loading-spinner').style.display = 'none';
                             fetch("/handle-error", {
