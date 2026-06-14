@@ -34,13 +34,13 @@
     om verder te werken, of hieronder een nieuw bestand kiezen om het te vervangen.</p>
 </div>
 {% endif %}
-<form method="post" action="{{ url_for('upload_preferences') }}" enctype="multipart/form-data">
+<form id="upload-form" method="post" action="{{ url_for('upload_preferences') }}" enctype="multipart/form-data">
   <label>Upload ingevuld bestand:</label><br>
-  <input type="file" name="preferences" accept=".xlsx" required><br><br>
-
-  <button type="submit" class="button next-step">
-    Naar Niet samen →
-  </button>
+  <input type="file" name="preferences" accept=".xlsx"><br>
+  {% if preferences_uploaded %}
+  <small>Je hebt al een bestand geüpload. Kies hier alleen een bestand als je het wilt
+    vervangen — anders ga je verder met het eerder geüploade bestand.</small>
+  {% endif %}
 </form>
 
 
@@ -82,7 +82,7 @@
 
 <div class="step-navigation">
     <a href="{{ url_for('groups_to_page') }}" class="button previous-step">← Naar Groepen naartoe bepalen</a>
-    <a href="{{ url_for('not_together_page') }}" class="button next-step">Naar Niet samen →</a>
+    <button type="submit" form="upload-form" class="button next-step">Naar Niet samen →</button>
 </div>
 
 <script>
