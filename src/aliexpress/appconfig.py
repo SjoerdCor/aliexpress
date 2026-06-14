@@ -11,6 +11,13 @@ class Config:
     DEBUG = False
     TESTING = False
 
+    # Small, structured state (job status, log lines; later schools/login) lives in a
+    # SQLite database. A relative SQLite path is resolved against Flask's instance folder,
+    # so this becomes ``instance/app.db``. Swapping to PostgreSQL on the EU server later is
+    # only a change of this URI.
+    SQLALCHEMY_DATABASE_URI = "sqlite:///app.db"
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+
 
 class DevelopmentConfig(Config):
     """Development configuration with debug mode enabled."""
