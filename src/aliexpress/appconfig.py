@@ -1,6 +1,7 @@
 """Configuration settings for different application environments."""
 
 import os
+from datetime import timedelta
 
 
 # pylint: disable=too-few-public-methods  # Flask config classes expose settings via class attributes, not methods
@@ -19,6 +20,13 @@ class Config:
     SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL", "sqlite:///app.db")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
+    # Session security. SECURE is off in the base config (no HTTPS locally/in tests);
+    # ProductionConfig flips it on. HTTPONLY and SAMESITE are always on.
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
+    SESSION_COOKIE_SECURE = False
+    PERMANENT_SESSION_LIFETIME = timedelta(hours=8)
+
 
 class DevelopmentConfig(Config):
     """Development configuration with debug mode enabled."""
@@ -31,3 +39,4 @@ class ProductionConfig(Config):
     """Production configuration with debug mode disabled."""
 
     DEBUG = False
+    SESSION_COOKIE_SECURE = True

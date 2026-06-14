@@ -20,6 +20,7 @@ dependencies = [
     "nbformat==5.10.4",
     "pandera==0.25.0",
     "flask-sqlalchemy>=3.1.1",
+    "flask-login>=0.6.3",
 ]
 
 [project.optional-dependencies]
