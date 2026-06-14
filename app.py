@@ -409,30 +409,35 @@ def _extract_new_students(form):
     ]
 
 
-def extract_selected_per_group(form) -> dict[str, list[str]]:
+def extract_selected_per_group(form) -> dict[str, dict[str, int]]:
     """
-    Find nr of Jongens and Meisjes in each key in the form that starts with "group_students[]"
+    Count the retained boys and girls per group from the submitted form.
+
+    The active groups come from the ``group`` fields, so a group without any
+    retained students is still represented (with a 0/0 count). Per-student
+    genders arrive under ``group_students[<groupname>]``.
 
     Args:
         form: werkzeug MultiDict (e.g., request.form)
 
     Returns:
-        dict[str, list[str]]: mapping of groupname → list of values of the group
+        dict[str, dict[str, int]]: groupname → {"Jongens": int, "Meisjes": int}
     """
-    selected = defaultdict(list)
-    for key in form:
-        if key.startswith("group_students["):
-            groupname = key[len("group_students[") : -1]  # text inside [ ]
-            selected[groupname].extend(form.getlist(key))
+    distribution = {
+        groupname: {"Jongens": 0, "Meisjes": 0} for groupname in form.getlist("group")
+    }
 
-    gender_distribution = {}
-    for g, lst in selected.items():
-        c = Counter(lst)
-        gender_distribution[g] = {
-            "Jongens": c.get("Jongen", 0),
-            "Meisjes": c.get("Meisje", 0),
-        }
-    return gender_distribution
+    for key in form:
+        if not key.startswith("group_students["):
+            continue
+        groupname = key[len("group_students[") : -1]  # text inside [ ]
+        if groupname not in distribution:
+            continue
+        counts = Counter(form.getlist(key))
+        distribution[groupname]["Jongens"] += counts.get("Jongen", 0)
+        distribution[groupname]["Meisjes"] += counts.get("Meisje", 0)
+
+    return distribution
 
 
 def to_validation_message(exc: Exception) -> str:

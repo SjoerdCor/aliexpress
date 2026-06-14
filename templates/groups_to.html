@@ -1,237 +1,146 @@
 {% extends "base.html" %}
 {% set current_step = 2 %}
 {% block content %}
-<h2>Selecteer groepen waar ze naar toe gaan</h2>
-<p>
-  Met vinkjes kun je aangeven wie achterblijven in de groepen.
-  Deze worden automatisch geteld in de jongens/meisjes-verdeling in de groepen.
-  Onderaan kun je ook nog een groepsnaam toevoegen als die mist.
-  Als er een groep tussenstaat waar geen leerlingen naartoe gaan, kun je ook de
-  hele groep uitvinken.
-</p>
+<h2>Hoeveel jongens en meisjes blijven er in elke groep achter?</h2>
+<div class="instructions-box">
+  <p>
+    Voor een eerlijke verdeling moet ALI Express weten waarmee elke toekomstige groep al
+    begint: hoeveel <strong>jongens</strong>, hoeveel <strong>meisjes</strong> en hoeveel
+    leerlingen in totaal er volgend jaar achterblijven. Die telling staat bovenaan elke
+    groep — dáár draait deze stap om.
+  </p>
+  <p>
+    De lijsten zijn alvast ingevuld met wie er volgens de schooladministratie achterblijft.
+    <strong>Vink aan of uit</strong> tot de telling klopt — denk aan zittenblijvers. Een
+    groep die geen bestemming is, kun je uitzetten; onderaan kun je een nieuwe (lege) groep
+    toevoegen.
+  </p>
+</div>
 
 <form method="post" onsubmit="return validateForm()">
-<div id="groups-to">
-  {% for groupname, students in groups_to.items() %}
-    <div class="group-block">
-      <label>
-        <input type="checkbox" class="group-toggle" checked data-group="{{ groupname }}">
-        <strong>{{ groupname }}</strong>
-      </label>
+  <div id="groups-to">
+    {% for groupname, students in groups_to.items() %}
+      <div class="group-block" data-group="{{ groupname }}">
+        <input type="hidden" name="group" value="{{ groupname }}" class="group-name-field">
 
-      <ul class="student-list">
-        {% for s in students %}
-          <li>
-            <label>
-              <input type="checkbox"
-                     name="group_students[{{ groupname }}]"
-                     value="{{ s.geslacht }}"
-                     {% if s.blijft_in_groep %}checked{% endif %}>
-              {{ s.roepnaam }} {{ s.achternaam }} ({{ s.jaargroep }})
-            </label>
-          </li>
-        {% endfor %}
-        <li>
-          <button class="button button--small" type="button" onclick="addStudentToExistingGroup(this)">+ Voeg leerling toe</button>    </div>
-        </li>
-      </ul>
-  {% endfor %}
-</div>
+        <div class="group-header">
+          <strong class="group-title">{{ groupname }}</strong>
+          <span class="group-count" aria-live="polite"></span>
+          <button type="button" class="button button--small group-disable">Groep uitzetten</button>
+        </div>
 
-  <div id="new-groups">
+        <ul class="student-list">
+          {% for s in students %}
+            <li>
+              <label>
+                <input type="checkbox"
+                       name="group_students[{{ groupname }}]"
+                       value="{{ s.geslacht }}"
+                       data-gender="{{ s.geslacht }}"
+                       {% if s.blijft_in_groep %}checked{% endif %}>
+                {{ s.roepnaam }} {{ s.achternaam }} ({{ s.jaargroep }})
+              </label>
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endfor %}
   </div>
-  <button class="button" type="button" onclick="addGroupField()">+ Nog een groep</button>
 
-    <br><br>
-    <div class="step-navigation">
-      <a href="{{ url_for('upload_edexml') }}" class="button previous-step">← Naar Schoolinformatie uploaden</a>
-      <input type="submit" value="Ga naar leerlingen →" class="button next-step">
-    </div>
-  </form>
+  <div id="new-groups"></div>
+
+  <button class="button" type="button" onclick="addEmptyGroup()">+ Nieuwe lege groep</button>
+
+  <div class="step-navigation">
+    <a href="{{ url_for('upload_edexml') }}" class="button previous-step">← Naar Schoolinformatie uploaden</a>
+    <input type="submit" value="Naar leerlingen →" class="button next-step">
+  </div>
+</form>
+
 <script>
-
-  document.addEventListener("DOMContentLoaded", function() {
-    document.querySelectorAll(".group-toggle").forEach(function(groupCheckbox) {
-      groupCheckbox.addEventListener("change", function() {
-        const groupBlock = this.closest(".group-block");
-        const studentList = groupBlock.querySelector(".student-list");
-        const studentChecks = studentList.querySelectorAll("input[type=checkbox]");
-
-        if (this.checked) {
-          studentList.style.display = "";
-          studentChecks.forEach(cb => cb.disabled = false);
-        } else {
-          studentList.style.display = "none";
-          studentChecks.forEach(cb => cb.disabled = true);
-        }
-      });
+  function genderCount(groupBlock) {
+    let boys = 0, girls = 0;
+    groupBlock.querySelectorAll(".student-list input[type=checkbox]").forEach(cb => {
+      if (!cb.checked) return;
+      if (cb.dataset.gender === "Jongen") boys++;
+      else if (cb.dataset.gender === "Meisje") girls++;
     });
-  });
-
-function addStudentToExistingGroup(button) {
-  const groupBlock = button.closest(".group-block");
-  const studentList = groupBlock.querySelector(".student-list");
-
-  const groupName = groupBlock.querySelector("strong").textContent.trim();
-
-  const li = document.createElement("li");
-
-  li.innerHTML = `
-    <label>
-      <input type="checkbox"
-             name="group_students[${groupName}]"
-             value=""
-             checked>
-
-      <input type="text" placeholder="Voornaam" class="fn" required>
-      <input type="text" placeholder="Achternaam" class="ln" required>
-
-      <select class="gender" required>
-        <option value="">Geslacht</option>
-        <option value="Jongen">Jongen</option>
-        <option value="Meisje">Meisje</option>
-      </select>
-
-      <span class="display-name"></span>
-    </label>
-
-    <button type="button" onclick="this.closest('li').remove()">✖</button>
-  `;
-
-  // Update checkbox value + zichtbare tekst zodra iets verandert
-  const fnInput = li.querySelector(".fn");
-  const lnInput = li.querySelector(".ln");
-  const genderSelect = li.querySelector(".gender");
-  const checkbox = li.querySelector("input[type=checkbox]");
-  const display = li.querySelector(".display-name");
-
-  function updateStudent() {
-    const fn = fnInput.value.trim();
-    const ln = lnInput.value.trim();
-    const gender = genderSelect.value;
-
-    if (fn && ln && gender) {
-      const fullname = `${fn} ${ln}`;
-      checkbox.value = gender;
-      display.textContent = ` ${fullname} (${gender})`;
-
-      fnInput.style.display = "none";
-      lnInput.style.display = "none";
-      genderSelect.style.display = "none";
-    }
+    return { boys, girls, total: boys + girls };
   }
 
-  fnInput.addEventListener("input", updateStudent);
-  lnInput.addEventListener("input", updateStudent);
-  genderSelect.addEventListener("change", updateStudent);
+  function updateCount(groupBlock) {
+    const { boys, girls, total } = genderCount(groupBlock);
+    groupBlock.querySelector(".group-count").textContent =
+      `Jongens: ${boys} · Meisjes: ${girls} · Totaal: ${total}`;
+  }
 
-  const buttonLi = button.closest("li");
-  studentList.insertBefore(li, buttonLi);
-}
+  function setGroupEnabled(groupBlock, enabled) {
+    groupBlock.classList.toggle("group-disabled", !enabled);
+    groupBlock.querySelector(".group-name-field").disabled = !enabled;
+    groupBlock.querySelectorAll(".student-list input[type=checkbox]")
+      .forEach(cb => cb.disabled = !enabled);
+    const btn = groupBlock.querySelector(".group-disable");
+    if (btn) btn.textContent = enabled ? "Groep uitzetten" : "Groep aanzetten";
+  }
 
-function addGroupField() {
-  const container = document.getElementById("new-groups");
+  let newGroupSeq = 0;
+  function addEmptyGroup() {
+    newGroupSeq++;
+    const block = document.createElement("div");
+    block.className = "group-block";
+    block.innerHTML = `
+      <div class="group-header">
+        <input type="text" name="group" class="group-name-field group-name-input"
+               value="Nieuwe groep ${newGroupSeq}" required>
+        <span class="group-count">Jongens: 0 · Meisjes: 0 · Totaal: 0</span>
+        <button type="button" class="button button--small group-remove">Verwijderen</button>
+      </div>
+      <ul class="student-list">
+        <li class="empty-hint">Geen achterblijvers — deze groep wordt gevuld met te verdelen leerlingen.</li>
+      </ul>`;
+    block.querySelector(".group-remove").addEventListener("click", () => block.remove());
+    document.getElementById("new-groups").appendChild(block);
+  }
 
-  const groupBlock = document.createElement("div");
-  groupBlock.className = "group-block";
+  document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll("#groups-to .group-block").forEach(updateCount);
 
-  groupBlock.innerHTML = `
-    <label>
-      <input type="checkbox" class="group-toggle" checked>
-      <strong contenteditable="true">Nieuwe groep</strong>
-    </label>
-
-    <ul class="student-list"></ul>
-
-    <button type="button" onclick="addStudentToExistingGroup(this)">+ Voeg leerling toe</button>
-
-    <button type="button" onclick="this.closest('.group-block').remove()">✖ Verwijder groep</button>
-  `;
-
-  container.appendChild(groupBlock);
-
-  const toggle = groupBlock.querySelector(".group-toggle");
-
-  toggle.addEventListener("change", function() {
-    const studentList = groupBlock.querySelector(".student-list");
-    const studentChecks = studentList.querySelectorAll("input[type=checkbox]");
-
-    if (this.checked) {
-      studentList.style.display = "";
-      studentChecks.forEach(cb => cb.disabled = false);
-    } else {
-      studentList.style.display = "none";
-      studentChecks.forEach(cb => cb.disabled = true);
-    }
-  });
-}
-
-function validateForm() {
-    const activeGroupBlocks = document.querySelectorAll('#groups-to .group-block input.group-toggle:checked');
-    if (activeGroupBlocks.length < 2) {
-        alert("Er moeten minstens twee groepen aanwezig zijn om leerlingen over te verdelen.");
-        return false;
-    }
-
-    const groupNames = Array.from(newGroups).map(input => input.value.trim());
-    const nameCounts = {};
-    const duplicates = [];
-
-    groupNames.forEach(name => {
-        nameCounts[name] = (nameCounts[name] || 0) + 1;
-        if (nameCounts[name] === 2) {
-            duplicates.push(name);
-        }
+    document.addEventListener("change", function (e) {
+      if (e.target.matches(".student-list input[type=checkbox]")) {
+        updateCount(e.target.closest(".group-block"));
+      }
     });
 
-    if (duplicates.length > 0) {
-        alert("Elke groepsnaam moet uniek zijn. Dat is nu niet zo voor " + duplicates.join(", "));
-        return false;
+    document.addEventListener("click", function (e) {
+      if (e.target.matches(".group-disable")) {
+        const block = e.target.closest(".group-block");
+        setGroupEnabled(block, block.classList.contains("group-disabled"));
+      }
+    });
+  });
+
+  function validateForm() {
+    const activeBlocks = Array.from(document.querySelectorAll(".group-block"))
+      .filter(b => !b.classList.contains("group-disabled"));
+
+    if (activeBlocks.length < 2) {
+      alert("Er moeten minstens twee groepen aanwezig zijn om leerlingen over te verdelen.");
+      return false;
     }
 
+    const names = activeBlocks.map(b => b.querySelector(".group-name-field").value.trim());
+    if (names.some(n => n === "")) {
+      alert("Elke groep moet een naam hebben.");
+      return false;
+    }
+
+    const duplicates = [...new Set(names.filter((n, i) => names.indexOf(n) !== i))];
+    if (duplicates.length > 0) {
+      alert("Elke groepsnaam moet uniek zijn. Dubbel: " + duplicates.join(", "));
+      return false;
+    }
 
     return true;
-}
-
-
+  }
 </script>
-<style>
-  .student-row {
-    display: flex;
-    gap: 10px;
-    /* margin-bottom: 5px; */
-  }
-  .student-row input, .student-row select {
-    flex: 1;
-  }
-  .student-row button {
-    cursor: pointer;
-    background: none;
-    border: none;
-    font-size: 16px;
-    color: red;
-  }
-
-  .group-row {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    margin-bottom: 5px;
-  }
-
-  .group-row input {
-    flex: 1;
-  }
-
-  .group-row button {
-    cursor: pointer;
-    background: none;
-    border: none;
-    font-size: 16px;
-    color: red;
-  }
-</style>
-
-
-</div>
 {% endblock %}
