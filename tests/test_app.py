@@ -477,6 +477,62 @@ class TestParseGroupsToForm:
         assert result.state["original_groups"]["Klas A"]["checked_indices"] == [0]
 
 
+class TestStudentPreferencesSelection:
+    """GET /student_preferences restores the Stap 1 selection saved on download."""
+
+    CANDIDATES = [
+        {"key": "s1", "roepnaam": "Anna", "achternaam": "Bos", "groepsnaam": "Groen"},
+        {"key": "s2", "roepnaam": "Bram", "achternaam": "Dijk", "groepsnaam": "Groen"},
+        {"key": "s3", "roepnaam": "Cas", "achternaam": "El", "groepsnaam": "Blauw"},
+    ]
+
+    def _setup(self, client, tmp_path):
+        proc_dir = _setup_process(client, tmp_path)
+        (proc_dir / "relevant_students_and_groups.json").write_text(
+            json.dumps(
+                {"candidates": self.CANDIDATES, "groups_from": ["Groen", "Blauw"]}
+            ),
+            encoding="utf-8",
+        )
+        return proc_dir
+
+    def _checkbox_state(self, html):
+        """Map each candidate key to whether its checkbox is ticked."""
+        boxes = re.findall(r'<input type="checkbox" name="students"[^>]*>', html)
+        return {re.search(r'value="(s\d)"', b).group(1): "checked" in b for b in boxes}
+
+    def test_first_visit_ticks_all_candidates(self, client, tmp_path):
+        """Without a saved selection every candidate starts ticked."""
+        self._setup(client, tmp_path)
+        html = client.get("/student_preferences").data.decode("utf-8")
+        assert self._checkbox_state(html) == {"s1": True, "s2": True, "s3": True}
+
+    def test_saved_selection_and_added_student_are_restored(self, client, tmp_path):
+        """A saved selection un-ticks dropped students and re-fills added ones."""
+        proc_dir = self._setup(client, tmp_path)
+        (proc_dir / "student_selection.json").write_text(
+            json.dumps(
+                {
+                    "selected_ids": ["s1", "s3"],
+                    "new_students": [
+                        {
+                            "roepnaam": "Daan",
+                            "achternaam": "Fok",
+                            "geslacht": "Jongen",
+                            "groepsnaam": "Blauw",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        html = client.get("/student_preferences").data.decode("utf-8")
+        assert self._checkbox_state(html) == {"s1": True, "s2": False, "s3": True}
+        assert 'value="Daan"' in html
+        assert 'value="Jongen" selected' in html
+        assert 'value="Blauw" selected' in html
+
+
 class TestNotTogetherPage:
     """Tests for POST /not_together skip and error paths."""
 
