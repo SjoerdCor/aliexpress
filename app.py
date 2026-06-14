@@ -30,16 +30,17 @@ from flask import (
 )
 
 from aliexpress import candidatedetermination, datareader, input_writer, sociogram
+from aliexpress.cli import schools as schools_cli
 from aliexpress.errors import (
     CouldNotReadFileError,
     DuplicateNameError,
     FeasibilityError,
     ValidationError,
 )
-from aliexpress.extensions import db
+from aliexpress.extensions import db, login_manager
 from aliexpress.logging_config import add_file_handler, configure_logging
 from aliexpress.main import distribute_students_once
-from aliexpress.models import LogLine, Run
+from aliexpress.models import LogLine, Run, School
 
 configure_logging()
 logger = logging.getLogger("aliexpress.app")  # file handler added below
@@ -65,8 +66,19 @@ logger.debug("Created dir if not exists: %s", BASE_DIR)
 # A relative SQLite URI is resolved against the instance folder, which must exist first.
 os.makedirs(app.instance_path, exist_ok=True)
 db.init_app(app)
+login_manager.init_app(app)
+login_manager.login_view = "login"
 with app.app_context():
     db.create_all()
+
+
+@login_manager.user_loader
+def load_user(schoolcode):
+    """Return the School for the given schoolcode, or None if not found."""
+    return db.session.get(School, schoolcode)
+
+
+app.cli.add_command(schools_cli, "schools")
 
 
 def get_process_path(process_id):

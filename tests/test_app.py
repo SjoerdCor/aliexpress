@@ -12,13 +12,14 @@ import pandas as pd
 import pandera as pa
 import pytest
 from werkzeug.datastructures import MultiDict
+from werkzeug.security import check_password_hash, generate_password_hash
 
 import app as flask_module
 from aliexpress.errors import ValidationError
 from aliexpress.extensions import db
-from aliexpress.models import LogLine, Run
+from aliexpress.models import LogLine, Run, School
 from app import app as flask_app
-from app import readableerror_to_validation_message, to_validation_message
+from app import load_user, readableerror_to_validation_message, to_validation_message
 
 
 def _immediate_thread(target, args=()):
@@ -916,3 +917,53 @@ class TestErrorMessages:
         """Without attached students the message still renders (no KeyError/500)."""
         msg = flask_module.schemaerror_to_validation_message(self._nulls_schema_error())
         assert "voorkeuren" in msg
+
+
+class TestSchoolModel:
+    """STAP A auth tests: School model, password hashing, and user_loader."""
+
+    def _make_school(self, schoolcode="bs-test", naam="Basisschool Test"):
+        """Create a School with a known password and return (school, plain_password)."""
+        password = "geheim123"
+        school = School(
+            schoolcode=schoolcode,
+            naam=naam,
+            password_hash=generate_password_hash(password),
+        )
+        return school, password
+
+    def test_school_password_hash_is_not_plain_text(self):
+        """Stored hash must differ from the plain password."""
+        school, password = self._make_school()
+        assert school.password_hash != password
+
+    def test_check_password_hash_succeeds_for_correct_password(self):
+        """check_password_hash returns True for the original password."""
+        school, password = self._make_school()
+        assert check_password_hash(school.password_hash, password)
+
+    def test_check_password_hash_fails_for_wrong_password(self):
+        """check_password_hash returns False for a different password."""
+        school, _ = self._make_school()
+        assert not check_password_hash(school.password_hash, "foutWachtwoord!")
+
+    def test_get_id_returns_schoolcode(self):
+        """Flask-Login get_id() must return the schoolcode (the session identity)."""
+        school, _ = self._make_school(schoolcode="obs-noord")
+        assert school.get_id() == "obs-noord"
+
+    def test_user_loader_returns_school_after_persist(self, client):
+        """load_user finds a persisted School by schoolcode."""
+        school, _ = self._make_school()
+        with client.application.app_context():
+            db.session.add(school)
+            db.session.commit()
+            found = load_user("bs-test")
+        assert found is not None
+        assert found.schoolcode == "bs-test"
+        assert found.naam == "Basisschool Test"
+
+    def test_user_loader_returns_none_for_unknown_code(self, client):
+        """load_user returns None for a schoolcode that does not exist."""
+        with client.application.app_context():
+            assert load_user("bestaat-niet") is None
