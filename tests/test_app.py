@@ -4,7 +4,6 @@
 
 import json
 import re
-from collections import defaultdict
 from io import BytesIO
 from unittest.mock import MagicMock
 
@@ -16,26 +15,34 @@ from werkzeug.datastructures import MultiDict
 
 import app as flask_module
 from aliexpress.errors import ValidationError
+from aliexpress.extensions import db
+from aliexpress.models import LogLine, Run
 from app import app as flask_app
 from app import readableerror_to_validation_message, to_validation_message
 
 
-def _default_status():
-    return {
-        "status_studentdistribution": "pending",
-        "status_sociogram": "pending",
-        "logs": [],
-    }
+def _immediate_thread(target, args=()):
+    """Thread replacement whose ``start()`` runs the target synchronously, so route-spawned
+    background work finishes before the request returns and is deterministic to assert on.
+    """
+    runner = MagicMock()
+    runner.start.side_effect = lambda: target(*args)
+    return runner
 
 
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
-    """Flask test client with BASE_DIR, temp_storage and status_dct isolated per test."""
+    """Flask test client with an isolated BASE_DIR and fresh database tables per test.
+
+    The database lives in a throwaway file (see ``tests/conftest.py``); here we just reset
+    its tables so each test starts from a clean state.
+    """
     monkeypatch.setattr(flask_module, "BASE_DIR", str(tmp_path))
-    monkeypatch.setattr(flask_module, "temp_storage", {})
-    monkeypatch.setattr(flask_module, "status_dct", defaultdict(_default_status))
     flask_app.config["TESTING"] = True
     flask_app.config["SECRET_KEY"] = "test-secret-key"
+    with flask_app.app_context():
+        db.drop_all()
+        db.create_all()
     with flask_app.test_client() as c:
         yield c
 
@@ -208,9 +215,10 @@ class TestSimpleRenders:
         """GET /upload_edexml renders the upload page."""
         assert client.get("/upload_edexml").status_code == 200
 
-    def test_processing_returns_200(self, client):
-        """GET /processing/<task_id> renders the processing page for any task_id."""
-        assert client.get("/processing/some-task-id").status_code == 200
+    def test_processing_returns_200(self, client, tmp_path):
+        """GET /processing renders the processing page for the active process."""
+        _setup_process(client, tmp_path)
+        assert client.get("/processing").status_code == 200
 
 
 class TestProcessesList:
@@ -609,29 +617,74 @@ class TestNotTogetherPage:
 
 
 class TestStartDistribution:
-    """Tests for GET /start_distribution."""
+    """Tests for GET /start_distribution (run lifecycle with a mocked solver)."""
 
-    def _mock_threads(self, monkeypatch):
-        """Patch the solver and sociogram so threads return immediately."""
-        monkeypatch.setattr(
-            flask_module, "distribute_students_once", MagicMock(return_value={})
-        )
+    def _patch_pipeline(self, monkeypatch, *, result=None, exc=None):
+        """Run both background threads synchronously with a mocked solver and sociogram.
+
+        Returns the solver mock so a test can inspect the arguments it was called with.
+        """
+        monkeypatch.setattr(flask_module, "Thread", _immediate_thread)
+        solver = MagicMock(side_effect=exc) if exc else MagicMock(return_value=result)
+        monkeypatch.setattr(flask_module, "distribute_students_once", solver)
         monkeypatch.setattr(
             flask_module.datareader,
             "read_groups_excel",
             lambda _: ({"Klas A": None}, {"Klas A": "Klas A"}),
         )
-        monkeypatch.setattr(flask_module.sociogram, "SociogramMaker", MagicMock())
-        monkeypatch.setattr(flask_module.sociogram, "networkx_to_plotly", MagicMock())
+        maker = MagicMock()
+        maker.plot_sociogram.return_value = (MagicMock(), MagicMock(), MagicMock())
+        monkeypatch.setattr(
+            flask_module.sociogram, "SociogramMaker", lambda *a, **k: maker
+        )
+        fig = MagicMock()
+        fig.to_html.return_value = "<div>socio</div>"
+        monkeypatch.setattr(
+            flask_module.sociogram, "networkx_to_plotly", lambda *a, **k: fig
+        )
+        return solver
 
-    def test_happy_path_redirects_to_processing(self, client, tmp_path, monkeypatch):
-        """start_distribution spawns threads and immediately redirects to /processing/<uuid>."""
+    def _read_run(self, process_id="testproces"):
+        with flask_app.app_context():
+            return db.session.get(Run, process_id)
+
+    def test_happy_path_writes_files_and_marks_done(
+        self, client, tmp_path, monkeypatch
+    ):
+        """A successful run writes the artifacts and only then sets status 'done'."""
         proc_dir = _setup_process(client, tmp_path)
         (proc_dir / "preferences.xlsx").write_bytes(b"dummy")
-        self._mock_threads(monkeypatch)
+        (proc_dir / "groups.xlsx").write_bytes(b"dummy")
+        result = {
+            "download": BytesIO(b"excel-bytes"),
+            "dataframes": {"Groepsindeling": pd.DataFrame({"A": [1]})},
+        }
+        self._patch_pipeline(monkeypatch, result=result)
+
         response = client.get("/start_distribution")
         assert response.status_code == 302
-        assert "/processing/" in response.headers["Location"]
+        assert response.headers["Location"].endswith("/processing")
+        assert (proc_dir / "results.xlsx").read_bytes() == b"excel-bytes"
+        tables = json.loads((proc_dir / "result_tables.json").read_text("utf-8"))
+        assert "Groepsindeling" in tables
+        assert (proc_dir / "sociogram.html").read_text("utf-8") == "<div>socio</div>"
+        assert self._read_run().status == "done"
+
+    def test_error_path_sets_error_status_and_message(
+        self, client, tmp_path, monkeypatch
+    ):
+        """A solver failure records status 'error' with a friendly message, no result file."""
+        proc_dir = _setup_process(client, tmp_path)
+        (proc_dir / "preferences.xlsx").write_bytes(b"dummy")
+        (proc_dir / "groups.xlsx").write_bytes(b"dummy")
+        exc = ValidationError("wrong_columns_preferences", {"wrong_columns": "Kolom A"})
+        self._patch_pipeline(monkeypatch, exc=exc)
+
+        client.get("/start_distribution")
+        run = self._read_run()
+        assert run.status == "error"
+        assert "verkeerde kolommen" in run.message
+        assert not (proc_dir / "results.xlsx").exists()
 
     def test_not_together_json_is_loaded_when_present(
         self, client, tmp_path, monkeypatch
@@ -639,91 +692,136 @@ class TestStartDistribution:
         """When not_together.json exists it is parsed and passed to distribute_students_once."""
         proc_dir = _setup_process(client, tmp_path)
         (proc_dir / "preferences.xlsx").write_bytes(b"dummy")
+        (proc_dir / "groups.xlsx").write_bytes(b"dummy")
         (proc_dir / "not_together.json").write_text(
             '[{"group": ["Alice", "Bob"], "Max_aantal_samen": 1}]', encoding="utf-8"
         )
-        self._mock_threads(monkeypatch)
+        result = {"download": BytesIO(b"x"), "dataframes": {}}
+        solver = self._patch_pipeline(monkeypatch, result=result)
+
         response = client.get("/start_distribution")
         assert response.status_code == 302
-        assert "/processing/" in response.headers["Location"]
+        passed = solver.call_args.args[2]
+        assert passed == [{"group": {"Alice", "Bob"}, "Max_aantal_samen": 1}]
 
 
 class TestStatus:
-    """Tests for GET /status/<task_id>."""
+    """Tests for GET /status (process-scoped)."""
 
-    def test_unknown_task_returns_unknown_status(self, client):
-        """A task_id not in status_dct returns {"status_studentdistribution": "unknown"}."""
-        response = client.get("/status/nonexistent-id")
-        assert response.status_code == 200
-        assert response.get_json()["status_studentdistribution"] == "unknown"
+    def test_no_session_redirects(self, client):
+        """Without an active process /status redirects to /processes."""
+        response = client.get("/status")
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/processes")
 
-    def test_known_task_returns_stored_status(self, client, monkeypatch):
-        """A task_id in status_dct returns the stored status dict as JSON."""
-        monkeypatch.setitem(
-            flask_module.status_dct,
-            "abc123",
-            {"status_studentdistribution": "done", "logs": []},
-        )
-        response = client.get("/status/abc123")
-        assert response.get_json()["status_studentdistribution"] == "done"
+    def test_no_run_returns_unknown_status(self, client, tmp_path):
+        """A process without a run row reports status 'unknown' and empty logs."""
+        _setup_process(client, tmp_path)
+        data = client.get("/status").get_json()
+        assert data["status_studentdistribution"] == "unknown"
+        assert data["logs"] == []
+
+    def test_running_run_returns_status_and_logs(self, client, tmp_path):
+        """A running run returns its status and log lines in insertion order."""
+        _setup_process(client, tmp_path)
+        with flask_app.app_context():
+            db.session.add(Run(process_id="testproces", status="running"))
+            db.session.add(LogLine(process_id="testproces", text="Eerste"))
+            db.session.add(LogLine(process_id="testproces", text="Tweede"))
+            db.session.commit()
+        data = client.get("/status").get_json()
+        assert data["status_studentdistribution"] == "running"
+        assert data["logs"] == ["Eerste", "Tweede"]
+
+    def test_error_run_includes_message(self, client, tmp_path):
+        """An errored run exposes its friendly message for the frontend to flash."""
+        _setup_process(client, tmp_path)
+        with flask_app.app_context():
+            db.session.add(
+                Run(process_id="testproces", status="error", message="Mislukt")
+            )
+            db.session.commit()
+        data = client.get("/status").get_json()
+        assert data["status_studentdistribution"] == "error"
+        assert data["message"] == "Mislukt"
 
 
 class TestResultPage:
-    """Tests for GET /result/<task_id>."""
+    """Tests for GET /result (process-scoped)."""
 
-    def test_unknown_task_flashes_and_redirects(self, client):
-        """Visiting /result for an unknown task_id flashes an error and redirects to /processes."""
-        response = client.get("/result/nonexistent")
+    def test_no_session_redirects(self, client):
+        """Without an active process /result redirects to /processes."""
+        response = client.get("/result")
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/processes")
+
+    def test_missing_tables_flashes_and_redirects(self, client, tmp_path):
+        """Visiting /result before the tables file exists flashes an error and redirects."""
+        _setup_process(client, tmp_path)
+        response = client.get("/result")
         assert response.status_code == 302
         assert response.headers["Location"].endswith("/processes")
         assert any(cat == "error" for cat, _ in _flashes(client))
 
-    def test_incomplete_task_redirects(self, client, monkeypatch):
-        """Visiting /result before groepsindeling is ready redirects cleanly."""
-        monkeypatch.setitem(flask_module.temp_storage, "task1", {})
-        response = client.get("/result/task1")
-        assert response.status_code == 302
-        assert response.headers["Location"].endswith("/processes")
+    def test_renders_tables_from_file(self, client, tmp_path):
+        """The result page renders the stored HTML tables."""
+        proc_dir = _setup_process(client, tmp_path)
+        (proc_dir / "result_tables.json").write_text(
+            json.dumps({"Groepsindeling": "<table>indeling</table>"}),
+            encoding="utf-8",
+        )
+        html = client.get("/result").data.decode("utf-8")
+        assert "Groepsindeling" in html
+        assert "<table>indeling</table>" in html
 
 
 class TestSociogramPage:
-    """Tests for GET /sociogram/<task_id>."""
+    """Tests for GET /sociogram (process-scoped)."""
 
-    def test_unknown_task_flashes_and_redirects(self, client):
-        """Visiting /sociogram for an unknown task_id flashes an error and redirects."""
-        response = client.get("/sociogram/nonexistent")
+    def test_no_session_redirects(self, client):
+        """Without an active process /sociogram redirects to /processes."""
+        response = client.get("/sociogram")
         assert response.status_code == 302
         assert response.headers["Location"].endswith("/processes")
 
-    def test_known_task_renders_sociogram(self, client, monkeypatch):
-        """A task with a sociogram in temp_storage renders it in the page."""
-        monkeypatch.setitem(
-            flask_module.temp_storage, "task1", {"sociogram": "<div>plotly</div>"}
-        )
-        response = client.get("/sociogram/task1")
+    def test_missing_file_flashes_and_redirects(self, client, tmp_path):
+        """Visiting /sociogram before the file exists flashes an error and redirects."""
+        _setup_process(client, tmp_path)
+        response = client.get("/sociogram")
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/processes")
+
+    def test_renders_sociogram_file(self, client, tmp_path):
+        """A stored sociogram.html is rendered into the page."""
+        proc_dir = _setup_process(client, tmp_path)
+        (proc_dir / "sociogram.html").write_text("<div>plotly</div>", encoding="utf-8")
+        response = client.get("/sociogram")
         assert response.status_code == 200
         assert b"plotly" in response.data
 
 
 class TestDownload:
-    """Tests for GET /download/<task_id>."""
+    """Tests for GET /download (process-scoped)."""
 
-    def test_unknown_task_renders_result_page_with_flash(self, client):
-        """Downloading a non-existent result renders the result page with a Dutch error flash."""
-        response = client.get("/download/nonexistent")
+    def test_no_session_redirects(self, client):
+        """Without an active process /download redirects to /processes."""
+        response = client.get("/download")
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/processes")
+
+    def test_missing_file_renders_result_page_with_flash(self, client, tmp_path):
+        """Downloading before the result file exists renders the result page with a flash."""
+        _setup_process(client, tmp_path)
+        response = client.get("/download")
         assert response.status_code == 200
         # Flash is consumed by base.html during render; verify it appears in the HTML
         assert b"Groepsindeling niet gevonden" in response.data
 
-    def test_ready_groepsindeling_sends_file(self, client, monkeypatch):
-        """When groepsindeling is ready, the Excel file is sent as an attachment."""
-        buf = BytesIO(b"dummy excel content")
-        monkeypatch.setitem(
-            flask_module.temp_storage,
-            "task1",
-            {"groepsindeling": {"download": buf}},
-        )
-        response = client.get("/download/task1")
+    def test_existing_file_sends_attachment(self, client, tmp_path):
+        """When results.xlsx exists it is sent as an attachment."""
+        proc_dir = _setup_process(client, tmp_path)
+        (proc_dir / "results.xlsx").write_bytes(b"dummy excel content")
+        response = client.get("/download")
         assert response.status_code == 200
         assert "attachment" in response.headers.get("Content-Disposition", "")
 

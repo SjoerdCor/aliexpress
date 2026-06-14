@@ -6,9 +6,7 @@ import logging
 import os
 import re
 import shutil
-import uuid
 import webbrowser
-from collections import defaultdict
 from dataclasses import dataclass
 from io import BytesIO
 from threading import Thread
@@ -38,8 +36,10 @@ from aliexpress.errors import (
     FeasibilityError,
     ValidationError,
 )
+from aliexpress.extensions import db
 from aliexpress.logging_config import add_file_handler, configure_logging
 from aliexpress.main import distribute_students_once
+from aliexpress.models import LogLine, Run
 
 configure_logging()
 logger = logging.getLogger("aliexpress.app")  # file handler added below
@@ -61,6 +61,12 @@ add_file_handler(os.path.join(LOG_DIR, "aliexpress.log"))
 BASE_DIR = os.path.join(app.instance_path, "storage")
 os.makedirs(BASE_DIR, exist_ok=True)
 logger.debug("Created dir if not exists: %s", BASE_DIR)
+
+# A relative SQLite URI is resolved against the instance folder, which must exist first.
+os.makedirs(app.instance_path, exist_ok=True)
+db.init_app(app)
+with app.app_context():
+    db.create_all()
 
 
 def get_process_path(process_id):
@@ -86,14 +92,47 @@ def require_process(f):
     return wrapper
 
 
-temp_storage = {}
-status_dct = defaultdict(
-    lambda: {
-        "status_studentdistribution": "pending",
-        "status_sociogram": "pending",
-        "logs": [],
-    }
-)
+def _reset_run(process_id):
+    """Start a fresh run for this process: reset its row, logs and stale result files.
+
+    Runs in the request context; the committed row is then visible to the background
+    threads (which open their own session in their own app context).
+    """
+    run = db.session.get(Run, process_id)
+    if run is None:
+        run = Run(process_id=process_id)
+        db.session.add(run)
+    run.status = "pending"
+    run.message = None
+    LogLine.query.filter_by(process_id=process_id).delete()
+    db.session.commit()
+    for filename in ("results.xlsx", "result_tables.json", "sociogram.html"):
+        stale = get_file_path(process_id, filename)
+        if os.path.exists(stale):
+            os.remove(stale)
+
+
+def _set_status(process_id, new_status, message=None):
+    """Update the run's status (and optional error message) for this process."""
+    run = db.session.get(Run, process_id)
+    run.status = new_status
+    run.message = message
+    db.session.commit()
+
+
+def _write_result_files(process_id, result):
+    """Persist the solver output as files in the process dir (download + rendered tables).
+
+    Written before the status flips to "done" so the result page never polls ahead of the
+    files it needs.
+    """
+    with open(get_file_path(process_id, "results.xlsx"), "wb") as fh:
+        fh.write(result["download"].getbuffer())
+    tables = {name: df.to_html(na_rep="") for name, df in result["dataframes"].items()}
+    with open(
+        get_file_path(process_id, "result_tables.json"), "w", encoding="utf-8"
+    ) as fh:
+        json.dump(tables, fh, ensure_ascii=False)
 
 
 @app.route("/")
@@ -769,7 +808,7 @@ def schemaerror_to_validation_message(exc: pa.errors.SchemaError) -> str:
     )
 
 
-def _handle_failure(exc, task_id):
+def _handle_failure(exc, process_id):
     file_reading_errs = (
         pa.errors.SchemaError,
         ValidationError,
@@ -782,9 +821,7 @@ def _handle_failure(exc, task_id):
     else:
         log_msg = "Uncaught exception"
     logger.exception(log_msg)
-    message = to_validation_message(exc)
-    status_dct[task_id]["status_studentdistribution"] = "error"
-    status_dct[task_id]["message"] = message
+    _set_status(process_id, "error", to_validation_message(exc))
 
 
 @app.route("/start_distribution", methods=["GET"])
@@ -810,64 +847,81 @@ def start_distribution():
     with open(preferences_path, "rb") as fh:
         preferences_bytes = BytesIO(fh.read())
 
-    task_id = str(uuid.uuid4())
-    temp_storage[task_id] = {}
+    _reset_run(process_id)
 
     def on_update(message):
-        status_dct[task_id]["logs"].append(message)
+        # Called from within a thread's app context (see run_task/create_sociogram).
+        db.session.add(LogLine(process_id=process_id, text=message))
+        db.session.commit()
 
     # pylint: disable=broad-exception-caught
     def run_task():
-        try:
-            status_dct[task_id]["status_studentdistribution"] = "running"
-            result = distribute_students_once(
-                preferences_path, groups_to_path, not_together, on_update=on_update
-            )
-            logger.info("Distributing students finished successfully")
-            status_dct[task_id]["status_studentdistribution"] = "done"
-            temp_storage[task_id]["groepsindeling"] = result
-        except Exception as exc:
-            _handle_failure(exc, task_id)
+        # A background thread needs its own app context to get a DB session.
+        with app.app_context():
+            try:
+                _set_status(process_id, "running")
+                result = distribute_students_once(
+                    preferences_path, groups_to_path, not_together, on_update=on_update
+                )
+                logger.info("Distributing students finished successfully")
+                # Write the artifacts before flipping to "done", so the polling result
+                # page never races ahead of the files it serves.
+                _write_result_files(process_id, result)
+                _set_status(process_id, "done")
+            except Exception as exc:
+                _handle_failure(exc, process_id)
 
     def create_sociogram(preferences, groups_to):
-        try:
-            on_update("Sociogram tekenen...")
-            groups_to_data, _ = datareader.read_groups_excel(groups_to)
-            sg = sociogram.SociogramMaker(preferences, list(groups_to_data.keys()))
-            fig, g, pos = sg.plot_sociogram()
-            logger.info("Sociogram created")
+        with app.app_context():
+            try:
+                on_update("Sociogram tekenen...")
+                groups_to_data, _ = datareader.read_groups_excel(groups_to)
+                sg = sociogram.SociogramMaker(preferences, list(groups_to_data.keys()))
+                fig, g, pos = sg.plot_sociogram()
+                logger.info("Sociogram created")
 
-            fig = sociogram.networkx_to_plotly(g, pos)
-            html = fig.to_html(full_html=False, include_plotlyjs="cdn")
-            logger.info("HTML created")
-            on_update(
-                f'<a href=/sociogram/{task_id} target="_blank" class="button">'
-                "Bekijk het sociogram nu!</a>"
-            )
-            temp_storage[task_id]["sociogram"] = html
-        except Exception:
-            logger.exception("Could not create sociogram")
+                fig = sociogram.networkx_to_plotly(g, pos)
+                html = fig.to_html(full_html=False, include_plotlyjs="cdn")
+                logger.info("HTML created")
+                with open(
+                    get_file_path(process_id, "sociogram.html"), "w", encoding="utf-8"
+                ) as fh:
+                    fh.write(html)
+                on_update(
+                    '<a href=/sociogram target="_blank" class="button">'
+                    "Bekijk het sociogram nu!</a>"
+                )
+            except Exception:
+                logger.exception("Could not create sociogram")
 
     # pylint: enable=broad-exception-caught
     Thread(target=create_sociogram, args=(preferences_bytes, groups_to_path)).start()
     Thread(target=run_task).start()
 
-    return redirect(url_for("processing", task_id=task_id))
+    return redirect(url_for("processing"))
 
 
-@app.route("/status/<task_id>")
-def status(task_id):
-    """Return status as json"""
-    result = status_dct.get(task_id)
-    if not result:
-        return jsonify({"status_studentdistribution": "unknown"})
-    return jsonify(result)
+@app.route("/status")
+@require_process
+def status():
+    """Return the current process's run status and log lines as JSON."""
+    run = db.session.get(Run, session["process_id"])
+    if run is None:
+        return jsonify({"status_studentdistribution": "unknown", "logs": []})
+    payload = {
+        "status_studentdistribution": run.status,
+        "logs": [line.text for line in run.log_lines],
+    }
+    if run.status == "error" and run.message:
+        payload["message"] = run.message
+    return jsonify(payload)
 
 
-@app.route("/processing/<task_id>")
-def processing(task_id):
+@app.route("/processing")
+@require_process
+def processing():
     """Display processing page"""
-    return render_template("processing.html", task_id=task_id)
+    return render_template("processing.html")
 
 
 @app.route("/handle-error", methods=["POST"])
@@ -880,41 +934,43 @@ def handle_error():
     return "", 204
 
 
-@app.route("/sociogram/<task_id>")
-def show_sociogram(task_id):
-    """Display sociogram"""
-    task = temp_storage.get(task_id, {})
-    if "sociogram" not in task:
+@app.route("/sociogram")
+@require_process
+def show_sociogram():
+    """Display the sociogram for the current process"""
+    path = get_file_path(session["process_id"], "sociogram.html")
+    if not os.path.exists(path):
         flash("Sociogram niet beschikbaar.", "error")
         return redirect(url_for("processes"))
-    return render_template("sociogram.html", plotly_div=task["sociogram"])
+    with open(path, encoding="utf-8") as fh:
+        plotly_div = fh.read()
+    return render_template("sociogram.html", plotly_div=plotly_div)
 
 
-@app.route("/result/<task_id>")
-def result_page(task_id):
-    """Display result for single run"""
-    task = temp_storage.get(task_id, {})
-    if "groepsindeling" not in task:
+@app.route("/result")
+@require_process
+def result_page():
+    """Display result for the current process"""
+    path = get_file_path(session["process_id"], "result_tables.json")
+    if not os.path.exists(path):
         flash("Resultaat niet beschikbaar.", "error")
         return redirect(url_for("processes"))
-    dataframes = {
-        k: df.to_html(na_rep="")
-        for k, df in task["groepsindeling"]["dataframes"].items()
-    }
-    return render_template("result.html", task_id=task_id, dataframes=dataframes)
+    with open(path, encoding="utf-8") as fh:
+        dataframes = json.load(fh)
+    return render_template("result.html", dataframes=dataframes)
 
 
-@app.route("/download/<task_id>")
-def download(task_id):
-    """Download single groepsindeling"""
-    logger.debug(task_id)
-    task = temp_storage.get(task_id, {})
-    if "groepsindeling" not in task:
+@app.route("/download")
+@require_process
+def download():
+    """Download the groepsindeling for the current process"""
+    path = get_file_path(session["process_id"], "results.xlsx")
+    if not os.path.exists(path):
         flash("Groepsindeling niet gevonden. Mogelijk nog aan het berekenen", "error")
-        return render_template("result.html", task_id=task_id, dataframes={})
+        return render_template("result.html", dataframes={})
 
     return send_file(
-        task["groepsindeling"]["download"],
+        path,
         as_attachment=True,
         download_name="results.xlsx",
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
