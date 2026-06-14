@@ -317,30 +317,44 @@ def student_preferences():
 
 
 @app.route("/upload_preferences", methods=["POST"])
+@require_process
 def upload_preferences():
-    """Handle the upload of the preferences files"""
+    """Handle the upload of the preferences file, or continue with an earlier upload.
+
+    Re-uploading is optional when going back and forth: if no new file is chosen but a
+    valid preferences file was uploaded earlier, the teacher simply continues with it.
+    """
+    process_id = session["process_id"]
+    upload = request.files.get("preferences")
+    if not (upload and upload.filename):
+        if os.path.exists(get_file_path(process_id, "preferences.xlsx")):
+            logger.info(
+                "No new preferences upload for process %s; continuing with stored file",
+                process_id,
+            )
+            return redirect(url_for("not_together_page"))
+        flash("Upload eerst het ingevulde bestand om verder te gaan.", "error")
+        return redirect(url_for("student_preferences"))
     try:
-        raw = request.files["preferences"].read()
-        groups_to_path = get_file_path(session["process_id"], "groups.xlsx")
+        raw = upload.read()
+        groups_to_path = get_file_path(process_id, "groups.xlsx")
         groups_to_data, _ = datareader.read_groups_excel(groups_to_path)
         groups_to = list(groups_to_data.keys())
         processor = datareader.VoorkeurenProcessor(BytesIO(raw))
         processor.process(all_to_groups=groups_to)  # validates further
-        preferences_path = get_file_path(session["process_id"], "preferences.xlsx")
+        preferences_path = get_file_path(process_id, "preferences.xlsx")
         input_writer.write_preferences_to_excel(
             processor.input.reset_index(), preferences_path
         )
         # Keep the original upload so the teacher can download and keep editing the
         # richly-formatted file with all wishes intact (the processed file above is
         # normalised and stripped of formatting/validations).
-        original_path = get_file_path(
-            session["process_id"], "preferences_original.xlsx"
-        )
+        original_path = get_file_path(process_id, "preferences_original.xlsx")
         with open(original_path, "wb") as fh:
             fh.write(raw)
         logger.info(
             "Preferences accepted for process %s: %d students; kept original upload",
-            session["process_id"],
+            process_id,
             len(processor.input.index),
         )
     except Exception as exc:  # pylint: disable=broad-exception-caught
