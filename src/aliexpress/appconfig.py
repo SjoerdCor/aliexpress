@@ -13,9 +13,10 @@ class Config:
 
     # Small, structured state (job status, log lines; later schools/login) lives in a
     # SQLite database. A relative SQLite path is resolved against Flask's instance folder,
-    # so this becomes ``instance/app.db``. Swapping to PostgreSQL on the EU server later is
-    # only a change of this URI.
-    SQLALCHEMY_DATABASE_URI = "sqlite:///app.db"
+    # so the default becomes ``instance/app.db``. The URI is overridable via the
+    # ``DATABASE_URL`` environment variable, which is how the EU server later points at
+    # PostgreSQL and how the tests point at a throwaway database.
+    SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL", "sqlite:///app.db")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
 
