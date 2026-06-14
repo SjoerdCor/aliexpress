@@ -9,6 +9,7 @@ from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
+from werkzeug.datastructures import MultiDict
 
 import app as flask_module
 from aliexpress.errors import ValidationError
@@ -323,7 +324,7 @@ class TestGroupsToPage:
         _setup_process(client, tmp_path)
         response = client.post(
             "/groups_to",
-            data={"group_students[Klas A]": ["Jongen"]},
+            data={"group": ["Klas A"], "group_students[Klas A]": ["Jongen"]},
         )
         assert response.status_code == 302
         assert any(cat == "error" for cat, _ in _flashes(client))
@@ -334,12 +335,64 @@ class TestGroupsToPage:
         response = client.post(
             "/groups_to",
             data={
+                "group": ["Klas A", "Klas B"],
                 "group_students[Klas A]": ["Jongen", "Meisje"],
                 "group_students[Klas B]": ["Jongen"],
             },
         )
         assert response.status_code == 302
         assert response.headers["Location"].endswith("/student_preferences")
+
+    def test_post_empty_group_is_kept_with_zero_counts(self, client, tmp_path):
+        """A group submitted via 'group' but without retained students is kept at 0/0."""
+        proc_dir = _setup_process(client, tmp_path)
+        response = client.post(
+            "/groups_to",
+            data={
+                "group": ["Klas A", "Nieuwe groep 1"],
+                "group_students[Klas A]": ["Jongen", "Meisje", "Meisje"],
+            },
+        )
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/student_preferences")
+        saved = pd.read_excel(proc_dir / "groups.xlsx", index_col=0)
+        assert saved.loc["Klas A", "Jongens"] == 1
+        assert saved.loc["Klas A", "Meisjes"] == 2
+        assert saved.loc["Nieuwe groep 1", "Jongens"] == 0
+        assert saved.loc["Nieuwe groep 1", "Meisjes"] == 0
+
+
+class TestExtractSelectedPerGroup:
+    """Tests for the form-parsing helper extract_selected_per_group."""
+
+    def test_counts_genders_and_keeps_empty_group(self):
+        """Active groups come from 'group'; one without students stays at 0/0."""
+        form = MultiDict(
+            [
+                ("group", "Klas A"),
+                ("group", "Klas B"),
+                ("group_students[Klas A]", "Jongen"),
+                ("group_students[Klas A]", "Meisje"),
+                ("group_students[Klas A]", "Jongen"),
+            ]
+        )
+        assert flask_module.extract_selected_per_group(form) == {
+            "Klas A": {"Jongens": 2, "Meisjes": 1},
+            "Klas B": {"Jongens": 0, "Meisjes": 0},
+        }
+
+    def test_ignores_students_of_inactive_group(self):
+        """group_students for a group not in 'group' (e.g. switched off) is ignored."""
+        form = MultiDict(
+            [
+                ("group", "Klas A"),
+                ("group_students[Klas A]", "Jongen"),
+                ("group_students[Uit]", "Meisje"),
+            ]
+        )
+        assert flask_module.extract_selected_per_group(form) == {
+            "Klas A": {"Jongens": 1, "Meisjes": 0},
+        }
 
 
 class TestNotTogetherPage:

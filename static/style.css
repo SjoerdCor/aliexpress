@@ -407,6 +407,62 @@ table.dataframe th {
   flex-wrap: nowrap;
 }
 
+/* groepen naartoe */
+.group-block {
+  border: 2px solid #ffcc99;
+  border-radius: 6px;
+  padding: 0.8rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.group-block.group-disabled {
+  opacity: 0.5;
+}
+
+.group-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+
+.group-title {
+  font-size: 1.2rem;
+}
+
+.group-name-input {
+  font-size: 1.2rem;
+  font-weight: bold;
+  padding: 0.2rem 0.4rem;
+}
+
+.group-count {
+  color: #333;
+  font-weight: 600;
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.group-header .group-disable,
+.group-header .group-remove {
+  margin-left: auto;
+}
+
+.group-block .student-list {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 4px 16px;
+}
+
+.empty-hint {
+  color: #888;
+  font-style: italic;
+}
+
 /* niet-samen formulier */
 .rule-card {
   display: flex;
