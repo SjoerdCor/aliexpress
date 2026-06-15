@@ -218,11 +218,16 @@ def processes():
     return render_template("processes.html", processes=existing_processes)
 
 
+def _is_valid_process_name(name):
+    """True when the name is a safe single path segment (no separators, no traversal)."""
+    return bool(re.match(r"^[\w\- ]+$", name))
+
+
 def _validate_process_name(process_name, must_exist=True):
     """Return an error message, or None when the name is valid."""
     if not process_name:
         return "Naam is verplicht"
-    if not re.match(r"^[\w\- ]+$", process_name):
+    if not _is_valid_process_name(process_name):
         return "Alleen letters, cijfers, spaties, - en _ toegestaan"
     path = os.path.join(BASE_DIR, process_name)
     if must_exist and not os.path.exists(path):
@@ -262,6 +267,8 @@ def delete_process(process_name):
 @login_required
 def select_process(process_id):
     """Select process"""
+    if not _is_valid_process_name(process_id):
+        abort(404)
     path = get_process_path(process_id)
     if not os.path.exists(path):
         abort(404)
