@@ -6,12 +6,15 @@ Pure text formatters — no Flask or logging dependencies. Called from app.py by
 
 import numpy as np
 import pandera as pa
+from werkzeug.exceptions import RequestEntityTooLarge
 
 from aliexpress.errors import CouldNotReadFileError, FeasibilityError, ValidationError
 
 
 def to_validation_message(exc: Exception) -> str:
     """Convert a validation exception to a user-friendly message"""
+    if isinstance(exc, RequestEntityTooLarge):
+        return "Het bestand is te groot om te uploaden. Kies een kleiner bestand."
     if isinstance(exc, pa.errors.SchemaError):
         return schemaerror_to_validation_message(exc)
     if isinstance(exc, (ValidationError, CouldNotReadFileError, FeasibilityError)):
