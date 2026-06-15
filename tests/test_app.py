@@ -5,9 +5,11 @@
 import json
 import re
 from io import BytesIO
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pandas as pd
+import pytest
 from werkzeug.datastructures import MultiDict
 
 import app as flask_module
@@ -825,3 +827,40 @@ class TestHandleError:
             content_type="application/json",
         )
         assert any(msg == "Er ging iets mis" for _, msg in _flashes(client))
+
+
+class TestSecretKeyGuard:
+    """The startup guard refuses to run without a SECRET_KEY."""
+
+    def test_missing_secret_key_raises(self):
+        """An empty SECRET_KEY must raise at startup, not silently run unsigned."""
+        with pytest.raises(RuntimeError):
+            flask_module.ensure_secret_key(SimpleNamespace(config={}))
+
+    def test_present_secret_key_does_not_raise(self):
+        """A configured SECRET_KEY passes the guard without error."""
+        flask_module.ensure_secret_key(SimpleNamespace(config={"SECRET_KEY": "x"}))
+
+
+class TestUploadSizeLimit:
+    """Uploads exceeding MAX_CONTENT_LENGTH get a friendly 413 redirect, not a crash."""
+
+    def test_limit_is_configured(self):
+        """A content-length limit must be set so uploads cannot exhaust memory/disk."""
+        assert flask_app.config["MAX_CONTENT_LENGTH"]
+
+    def test_oversized_upload_redirects_with_error_flash(
+        self, client, tmp_path, monkeypatch
+    ):
+        """A body larger than the limit redirects back and flashes a Dutch error."""
+        _setup_process(client, tmp_path)
+        monkeypatch.setitem(client.application.config, "MAX_CONTENT_LENGTH", 50)
+        response = client.post(
+            "/upload_edexml",
+            data={"edexml": (BytesIO(b"x" * 5000), "edex.xml"), "jaargroep": "4"},
+            content_type="multipart/form-data",
+        )
+        assert response.status_code == 302
+        assert any(
+            cat == "error" and "te groot" in msg for cat, msg in _flashes(client)
+        )

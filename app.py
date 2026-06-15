@@ -56,8 +56,23 @@ if env == "development":
 else:
     from aliexpress.appconfig import ProductionConfig as ConfigClass
 
+
+def ensure_secret_key(flask_app):
+    """Refuse to start without a signing key.
+
+    An empty SECRET_KEY makes session cookies unsignable (and login state forgeable),
+    so fail fast at startup rather than at the first request. Development supplies a
+    fallback key in DevelopmentConfig, so this only bites a misconfigured production deploy.
+    """
+    if not flask_app.config.get("SECRET_KEY"):
+        raise RuntimeError(
+            "SECRET_KEY is not set; refusing to start. Set it in the environment (.env)."
+        )
+
+
 app = Flask(__name__)
 app.config.from_object(ConfigClass)
+ensure_secret_key(app)
 LOG_DIR = os.path.join(app.instance_path, "logs")
 os.makedirs(LOG_DIR, exist_ok=True)
 add_file_handler(os.path.join(LOG_DIR, "aliexpress.log"))
@@ -81,6 +96,17 @@ def load_user(schoolcode):
 
 
 app.cli.add_command(schools_cli, "schools")
+
+
+@app.errorhandler(413)
+def upload_too_large(error):
+    """Friendly Dutch message when a request exceeds MAX_CONTENT_LENGTH (HTTP 413).
+
+    Upload routes catch the error themselves via _flash_upload_error; this covers any
+    other route, sharing the same message through to_validation_message.
+    """
+    flash(to_validation_message(error), "error")
+    return redirect(request.referrer or url_for("processes"))
 
 
 def get_process_path(process_id):

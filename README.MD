@@ -40,6 +40,9 @@ FLASK_ENV=production
 SECRET_KEY=<your-secret-key-here>
 ```
 
+`SECRET_KEY` signs the login session cookie. In production the app refuses to start
+without one; in development a fallback key is used so you can run it without a `.env`.
+
 ## Schools and login
 
 Every data route requires logging in as a school, so student data is never reachable without

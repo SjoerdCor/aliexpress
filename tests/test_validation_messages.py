@@ -7,6 +7,7 @@ silently change the UI text.
 import numpy as np
 import pandas as pd
 import pandera as pa
+from werkzeug.exceptions import RequestEntityTooLarge
 
 from aliexpress.errors import ValidationError
 from aliexpress.validation_messages import (
@@ -28,6 +29,11 @@ class TestErrorMessages:
         """A generic exception not in any known category returns the Dutch fallback."""
         msg = to_validation_message(RuntimeError("anything"))
         assert "onverwachts" in msg
+
+    def test_request_entity_too_large_returns_size_message(self):
+        """An oversized upload (HTTP 413) yields the friendly 'too large' message."""
+        msg = to_validation_message(RequestEntityTooLarge())
+        assert "te groot" in msg
 
     def test_readable_error_with_known_code_returns_dutch_template(self):
         """'wrong_columns_preferences' ValidationError returns the Dutch column-error template."""

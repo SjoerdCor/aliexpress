@@ -19,6 +19,12 @@ class Config:
     SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL", "sqlite:///app.db")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
+    # Cap the size of a single upload to bound memory and disk use. A class's preferences
+    # workbook and a school's EDEXML export are well under a megabyte; 16 MB leaves generous
+    # headroom while refusing pathological uploads. Exceeding it yields HTTP 413, handled in
+    # app.py with a friendly Dutch message.
+    MAX_CONTENT_LENGTH = 16 * 1024 * 1024
+
     # Session security. SECURE is off in the base config (no HTTPS locally/in tests);
     # ProductionConfig flips it on. HTTPONLY and SAMESITE are always on. The login session
     # is a non-permanent cookie (see login_user(..., remember=False)): it lasts until the
