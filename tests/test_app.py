@@ -224,6 +224,17 @@ class TestSelectProcess:
         """Selecting a process that does not exist returns 404."""
         assert client.get("/processes/select/bestaat_niet").status_code == 404
 
+    def test_malformed_process_id_gives_404(self, client, tmp_path):
+        """A tampered id with path characters is rejected on format, before any path use.
+
+        ``bad.name`` would reach the route (dots are valid in a URL segment) but must not
+        be turned into a filesystem path: the format check rejects it with a 404.
+        """
+        (
+            tmp_path / "bad.name"
+        ).mkdir()  # even if such a dir existed, it must not be served
+        assert client.get("/processes/select/bad.name").status_code == 404
+
     def test_empty_process_redirects_to_upload_edexml(self, client, tmp_path):
         """A process with no files starts at the first step: upload EDEXML."""
         (tmp_path / "leegproces").mkdir()
