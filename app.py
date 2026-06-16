@@ -613,10 +613,6 @@ def not_together_page():
             existing_rules=existing_rules,
         )
 
-    if request.form.get("action") == "skip":
-        _save_not_together(process_id, [])
-        return redirect(url_for("start_distribution"))
-
     n_rules = int(request.form.get("n_rules", 0))
     rules, error = _parse_not_together_form(request.form, n_rules)
     if error is None:
