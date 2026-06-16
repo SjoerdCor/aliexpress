@@ -23,6 +23,10 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(flask_module, "BASE_DIR", str(tmp_path))
     flask_app.config["TESTING"] = True
     flask_app.config["SECRET_KEY"] = "test-secret-key"
+    # The shared client logs in for every test; without this the suite would trip the
+    # login rate limit. flask-limiter reads RATELIMIT_ENABLED only at init, so toggle the
+    # live attribute. One dedicated test re-enables it to cover the limiter itself.
+    flask_module.limiter.enabled = False
     with flask_app.app_context():
         db.drop_all()
         db.create_all()
@@ -44,6 +48,7 @@ def unauthed_client(tmp_path, monkeypatch):
     monkeypatch.setattr(flask_module, "BASE_DIR", str(tmp_path))
     flask_app.config["TESTING"] = True
     flask_app.config["SECRET_KEY"] = "test-secret-key"
+    flask_module.limiter.enabled = False
     with flask_app.app_context():
         db.drop_all()
         db.create_all()

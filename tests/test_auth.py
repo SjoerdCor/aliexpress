@@ -11,7 +11,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from aliexpress.extensions import db
 from aliexpress.models import School
 from app import app as flask_app
-from app import load_user
+from app import limiter, load_user
 
 
 class TestSchoolModel:
@@ -142,3 +142,44 @@ class TestLoginWall:
         """Template downloads stay public even without a session."""
         response = unauthed_client.get("/input_templates/voorkeuren_template.xlsx")
         assert response.status_code != 302
+
+
+class TestLoginRateLimit:
+    """The login route is rate-limited against brute-force attempts."""
+
+    def test_repeated_logins_are_eventually_blocked(self, unauthed_client):
+        """Past the per-minute cap, attempts get the friendly 429 -> redirect, not 200.
+
+        The fixtures disable the limiter suite-wide (the shared client logs in often); this
+        test re-enables it and resets the window so it exercises the limiter in isolation.
+        """
+        app_under_test = unauthed_client.application
+        limiter.enabled = True
+        with app_under_test.app_context():
+            limiter.reset()
+        try:
+            statuses = [
+                unauthed_client.post(
+                    "/login", data={"schoolcode": "x", "wachtwoord": "y"}
+                ).status_code
+                for _ in range(25)
+            ]
+        finally:
+            limiter.enabled = False
+            with app_under_test.app_context():
+                limiter.reset()
+        assert statuses[0] == 200  # first attempt allowed (wrong-credentials re-render)
+        assert (
+            302 in statuses
+        )  # later attempts blocked -> 429 handler redirects to login
+
+    def test_get_login_is_not_rate_limited(self, unauthed_client):
+        """Viewing the login form (GET) is never blocked; only POST attempts count."""
+        limiter.enabled = True
+        with unauthed_client.application.app_context():
+            limiter.reset()
+        try:
+            statuses = [unauthed_client.get("/login").status_code for _ in range(25)]
+        finally:
+            limiter.enabled = False
+        assert all(status == 200 for status in statuses)

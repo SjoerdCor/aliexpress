@@ -32,6 +32,7 @@ def live_server(tmp_path, monkeypatch):
     monkeypatch.setattr(flask_module, "BASE_DIR", str(tmp_path))
     flask_module.app.config["TESTING"] = True
     flask_module.app.config["SECRET_KEY"] = "browser-test-secret"
+    flask_module.limiter.enabled = False
 
     with flask_module.app.app_context():
         flask_module.db.drop_all()
