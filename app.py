@@ -27,6 +27,8 @@ from flask import (
     session,
     url_for,
 )
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from flask_login import current_user, login_required, login_user, logout_user
 from werkzeug.security import check_password_hash
 
@@ -85,6 +87,11 @@ os.makedirs(app.instance_path, exist_ok=True)
 db.init_app(app)
 login_manager.init_app(app)
 login_manager.login_view = "login"
+
+# Rate-limit the login route against brute force. In-memory storage suffices for a single
+# process; a multi-process deployment (the future EU server) needs a shared backend (Redis).
+limiter = Limiter(get_remote_address, app=app, storage_uri="memory://")
+
 with app.app_context():
     db.create_all()
 
@@ -107,6 +114,13 @@ def upload_too_large(error):
     """
     flash(to_validation_message(error), "error")
     return redirect(request.referrer or url_for("processes"))
+
+
+@app.errorhandler(429)
+def too_many_requests(_error):
+    """Friendly Dutch message when login attempts are rate-limited (HTTP 429)."""
+    flash("Te veel inlogpogingen. Wacht een minuut en probeer het opnieuw.", "error")
+    return redirect(url_for("login"))
 
 
 def get_process_path(process_id):
@@ -182,6 +196,7 @@ def home():
 
 
 @app.route("/login", methods=["GET", "POST"])
+@limiter.limit("20 per minute", methods=["POST"])
 def login():
     """Show and handle the school login form."""
     if current_user.is_authenticated:
