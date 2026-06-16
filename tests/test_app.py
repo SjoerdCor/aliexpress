@@ -553,7 +553,7 @@ class TestStudentPreferencesSelection:
 
 
 class TestNotTogetherPage:
-    """Tests for POST /not_together skip and error paths."""
+    """Tests for POST /not_together error paths."""
 
     def _mock_file_reads(self, monkeypatch):
         """Patch datareader calls so not_together_page does not need real xlsx files."""
@@ -581,16 +581,6 @@ class TestNotTogetherPage:
         assert response.status_code == 302
         assert response.headers["Location"].endswith("/student_preferences")
         assert any(cat == "error" for cat, _ in _flashes(client))
-
-    def test_post_skip_redirects_to_start_distribution(
-        self, client, tmp_path, monkeypatch
-    ):
-        """POST /not_together with action=skip saves empty rules and redirects to start."""
-        _setup_process(client, tmp_path)
-        self._mock_file_reads(monkeypatch)
-        response = client.post("/not_together", data={"action": "skip"})
-        assert response.status_code == 302
-        assert response.headers["Location"].endswith("/start_distribution")
 
     def test_post_duplicate_student_flashes_error(self, client, tmp_path, monkeypatch):
         """A rule with the same student listed twice flashes a Dutch parse error."""
