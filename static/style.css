@@ -572,3 +572,151 @@ table.dataframe th {
 .delete-btn:hover {
     color: darkred;
 }
+
+/* Login page. Scoped under .login-container / .login-form so it does not inherit the
+   compact .form-group row styling (label 450px, input 40px) used by the "niet samen"
+   number inputs, which would otherwise squeeze the login fields to 40px wide. */
+.login-container {
+    width: 400px;
+    align-items: stretch;
+}
+
+.login-intro,
+.login-help {
+    color: #555555;
+    margin: 0 0 20px;
+}
+
+.login-help {
+    margin: 20px 0 0;
+    font-size: 0.9rem;
+}
+
+.login-form .form-group {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    border: none;
+    padding: 0;
+    margin-bottom: 16px;
+}
+
+.login-form .form-group label {
+    width: auto;
+    margin: 0 0 6px;
+}
+
+.login-form input[type="text"],
+.login-form input[type="password"] {
+    width: 100%;
+    padding: 12px;
+    margin: 0;
+    border: 1px solid #cccccc;
+    border-radius: 8px;
+    background-color: #f7f7f7;
+    font-size: 16px;
+    color: #333333;
+    box-sizing: border-box;
+}
+
+.login-form input[type="text"]:focus,
+.login-form input[type="password"]:focus {
+    border-color: #e69900;
+    outline: none;
+}
+
+.login-form .btn-primary {
+    all: unset;
+    font-family: inherit;
+    font-size: 1rem;
+    padding: 0.75rem 1.5rem;
+    margin-top: 8px;
+    background-color: #e69900;
+    color: white;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    text-align: center;
+    display: inline-block;
+}
+
+/* School-bar: schoolnaam links, hamburgermenu rechts */
+.school-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0.4rem 0 0.6rem;
+    border-bottom: 1px solid #f0d9b5;
+    margin-bottom: 0.5rem;
+}
+
+.school-name {
+    font-weight: bold;
+    color: #7a5a2a;
+    font-size: 0.95rem;
+}
+
+.hamburger-menu {
+    position: relative;
+}
+
+.hamburger-btn {
+    background: none;
+    border: none;
+    font-size: 1.4rem;
+    cursor: pointer;
+    color: #7a5a2a;
+    padding: 0.15rem 0.4rem;
+    line-height: 1;
+}
+
+.hamburger-btn:hover {
+    color: #e69900;
+}
+
+.hamburger-nav {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: calc(100% + 4px);
+    background: white;
+    border: 1px solid #f0d9b5;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    min-width: 170px;
+    z-index: 200;
+    flex-direction: column;
+}
+
+.hamburger-nav.open {
+    display: flex;
+}
+
+.hamburger-nav a {
+    display: block;
+    padding: 0.55rem 1.1rem;
+    color: #333;
+    text-decoration: none;
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+
+.hamburger-nav a:first-child {
+    border-radius: 0.5rem 0.5rem 0 0;
+}
+
+.hamburger-nav a:hover {
+    background: #fff7f0;
+    color: #e69900;
+}
+
+.hamburger-nav .menu-logout {
+    border-top: 1px solid #f0d9b5;
+    color: #aaa;
+    margin-top: 0.1rem;
+}
+
+.hamburger-nav .menu-logout:hover {
+    color: #777;
+    background: #f8f8f8;
+}

@@ -11,7 +11,6 @@ from dataclasses import dataclass
 from io import BytesIO
 from threading import Thread
 
-import numpy as np
 import pandas as pd
 import pandera as pa
 from dotenv import load_dotenv
@@ -28,18 +27,24 @@ from flask import (
     session,
     url_for,
 )
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from flask_login import current_user, login_required, login_user, logout_user
+from werkzeug.security import check_password_hash
 
 from aliexpress import candidatedetermination, datareader, input_writer, sociogram
+from aliexpress.cli import schools as schools_cli
 from aliexpress.errors import (
     CouldNotReadFileError,
     DuplicateNameError,
     FeasibilityError,
     ValidationError,
 )
-from aliexpress.extensions import db
+from aliexpress.extensions import db, login_manager
 from aliexpress.logging_config import add_file_handler, configure_logging
 from aliexpress.main import distribute_students_once
-from aliexpress.models import LogLine, Run
+from aliexpress.models import LogLine, Run, School
+from aliexpress.validation_messages import to_validation_message
 
 configure_logging()
 logger = logging.getLogger("aliexpress.app")  # file handler added below
@@ -53,8 +58,23 @@ if env == "development":
 else:
     from aliexpress.appconfig import ProductionConfig as ConfigClass
 
+
+def ensure_secret_key(flask_app):
+    """Refuse to start without a signing key.
+
+    An empty SECRET_KEY makes session cookies unsignable (and login state forgeable),
+    so fail fast at startup rather than at the first request. Development supplies a
+    fallback key in DevelopmentConfig, so this only bites a misconfigured production deploy.
+    """
+    if not flask_app.config.get("SECRET_KEY"):
+        raise RuntimeError(
+            "SECRET_KEY is not set; refusing to start. Set it in the environment (.env)."
+        )
+
+
 app = Flask(__name__)
 app.config.from_object(ConfigClass)
+ensure_secret_key(app)
 LOG_DIR = os.path.join(app.instance_path, "logs")
 os.makedirs(LOG_DIR, exist_ok=True)
 add_file_handler(os.path.join(LOG_DIR, "aliexpress.log"))
@@ -65,8 +85,44 @@ logger.debug("Created dir if not exists: %s", BASE_DIR)
 # A relative SQLite URI is resolved against the instance folder, which must exist first.
 os.makedirs(app.instance_path, exist_ok=True)
 db.init_app(app)
+login_manager.init_app(app)
+login_manager.login_view = "login"
+login_manager.login_message = "Je moet ingelogd zijn om deze pagina te bekijken."
+login_manager.login_message_category = "error"
+
+# Rate-limit the login route against brute force. In-memory storage suffices for a single
+# process; a multi-process deployment (the future EU server) needs a shared backend (Redis).
+limiter = Limiter(get_remote_address, app=app, storage_uri="memory://")
+
 with app.app_context():
     db.create_all()
+
+
+@login_manager.user_loader
+def load_user(schoolcode):
+    """Return the School for the given schoolcode, or None if not found."""
+    return db.session.get(School, schoolcode)
+
+
+app.cli.add_command(schools_cli, "schools")
+
+
+@app.errorhandler(413)
+def upload_too_large(error):
+    """Friendly Dutch message when a request exceeds MAX_CONTENT_LENGTH (HTTP 413).
+
+    Upload routes catch the error themselves via _flash_upload_error; this covers any
+    other route, sharing the same message through to_validation_message.
+    """
+    flash(to_validation_message(error), "error")
+    return redirect(request.referrer or url_for("processes"))
+
+
+@app.errorhandler(429)
+def too_many_requests(_error):
+    """Friendly Dutch message when login attempts are rate-limited (HTTP 429)."""
+    flash("Te veel inlogpogingen. Wacht een minuut en probeer het opnieuw.", "error")
+    return redirect(url_for("login"))
 
 
 def get_process_path(process_id):
@@ -141,7 +197,34 @@ def home():
     return render_template("home.html")
 
 
+@app.route("/login", methods=["GET", "POST"])
+@limiter.limit("20 per minute", methods=["POST"])
+def login():
+    """Show and handle the school login form."""
+    if current_user.is_authenticated:
+        return redirect(url_for("processes"))
+    if request.method == "POST":
+        schoolcode = request.form.get("schoolcode", "").strip()
+        password = request.form.get("wachtwoord", "")
+        school = db.session.get(School, schoolcode)
+        if school is None or not check_password_hash(school.password_hash, password):
+            flash("Ongeldige schoolcode of wachtwoord.", "error")
+            return render_template("login.html")
+        login_user(school, remember=False)
+        return redirect(url_for("processes"))
+    return render_template("login.html")
+
+
+@app.route("/logout")
+@login_required
+def logout():
+    """Log the school out and redirect to the login page."""
+    logout_user()
+    return redirect(url_for("login"))
+
+
 @app.route("/processes")
+@login_required
 def processes():
     """Display page to create or choose process"""
     existing_processes = [
@@ -152,11 +235,16 @@ def processes():
     return render_template("processes.html", processes=existing_processes)
 
 
+def _is_valid_process_name(name):
+    """True when the name is a safe single path segment (no separators, no traversal)."""
+    return bool(re.match(r"^[\w\- ]+$", name))
+
+
 def _validate_process_name(process_name, must_exist=True):
     """Return an error message, or None when the name is valid."""
     if not process_name:
         return "Naam is verplicht"
-    if not re.match(r"^[\w\- ]+$", process_name):
+    if not _is_valid_process_name(process_name):
         return "Alleen letters, cijfers, spaties, - en _ toegestaan"
     path = os.path.join(BASE_DIR, process_name)
     if must_exist and not os.path.exists(path):
@@ -167,6 +255,7 @@ def _validate_process_name(process_name, must_exist=True):
 
 
 @app.route("/processes/create", methods=["POST"])
+@login_required
 def create_process():
     """Create a new process"""
     process_name = request.form.get("process_name", "").strip()
@@ -180,6 +269,7 @@ def create_process():
 
 
 @app.route("/processes/delete/<process_name>", methods=["POST"])
+@login_required
 def delete_process(process_name):
     """Delete a process"""
     if error := _validate_process_name(process_name, must_exist=True):
@@ -191,8 +281,11 @@ def delete_process(process_name):
 
 
 @app.route("/processes/select/<process_id>")
+@login_required
 def select_process(process_id):
     """Select process"""
+    if not _is_valid_process_name(process_id):
+        abort(404)
     path = get_process_path(process_id)
     if not os.path.exists(path):
         abort(404)
@@ -222,14 +315,11 @@ def download_template(filename):
 
 
 @app.route("/download_preferences")
+@login_required
 @require_process
 def download_preferences():
-    """Download the original, filled-in preferences file as the teacher uploaded it.
-
-    This is the richly-formatted upload (with column help and dropdown validations), not
-    the normalised processed file, so the teacher can keep editing it safely.
-    """
-    path = get_file_path(session["process_id"], "preferences_original.xlsx")
+    """Download the filled-in preferences file as the teacher uploaded it."""
+    path = get_file_path(session["process_id"], "preferences.xlsx")
     if not os.path.exists(path):
         logger.warning(
             "Download of filled-in preferences requested but none stored for process %s",
@@ -248,6 +338,7 @@ def download_preferences():
 
 
 @app.route("/upload_edexml", methods=["GET", "POST"])
+@login_required
 def upload_edexml():
     """Route to upload edexml"""
     if request.method == "GET":
@@ -296,6 +387,7 @@ def _load_groups_to_state(process_id):
 
 
 @app.route("/groups_to", methods=["GET", "POST"])
+@login_required
 @require_process
 def groups_to_page():
     """Display and process the groups_to page"""
@@ -354,6 +446,7 @@ def _save_student_selection(process_id, selected_ids, new_students):
 
 
 @app.route("/student_preferences", methods=["GET", "POST"])
+@login_required
 @require_process
 def student_preferences():
     """Display page where the teacher can add preferences for the student"""
@@ -371,7 +464,7 @@ def student_preferences():
             candidates=candidates,
             groups_from=groups_from,
             preferences_uploaded=os.path.exists(
-                get_file_path(process_id, "preferences_original.xlsx")
+                get_file_path(process_id, "preferences.xlsx")
             ),
             # None means "first visit": default to all candidates ticked.
             selected_ids=set(selection["selected_ids"]) if selection else None,
@@ -409,6 +502,7 @@ def student_preferences():
 
 
 @app.route("/upload_preferences", methods=["POST"])
+@login_required
 @require_process
 def upload_preferences():
     """Handle the upload of the preferences file, or continue with an earlier upload.
@@ -433,19 +527,15 @@ def upload_preferences():
         groups_to_data, _ = datareader.read_groups_excel(groups_to_path)
         groups_to = list(groups_to_data.keys())
         processor = datareader.VoorkeurenProcessor(BytesIO(raw))
-        processor.process(all_to_groups=groups_to)  # validates further
+        processor.process(all_to_groups=groups_to)  # validates; raises on invalid input
+        # Save the raw upload directly so re-reading later preserves names as entered.
+        # VoorkeurenProcessor normalises names to matching keys at read time anyway,
+        # and storing the original ensures student_display maps correctly to display names.
         preferences_path = get_file_path(process_id, "preferences.xlsx")
-        input_writer.write_preferences_to_excel(
-            processor.input.reset_index(), preferences_path
-        )
-        # Keep the original upload so the teacher can download and keep editing the
-        # richly-formatted file with all wishes intact (the processed file above is
-        # normalised and stripped of formatting/validations).
-        original_path = get_file_path(process_id, "preferences_original.xlsx")
-        with open(original_path, "wb") as fh:
+        with open(preferences_path, "wb") as fh:
             fh.write(raw)
         logger.info(
-            "Preferences accepted for process %s: %d students; kept original upload",
+            "Preferences accepted for process %s: %d students",
             process_id,
             len(processor.input.index),
         )
@@ -484,6 +574,7 @@ def _parse_not_together_form(form, n_rules):
 
 
 @app.route("/not_together", methods=["GET", "POST"])
+@login_required
 @require_process
 def not_together_page():
     """Display and process the not-together rules page"""
@@ -496,7 +587,9 @@ def not_together_page():
         processor = datareader.VoorkeurenProcessor(preferences_path)
         processor.process(all_to_groups=list(groups_to.keys()))
         # Show names as entered in the dropdown; matching happens on the key on submit.
+        logger.debug(processor.student_display)
         students = sorted(processor.student_display.values())
+        logger.debug(", ".join(students))
     except Exception as exc:  # pylint: disable=broad-exception-caught
         _flash_upload_error(exc)
         return redirect(url_for("student_preferences"))
@@ -515,10 +608,6 @@ def not_together_page():
             n_groups=n_groups,
             existing_rules=existing_rules,
         )
-
-    if request.form.get("action") == "skip":
-        _save_not_together(process_id, [])
-        return redirect(url_for("start_distribution"))
 
     n_rules = int(request.form.get("n_rules", 0))
     rules, error = _parse_not_together_form(request.form, n_rules)
@@ -631,181 +720,10 @@ def parse_groups_to_form(form, groups_to: dict) -> GroupsToSubmission:
     return GroupsToSubmission(distribution=distribution, state=state)
 
 
-def to_validation_message(exc: Exception) -> str:
-    """Convert a validation exception to a user-friendly message"""
-    if isinstance(exc, pa.errors.SchemaError):
-        return schemaerror_to_validation_message(exc)
-    if isinstance(exc, (ValidationError, CouldNotReadFileError, FeasibilityError)):
-        return readableerror_to_validation_message(exc)
-    return (
-        "Er is iets onverwachts misgegaan. Het probleem is gelogd. "
-        "Laat de maker dit onderzoeken."
-    )
-
-
 def _flash_upload_error(exc: Exception) -> None:
     """Log a rejected upload and flash a friendly Dutch message to the user."""
     logger.exception("Upload rejected")
     flash(to_validation_message(exc), "error")
-
-
-def readableerror_to_validation_message(exc: Exception) -> str:
-    """Convert a validation exception to a user-friendly message"""
-    friendly_templates = {
-        "wrong_columns_preferences": (
-            "Het voorkeuren-bestand heeft de verkeerde kolommen. Controleer of je het goede"
-            " bestand hebt geupload en het meest recente template hebt gebruikt. "
-            "\n{wrong_columns}"
-        ),
-        "infeasible_problem": (
-            "Met deze vereiste klassenbalans en verdeling van leerlingen die overgaan is het"
-            "niet mogelijk. Overweeg de volgende versoepelingen om het probleem wel op te "
-            "lossen:\n {possible_improvement}"
-        ),
-        "internal_error": (
-            "Er is iets onverwachts misgegaan. Het probleem is gelogd. "
-            "Laat de maker dit onderzoeken."
-        ),
-        "too_few_students_not_together": (
-            "Niet-samen-regel {rule_index} heeft minder dan 2 leerlingen. "
-            "Voeg minstens 2 leerlingen toe."
-        ),
-        "invalid_max_samen_not_together": (
-            "Niet-samen-regel {rule_index}: het maximale aantal samen moet minstens 1 zijn."
-        ),
-        "unknown_student_not_together": (
-            "In de niet-samen-regels staan onbekende leerlingen: {unknown_students}. "
-            "Controleer of de namen overeenkomen met het voorkeuren-bestand."
-        ),
-        "too_strict_not_together": (
-            "Niet-samen-regel {rule_index}: met {n_groups} groepen is het niet mogelijk om "
-            "{n_students} leerlingen te verdelen met maximaal {max_samen} bij elkaar."
-        ),
-    }
-
-    template = friendly_templates.get(exc.code, None)
-    if template:
-        return template.format(**exc.context)
-    return (
-        "Er is iets onverwachts misgegaan. Het probleem is gelogd. "
-        "Laat de maker dit onderzoeken."
-    )
-
-
-# Deliberately overruling pylint here; we need a branch per validation
-# pylint: disable=too-many-return-statements, too-many-branches
-def schemaerror_to_validation_message(exc: pa.errors.SchemaError) -> str:
-    """Convert a pandera SchemaError to a user-friendly message
-
-    This SchemaError must have been modified to contain a 'filetype' attribute.
-    """
-    if exc.reason_code in (
-        pa.errors.SchemaErrorReason.COLUMN_NOT_IN_SCHEMA,
-        pa.errors.SchemaErrorReason.COLUMN_NOT_IN_DATAFRAME,
-    ):
-        return (
-            f"Het {exc.filetype}-bestand heeft de verkeerde kolommen. Controleer of je het goede"
-            " bestand hebt geupload en het meest recente template hebt gebruikt. "
-            f"\n{exc.failure_cases}"
-        )
-    if exc.reason_code == pa.errors.SchemaErrorReason.DATATYPE_COERCION:
-        return (
-            f"Ongeldige waarden gevonden in kolom {exc.schema.name} "
-            f"van het {exc.filetype}-bestand"
-        )
-    if exc.reason_code == pa.errors.SchemaErrorReason.SERIES_CONTAINS_NULLS:
-        students = getattr(exc, "offending_students", [])
-        if students:
-            return (
-                f"In het {exc.filetype}-bestand mist een waarde bij: "
-                f"{', '.join(students)}. Vul bij elke wens een naam of groep in, of haal "
-                "het bijbehorende gewicht weg als er geen wens is."
-            )
-        return (
-            f"In het {exc.filetype}-bestand zijn niet alle verplichte velden gevuld "
-            f"(kolom {exc.column_name})."
-        )
-    if exc.reason_code == pa.errors.SchemaErrorReason.SERIES_CONTAINS_DUPLICATES:
-        if exc.filetype == "voorkeuren":
-            duplicates = ", ".join(exc.failure_cases["failure_case"])
-            return (
-                f"In voorkeuren is de volgende naam/namen niet uniek: {duplicates}\n"
-                "Voeg de eerste letter van de achternaam toe om de leerlingen van "
-                "elkaar te onderscheiden."
-            )
-        return (
-            f"In het {exc.filetype}-bestand zijn dubbelingen ingevuld "
-            f"in kolom {exc.column_name}"
-        )
-
-    if exc.reason_code == pa.errors.SchemaErrorReason.DATAFRAME_CHECK:
-        if exc.check.name == "empty_df":
-            return (
-                f"Het {exc.filetype}-bestand was helemaal leeg. Daardoor kan er "
-                "geen groepsindeling worden berekend"
-            )
-        if exc.column_name == ("Jongen/meisje", np.nan, np.nan):
-            return f"Verkeerd ingevuld geslacht voor {', '.join(exc.failure_cases['index'])}"
-        if exc.check.name == "greater_than" and "Gewicht" in exc.column_name:
-            return "Er zijn negatieve gewichten in het voorkeurenbestand."
-        if exc.check.name == "duplicated_values_preferences":
-            students_with_duplicates = ", ".join(
-                set(exc.failure_cases["index"].get_level_values("Leerling"))
-            )
-            return (
-                "In het voorkeuren-bestand is voor "
-                f"{students_with_duplicates} een leerling of groep gevonden die "
-                "dubbel voorkomt. Tel ze op of streep ze tegen elkaar weg om "
-                "dubbelingen te voorkomen."
-            )
-        if exc.check.name == "invalid_values_preferences":
-            invalid_values = ", ".join(
-                set(
-                    exc.failure_cases.loc[
-                        lambda df: df["column"] == "Waarde", "failure_case"
-                    ]
-                )
-            )
-            return f"Onbekende leerling of groep in categorie: {invalid_values}"
-        if exc.check.name == "isin" and exc.filetype == "niet_samen":
-            unknown_students = ", ".join(exc.failure_cases["failure_case"].astype(str))
-            return (
-                f"In het niet-samen-bestand komt {unknown_students} voor, "
-                "die niet in het voorkeurenbestand voorkomt"
-            )
-        if exc.check.name == "duplicated_students_not_together":
-            rows = ", ".join(set(exc.failure_cases["index"].add(1).astype(str)))
-            duplicated_students = ", ".join(
-                exc.failure_cases.groupby("index")["failure_case"].apply(
-                    lambda s: s[s.duplicated()]
-                )
-            )
-            return (
-                f"In het niet-samen-bestand wordt in de {rows}e "
-                f"groep dezelfde leerling meerdere keren genoemd: {duplicated_students}"
-            )
-        if exc.check.name == "too_strict_not_together":
-            rows = ", ".join(set(exc.failure_cases["index"].add(1).astype(str)))
-            max_samen = ", ".join(
-                exc.failure_cases.loc[
-                    lambda df: df["column"] == "Max aantal samen", "failure_case"
-                ].astype(str)
-            )
-            nr_students = ", ".join(
-                exc.failure_cases.groupby("index").size().sub(1).astype(str)
-            )
-
-            return (
-                f"In het niet-samen-bestand op de {rows}e rij is de maximale "
-                f"groepsgrootte te klein: met dit aantal groepen lukt het niet om {nr_students} "
-                f"leerlingen te verdelen met maximaal {max_samen} bij elkaar."
-            )
-
-    return (
-        f"Er is iets onverwachts misgegaan bij het lezen van {exc.filetype}. "
-        "Controleer het bestand goed en of je het meest recente template hebt gebruikt. "
-        "Als het probleem blijft bestaan, laat de maker dit onderzoeken."
-    )
 
 
 def _handle_failure(exc, process_id):
@@ -825,6 +743,7 @@ def _handle_failure(exc, process_id):
 
 
 @app.route("/start_distribution", methods=["GET"])
+@login_required
 @require_process
 def start_distribution():
     """Start the student distribution using stored input files"""
@@ -902,6 +821,7 @@ def start_distribution():
 
 
 @app.route("/status")
+@login_required
 @require_process
 def status():
     """Return the current process's run status and log lines as JSON."""
@@ -918,6 +838,7 @@ def status():
 
 
 @app.route("/processing")
+@login_required
 @require_process
 def processing():
     """Display processing page"""
@@ -925,6 +846,7 @@ def processing():
 
 
 @app.route("/handle-error", methods=["POST"])
+@login_required
 def handle_error():
     """Show information about errors to user"""
     data = request.get_json()
@@ -935,6 +857,7 @@ def handle_error():
 
 
 @app.route("/sociogram")
+@login_required
 @require_process
 def show_sociogram():
     """Display the sociogram for the current process"""
@@ -948,6 +871,7 @@ def show_sociogram():
 
 
 @app.route("/result")
+@login_required
 @require_process
 def result_page():
     """Display result for the current process"""
@@ -961,6 +885,7 @@ def result_page():
 
 
 @app.route("/download")
+@login_required
 @require_process
 def download():
     """Download the groepsindeling for the current process"""
@@ -978,6 +903,7 @@ def download():
 
 
 @app.route("/done")
+@login_required
 def done():
     """Show done page"""
     return render_template("done.html")

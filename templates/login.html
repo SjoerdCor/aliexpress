@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="nl">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Inloggen — ALI-Express</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='logo.ico') }}">
+</head>
+
+<body>
+    {% with messages = get_flashed_messages(with_categories=True) %}
+    {% if messages %}
+    {% for category, msg in messages %}
+    <div class="flash-message {{ category }}">
+        <span class="closebtn" onclick="this.parentElement.style.display='none';">&times;</span>
+        {{ msg }}
+    </div>
+    {% endfor %}
+    {% endif %}
+    {% endwith %}
+
+    <div class="container login-container">
+        <h1>Inloggen</h1>
+        <p class="login-intro">
+            Log in met de schoolcode en het wachtwoord van je school. Daarna kun je een
+            groepsindeling maken.
+        </p>
+        <form method="post" class="login-form">
+            <div class="form-group">
+                <label for="schoolcode">Schoolcode</label>
+                <input type="text" id="schoolcode" name="schoolcode" required autofocus
+                    autocomplete="username">
+            </div>
+            <div class="form-group">
+                <label for="wachtwoord">Wachtwoord</label>
+                <input type="password" id="wachtwoord" name="wachtwoord" required
+                    autocomplete="current-password">
+            </div>
+            <button type="submit" class="btn-primary">Inloggen</button>
+        </form>
+        <p class="login-help">
+            Nog geen schoolcode en wachtwoord, of ben je ze kwijt? Vraag ze op bij de
+            beheerder die ALI-Express voor jouw school heeft ingesteld.
+        </p>
+    </div>
+</body>
+
+</html>

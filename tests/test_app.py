@@ -5,11 +5,10 @@
 import json
 import re
 from io import BytesIO
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-import numpy as np
 import pandas as pd
-import pandera as pa
 import pytest
 from werkzeug.datastructures import MultiDict
 
@@ -18,7 +17,6 @@ from aliexpress.errors import ValidationError
 from aliexpress.extensions import db
 from aliexpress.models import LogLine, Run
 from app import app as flask_app
-from app import readableerror_to_validation_message, to_validation_message
 
 
 def _immediate_thread(target, args=()):
@@ -28,23 +26,6 @@ def _immediate_thread(target, args=()):
     runner = MagicMock()
     runner.start.side_effect = lambda: target(*args)
     return runner
-
-
-@pytest.fixture()
-def client(tmp_path, monkeypatch):
-    """Flask test client with an isolated BASE_DIR and fresh database tables per test.
-
-    The database lives in a throwaway file (see ``tests/conftest.py``); here we just reset
-    its tables so each test starts from a clean state.
-    """
-    monkeypatch.setattr(flask_module, "BASE_DIR", str(tmp_path))
-    flask_app.config["TESTING"] = True
-    flask_app.config["SECRET_KEY"] = "test-secret-key"
-    with flask_app.app_context():
-        db.drop_all()
-        db.create_all()
-    with flask_app.test_client() as c:
-        yield c
 
 
 def _flashes(client_obj):
@@ -242,6 +223,17 @@ class TestSelectProcess:
     def test_unknown_process_gives_404(self, client):
         """Selecting a process that does not exist returns 404."""
         assert client.get("/processes/select/bestaat_niet").status_code == 404
+
+    def test_malformed_process_id_gives_404(self, client, tmp_path):
+        """A tampered id with path characters is rejected on format, before any path use.
+
+        ``bad.name`` would reach the route (dots are valid in a URL segment) but must not
+        be turned into a filesystem path: the format check rejects it with a 404.
+        """
+        (
+            tmp_path / "bad.name"
+        ).mkdir()  # even if such a dir existed, it must not be served
+        assert client.get("/processes/select/bad.name").status_code == 404
 
     def test_empty_process_redirects_to_upload_edexml(self, client, tmp_path):
         """A process with no files starts at the first step: upload EDEXML."""
@@ -561,7 +553,7 @@ class TestStudentPreferencesSelection:
 
 
 class TestNotTogetherPage:
-    """Tests for POST /not_together skip and error paths."""
+    """Tests for POST /not_together error paths."""
 
     def _mock_file_reads(self, monkeypatch):
         """Patch datareader calls so not_together_page does not need real xlsx files."""
@@ -589,16 +581,6 @@ class TestNotTogetherPage:
         assert response.status_code == 302
         assert response.headers["Location"].endswith("/student_preferences")
         assert any(cat == "error" for cat, _ in _flashes(client))
-
-    def test_post_skip_redirects_to_start_distribution(
-        self, client, tmp_path, monkeypatch
-    ):
-        """POST /not_together with action=skip saves empty rules and redirects to start."""
-        _setup_process(client, tmp_path)
-        self._mock_file_reads(monkeypatch)
-        response = client.post("/not_together", data={"action": "skip"})
-        assert response.status_code == 302
-        assert response.headers["Location"].endswith("/start_distribution")
 
     def test_post_duplicate_student_flashes_error(self, client, tmp_path, monkeypatch):
         """A rule with the same student listed twice flashes a Dutch parse error."""
@@ -848,71 +830,38 @@ class TestHandleError:
         assert any(msg == "Er ging iets mis" for _, msg in _flashes(client))
 
 
-class TestErrorMessages:
-    """Unit tests for the user-facing Dutch error messages produced by app.py helpers.
+class TestSecretKeyGuard:
+    """The startup guard refuses to run without a SECRET_KEY."""
 
-    These functions are critical because they determine what Dutch text teachers see
-    when their uploads fail. Tests here pin the Dutch strings so a refactor cannot
-    silently change what the UI shows.
-    """
+    def test_missing_secret_key_raises(self):
+        """An empty SECRET_KEY must raise at startup, not silently run unsigned."""
+        with pytest.raises(RuntimeError):
+            flask_module.ensure_secret_key(SimpleNamespace(config={}))
 
-    def test_unknown_exception_returns_generic_fallback(self):
-        """A generic exception not in any known category returns the Dutch fallback."""
-        msg = to_validation_message(RuntimeError("anything"))
-        assert "onverwachts" in msg
+    def test_present_secret_key_does_not_raise(self):
+        """A configured SECRET_KEY passes the guard without error."""
+        flask_module.ensure_secret_key(SimpleNamespace(config={"SECRET_KEY": "x"}))
 
-    def test_readable_error_with_known_code_returns_dutch_template(self):
-        """'wrong_columns_preferences' ValidationError returns the Dutch column-error template."""
-        exc = ValidationError(
-            "wrong_columns_preferences", {"wrong_columns": "Kolom A, Kolom B"}
+
+class TestUploadSizeLimit:
+    """Uploads exceeding MAX_CONTENT_LENGTH get a friendly 413 redirect, not a crash."""
+
+    def test_limit_is_configured(self):
+        """A content-length limit must be set so uploads cannot exhaust memory/disk."""
+        assert flask_app.config["MAX_CONTENT_LENGTH"]
+
+    def test_oversized_upload_redirects_with_error_flash(
+        self, client, tmp_path, monkeypatch
+    ):
+        """A body larger than the limit redirects back and flashes a Dutch error."""
+        _setup_process(client, tmp_path)
+        monkeypatch.setitem(client.application.config, "MAX_CONTENT_LENGTH", 50)
+        response = client.post(
+            "/upload_edexml",
+            data={"edexml": (BytesIO(b"x" * 5000), "edex.xml"), "jaargroep": "4"},
+            content_type="multipart/form-data",
         )
-        msg = readableerror_to_validation_message(exc)
-        assert "verkeerde kolommen" in msg
-        assert "Kolom A, Kolom B" in msg
-
-    def test_readable_error_with_unknown_code_returns_fallback(self):
-        """A ValidationError with an unrecognised code falls back to the generic Dutch message."""
-        exc = ValidationError("some_unknown_code", {})
-        msg = readableerror_to_validation_message(exc)
-        assert "onverwachts" in msg
-
-    def test_too_few_students_not_together_returns_correct_dutch_text(self):
-        """'too_few_students_not_together' error mentions the rule index and student minimum."""
-        exc = ValidationError("too_few_students_not_together", {"rule_index": 2})
-        msg = readableerror_to_validation_message(exc)
-        assert "Niet-samen-regel 2" in msg
-        assert "minstens 2 leerlingen" in msg
-
-    def test_unknown_student_not_together_returns_student_name(self):
-        """'unknown_student_not_together' error includes the unknown student names."""
-        exc = ValidationError(
-            "unknown_student_not_together", {"unknown_students": "Jan Jansen"}
+        assert response.status_code == 302
+        assert any(
+            cat == "error" and "te groot" in msg for cat, msg in _flashes(client)
         )
-        msg = readableerror_to_validation_message(exc)
-        assert "Jan Jansen" in msg
-
-    @staticmethod
-    def _nulls_schema_error():
-        """A real pandera SERIES_CONTAINS_NULLS error, as a missing value would raise."""
-        schema = pa.DataFrameSchema({"Waarde": pa.Column(str, nullable=False)})
-        try:
-            schema.validate(pd.DataFrame({"Waarde": [np.nan]}))
-        except pa.errors.SchemaError as exc:
-            exc.filetype = "voorkeuren"
-            return exc
-        raise AssertionError("expected a SchemaError")
-
-    def test_missing_value_names_the_student_as_entered(self):
-        """A missing required value (e.g. a Gewicht without a wish) yields a friendly
-        message naming the student as entered, instead of a 500 (regression test)."""
-        exc = self._nulls_schema_error()
-        # datareader attaches the offending students by the name as entered.
-        exc.offending_students = ["Bob B"]
-        msg = flask_module.schemaerror_to_validation_message(exc)
-        assert "Bob B" in msg
-        assert "voorkeuren" in msg
-
-    def test_missing_value_without_student_context_does_not_crash(self):
-        """Without attached students the message still renders (no KeyError/500)."""
-        msg = flask_module.schemaerror_to_validation_message(self._nulls_schema_error())
-        assert "voorkeuren" in msg

@@ -40,6 +40,27 @@ FLASK_ENV=production
 SECRET_KEY=<your-secret-key-here>
 ```
 
+`SECRET_KEY` signs the login session cookie. In production the app refuses to start
+without one; in development a fallback key is used so you can run it without a `.env`.
+
+## Schools and login
+
+Every data route requires logging in as a school, so student data is never reachable without
+authentication. There is no self-registration: an administrator creates each school from the
+command line.
+
+```bash
+uv run flask schools add <schoolcode>
+```
+
+`schoolcode` is the short, unique login identifier the school types (a username). The command
+then prompts for the school's full display name (shown in the interface) and a password,
+entered twice and hidden. The password is stored as a hash, never in plain text.
+
+Teachers log in at `/login` with that schoolcode and password. They obtain their credentials
+from the administrator who set up ALI Express for their school. The session ends when the
+browser is closed.
+
 ## How it works
 
 Start the app by double-clicking the ALI Express shortcut — a browser window opens automatically. Upload `voorkeuren.xlsx` and `groepen.xlsx`, optionally enter any "niet samen" constraints, and click Run.
