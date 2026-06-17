@@ -28,6 +28,7 @@ from flask import (
 )
 from flask_login import current_user, login_required, login_user, logout_user
 from werkzeug.security import check_password_hash, generate_password_hash
+from zxcvbn import zxcvbn
 
 from aliexpress import candidatedetermination, datareader, input_writer, sociogram
 from aliexpress.admin import admin_bp
@@ -265,11 +266,18 @@ def change_password():
     if request.method == "POST":
         password = request.form.get("wachtwoord", "")
         confirm = request.form.get("wachtwoord_bevestig", "")
-        if len(password) < 8:
-            flash("Wachtwoord moet minimaal 8 tekens lang zijn.", "error")
-            return render_template("change_password.html")
         if password != confirm:
             flash("Wachtwoorden komen niet overeen.", "error")
+            return render_template("change_password.html")
+        result = zxcvbn(
+            password, user_inputs=[current_user.schoolcode, current_user.naam]
+        )
+        if result["score"] < 3:
+            flash(
+                "Wachtwoord is te makkelijk te raden. Gebruik meer tekens of vermijd "
+                "voor de hand liggende woorden en patronen.",
+                "error",
+            )
             return render_template("change_password.html")
         current_user.password_hash = generate_password_hash(password)
         current_user.must_change_password = False
