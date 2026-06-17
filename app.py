@@ -43,7 +43,7 @@ from aliexpress.errors import (
 from aliexpress.extensions import db, login_manager
 from aliexpress.logging_config import add_file_handler, configure_logging
 from aliexpress.main import distribute_students_once
-from aliexpress.models import LogLine, Run, School
+from aliexpress.models import LogLine, Process, Run, School
 from aliexpress.validation_messages import to_validation_message
 
 configure_logging()
@@ -125,14 +125,22 @@ def too_many_requests(_error):
     return redirect(url_for("login"))
 
 
-def get_process_path(process_id):
-    """Get directory for process"""
-    return os.path.join(BASE_DIR, process_id)
+def get_process_path(school_id, process_id):
+    """Return the directory for a process, confined to the school's subdirectory."""
+    path = os.path.join(BASE_DIR, school_id, process_id)
+    school_dir = os.path.join(BASE_DIR, school_id)
+    assert os.path.commonpath([path, school_dir]) == os.path.normpath(school_dir)
+    return path
 
 
-def get_file_path(process_id, filename):
-    """Get file for a certain process"""
-    return os.path.join(get_process_path(process_id), filename)
+def get_file_path(school_id, process_id, filename):
+    """Return the path to a file within a process directory."""
+    return os.path.join(get_process_path(school_id, process_id), filename)
+
+
+def _get_process(school_id, process_name):
+    """Look up a Process by school + name. Returns None when not found."""
+    return Process.query.filter_by(school_id=school_id, name=process_name).first()
 
 
 def require_process(f):
@@ -148,45 +156,47 @@ def require_process(f):
     return wrapper
 
 
-def _reset_run(process_id):
+def _reset_run(school_id, process_name):
     """Start a fresh run for this process: reset its row, logs and stale result files.
 
     Runs in the request context; the committed row is then visible to the background
     threads (which open their own session in their own app context).
     """
-    run = db.session.get(Run, process_id)
-    if run is None:
-        run = Run(process_id=process_id)
-        db.session.add(run)
-    run.status = "pending"
-    run.message = None
-    LogLine.query.filter_by(process_id=process_id).delete()
+    proc = _get_process(school_id, process_name)
+    if proc.run is not None:
+        db.session.delete(proc.run)
+        db.session.flush()  # ensure delete is sent before re-inserting with same PK
+    run = Run(process_id=proc.id)
+    db.session.add(run)
     db.session.commit()
     for filename in ("results.xlsx", "result_tables.json", "sociogram.html"):
-        stale = get_file_path(process_id, filename)
+        stale = get_file_path(school_id, process_name, filename)
         if os.path.exists(stale):
             os.remove(stale)
 
 
-def _set_status(process_id, new_status, message=None):
+def _set_status(school_id, process_name, new_status, message=None):
     """Update the run's status (and optional error message) for this process."""
-    run = db.session.get(Run, process_id)
+    proc = _get_process(school_id, process_name)
+    run = proc.run
     run.status = new_status
     run.message = message
     db.session.commit()
 
 
-def _write_result_files(process_id, result):
+def _write_result_files(school_id, process_name, result):
     """Persist the solver output as files in the process dir (download + rendered tables).
 
     Written before the status flips to "done" so the result page never polls ahead of the
     files it needs.
     """
-    with open(get_file_path(process_id, "results.xlsx"), "wb") as fh:
+    with open(get_file_path(school_id, process_name, "results.xlsx"), "wb") as fh:
         fh.write(result["download"].getbuffer())
     tables = {name: df.to_html(na_rep="") for name, df in result["dataframes"].items()}
     with open(
-        get_file_path(process_id, "result_tables.json"), "w", encoding="utf-8"
+        get_file_path(school_id, process_name, "result_tables.json"),
+        "w",
+        encoding="utf-8",
     ) as fh:
         json.dump(tables, fh, ensure_ascii=False)
 
@@ -227,12 +237,12 @@ def logout():
 @login_required
 def processes():
     """Display page to create or choose process"""
-    existing_processes = [
-        name
-        for name in os.listdir(BASE_DIR)
-        if os.path.isdir(os.path.join(BASE_DIR, name))
-    ]
-    return render_template("processes.html", processes=existing_processes)
+    school_id = current_user.schoolcode
+    os.makedirs(os.path.join(BASE_DIR, school_id), exist_ok=True)
+    procs = (
+        Process.query.filter_by(school_id=school_id).order_by(Process.created_at).all()
+    )
+    return render_template("processes.html", processes=[p.name for p in procs])
 
 
 def _is_valid_process_name(name):
@@ -240,16 +250,16 @@ def _is_valid_process_name(name):
     return bool(re.match(r"^[\w\- ]+$", name))
 
 
-def _validate_process_name(process_name, must_exist=True):
+def _validate_process_name(school_id, process_name, must_exist=True):
     """Return an error message, or None when the name is valid."""
     if not process_name:
         return "Naam is verplicht"
     if not _is_valid_process_name(process_name):
         return "Alleen letters, cijfers, spaties, - en _ toegestaan"
-    path = os.path.join(BASE_DIR, process_name)
-    if must_exist and not os.path.exists(path):
+    proc = _get_process(school_id, process_name)
+    if must_exist and proc is None:
         return "Proces bestaat niet"
-    if not must_exist and os.path.exists(path):
+    if not must_exist and proc is not None:
         return "Proces bestaat al"
     return None
 
@@ -258,12 +268,15 @@ def _validate_process_name(process_name, must_exist=True):
 @login_required
 def create_process():
     """Create a new process"""
+    school_id = current_user.schoolcode
     process_name = request.form.get("process_name", "").strip()
-    if error := _validate_process_name(process_name, must_exist=False):
+    if error := _validate_process_name(school_id, process_name, must_exist=False):
         flash(error, "error")
         return redirect(url_for("processes"))
-    path = os.path.join(BASE_DIR, process_name)
-    os.makedirs(path)
+    proc = Process(school_id=school_id, name=process_name)
+    db.session.add(proc)
+    db.session.commit()
+    os.makedirs(get_process_path(school_id, process_name))
     session["process_id"] = process_name
     return redirect(url_for("upload_edexml"))
 
@@ -272,11 +285,14 @@ def create_process():
 @login_required
 def delete_process(process_name):
     """Delete a process"""
-    if error := _validate_process_name(process_name, must_exist=True):
+    school_id = current_user.schoolcode
+    if error := _validate_process_name(school_id, process_name, must_exist=True):
         flash(error, "error")
         return redirect(url_for("processes"))
-    path = os.path.join(BASE_DIR, process_name)
-    shutil.rmtree(path)
+    proc = _get_process(school_id, process_name)
+    db.session.delete(proc)
+    db.session.commit()
+    shutil.rmtree(get_process_path(school_id, process_name))
     return redirect(url_for("processes"))
 
 
@@ -286,11 +302,13 @@ def select_process(process_id):
     """Select process"""
     if not _is_valid_process_name(process_id):
         abort(404)
-    path = get_process_path(process_id)
-    if not os.path.exists(path):
+    school_id = current_user.schoolcode
+    proc = _get_process(school_id, process_id)
+    if proc is None:
         abort(404)
 
     session["process_id"] = process_id
+    path = get_process_path(school_id, process_id)
     preferences_path = os.path.join(path, "preferences.xlsx")
     if os.path.exists(preferences_path):
         return redirect(url_for("not_together_page"))
@@ -319,16 +337,16 @@ def download_template(filename):
 @require_process
 def download_preferences():
     """Download the filled-in preferences file as the teacher uploaded it."""
-    path = get_file_path(session["process_id"], "preferences.xlsx")
+    school_id = current_user.schoolcode
+    process_id = session["process_id"]
+    path = get_file_path(school_id, process_id, "preferences.xlsx")
     if not os.path.exists(path):
         logger.warning(
             "Download of filled-in preferences requested but none stored for process %s",
-            session["process_id"],
+            process_id,
         )
         abort(404)
-    logger.info(
-        "Serving stored preferences upload for process %s", session["process_id"]
-    )
+    logger.info("Serving stored preferences upload for process %s", process_id)
     return send_file(
         path,
         as_attachment=True,
@@ -343,9 +361,11 @@ def upload_edexml():
     """Route to upload edexml"""
     if request.method == "GET":
         return render_template("upload_edexml.html")
+    school_id = current_user.schoolcode
+    process_id = session["process_id"]
     try:
         edex_file = request.files["edexml"]
-        edex_path = get_file_path(session["process_id"], "edex.xml")
+        edex_path = get_file_path(school_id, process_id, "edex.xml")
         edex_file.save(edex_path)
         edex_file.stream.seek(0)
 
@@ -360,7 +380,7 @@ def upload_edexml():
             "groups_from": groups_from,
             "groups_to": groups_to,
         }
-        path = get_file_path(session["process_id"], "relevant_students_and_groups.json")
+        path = get_file_path(school_id, process_id, "relevant_students_and_groups.json")
 
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
@@ -370,16 +390,16 @@ def upload_edexml():
     return redirect(url_for("groups_to_page"))
 
 
-def _load_groups_to(process_id) -> dict:
+def _load_groups_to(school_id, process_id) -> dict:
     """Load the groups-to mapping (groupname → students) from the candidates JSON."""
-    path = get_file_path(process_id, "relevant_students_and_groups.json")
+    path = get_file_path(school_id, process_id, "relevant_students_and_groups.json")
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f).get("groups_to", {})
 
 
-def _load_groups_to_state(process_id):
+def _load_groups_to_state(school_id, process_id):
     """Load the saved groups-to form state, or None when the page was not filled yet."""
-    path = get_file_path(process_id, "groups_to_state.json")
+    path = get_file_path(school_id, process_id, "groups_to_state.json")
     if not os.path.exists(path):
         return None
     with open(path, "r", encoding="utf-8") as f:
@@ -391,14 +411,15 @@ def _load_groups_to_state(process_id):
 @require_process
 def groups_to_page():
     """Display and process the groups_to page"""
+    school_id = current_user.schoolcode
     process_id = session["process_id"]
-    groups_to = _load_groups_to(process_id)
+    groups_to = _load_groups_to(school_id, process_id)
 
     if request.method == "GET":
         return render_template(
             "groups_to.html",
             groups_to=groups_to,
-            state=_load_groups_to_state(process_id),
+            state=_load_groups_to_state(school_id, process_id),
         )
 
     submission = parse_groups_to_form(request.form, groups_to)
@@ -407,12 +428,14 @@ def groups_to_page():
         flash(error, "error")
         return redirect(url_for("groups_to_page"))
 
-    path = get_file_path(process_id, "groups.xlsx")
+    path = get_file_path(school_id, process_id, "groups.xlsx")
     pd.DataFrame(submission.distribution).transpose().to_excel(
         path, index_label="Groepen"
     )
     with open(
-        get_file_path(process_id, "groups_to_state.json"), "w", encoding="utf-8"
+        get_file_path(school_id, process_id, "groups_to_state.json"),
+        "w",
+        encoding="utf-8",
     ) as f:
         json.dump(submission.state, f, ensure_ascii=False)
     logger.info(
@@ -425,18 +448,18 @@ def groups_to_page():
     return redirect(url_for("student_preferences"))
 
 
-def _load_student_selection(process_id):
+def _load_student_selection(school_id, process_id):
     """Load the saved student selection, or None when the page was not used yet."""
-    path = get_file_path(process_id, "student_selection.json")
+    path = get_file_path(school_id, process_id, "student_selection.json")
     if not os.path.exists(path):
         return None
     with open(path, encoding="utf-8") as fh:
         return json.load(fh)
 
 
-def _save_student_selection(process_id, selected_ids, new_students):
+def _save_student_selection(school_id, process_id, selected_ids, new_students):
     """Persist which candidates were ticked and which students were added by hand."""
-    path = get_file_path(process_id, "student_selection.json")
+    path = get_file_path(school_id, process_id, "student_selection.json")
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(
             {"selected_ids": selected_ids, "new_students": new_students},
@@ -450,21 +473,25 @@ def _save_student_selection(process_id, selected_ids, new_students):
 @require_process
 def student_preferences():
     """Display page where the teacher can add preferences for the student"""
+    school_id = current_user.schoolcode
     process_id = session["process_id"]
-    data_path = get_file_path(process_id, "relevant_students_and_groups.json")
-    with open(data_path, "r", encoding="utf-8") as f:
+    with open(
+        get_file_path(school_id, process_id, "relevant_students_and_groups.json"),
+        "r",
+        encoding="utf-8",
+    ) as f:
         data = json.load(f)
     candidates = data.get("candidates", [])
     groups_from = data.get("groups_from", {})
 
     if request.method == "GET":
-        selection = _load_student_selection(process_id)
+        selection = _load_student_selection(school_id, process_id)
         return render_template(
             "student_preferences.html",
             candidates=candidates,
             groups_from=groups_from,
             preferences_uploaded=os.path.exists(
-                get_file_path(process_id, "preferences.xlsx")
+                get_file_path(school_id, process_id, "preferences.xlsx")
             ),
             # None means "first visit": default to all candidates ticked.
             selected_ids=set(selection["selected_ids"]) if selection else None,
@@ -473,8 +500,7 @@ def student_preferences():
     new_students = _extract_new_students(request.form)
     selected_ids = request.form.getlist("students")
     if len(new_students) + len(selected_ids) == 0:
-        error = "Er moet minsten één leerling aanwezig zijn"
-        flash(error, "error")
+        flash("Er moet minsten één leerling aanwezig zijn", "error")
         return redirect(url_for("student_preferences"))
 
     try:
@@ -487,10 +513,11 @@ def student_preferences():
         return redirect(url_for("student_preferences"))
 
     # Remember exactly what the teacher selected so the page restores on return.
-    _save_student_selection(process_id, selected_ids, new_students)
+    _save_student_selection(school_id, process_id, selected_ids, new_students)
 
-    path = get_file_path(process_id, "groups.xlsx")
-    groups_to = pd.read_excel(path, index_col=0).index.tolist()
+    groups_to = pd.read_excel(
+        get_file_path(school_id, process_id, "groups.xlsx"), index_col=0
+    ).index.tolist()
     buffer = input_writer.create_prefilled_excel(groups_to, df_total)
 
     return send_file(
@@ -510,10 +537,11 @@ def upload_preferences():
     Re-uploading is optional when going back and forth: if no new file is chosen but a
     valid preferences file was uploaded earlier, the teacher simply continues with it.
     """
+    school_id = current_user.schoolcode
     process_id = session["process_id"]
     upload = request.files.get("preferences")
     if not (upload and upload.filename):
-        if os.path.exists(get_file_path(process_id, "preferences.xlsx")):
+        if os.path.exists(get_file_path(school_id, process_id, "preferences.xlsx")):
             logger.info(
                 "No new preferences upload for process %s; continuing with stored file",
                 process_id,
@@ -523,7 +551,7 @@ def upload_preferences():
         return redirect(url_for("student_preferences"))
     try:
         raw = upload.read()
-        groups_to_path = get_file_path(process_id, "groups.xlsx")
+        groups_to_path = get_file_path(school_id, process_id, "groups.xlsx")
         groups_to_data, _ = datareader.read_groups_excel(groups_to_path)
         groups_to = list(groups_to_data.keys())
         processor = datareader.VoorkeurenProcessor(BytesIO(raw))
@@ -531,7 +559,7 @@ def upload_preferences():
         # Save the raw upload directly so re-reading later preserves names as entered.
         # VoorkeurenProcessor normalises names to matching keys at read time anyway,
         # and storing the original ensures student_display maps correctly to display names.
-        preferences_path = get_file_path(process_id, "preferences.xlsx")
+        preferences_path = get_file_path(school_id, process_id, "preferences.xlsx")
         with open(preferences_path, "wb") as fh:
             fh.write(raw)
         logger.info(
@@ -578,9 +606,10 @@ def _parse_not_together_form(form, n_rules):
 @require_process
 def not_together_page():
     """Display and process the not-together rules page"""
+    school_id = current_user.schoolcode
     process_id = session["process_id"]
-    preferences_path = get_file_path(process_id, "preferences.xlsx")
-    groups_to_path = get_file_path(process_id, "groups.xlsx")
+    preferences_path = get_file_path(school_id, process_id, "preferences.xlsx")
+    groups_to_path = get_file_path(school_id, process_id, "groups.xlsx")
 
     try:
         groups_to, _ = datareader.read_groups_excel(groups_to_path)
@@ -596,7 +625,7 @@ def not_together_page():
     n_groups = len(groups_to)
 
     if request.method == "GET":
-        nt_path = get_file_path(process_id, "not_together.json")
+        nt_path = get_file_path(school_id, process_id, "not_together.json")
         if os.path.exists(nt_path):
             with open(nt_path, encoding="utf-8") as fh:
                 existing_rules = json.load(fh)
@@ -620,17 +649,17 @@ def not_together_page():
         flash(error, "error")
         return redirect(url_for("not_together_page"))
 
-    _save_not_together(process_id, rules)
+    _save_not_together(school_id, process_id, rules)
     return redirect(url_for("start_distribution"))
 
 
-def _save_not_together(process_id, rules):
+def _save_not_together(school_id, process_id, rules):
     """Persist not-together rules as JSON (sets serialised as lists)."""
     data = [
         {"group": list(r["group"]), "Max_aantal_samen": r["Max_aantal_samen"]}
         for r in rules
     ]
-    path = get_file_path(process_id, "not_together.json")
+    path = get_file_path(school_id, process_id, "not_together.json")
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(data, fh, ensure_ascii=False)
 
@@ -726,7 +755,7 @@ def _flash_upload_error(exc: Exception) -> None:
     flash(to_validation_message(exc), "error")
 
 
-def _handle_failure(exc, process_id):
+def _handle_failure(exc, school_id, process_name):
     file_reading_errs = (
         pa.errors.SchemaError,
         ValidationError,
@@ -739,7 +768,69 @@ def _handle_failure(exc, process_id):
     else:
         log_msg = "Uncaught exception"
     logger.exception(log_msg)
-    _set_status(process_id, "error", to_validation_message(exc))
+    _set_status(school_id, process_name, "error", to_validation_message(exc))
+
+
+def _run_solve_thread(school_id, process_name, groups_to_path, not_together, run_id):
+    """Background thread: run the solver and write result artifacts.
+
+    Each call creates its own app context and DB session. ``run_id`` is the integer PK
+    of the Run row so log lines can be appended without a school+name query per line.
+    """
+
+    def on_update(message):
+        db.session.add(LogLine(run_id=run_id, text=message))
+        db.session.commit()
+
+    preferences_path = get_file_path(school_id, process_name, "preferences.xlsx")
+    with app.app_context():
+        try:  # pylint: disable=broad-exception-caught
+            _set_status(school_id, process_name, "running")
+            result = distribute_students_once(
+                preferences_path, groups_to_path, not_together, on_update=on_update
+            )
+            logger.info("Distributing students finished successfully")
+            # Write artifacts before flipping to "done" so the result page never
+            # races ahead of the files it needs.
+            _write_result_files(school_id, process_name, result)
+            _set_status(school_id, process_name, "done")
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            _handle_failure(exc, school_id, process_name)
+
+
+def _create_sociogram_thread(preferences, groups_to, school_id, process_name, run_id):
+    """Background thread: build and write the Plotly sociogram HTML.
+
+    Runs concurrently with the solver; log lines are appended via ``run_id`` just like
+    the solver thread does.
+    """
+
+    def on_update(message):
+        db.session.add(LogLine(run_id=run_id, text=message))
+        db.session.commit()
+
+    with app.app_context():
+        try:  # pylint: disable=broad-exception-caught
+            on_update("Sociogram tekenen...")
+            groups_to_data, _ = datareader.read_groups_excel(groups_to)
+            sg = sociogram.SociogramMaker(preferences, list(groups_to_data.keys()))
+            fig, g, pos = sg.plot_sociogram()
+            logger.info("Sociogram created")
+            fig = sociogram.networkx_to_plotly(g, pos)
+            html = fig.to_html(full_html=False, include_plotlyjs="cdn")
+            logger.info("HTML created")
+            with open(
+                get_file_path(school_id, process_name, "sociogram.html"),
+                "w",
+                encoding="utf-8",
+            ) as fh:
+                fh.write(html)
+            on_update(
+                '<a href=/sociogram target="_blank" class="button">'
+                "Bekijk het sociogram nu!</a>"
+            )
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.exception("Could not create sociogram")
 
 
 @app.route("/start_distribution", methods=["GET"])
@@ -748,11 +839,11 @@ def _handle_failure(exc, process_id):
 def start_distribution():
     """Start the student distribution using stored input files"""
     logger.info("Starting distribution")
-    process_id = session["process_id"]
-    preferences_path = get_file_path(process_id, "preferences.xlsx")
-    groups_to_path = get_file_path(process_id, "groups.xlsx")
+    school_id = current_user.schoolcode
+    process_name = session["process_id"]
+    groups_to_path = get_file_path(school_id, process_name, "groups.xlsx")
 
-    not_together_path = get_file_path(process_id, "not_together.json")
+    not_together_path = get_file_path(school_id, process_name, "not_together.json")
     if os.path.exists(not_together_path):
         with open(not_together_path, "r", encoding="utf-8") as fh:
             raw = json.load(fh)
@@ -763,60 +854,21 @@ def start_distribution():
     else:
         not_together = []
 
-    with open(preferences_path, "rb") as fh:
+    with open(get_file_path(school_id, process_name, "preferences.xlsx"), "rb") as fh:
         preferences_bytes = BytesIO(fh.read())
 
-    _reset_run(process_id)
-
-    def on_update(message):
-        # Called from within a thread's app context (see run_task/create_sociogram).
-        db.session.add(LogLine(process_id=process_id, text=message))
-        db.session.commit()
-
-    # pylint: disable=broad-exception-caught
-    def run_task():
-        # A background thread needs its own app context to get a DB session.
-        with app.app_context():
-            try:
-                _set_status(process_id, "running")
-                result = distribute_students_once(
-                    preferences_path, groups_to_path, not_together, on_update=on_update
-                )
-                logger.info("Distributing students finished successfully")
-                # Write the artifacts before flipping to "done", so the polling result
-                # page never races ahead of the files it serves.
-                _write_result_files(process_id, result)
-                _set_status(process_id, "done")
-            except Exception as exc:
-                _handle_failure(exc, process_id)
-
-    def create_sociogram(preferences, groups_to):
-        with app.app_context():
-            try:
-                on_update("Sociogram tekenen...")
-                groups_to_data, _ = datareader.read_groups_excel(groups_to)
-                sg = sociogram.SociogramMaker(preferences, list(groups_to_data.keys()))
-                fig, g, pos = sg.plot_sociogram()
-                logger.info("Sociogram created")
-
-                fig = sociogram.networkx_to_plotly(g, pos)
-                html = fig.to_html(full_html=False, include_plotlyjs="cdn")
-                logger.info("HTML created")
-                with open(
-                    get_file_path(process_id, "sociogram.html"), "w", encoding="utf-8"
-                ) as fh:
-                    fh.write(html)
-                on_update(
-                    '<a href=/sociogram target="_blank" class="button">'
-                    "Bekijk het sociogram nu!</a>"
-                )
-            except Exception:
-                logger.exception("Could not create sociogram")
-
-    # pylint: enable=broad-exception-caught
-    Thread(target=create_sociogram, args=(preferences_bytes, groups_to_path)).start()
-    Thread(target=run_task).start()
-
+    _reset_run(school_id, process_name)
+    # Capture the integer PK before spawning threads so they append log lines without
+    # a school+name lookup on every on_update call.
+    run_id = _get_process(school_id, process_name).id
+    Thread(
+        target=_create_sociogram_thread,
+        args=(preferences_bytes, groups_to_path, school_id, process_name, run_id),
+    ).start()
+    Thread(
+        target=_run_solve_thread,
+        args=(school_id, process_name, groups_to_path, not_together, run_id),
+    ).start()
     return redirect(url_for("processing"))
 
 
@@ -825,9 +877,12 @@ def start_distribution():
 @require_process
 def status():
     """Return the current process's run status and log lines as JSON."""
-    run = db.session.get(Run, session["process_id"])
-    if run is None:
+    school_id = current_user.schoolcode
+    process_name = session["process_id"]
+    proc = _get_process(school_id, process_name)
+    if proc is None or proc.run is None:
         return jsonify({"status_studentdistribution": "unknown", "logs": []})
+    run = proc.run
     payload = {
         "status_studentdistribution": run.status,
         "logs": [line.text for line in run.log_lines],
@@ -861,7 +916,9 @@ def handle_error():
 @require_process
 def show_sociogram():
     """Display the sociogram for the current process"""
-    path = get_file_path(session["process_id"], "sociogram.html")
+    school_id = current_user.schoolcode
+    process_id = session["process_id"]
+    path = get_file_path(school_id, process_id, "sociogram.html")
     if not os.path.exists(path):
         flash("Sociogram niet beschikbaar.", "error")
         return redirect(url_for("processes"))
@@ -875,7 +932,9 @@ def show_sociogram():
 @require_process
 def result_page():
     """Display result for the current process"""
-    path = get_file_path(session["process_id"], "result_tables.json")
+    school_id = current_user.schoolcode
+    process_id = session["process_id"]
+    path = get_file_path(school_id, process_id, "result_tables.json")
     if not os.path.exists(path):
         flash("Resultaat niet beschikbaar.", "error")
         return redirect(url_for("processes"))
@@ -889,7 +948,9 @@ def result_page():
 @require_process
 def download():
     """Download the groepsindeling for the current process"""
-    path = get_file_path(session["process_id"], "results.xlsx")
+    school_id = current_user.schoolcode
+    process_id = session["process_id"]
+    path = get_file_path(school_id, process_id, "results.xlsx")
     if not os.path.exists(path):
         flash("Groepsindeling niet gevonden. Mogelijk nog aan het berekenen", "error")
         return render_template("result.html", dataframes={})
