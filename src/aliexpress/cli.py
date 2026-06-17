@@ -13,6 +13,7 @@ import string
 import click
 from flask import current_app
 from werkzeug.security import generate_password_hash
+from zxcvbn import zxcvbn
 
 from .extensions import db
 from .models import Admin, School
@@ -55,7 +56,7 @@ def add_school(schoolcode, naam):
 @schools.command("delete")
 @click.argument("schoolcode")
 def delete_school(schoolcode):
-    """Verwijder een school en al haar gegevens (inclusief opgeslagen bestanden)."""
+    """Delete a school and all its data (including saved files)"""
     school = db.session.get(School, schoolcode)
     if school is None:
         raise click.ClickException(f"School '{schoolcode}' bestaat niet.")
@@ -81,10 +82,14 @@ def admins():
 @admins.command("add")
 @click.argument("username")
 def add_admin(username):
-    """Maak een admin-account aan."""
+    """Create an admin account"""
     if Admin.query.filter_by(username=username).first():
         raise click.ClickException(f"Admin '{username}' bestaat al.")
     password = click.prompt("Wachtwoord", hide_input=True, confirmation_prompt=True)
+    if zxcvbn(password, user_inputs=[username])["score"] < 3:
+        raise click.ClickException(
+            "Wachtwoord is te zwak. Gebruik meer tekens of vermijd voor de hand liggende woorden."
+        )
     admin = Admin(
         username=username,
         password_hash=generate_password_hash(password),
