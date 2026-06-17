@@ -10,15 +10,23 @@ from pathlib import Path
 
 import pytest
 
+import app as flask_module
+from aliexpress.extensions import db as flask_db
+from aliexpress.models import Process
+from tests.browser.conftest import TEST_SCHOOLCODE
+
 _INTEGRATION = Path(__file__).parents[1] / "integration"
 
 
 def _make_process(live_server, tmp_path, page, name="browserrun"):
     """Create a process with ready-to-solve input files and select it in the browser."""
-    proc = tmp_path / name
-    proc.mkdir(exist_ok=True)
+    proc = tmp_path / TEST_SCHOOLCODE / name
+    proc.mkdir(parents=True, exist_ok=True)
     shutil.copy(_INTEGRATION / "voorkeuren_small.xlsx", proc / "preferences.xlsx")
     shutil.copy(_INTEGRATION / "groepen_small.xlsx", proc / "groups.xlsx")
+    with flask_module.app.app_context():
+        flask_db.session.add(Process(school_id=TEST_SCHOOLCODE, name=name))
+        flask_db.session.commit()
     page.goto(f"{live_server}/processes/select/{name}")  # sets the session process
     return proc
 
