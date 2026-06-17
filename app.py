@@ -87,6 +87,8 @@ os.makedirs(app.instance_path, exist_ok=True)
 db.init_app(app)
 login_manager.init_app(app)
 login_manager.login_view = "login"
+login_manager.login_message = "Je moet ingelogd zijn om deze pagina te bekijken."
+login_manager.login_message_category = "error"
 
 # Rate-limit the login route against brute force. In-memory storage suffices for a single
 # process; a multi-process deployment (the future EU server) needs a shared backend (Redis).
@@ -316,12 +318,8 @@ def download_template(filename):
 @login_required
 @require_process
 def download_preferences():
-    """Download the original, filled-in preferences file as the teacher uploaded it.
-
-    This is the richly-formatted upload (with column help and dropdown validations), not
-    the normalised processed file, so the teacher can keep editing it safely.
-    """
-    path = get_file_path(session["process_id"], "preferences_original.xlsx")
+    """Download the filled-in preferences file as the teacher uploaded it."""
+    path = get_file_path(session["process_id"], "preferences.xlsx")
     if not os.path.exists(path):
         logger.warning(
             "Download of filled-in preferences requested but none stored for process %s",
@@ -466,7 +464,7 @@ def student_preferences():
             candidates=candidates,
             groups_from=groups_from,
             preferences_uploaded=os.path.exists(
-                get_file_path(process_id, "preferences_original.xlsx")
+                get_file_path(process_id, "preferences.xlsx")
             ),
             # None means "first visit": default to all candidates ticked.
             selected_ids=set(selection["selected_ids"]) if selection else None,
@@ -529,19 +527,15 @@ def upload_preferences():
         groups_to_data, _ = datareader.read_groups_excel(groups_to_path)
         groups_to = list(groups_to_data.keys())
         processor = datareader.VoorkeurenProcessor(BytesIO(raw))
-        processor.process(all_to_groups=groups_to)  # validates further
+        processor.process(all_to_groups=groups_to)  # validates; raises on invalid input
+        # Save the raw upload directly so re-reading later preserves names as entered.
+        # VoorkeurenProcessor normalises names to matching keys at read time anyway,
+        # and storing the original ensures student_display maps correctly to display names.
         preferences_path = get_file_path(process_id, "preferences.xlsx")
-        input_writer.write_preferences_to_excel(
-            processor.input.reset_index(), preferences_path
-        )
-        # Keep the original upload so the teacher can download and keep editing the
-        # richly-formatted file with all wishes intact (the processed file above is
-        # normalised and stripped of formatting/validations).
-        original_path = get_file_path(process_id, "preferences_original.xlsx")
-        with open(original_path, "wb") as fh:
+        with open(preferences_path, "wb") as fh:
             fh.write(raw)
         logger.info(
-            "Preferences accepted for process %s: %d students; kept original upload",
+            "Preferences accepted for process %s: %d students",
             process_id,
             len(processor.input.index),
         )
@@ -593,7 +587,9 @@ def not_together_page():
         processor = datareader.VoorkeurenProcessor(preferences_path)
         processor.process(all_to_groups=list(groups_to.keys()))
         # Show names as entered in the dropdown; matching happens on the key on submit.
+        logger.debug(processor.student_display)
         students = sorted(processor.student_display.values())
+        logger.debug(", ".join(students))
     except Exception as exc:  # pylint: disable=broad-exception-caught
         _flash_upload_error(exc)
         return redirect(url_for("student_preferences"))
