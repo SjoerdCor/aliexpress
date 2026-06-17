@@ -1,19 +1,24 @@
 """Database models for the application.
 
+Ownership chain
+---------------
+``School`` owns one or more ``Process`` instances (cascade delete). Each ``Process``
+has at most one ``Run`` (1-to-1 via ``uselist=False``). Access control flows through
+the chain: routes always look up ``Process`` by ``(school_id, name)`` — never by the
+integer primary key — so a logged-in school cannot reach another school's data.
+
 Solve tracking
 --------------
-A process has at most one current run, keyed by ``process_id``; re-running a process resets
-that row and its log lines. Log lines are kept in insertion order via their autoincrement
-primary key. That id *is* the sequence number, and it is assigned atomically by the
-database, so it stays race-free under the two background threads (solve and sociogram) that
-append concurrently — SQLite serialises the writes. A manual counter would need a
-read-then-write that those two threads could interleave.
+A process has at most one current run. Re-running a process resets that row and its
+log lines. Log lines are kept in insertion order via their autoincrement primary key,
+which is assigned atomically by the database and stays race-free under the two background
+threads (solve and sociogram) that append concurrently.
 
 Authentication
 --------------
 ``School`` is both the SQLAlchemy model and the Flask-Login user object (it inherits
 ``UserMixin`` directly). There is no separate ``User`` wrapper: the school *is* the
-authenticated entity, adding an indirection class would only obscure that.
+authenticated entity.
 
 ``get_id()`` is overridden to return ``schoolcode`` (the primary key) because Flask-Login
 calls ``get_id()`` to store the identity in the session and passes that string back to
@@ -41,15 +46,42 @@ class School(UserMixin, db.Model):
     schoolcode = db.Column(db.String(64), primary_key=True)
     naam = db.Column(db.String(256), nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
+    processes = db.relationship(
+        "Process", backref="school", cascade="all, delete-orphan"
+    )
 
     def get_id(self):
         return self.schoolcode
 
 
-class Run(db.Model):
-    """The current solve run for one process."""
+class Process(db.Model):
+    """A distribution process owned by one school.
 
-    process_id = db.Column(db.String, primary_key=True)
+    ``name`` is the user-visible process name (unique per school). The integer ``id``
+    is an internal primary key used only by ``Run`` as a foreign key — no route exposes
+    or accepts it as input.
+    """
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    school_id = db.Column(
+        db.String(64), db.ForeignKey("school.schoolcode"), nullable=False, index=True
+    )
+    name = db.Column(db.String, nullable=False)
+    created_at = db.Column(
+        db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
+    run = db.relationship(
+        "Run", backref="process", uselist=False, cascade="all, delete-orphan"
+    )
+    __table_args__ = (
+        db.UniqueConstraint("school_id", "name", name="uq_process_school_name"),
+    )
+
+
+class Run(db.Model):
+    """The current solve run for one process (1-to-1 with Process)."""
+
+    process_id = db.Column(db.Integer, db.ForeignKey("process.id"), primary_key=True)
     status = db.Column(db.String, nullable=False, default="pending")
     message = db.Column(db.Text)
     created_at = db.Column(
@@ -67,7 +99,7 @@ class LogLine(db.Model):
     """One user-facing progress line for a run, ordered by insertion (the primary key)."""
 
     id = db.Column(db.Integer, primary_key=True)
-    process_id = db.Column(
-        db.String, db.ForeignKey("run.process_id"), nullable=False, index=True
+    run_id = db.Column(
+        db.Integer, db.ForeignKey("run.process_id"), nullable=False, index=True
     )
     text = db.Column(db.Text, nullable=False)
