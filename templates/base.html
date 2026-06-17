@@ -21,6 +21,36 @@
     {% endwith %}
 
     <div class="container">
+        {% if current_user.is_authenticated %}
+        <div class="school-bar">
+            <span class="school-name">{{ current_user.naam }}</span>
+            <div class="hamburger-menu">
+                <button class="hamburger-btn" onclick="toggleHamburger()" aria-label="Menu" aria-expanded="false">&#9776;</button>
+                <nav class="hamburger-nav" id="hamburger-nav">
+                    <a href="{{ url_for('home') }}">Start</a>
+                    <a href="{{ url_for('processes') }}">Groepsindelingen</a>
+                    <a href="{{ url_for('logout') }}" class="menu-logout">Uitloggen</a>
+                </nav>
+            </div>
+        </div>
+        <script>
+            function toggleHamburger() {
+                const nav = document.getElementById('hamburger-nav');
+                const btn = nav.previousElementSibling;
+                const isOpen = nav.classList.toggle('open');
+                btn.setAttribute('aria-expanded', isOpen);
+            }
+            document.addEventListener('click', function (e) {
+                if (!e.target.closest('.hamburger-menu')) {
+                    const nav = document.getElementById('hamburger-nav');
+                    if (nav) {
+                        nav.classList.remove('open');
+                        nav.previousElementSibling.setAttribute('aria-expanded', 'false');
+                    }
+                }
+            });
+        </script>
+        {% endif %}
         <div class="stepper">
             <div class="step {% if current_step > 1 %}done{% elif current_step == 1 %}active{% endif %}">
                 <span>Schoolinformatie<br>uploaden</span>

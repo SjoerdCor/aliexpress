@@ -8,6 +8,8 @@ tables render and the workbook downloads. This is the automated end-to-end check
 import shutil
 from pathlib import Path
 
+import pytest
+
 _INTEGRATION = Path(__file__).parents[1] / "integration"
 
 
@@ -21,6 +23,7 @@ def _make_process(live_server, tmp_path, page, name="browserrun"):
     return proc
 
 
+@pytest.mark.usefixtures("login")
 def test_processing_to_result_to_download(live_server, tmp_path, page):
     """Starting a distribution lands on the result page and the workbook downloads."""
     proc = _make_process(live_server, tmp_path, page)

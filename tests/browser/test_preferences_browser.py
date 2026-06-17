@@ -4,6 +4,8 @@
 
 import json
 
+import pytest
+
 
 def _open_preferences(live_server, tmp_path, page):
     """Land the browser on the preferences page (groups done, nothing uploaded yet)."""
@@ -19,6 +21,7 @@ def _open_preferences(live_server, tmp_path, page):
     return proc
 
 
+@pytest.mark.usefixtures("login")
 def test_forward_button_submits_upload_form_and_requires_a_file(
     live_server, tmp_path, page
 ):
