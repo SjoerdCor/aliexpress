@@ -7,7 +7,6 @@ import os
 import re
 import shutil
 import webbrowser
-from dataclasses import dataclass
 from io import BytesIO
 from threading import Thread
 
@@ -27,12 +26,12 @@ from flask import (
     session,
     url_for,
 )
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
 from flask_login import current_user, login_required, login_user, logout_user
-from werkzeug.security import check_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 
 from aliexpress import candidatedetermination, datareader, input_writer, sociogram
+from aliexpress.admin import admin_bp
+from aliexpress.cli import admins as admins_cli
 from aliexpress.cli import schools as schools_cli
 from aliexpress.errors import (
     CouldNotReadFileError,
@@ -40,10 +39,11 @@ from aliexpress.errors import (
     FeasibilityError,
     ValidationError,
 )
-from aliexpress.extensions import db, login_manager
+from aliexpress.extensions import db, limiter, login_manager
+from aliexpress.form_parsers import parse_groups_to_form
 from aliexpress.logging_config import add_file_handler, configure_logging
 from aliexpress.main import distribute_students_once
-from aliexpress.models import LogLine, Process, Run, School
+from aliexpress.models import Admin, LogLine, Process, Run, School
 from aliexpress.validation_messages import to_validation_message
 
 configure_logging()
@@ -92,19 +92,35 @@ login_manager.login_message_category = "error"
 
 # Rate-limit the login route against brute force. In-memory storage suffices for a single
 # process; a multi-process deployment (the future EU server) needs a shared backend (Redis).
-limiter = Limiter(get_remote_address, app=app, storage_uri="memory://")
+limiter.init_app(app)
 
 with app.app_context():
     db.create_all()
 
 
 @login_manager.user_loader
-def load_user(schoolcode):
-    """Return the School for the given schoolcode, or None if not found."""
-    return db.session.get(School, schoolcode)
+def load_user(user_id):
+    """Return the authenticated user (School or Admin) for the given identity string."""
+    if user_id.startswith("admin:"):
+        return db.session.get(Admin, int(user_id[6:]))
+    return db.session.get(School, user_id)
 
 
 app.cli.add_command(schools_cli, "schools")
+app.cli.add_command(admins_cli, "admins")
+app.register_blueprint(admin_bp)
+
+
+def effective_school_id():
+    """Return the school_id for the current request.
+
+    For a school user: their own schoolcode.
+    For an admin impersonating a school: the impersonated school's code.
+    For an admin not impersonating: None (caller should redirect to admin dashboard).
+    """
+    if current_user.is_admin:
+        return session.get("impersonating_school")
+    return current_user.schoolcode
 
 
 @app.errorhandler(413)
@@ -212,7 +228,11 @@ def home():
 def login():
     """Show and handle the school login form."""
     if current_user.is_authenticated:
-        return redirect(url_for("processes"))
+        return redirect(
+            url_for("admin.dashboard")
+            if current_user.is_admin
+            else url_for("processes")
+        )
     if request.method == "POST":
         schoolcode = request.form.get("schoolcode", "").strip()
         password = request.form.get("wachtwoord", "")
@@ -221,6 +241,8 @@ def login():
             flash("Ongeldige schoolcode of wachtwoord.", "error")
             return render_template("login.html")
         login_user(school, remember=False)
+        if school.must_change_password:
+            return redirect(url_for("change_password"))
         return redirect(url_for("processes"))
     return render_template("login.html")
 
@@ -228,16 +250,43 @@ def login():
 @app.route("/logout")
 @login_required
 def logout():
-    """Log the school out and redirect to the login page."""
+    """Log the current user (school or admin) out and redirect to the login page."""
+    session.pop("impersonating_school", None)
     logout_user()
     return redirect(url_for("login"))
+
+
+@app.route("/wachtwoord-instellen", methods=["GET", "POST"])
+@login_required
+def change_password():
+    """Force a school to set their own password after first login."""
+    if current_user.is_admin or not current_user.must_change_password:
+        return redirect(url_for("processes"))
+    if request.method == "POST":
+        password = request.form.get("wachtwoord", "")
+        confirm = request.form.get("wachtwoord_bevestig", "")
+        if len(password) < 8:
+            flash("Wachtwoord moet minimaal 8 tekens lang zijn.", "error")
+            return render_template("change_password.html")
+        if password != confirm:
+            flash("Wachtwoorden komen niet overeen.", "error")
+            return render_template("change_password.html")
+        current_user.password_hash = generate_password_hash(password)
+        current_user.must_change_password = False
+        db.session.commit()
+        logger.info("School '%s' changed their password", current_user.schoolcode)
+        flash("Wachtwoord ingesteld. Je bent nu ingelogd.", "success")
+        return redirect(url_for("processes"))
+    return render_template("change_password.html")
 
 
 @app.route("/processes")
 @login_required
 def processes():
     """Display page to create or choose process"""
-    school_id = current_user.schoolcode
+    school_id = effective_school_id()
+    if school_id is None:
+        return redirect(url_for("admin.dashboard"))
     os.makedirs(os.path.join(BASE_DIR, school_id), exist_ok=True)
     procs = (
         Process.query.filter_by(school_id=school_id).order_by(Process.created_at).all()
@@ -268,7 +317,9 @@ def _validate_process_name(school_id, process_name, must_exist=True):
 @login_required
 def create_process():
     """Create a new process"""
-    school_id = current_user.schoolcode
+    school_id = effective_school_id()
+    if school_id is None:
+        return redirect(url_for("admin.dashboard"))
     process_name = request.form.get("process_name", "").strip()
     if error := _validate_process_name(school_id, process_name, must_exist=False):
         flash(error, "error")
@@ -285,7 +336,9 @@ def create_process():
 @login_required
 def delete_process(process_name):
     """Delete a process"""
-    school_id = current_user.schoolcode
+    school_id = effective_school_id()
+    if school_id is None:
+        return redirect(url_for("admin.dashboard"))
     if error := _validate_process_name(school_id, process_name, must_exist=True):
         flash(error, "error")
         return redirect(url_for("processes"))
@@ -302,7 +355,9 @@ def select_process(process_id):
     """Select process"""
     if not _is_valid_process_name(process_id):
         abort(404)
-    school_id = current_user.schoolcode
+    school_id = effective_school_id()
+    if school_id is None:
+        return redirect(url_for("admin.dashboard"))
     proc = _get_process(school_id, process_id)
     if proc is None:
         abort(404)
@@ -337,7 +392,9 @@ def download_template(filename):
 @require_process
 def download_preferences():
     """Download the filled-in preferences file as the teacher uploaded it."""
-    school_id = current_user.schoolcode
+    school_id = effective_school_id()
+    if school_id is None:
+        return redirect(url_for("admin.dashboard"))
     process_id = session["process_id"]
     path = get_file_path(school_id, process_id, "preferences.xlsx")
     if not os.path.exists(path):
@@ -361,7 +418,9 @@ def upload_edexml():
     """Route to upload edexml"""
     if request.method == "GET":
         return render_template("upload_edexml.html")
-    school_id = current_user.schoolcode
+    school_id = effective_school_id()
+    if school_id is None:
+        return redirect(url_for("admin.dashboard"))
     process_id = session["process_id"]
     try:
         edex_file = request.files["edexml"]
@@ -411,7 +470,9 @@ def _load_groups_to_state(school_id, process_id):
 @require_process
 def groups_to_page():
     """Display and process the groups_to page"""
-    school_id = current_user.schoolcode
+    school_id = effective_school_id()
+    if school_id is None:
+        return redirect(url_for("admin.dashboard"))
     process_id = session["process_id"]
     groups_to = _load_groups_to(school_id, process_id)
 
@@ -473,7 +534,9 @@ def _save_student_selection(school_id, process_id, selected_ids, new_students):
 @require_process
 def student_preferences():
     """Display page where the teacher can add preferences for the student"""
-    school_id = current_user.schoolcode
+    school_id = effective_school_id()
+    if school_id is None:
+        return redirect(url_for("admin.dashboard"))
     process_id = session["process_id"]
     with open(
         get_file_path(school_id, process_id, "relevant_students_and_groups.json"),
@@ -537,7 +600,9 @@ def upload_preferences():
     Re-uploading is optional when going back and forth: if no new file is chosen but a
     valid preferences file was uploaded earlier, the teacher simply continues with it.
     """
-    school_id = current_user.schoolcode
+    school_id = effective_school_id()
+    if school_id is None:
+        return redirect(url_for("admin.dashboard"))
     process_id = session["process_id"]
     upload = request.files.get("preferences")
     if not (upload and upload.filename):
@@ -606,7 +671,9 @@ def _parse_not_together_form(form, n_rules):
 @require_process
 def not_together_page():
     """Display and process the not-together rules page"""
-    school_id = current_user.schoolcode
+    school_id = effective_school_id()
+    if school_id is None:
+        return redirect(url_for("admin.dashboard"))
     process_id = session["process_id"]
     preferences_path = get_file_path(school_id, process_id, "preferences.xlsx")
     groups_to_path = get_file_path(school_id, process_id, "groups.xlsx")
@@ -676,77 +743,6 @@ def _extract_new_students(form):
         for fn, ln, sex, gr in zip(firstnames, lastnames, genders, groups)
         if fn.strip() and ln.strip()
     ]
-
-
-@dataclass
-class GroupsToSubmission:
-    """Parsed groups-to form.
-
-    ``distribution`` holds the retained boy/girl counts per group (written to
-    ``groups.xlsx`` for the solver); ``state`` captures exactly what the teacher did so
-    the page can be restored on return (written to ``groups_to_state.json``).
-    """
-
-    distribution: dict[str, dict[str, int]]
-    state: dict
-
-
-def _checked_indices(form, groupname: str, n_students: int) -> list[int]:
-    """Return the submitted student indices for a group, bounded to the known students.
-
-    Checkbox values are the student's position in the groups-to list (not the gender),
-    so the server can both count genders and remember exactly who was ticked.
-    """
-    indices = []
-    for raw in form.getlist(f"group_students[{groupname}]"):
-        try:
-            index = int(raw)
-        except ValueError:
-            continue
-        if 0 <= index < n_students:
-            indices.append(index)
-    return indices
-
-
-def parse_groups_to_form(form, groups_to: dict) -> GroupsToSubmission:
-    """Turn the submitted groups-to form into retained counts and a restore state.
-
-    Active groups come from the ``group`` fields. An original group missing from that
-    list was switched off; a submitted name that is not an original group is a
-    teacher-added empty group. Genders are looked up from ``groups_to`` by the submitted
-    student indices, so the counts cannot drift from the source data.
-
-    Every original group's ticks are remembered (their checkboxes submit even when the
-    group is switched off), so switching a group back on restores exactly who was ticked.
-    Only active groups contribute to ``distribution`` (and thus to ``groups.xlsx``).
-    """
-    submitted = form.getlist("group")
-    # Remember the ticks of every original group, including switched-off ones.
-    original_state = {
-        name: {"checked_indices": _checked_indices(form, name, len(students))}
-        for name, students in groups_to.items()
-    }
-    distribution: dict[str, dict[str, int]] = {}
-    new_groups: list[str] = []
-
-    for name in submitted:
-        if name in groups_to:
-            students = groups_to[name]
-            indices = original_state[name]["checked_indices"]
-            distribution[name] = {
-                "Jongens": sum(students[i]["geslacht"] == "Jongen" for i in indices),
-                "Meisjes": sum(students[i]["geslacht"] == "Meisje" for i in indices),
-            }
-        else:
-            distribution[name] = {"Jongens": 0, "Meisjes": 0}
-            new_groups.append(name)
-
-    state = {
-        "original_groups": original_state,
-        "disabled_groups": [name for name in groups_to if name not in submitted],
-        "new_groups": new_groups,
-    }
-    return GroupsToSubmission(distribution=distribution, state=state)
 
 
 def _flash_upload_error(exc: Exception) -> None:
@@ -839,7 +835,9 @@ def _create_sociogram_thread(preferences, groups_to, school_id, process_name, ru
 def start_distribution():
     """Start the student distribution using stored input files"""
     logger.info("Starting distribution")
-    school_id = current_user.schoolcode
+    school_id = effective_school_id()
+    if school_id is None:
+        return redirect(url_for("admin.dashboard"))
     process_name = session["process_id"]
     groups_to_path = get_file_path(school_id, process_name, "groups.xlsx")
 
@@ -877,7 +875,9 @@ def start_distribution():
 @require_process
 def status():
     """Return the current process's run status and log lines as JSON."""
-    school_id = current_user.schoolcode
+    school_id = effective_school_id()
+    if school_id is None:
+        return redirect(url_for("admin.dashboard"))
     process_name = session["process_id"]
     proc = _get_process(school_id, process_name)
     if proc is None or proc.run is None:
@@ -916,7 +916,9 @@ def handle_error():
 @require_process
 def show_sociogram():
     """Display the sociogram for the current process"""
-    school_id = current_user.schoolcode
+    school_id = effective_school_id()
+    if school_id is None:
+        return redirect(url_for("admin.dashboard"))
     process_id = session["process_id"]
     path = get_file_path(school_id, process_id, "sociogram.html")
     if not os.path.exists(path):
@@ -932,7 +934,9 @@ def show_sociogram():
 @require_process
 def result_page():
     """Display result for the current process"""
-    school_id = current_user.schoolcode
+    school_id = effective_school_id()
+    if school_id is None:
+        return redirect(url_for("admin.dashboard"))
     process_id = session["process_id"]
     path = get_file_path(school_id, process_id, "result_tables.json")
     if not os.path.exists(path):
@@ -948,7 +952,9 @@ def result_page():
 @require_process
 def download():
     """Download the groepsindeling for the current process"""
-    school_id = current_user.schoolcode
+    school_id = effective_school_id()
+    if school_id is None:
+        return redirect(url_for("admin.dashboard"))
     process_id = session["process_id"]
     path = get_file_path(school_id, process_id, "results.xlsx")
     if not os.path.exists(path):
