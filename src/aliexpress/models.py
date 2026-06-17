@@ -43,15 +43,42 @@ class School(UserMixin, db.Model):
     ``get_id()``). Passwords are stored as Werkzeug hashes — never plain text.
     """
 
+    is_admin = False
+
     schoolcode = db.Column(db.String(64), primary_key=True)
     naam = db.Column(db.String(256), nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
+    must_change_password = db.Column(
+        db.Boolean, nullable=False, server_default="0", default=False
+    )
     processes = db.relationship(
         "Process", backref="school", cascade="all, delete-orphan"
     )
 
     def get_id(self):
         return self.schoolcode
+
+
+class Admin(UserMixin, db.Model):
+    """An administrator account that can view and act on behalf of any school.
+
+    Flask-Login identity is ``"admin:<id>"`` — the ``"admin:"`` prefix prevents collisions
+    with school codes in the shared ``user_loader``.
+    """
+
+    is_admin = True
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    username = db.Column(db.String(64), unique=True, nullable=False)
+    password_hash = db.Column(db.String(256), nullable=False)
+
+    @property
+    def naam(self):
+        """Display name used in templates, mirrors the School.naam column."""
+        return f"Beheerder ({self.username})"
+
+    def get_id(self):
+        return f"admin:{self.id}"
 
 
 class Process(db.Model):

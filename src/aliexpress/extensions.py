@@ -5,8 +5,11 @@ modules import them without importing the application, which avoids a circular i
 ``app.py`` imports those models.
 """
 
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from flask_login import LoginManager
 from flask_sqlalchemy import SQLAlchemy
 
 db = SQLAlchemy()
 login_manager = LoginManager()
+limiter = Limiter(get_remote_address, storage_uri="memory://")

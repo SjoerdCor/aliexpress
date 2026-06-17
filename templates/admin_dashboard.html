@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="nl">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Beheerdersdashboard — ALI-Express</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='logo.ico') }}">
+</head>
+
+<body>
+    {% with messages = get_flashed_messages(with_categories=True) %}
+    {% if messages %}
+    {% for category, msg in messages %}
+    <div class="flash-message {{ category }}">
+        <span class="closebtn" onclick="this.parentElement.style.display='none';">&times;</span>
+        {{ msg }}
+    </div>
+    {% endfor %}
+    {% endif %}
+    {% endwith %}
+
+    <div class="container">
+        <div class="school-bar">
+            <span class="school-name">{{ current_user.naam }}</span>
+            <a href="{{ url_for('logout') }}" class="btn-secondary" style="margin-left:auto;">Uitloggen</a>
+        </div>
+
+        <h1>Scholen</h1>
+
+        {% if school_data %}
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Schoolcode</th>
+                    <th>Naam</th>
+                    <th>Processen</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in school_data %}
+                <tr>
+                    <td><code>{{ entry.school.schoolcode }}</code></td>
+                    <td>{{ entry.school.naam }}</td>
+                    <td>
+                        {% if entry.processes %}
+                        {{ entry.processes | map(attribute='name') | join(', ') }}
+                        {% else %}
+                        <em>geen</em>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="{{ url_for('admin.impersonate', schoolcode=entry.school.schoolcode) }}"
+                            class="btn-secondary btn-sm">Bekijk als deze school</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p>Er zijn nog geen scholen aangemaakt.</p>
+        {% endif %}
+    </div>
+</body>
+
+</html>
