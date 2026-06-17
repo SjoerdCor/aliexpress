@@ -11,12 +11,16 @@ from unittest.mock import MagicMock
 import pandas as pd
 import pytest
 from werkzeug.datastructures import MultiDict
+from werkzeug.security import generate_password_hash
 
 import app as flask_module
 from aliexpress.errors import ValidationError
 from aliexpress.extensions import db
-from aliexpress.models import LogLine, Run
+from aliexpress.models import LogLine, Process, Run, School
 from app import app as flask_app
+
+# Must match the schoolcode created in tests/conftest.py's ``client`` fixture.
+SCHOOL_ID = "test-school"
 
 
 def _immediate_thread(target, args=()):
@@ -35,12 +39,28 @@ def _flashes(client_obj):
 
 
 def _setup_process(client, tmp_path, process_id="testproces"):
-    """Create a process directory and set session process_id."""
-    proc_dir = tmp_path / process_id
-    proc_dir.mkdir(exist_ok=True)
+    """Create a process directory, a Process DB row, and set session process_id.
+
+    The directory is placed under the school's subdirectory so it matches
+    ``get_process_path(school_id, process_id)`` in the real routes.
+    """
+    proc_dir = tmp_path / SCHOOL_ID / process_id
+    proc_dir.mkdir(parents=True, exist_ok=True)
+    with flask_app.app_context():
+        proc = Process(school_id=SCHOOL_ID, name=process_id)
+        db.session.add(proc)
+        db.session.commit()
     with client.session_transaction() as sess:
         sess["process_id"] = process_id
     return proc_dir
+
+
+def _make_process_row(school_id, name):
+    """Create a Process DB row and return it (must be called inside an app context)."""
+    proc = Process(school_id=school_id, name=name)
+    db.session.add(proc)
+    db.session.commit()
+    return proc
 
 
 class TestCreateProcess:
@@ -60,9 +80,10 @@ class TestCreateProcess:
             ("error", "Alleen letters, cijfers, spaties, - en _ toegestaan")
         ]
 
-    def test_existing_name_gives_bestaat_al(self, client, tmp_path):
+    def test_existing_name_gives_bestaat_al(self, client):
         """Bug 2: creating a duplicate must yield 'Proces bestaat al', not 'bestaat niet'."""
-        (tmp_path / "mijnproces").mkdir()
+        with flask_app.app_context():
+            _make_process_row(SCHOOL_ID, "mijnproces")
         response = client.post("/processes/create", data={"process_name": "mijnproces"})
         assert response.status_code == 302
         assert _flashes(client) == [("error", "Proces bestaat al")]
@@ -74,7 +95,7 @@ class TestCreateProcess:
         )
         assert response.status_code == 302
         assert response.headers["Location"].endswith("/upload_edexml")
-        assert (tmp_path / "nieuwproces").is_dir()
+        assert (tmp_path / SCHOOL_ID / "nieuwproces").is_dir()
 
 
 class TestDeleteProcess:
@@ -93,11 +114,14 @@ class TestDeleteProcess:
 
     def test_happy_path_removes_directory(self, client, tmp_path):
         """Deleting an existing process removes the directory and redirects."""
-        (tmp_path / "teproces").mkdir()
+        proc_dir = tmp_path / SCHOOL_ID / "teproces"
+        proc_dir.mkdir(parents=True, exist_ok=True)
+        with flask_app.app_context():
+            _make_process_row(SCHOOL_ID, "teproces")
         response = client.post("/processes/delete/teproces")
         assert response.status_code == 302
         assert response.headers["Location"].endswith("/processes")
-        assert not (tmp_path / "teproces").exists()
+        assert not proc_dir.exists()
 
 
 class TestUploadErrors:
@@ -209,9 +233,10 @@ class TestProcessesList:
         """An empty BASE_DIR produces an empty process list without errors."""
         assert client.get("/processes").status_code == 200
 
-    def test_existing_process_is_shown(self, client, tmp_path):
-        """A process directory that exists appears in the processes list."""
-        (tmp_path / "mijnklas").mkdir()
+    def test_existing_process_is_shown(self, client):
+        """A process that exists in the DB appears in the processes list."""
+        with flask_app.app_context():
+            _make_process_row(SCHOOL_ID, "mijnklas")
         response = client.get("/processes")
         assert response.status_code == 200
         assert b"mijnklas" in response.data
@@ -230,25 +255,28 @@ class TestSelectProcess:
         ``bad.name`` would reach the route (dots are valid in a URL segment) but must not
         be turned into a filesystem path: the format check rejects it with a 404.
         """
-        (
-            tmp_path / "bad.name"
-        ).mkdir()  # even if such a dir existed, it must not be served
+        # Even if a dir existed, the format check must block it.
+        (tmp_path / SCHOOL_ID / "bad.name").mkdir(parents=True, exist_ok=True)
         assert client.get("/processes/select/bad.name").status_code == 404
 
     def test_empty_process_redirects_to_upload_edexml(self, client, tmp_path):
         """A process with no files starts at the first step: upload EDEXML."""
-        (tmp_path / "leegproces").mkdir()
+        (tmp_path / SCHOOL_ID / "leegproces").mkdir(parents=True, exist_ok=True)
+        with flask_app.app_context():
+            _make_process_row(SCHOOL_ID, "leegproces")
         response = client.get("/processes/select/leegproces")
         assert response.status_code == 302
         assert response.headers["Location"].endswith("/upload_edexml")
 
     def test_process_with_json_redirects_to_groups_to(self, client, tmp_path):
         """A process that has the candidates JSON continues at groups_to."""
-        proc_dir = tmp_path / "procesmetjson"
-        proc_dir.mkdir()
+        proc_dir = tmp_path / SCHOOL_ID / "procesmetjson"
+        proc_dir.mkdir(parents=True, exist_ok=True)
         (proc_dir / "relevant_students_and_groups.json").write_text(
             "{}", encoding="utf-8"
         )
+        with flask_app.app_context():
+            _make_process_row(SCHOOL_ID, "procesmetjson")
         response = client.get("/processes/select/procesmetjson")
         assert response.status_code == 302
         assert response.headers["Location"].endswith("/groups_to")
@@ -257,9 +285,11 @@ class TestSelectProcess:
         self, client, tmp_path
     ):
         """A process that has groups.xlsx but no preferences continues at student_preferences."""
-        proc_dir = tmp_path / "procesmetgroepen"
-        proc_dir.mkdir()
+        proc_dir = tmp_path / SCHOOL_ID / "procesmetgroepen"
+        proc_dir.mkdir(parents=True, exist_ok=True)
         (proc_dir / "groups.xlsx").write_bytes(b"dummy")
+        with flask_app.app_context():
+            _make_process_row(SCHOOL_ID, "procesmetgroepen")
         response = client.get("/processes/select/procesmetgroepen")
         assert response.status_code == 302
         assert response.headers["Location"].endswith("/student_preferences")
@@ -268,9 +298,11 @@ class TestSelectProcess:
         self, client, tmp_path
     ):
         """A process that has preferences.xlsx continues at not_together."""
-        proc_dir = tmp_path / "procesmetpref"
-        proc_dir.mkdir()
+        proc_dir = tmp_path / SCHOOL_ID / "procesmetpref"
+        proc_dir.mkdir(parents=True, exist_ok=True)
         (proc_dir / "preferences.xlsx").write_bytes(b"dummy")
+        with flask_app.app_context():
+            _make_process_row(SCHOOL_ID, "procesmetpref")
         response = client.get("/processes/select/procesmetpref")
         assert response.status_code == 302
         assert response.headers["Location"].endswith("/not_together")
@@ -626,9 +658,12 @@ class TestStartDistribution:
         )
         return solver
 
-    def _read_run(self, process_id="testproces"):
+    def _read_run(self, process_name="testproces"):
         with flask_app.app_context():
-            return db.session.get(Run, process_id)
+            proc = Process.query.filter_by(
+                school_id=SCHOOL_ID, name=process_name
+            ).first()
+            return proc.run if proc else None
 
     def test_happy_path_writes_files_and_marks_done(
         self, client, tmp_path, monkeypatch
@@ -707,9 +742,13 @@ class TestStatus:
         """A running run returns its status and log lines in insertion order."""
         _setup_process(client, tmp_path)
         with flask_app.app_context():
-            db.session.add(Run(process_id="testproces", status="running"))
-            db.session.add(LogLine(process_id="testproces", text="Eerste"))
-            db.session.add(LogLine(process_id="testproces", text="Tweede"))
+            proc = Process.query.filter_by(
+                school_id=SCHOOL_ID, name="testproces"
+            ).first()
+            run = Run(process_id=proc.id, status="running")
+            db.session.add(run)
+            db.session.add(LogLine(run_id=proc.id, text="Eerste"))
+            db.session.add(LogLine(run_id=proc.id, text="Tweede"))
             db.session.commit()
         data = client.get("/status").get_json()
         assert data["status_studentdistribution"] == "running"
@@ -719,9 +758,10 @@ class TestStatus:
         """An errored run exposes its friendly message for the frontend to flash."""
         _setup_process(client, tmp_path)
         with flask_app.app_context():
-            db.session.add(
-                Run(process_id="testproces", status="error", message="Mislukt")
-            )
+            proc = Process.query.filter_by(
+                school_id=SCHOOL_ID, name="testproces"
+            ).first()
+            db.session.add(Run(process_id=proc.id, status="error", message="Mislukt"))
             db.session.commit()
         data = client.get("/status").get_json()
         assert data["status_studentdistribution"] == "error"
@@ -865,3 +905,39 @@ class TestUploadSizeLimit:
         assert any(
             cat == "error" and "te groot" in msg for cat, msg in _flashes(client)
         )
+
+
+class TestSchoolIsolation:
+    """A school cannot access, see, or delete another school's processes."""
+
+    def _create_other_school_process(self, process_name="geheimproces"):
+        """Insert a school + process that the test-school must not be able to reach."""
+        with flask_app.app_context():
+            andere = School(
+                schoolcode="andere-school",
+                naam="Andere School",
+                password_hash=generate_password_hash("pw"),
+            )
+            db.session.add(andere)
+            proc = Process(school_id="andere-school", name=process_name)
+            db.session.add(proc)
+            db.session.commit()
+
+    def test_cannot_select_other_schools_process(self, client):
+        """GET /processes/select/<id> returns 404 for a process owned by another school."""
+        self._create_other_school_process()
+        assert client.get("/processes/select/geheimproces").status_code == 404
+
+    def test_cannot_delete_other_schools_process(self, client):
+        """POST /processes/delete/<name> flashes 'bestaat niet' for another school's process."""
+        self._create_other_school_process()
+        response = client.post("/processes/delete/geheimproces")
+        assert response.status_code == 302
+        assert _flashes(client) == [("error", "Proces bestaat niet")]
+
+    def test_cannot_see_other_schools_process_in_list(self, client):
+        """GET /processes does not include processes from other schools."""
+        self._create_other_school_process()
+        response = client.get("/processes")
+        assert response.status_code == 200
+        assert b"geheimproces" not in response.data

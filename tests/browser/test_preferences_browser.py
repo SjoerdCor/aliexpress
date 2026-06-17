@@ -6,16 +6,24 @@ import json
 
 import pytest
 
+import app as flask_module
+from aliexpress.extensions import db as flask_db
+from aliexpress.models import Process
+from tests.browser.conftest import TEST_SCHOOLCODE
+
 
 def _open_preferences(live_server, tmp_path, page):
     """Land the browser on the preferences page (groups done, nothing uploaded yet)."""
-    proc = tmp_path / "browsertest"
-    proc.mkdir(exist_ok=True)
+    proc = tmp_path / TEST_SCHOOLCODE / "browsertest"
+    proc.mkdir(parents=True, exist_ok=True)
     (proc / "relevant_students_and_groups.json").write_text(
         json.dumps({"candidates": [], "groups_from": []}), encoding="utf-8"
     )
     # select_process lands on student_preferences once groups.xlsx exists.
     (proc / "groups.xlsx").write_bytes(b"dummy")
+    with flask_module.app.app_context():
+        flask_db.session.add(Process(school_id=TEST_SCHOOLCODE, name="browsertest"))
+        flask_db.session.commit()
     page.goto(f"{live_server}/processes/select/browsertest")
     page.wait_for_url("**/student_preferences")
     return proc

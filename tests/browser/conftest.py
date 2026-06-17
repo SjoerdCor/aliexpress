@@ -17,7 +17,8 @@ from werkzeug.security import generate_password_hash
 from werkzeug.serving import make_server
 
 import app as flask_module
-from aliexpress.models import School
+from aliexpress.extensions import db as flask_db
+from aliexpress.models import Process, School
 
 TEST_SCHOOLCODE = "browser-school"
 TEST_PASSWORD = "browser-pass"
@@ -79,11 +80,14 @@ def open_groups_to(live_server, tmp_path, page):
     _do_login(page, live_server)
 
     def _open(groups_to):
-        proc = tmp_path / "browsertest"
-        proc.mkdir(exist_ok=True)
+        proc = tmp_path / TEST_SCHOOLCODE / "browsertest"
+        proc.mkdir(parents=True, exist_ok=True)
         (proc / "relevant_students_and_groups.json").write_text(
             json.dumps({"groups_to": groups_to}), encoding="utf-8"
         )
+        with flask_module.app.app_context():
+            flask_db.session.add(Process(school_id=TEST_SCHOOLCODE, name="browsertest"))
+            flask_db.session.commit()
         page.goto(f"{live_server}/processes/select/browsertest")
         return proc
 
