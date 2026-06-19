@@ -26,9 +26,7 @@ from flask import (
     session,
     url_for,
 )
-from flask_login import current_user, login_required, login_user, logout_user
-from werkzeug.security import check_password_hash, generate_password_hash
-from zxcvbn import zxcvbn
+from flask_login import login_required
 
 from aliexpress import candidatedetermination, datareader, input_writer, sociogram
 from aliexpress.admin import admin_bp
@@ -45,7 +43,8 @@ from aliexpress.form_parsers import parse_groups_to_form
 from aliexpress.http_errors import register_error_handlers
 from aliexpress.logging_config import add_file_handler, configure_logging
 from aliexpress.main import distribute_students_once
-from aliexpress.models import Admin, LogLine, Process, Run, School
+from aliexpress.models import LogLine, Process, Run
+from aliexpress.routes.auth import auth_bp, effective_school_id, load_user
 from aliexpress.storage import get_file_path, get_process_path
 from aliexpress.validation_messages import to_validation_message
 
@@ -89,7 +88,7 @@ logger.debug("Created dir if not exists: %s", app.config["STORAGE_DIR"])
 os.makedirs(app.instance_path, exist_ok=True)
 db.init_app(app)
 login_manager.init_app(app)
-login_manager.login_view = "login"
+login_manager.login_view = "auth.login"
 login_manager.login_message = "Je moet ingelogd zijn om deze pagina te bekijken."
 login_manager.login_message_category = "error"
 
@@ -101,32 +100,21 @@ with app.app_context():
     db.create_all()
 
 
-@login_manager.user_loader
-def load_user(user_id):
-    """Return the authenticated user (School or Admin) for the given identity string."""
-    if user_id.startswith("admin:"):
-        return db.session.get(Admin, int(user_id[6:]))
-    return db.session.get(School, user_id)
-
+login_manager.user_loader(load_user)
 
 app.cli.add_command(schools_cli, "schools")
 app.cli.add_command(admins_cli, "admins")
 app.register_blueprint(admin_bp)
-
-
-def effective_school_id():
-    """Return the school_id for the current request.
-
-    For a school user: their own schoolcode.
-    For an admin impersonating a school: the impersonated school's code.
-    For an admin not impersonating: None (caller should redirect to admin dashboard).
-    """
-    if current_user.is_admin:
-        return session.get("impersonating_school")
-    return current_user.schoolcode
+app.register_blueprint(auth_bp)
 
 
 register_error_handlers(app)
+
+
+@app.route("/")
+def home():
+    """Display home page"""
+    return render_template("home.html")
 
 
 def require_process(f):
@@ -157,77 +145,6 @@ def _write_result_files(school_id, process_name, result):
         encoding="utf-8",
     ) as fh:
         json.dump(tables, fh, ensure_ascii=False)
-
-
-@app.route("/")
-def home():
-    """Display home page"""
-    return render_template("home.html")
-
-
-@app.route("/login", methods=["GET", "POST"])
-@limiter.limit("20 per minute", methods=["POST"])
-def login():
-    """Show and handle the school login form."""
-    if current_user.is_authenticated:
-        return redirect(
-            url_for("admin.dashboard")
-            if current_user.is_admin
-            else url_for("processes")
-        )
-    if request.method == "POST":
-        schoolcode = request.form.get("schoolcode", "").strip()
-        password = request.form.get("wachtwoord", "")
-        school = db.session.get(School, schoolcode)
-        if school is None or not check_password_hash(school.password_hash, password):
-            flash("Ongeldige schoolcode of wachtwoord.", "error")
-            return render_template("login.html")
-        session.clear()
-        login_user(school, remember=False)
-        if school.must_change_password:
-            return redirect(url_for("change_password"))
-        return redirect(url_for("processes"))
-    return render_template("login.html")
-
-
-@app.route("/logout")
-@login_required
-def logout():
-    """Log the current user (school or admin) out and redirect to the login page."""
-    session.clear()
-    logout_user()
-    return redirect(url_for("login"))
-
-
-@app.route("/wachtwoord-instellen", methods=["GET", "POST"])
-@login_required
-def change_password():
-    """Force a school to set their own password after first login."""
-    if current_user.is_admin or not current_user.must_change_password:
-        return redirect(url_for("processes"))
-    if request.method == "POST":
-        password = request.form.get("wachtwoord", "")
-        confirm = request.form.get("wachtwoord_bevestig", "")
-        if password != confirm:
-            flash("Wachtwoorden komen niet overeen.", "error")
-            return render_template("change_password.html")
-        result = zxcvbn(
-            password, user_inputs=[current_user.schoolcode, current_user.naam]
-        )
-        if result["score"] < 3:
-            flash(
-                "Wachtwoord is te makkelijk te raden. Gebruik meer tekens of vermijd "
-                "voor de hand liggende woorden en patronen.",
-                "error",
-            )
-            return render_template("change_password.html")
-        current_user.password_hash = generate_password_hash(password)
-        current_user.must_change_password = False
-        db.session.commit()
-        logger.info("School '%s' changed their password", current_user.schoolcode)
-        flash("Wachtwoord ingesteld. Je bent nu ingelogd.", "success")
-        return redirect(url_for("processes"))
-    return render_template("change_password.html")
 
 
 @app.route("/processes")
