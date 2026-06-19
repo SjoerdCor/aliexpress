@@ -6,7 +6,7 @@ from werkzeug.security import generate_password_hash
 
 import aliexpress.routes.processes as proc_module
 from aliexpress.extensions import db
-from aliexpress.models import Process, School
+from aliexpress.models import Process, Run, School
 from app import app as flask_app
 from tests.helpers import SCHOOL_ID, flashes, make_process_row
 
@@ -187,6 +187,45 @@ class TestSelectProcess:
         response = client.get("/processes/select/procesmetpref")
         assert response.status_code == 302
         assert response.headers["Location"].endswith("/not_together")
+
+    def test_select_with_done_run_redirects_to_result(self, client, tmp_path):
+        """A completed run skips the wizard and goes straight to the result page."""
+        proc_dir = tmp_path / SCHOOL_ID / "gedaanproces"
+        proc_dir.mkdir(parents=True, exist_ok=True)
+        with flask_app.app_context():
+            proc = make_process_row(SCHOOL_ID, "gedaanproces")
+            run = Run(process_id=proc.id, status="done")
+            db.session.add(run)
+            db.session.commit()
+        response = client.get("/processes/select/gedaanproces")
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/result")
+
+    def test_select_with_running_run_redirects_to_processing(self, client, tmp_path):
+        """An in-progress run resumes at the processing/status page."""
+        proc_dir = tmp_path / SCHOOL_ID / "looptproces"
+        proc_dir.mkdir(parents=True, exist_ok=True)
+        with flask_app.app_context():
+            proc = make_process_row(SCHOOL_ID, "looptproces")
+            run = Run(process_id=proc.id, status="running")
+            db.session.add(run)
+            db.session.commit()
+        response = client.get("/processes/select/looptproces")
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/processing")
+
+    def test_select_with_error_run_redirects_to_processing(self, client, tmp_path):
+        """A failed run reopens the processing page so the user sees the error."""
+        proc_dir = tmp_path / SCHOOL_ID / "foutproces"
+        proc_dir.mkdir(parents=True, exist_ok=True)
+        with flask_app.app_context():
+            proc = make_process_row(SCHOOL_ID, "foutproces")
+            run = Run(process_id=proc.id, status="error")
+            db.session.add(run)
+            db.session.commit()
+        response = client.get("/processes/select/foutproces")
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/processing")
 
 
 class TestSchoolIsolation:
