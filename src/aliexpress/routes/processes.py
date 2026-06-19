@@ -121,6 +121,25 @@ def delete(process_name):
     return redirect(url_for("processes.index"))
 
 
+def _resume_url(proc, path):
+    """Return the URL where an existing process should resume.
+
+    Checks run status first (done → result, running/error → processing), then
+    falls back to the wizard step that matches which files are already present.
+    """
+    if proc.run is not None and proc.run.status == "done":
+        return url_for("results.result_page")
+    if proc.run is not None and proc.run.status in ("running", "error"):
+        return url_for("results.processing")
+    if os.path.exists(os.path.join(path, "preferences.xlsx")):
+        return url_for("wizard.not_together_page")
+    if os.path.exists(os.path.join(path, "groups.xlsx")):
+        return url_for("wizard.student_preferences")
+    if os.path.exists(os.path.join(path, "relevant_students_and_groups.json")):
+        return url_for("wizard.groups_to_page")
+    return url_for("wizard.upload_edexml")
+
+
 @processes_bp.route("/select/<process_id>")
 @login_required
 def select(process_id):
@@ -140,13 +159,4 @@ def select(process_id):
     except PermissionError:
         flash("Ongeldige procesinformatie.", "error")
         return redirect(url_for("processes.index"))
-    preferences_path = os.path.join(path, "preferences.xlsx")
-    if os.path.exists(preferences_path):
-        return redirect(url_for("wizard.not_together_page"))
-    groups_path = os.path.join(path, "groups.xlsx")
-    if os.path.exists(groups_path):
-        return redirect(url_for("wizard.student_preferences"))
-    candidates_path = os.path.join(path, "relevant_students_and_groups.json")
-    if os.path.exists(candidates_path):
-        return redirect(url_for("wizard.groups_to_page"))
-    return redirect(url_for("wizard.upload_edexml"))
+    return redirect(_resume_url(proc, path))
