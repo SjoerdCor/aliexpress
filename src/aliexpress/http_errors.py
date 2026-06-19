@@ -28,7 +28,7 @@ def register_error_handlers(app):
         flash(
             "Te veel inlogpogingen. Wacht een minuut en probeer het opnieuw.", "error"
         )
-        return redirect(url_for("login"))
+        return redirect(url_for("auth.login"))
 
     @app.errorhandler(404)
     def page_not_found(_error):
