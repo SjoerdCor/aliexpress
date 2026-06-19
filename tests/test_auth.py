@@ -8,10 +8,25 @@ in test_app.py. Uses the shared client and unauthed_client fixtures from conftes
 
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from aliexpress.extensions import db
+from aliexpress.extensions import db, limiter
 from aliexpress.models import School
+from aliexpress.routes.auth import load_user
 from app import app as flask_app
-from app import limiter, load_user
+
+
+class TestAuthBlueprint:
+    """Smoke test: auth blueprint routes are reachable and load_user resolves users."""
+
+    def test_login_route_is_reachable(self, unauthed_client):
+        """auth_bp registers /login; route is accessible without authentication."""
+        resp = unauthed_client.get("/login")
+        assert resp.status_code == 200
+
+    def test_logout_redirects_to_login(self, client):
+        """After logout the browser is sent to /login."""
+        resp = client.get("/logout")
+        assert resp.status_code == 302
+        assert "/login" in resp.headers["Location"]
 
 
 class TestSchoolModel:

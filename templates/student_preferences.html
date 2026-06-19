@@ -5,7 +5,7 @@
 
   <h2>Stap 1: Selecteer leerlingen die doorgaan</h2>
   <p>Vink aan wie naar de volgende groep gaan. Verlengers kunnen uitgevinkt worden. Als er nog leerlingen missen kun je die onderaan toevoegen</p>
-  <form method="post" action="{{ url_for('student_preferences') }}" onsubmit="return validateForm()">
+  <form method="post" action="{{ url_for('wizard.student_preferences') }}" onsubmit="return validateForm()">
     {% for student in candidates %}
       <label>
         <input type="checkbox" name="students" value="{{ student.key }}"
@@ -46,11 +46,11 @@
 {% if preferences_uploaded %}
 <div class="instructions-box">
   <p>✓ Je hebt al een ingevuld bestand geüpload. Je kunt
-    <a href="{{ url_for('download_preferences') }}">het ingevulde bestand downloaden</a>
+    <a href="{{ url_for('results.download_preferences') }}">het ingevulde bestand downloaden</a>
     om verder te werken, of hieronder een nieuw bestand kiezen om het te vervangen.</p>
 </div>
 {% endif %}
-<form id="upload-form" method="post" action="{{ url_for('upload_preferences') }}" enctype="multipart/form-data">
+<form id="upload-form" method="post" action="{{ url_for('wizard.upload_preferences') }}" enctype="multipart/form-data">
   <label>Upload ingevuld bestand:</label><br>
   <input type="file" name="preferences" accept=".xlsx"><br>
   {% if preferences_uploaded %}
@@ -97,7 +97,7 @@
 
 
 <div class="step-navigation">
-    <a href="{{ url_for('groups_to_page') }}" class="button previous-step">← Naar Groepen naartoe bepalen</a>
+    <a href="{{ url_for('wizard.groups_to_page') }}" class="button previous-step">← Naar Groepen naartoe bepalen</a>
     <button type="submit" form="upload-form" class="button next-step">Naar Niet samen →</button>
 </div>
 
