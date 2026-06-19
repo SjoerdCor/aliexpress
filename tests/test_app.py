@@ -14,6 +14,7 @@ from werkzeug.datastructures import MultiDict
 from werkzeug.security import generate_password_hash
 
 import aliexpress.routes.processes as proc_module
+import aliexpress.routes.wizard as wizard_module
 import app as flask_module
 from aliexpress.errors import ValidationError
 from aliexpress.extensions import db
@@ -165,7 +166,7 @@ class TestUploadErrors:
         """Uploading a garbage file as preferences flashes an error and redirects back."""
         proc_dir = self._setup_process(client, tmp_path)
         monkeypatch.setattr(
-            flask_module.datareader,
+            wizard_module.datareader,
             "read_groups_excel",
             lambda _path: ({"Klas A": None}, {"Klas A": "Klas A"}),
         )
@@ -188,7 +189,7 @@ class TestUploadErrors:
         """An Excel with wrong columns produces the column-mismatch Dutch message."""
         self._setup_process(client, tmp_path)
         monkeypatch.setattr(
-            flask_module.datareader,
+            wizard_module.datareader,
             "read_groups_excel",
             lambda _path: ({"Klas A": None}, {"Klas A": "Klas A"}),
         )
@@ -508,7 +509,7 @@ class TestParseGroupsToForm:
                 ("group_students[Klas A]", "2"),
             ]
         )
-        result = flask_module.parse_groups_to_form(form, groups_to)
+        result = wizard_module.parse_groups_to_form(form, groups_to)
         assert result.distribution == {
             "Klas A": {"Jongens": 2, "Meisjes": 1},
             "Klas B": {"Jongens": 0, "Meisjes": 0},
@@ -527,7 +528,7 @@ class TestParseGroupsToForm:
                 ("group_students[Klas A]", "0"),
             ]
         )
-        result = flask_module.parse_groups_to_form(form, groups_to)
+        result = wizard_module.parse_groups_to_form(form, groups_to)
         assert result.state["disabled_groups"] == ["Klas B"]
         assert result.state["new_groups"] == ["Nieuwe groep 1"]
         assert result.distribution["Nieuwe groep 1"] == {"Jongens": 0, "Meisjes": 0}
@@ -543,7 +544,7 @@ class TestParseGroupsToForm:
                 ("group_students[Klas B]", "1"),
             ]
         )
-        result = flask_module.parse_groups_to_form(form, groups_to)
+        result = wizard_module.parse_groups_to_form(form, groups_to)
         assert result.state["disabled_groups"] == ["Klas B"]
         assert result.state["original_groups"]["Klas B"]["checked_indices"] == [1]
         # Switched-off groups must not reach groups.xlsx.
@@ -560,7 +561,7 @@ class TestParseGroupsToForm:
                 ("group_students[Klas A]", "x"),
             ]
         )
-        result = flask_module.parse_groups_to_form(form, groups_to)
+        result = wizard_module.parse_groups_to_form(form, groups_to)
         assert result.distribution["Klas A"] == {"Jongens": 1, "Meisjes": 0}
         assert result.state["original_groups"]["Klas A"]["checked_indices"] == [0]
 
@@ -627,7 +628,7 @@ class TestNotTogetherPage:
     def _mock_file_reads(self, monkeypatch):
         """Patch datareader calls so not_together_page does not need real xlsx files."""
         monkeypatch.setattr(
-            flask_module.datareader,
+            wizard_module.datareader,
             "read_groups_excel",
             lambda _: (
                 {"Klas A": None, "Klas B": None},
@@ -638,7 +639,7 @@ class TestNotTogetherPage:
         # The dropdown lists the names as entered (display map values).
         mock_proc.student_display = {"alice": "Alice", "bob": "Bob"}
         monkeypatch.setattr(
-            flask_module.datareader, "VoorkeurenProcessor", lambda _: mock_proc
+            wizard_module.datareader, "VoorkeurenProcessor", lambda _: mock_proc
         )
 
     def test_missing_files_flashes_error_and_redirects_to_student_preferences(
@@ -675,23 +676,23 @@ class TestStartDistribution:
 
         Returns the solver mock so a test can inspect the arguments it was called with.
         """
-        monkeypatch.setattr(flask_module, "Thread", _immediate_thread)
+        monkeypatch.setattr(wizard_module, "Thread", _immediate_thread)
         solver = MagicMock(side_effect=exc) if exc else MagicMock(return_value=result)
-        monkeypatch.setattr(flask_module, "distribute_students_once", solver)
+        monkeypatch.setattr(wizard_module, "distribute_students_once", solver)
         monkeypatch.setattr(
-            flask_module.datareader,
+            wizard_module.datareader,
             "read_groups_excel",
             lambda _: ({"Klas A": None}, {"Klas A": "Klas A"}),
         )
         maker = MagicMock()
         maker.plot_sociogram.return_value = (MagicMock(), MagicMock(), MagicMock())
         monkeypatch.setattr(
-            flask_module.sociogram, "SociogramMaker", lambda *a, **k: maker
+            wizard_module.sociogram, "SociogramMaker", lambda *a, **k: maker
         )
         fig = MagicMock()
         fig.to_html.return_value = "<div>socio</div>"
         monkeypatch.setattr(
-            flask_module.sociogram, "networkx_to_plotly", lambda *a, **k: fig
+            wizard_module.sociogram, "networkx_to_plotly", lambda *a, **k: fig
         )
         return solver
 

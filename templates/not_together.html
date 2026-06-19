@@ -18,7 +18,7 @@
   Zonder regels: klik direct op "Opslaan &amp; Indeling starten".
 </div>
 
-<form method="post" action="{{ url_for('not_together_page') }}"
+<form method="post" action="{{ url_for('wizard.not_together_page') }}"
       onsubmit="return prepareAndValidate()">
   <input type="hidden" name="n_rules" id="n_rules" value="0">
 
@@ -31,7 +31,7 @@
   </div>
 
   <div class="step-navigation">
-    <a href="{{ url_for('student_preferences') }}" class="button previous-step">
+    <a href="{{ url_for('wizard.student_preferences') }}" class="button previous-step">
       ← Naar Voorkeuren
     </a>
     <button type="submit" class="button next-step">
