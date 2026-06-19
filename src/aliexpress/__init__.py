@@ -40,6 +40,10 @@ def create_app(test_config=None):
 
     os.makedirs(app.instance_path, exist_ok=True)
 
+    # Derived path: tests override via test_config; production gets instance/storage.
+    if "STORAGE_DIR" not in app.config:
+        app.config["STORAGE_DIR"] = os.path.join(app.instance_path, "storage")
+
     db.init_app(app)
     login_manager.init_app(app)
     limiter.init_app(app)
