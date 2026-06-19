@@ -42,6 +42,7 @@ from aliexpress.errors import (
 )
 from aliexpress.extensions import db, limiter, login_manager
 from aliexpress.form_parsers import parse_groups_to_form
+from aliexpress.http_errors import register_error_handlers
 from aliexpress.logging_config import add_file_handler, configure_logging
 from aliexpress.main import distribute_students_once
 from aliexpress.models import Admin, LogLine, Process, Run, School
@@ -124,22 +125,7 @@ def effective_school_id():
     return current_user.schoolcode
 
 
-@app.errorhandler(413)
-def upload_too_large(error):
-    """Friendly Dutch message when a request exceeds MAX_CONTENT_LENGTH (HTTP 413).
-
-    Upload routes catch the error themselves via _flash_upload_error; this covers any
-    other route, sharing the same message through to_validation_message.
-    """
-    flash(to_validation_message(error), "error")
-    return redirect(request.referrer or url_for("processes"))
-
-
-@app.errorhandler(429)
-def too_many_requests(_error):
-    """Friendly Dutch message when login attempts are rate-limited (HTTP 429)."""
-    flash("Te veel inlogpogingen. Wacht een minuut en probeer het opnieuw.", "error")
-    return redirect(url_for("login"))
+register_error_handlers(app)
 
 
 def get_process_path(school_id, process_id):
