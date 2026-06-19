@@ -97,7 +97,7 @@ def create():
         flash("Ongeldige procesinformatie.", "error")
         return redirect(url_for("processes.index"))
     session["process_id"] = process_name
-    return redirect(url_for("upload_edexml"))
+    return redirect(url_for("wizard.upload_edexml"))
 
 
 @processes_bp.route("/delete/<process_name>", methods=["POST"])
@@ -142,11 +142,11 @@ def select(process_id):
         return redirect(url_for("processes.index"))
     preferences_path = os.path.join(path, "preferences.xlsx")
     if os.path.exists(preferences_path):
-        return redirect(url_for("not_together_page"))
+        return redirect(url_for("wizard.not_together_page"))
     groups_path = os.path.join(path, "groups.xlsx")
     if os.path.exists(groups_path):
-        return redirect(url_for("student_preferences"))
+        return redirect(url_for("wizard.student_preferences"))
     candidates_path = os.path.join(path, "relevant_students_and_groups.json")
     if os.path.exists(candidates_path):
-        return redirect(url_for("groups_to_page"))
-    return redirect(url_for("upload_edexml"))
+        return redirect(url_for("wizard.groups_to_page"))
+    return redirect(url_for("wizard.upload_edexml"))
