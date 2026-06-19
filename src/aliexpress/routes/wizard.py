@@ -555,4 +555,4 @@ def start_distribution():
         target=_create_sociogram_thread, args=(ctx, preferences_bytes, groups_to_path)
     ).start()
     Thread(target=_run_solve_thread, args=(ctx, groups_to_path, not_together)).start()
-    return redirect(url_for("processing"))
+    return redirect(url_for("results.processing"))
