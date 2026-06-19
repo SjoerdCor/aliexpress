@@ -16,9 +16,10 @@ import pytest
 from werkzeug.security import generate_password_hash
 from werkzeug.serving import make_server
 
-import app as flask_module
 from aliexpress.extensions import db as flask_db
+from aliexpress.extensions import limiter
 from aliexpress.models import Process, School
+from app import app
 
 TEST_SCHOOLCODE = "browser-school"
 TEST_PASSWORD = "browser-pass"
@@ -30,23 +31,23 @@ def live_server(tmp_path):
 
     Also creates the test school so the login fixture can authenticate.
     """
-    flask_module.app.config["TESTING"] = True
-    flask_module.app.config["SECRET_KEY"] = "browser-test-secret"
-    flask_module.app.config["STORAGE_DIR"] = str(tmp_path)
-    flask_module.limiter.enabled = False
+    app.config["TESTING"] = True
+    app.config["SECRET_KEY"] = "browser-test-secret"
+    app.config["STORAGE_DIR"] = str(tmp_path)
+    limiter.enabled = False
 
-    with flask_module.app.app_context():
-        flask_module.db.drop_all()
-        flask_module.db.create_all()
+    with app.app_context():
+        flask_db.drop_all()
+        flask_db.create_all()
         school = School(
             schoolcode=TEST_SCHOOLCODE,
             naam="Browser Testschool",
             password_hash=generate_password_hash(TEST_PASSWORD),
         )
-        flask_module.db.session.add(school)
-        flask_module.db.session.commit()
+        flask_db.session.add(school)
+        flask_db.session.commit()
 
-    server = make_server("127.0.0.1", 0, flask_module.app)
+    server = make_server("127.0.0.1", 0, app)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
@@ -85,7 +86,7 @@ def open_groups_to(live_server, tmp_path, page):
         (proc / "relevant_students_and_groups.json").write_text(
             json.dumps({"groups_to": groups_to}), encoding="utf-8"
         )
-        with flask_module.app.app_context():
+        with app.app_context():
             flask_db.session.add(Process(school_id=TEST_SCHOOLCODE, name="browsertest"))
             flask_db.session.commit()
         page.goto(f"{live_server}/processes/select/browsertest")

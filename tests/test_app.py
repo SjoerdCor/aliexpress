@@ -5,7 +5,7 @@
 from io import BytesIO
 from types import SimpleNamespace
 
-import app as flask_module
+from aliexpress import ensure_secret_key
 from app import app as flask_app
 from tests.helpers import flashes, setup_process
 
@@ -18,11 +18,11 @@ class TestSecretKeyGuard:
         import pytest  # pylint: disable=import-outside-toplevel
 
         with pytest.raises(RuntimeError):
-            flask_module.ensure_secret_key(SimpleNamespace(config={}))
+            ensure_secret_key(SimpleNamespace(config={}))
 
     def test_present_secret_key_does_not_raise(self):
         """A configured SECRET_KEY passes the guard without error."""
-        flask_module.ensure_secret_key(SimpleNamespace(config={"SECRET_KEY": "x"}))
+        ensure_secret_key(SimpleNamespace(config={"SECRET_KEY": "x"}))
 
 
 class TestUploadSizeLimit:

@@ -8,11 +8,10 @@ in test_app.py. Uses the shared client and unauthed_client fixtures from conftes
 
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from aliexpress.extensions import db
+from aliexpress.extensions import db, limiter
 from aliexpress.models import School
 from aliexpress.routes.auth import load_user
 from app import app as flask_app
-from app import limiter
 
 
 class TestAuthBlueprint:
