@@ -1,11 +1,8 @@
 """The flask server that governs the app"""
 
-import functools
 import json
 import logging
 import os
-import re
-import shutil
 import webbrowser
 from io import BytesIO
 from threading import Thread
@@ -45,7 +42,8 @@ from aliexpress.logging_config import add_file_handler, configure_logging
 from aliexpress.main import distribute_students_once
 from aliexpress.models import LogLine, Process, Run
 from aliexpress.routes.auth import auth_bp, effective_school_id, load_user
-from aliexpress.storage import get_file_path, get_process_path
+from aliexpress.routes.processes import processes_bp, require_process
+from aliexpress.storage import get_file_path
 from aliexpress.validation_messages import to_validation_message
 
 configure_logging()
@@ -106,6 +104,7 @@ app.cli.add_command(schools_cli, "schools")
 app.cli.add_command(admins_cli, "admins")
 app.register_blueprint(admin_bp)
 app.register_blueprint(auth_bp)
+app.register_blueprint(processes_bp)
 
 
 register_error_handlers(app)
@@ -115,19 +114,6 @@ register_error_handlers(app)
 def home():
     """Display home page"""
     return render_template("home.html")
-
-
-def require_process(f):
-    """Route decorator: redirect to /processes when no active process is in session."""
-
-    @functools.wraps(f)
-    def wrapper(*args, **kwargs):
-        if "process_id" not in session:
-            flash("Geen actief proces geselecteerd.", "error")
-            return redirect(url_for("processes"))
-        return f(*args, **kwargs)
-
-    return wrapper
 
 
 def _write_result_files(school_id, process_name, result):
@@ -145,102 +131,6 @@ def _write_result_files(school_id, process_name, result):
         encoding="utf-8",
     ) as fh:
         json.dump(tables, fh, ensure_ascii=False)
-
-
-@app.route("/processes")
-@login_required
-def processes():
-    """Display page to create or choose process"""
-    school_id = effective_school_id()
-    if school_id is None:
-        return redirect(url_for("admin.dashboard"))
-    os.makedirs(os.path.join(app.config["STORAGE_DIR"], school_id), exist_ok=True)
-    procs = (
-        Process.query.filter_by(school_id=school_id).order_by(Process.created_at).all()
-    )
-    return render_template("processes.html", processes=[p.name for p in procs])
-
-
-def _is_valid_process_name(name):
-    """True when the name is a safe single path segment (no separators, no traversal)."""
-    return bool(re.match(r"^[\w\- ]+$", name))
-
-
-def _validate_process_name(school_id, process_name, must_exist=True):
-    """Return an error message, or None when the name is valid."""
-    if not process_name:
-        return "Naam is verplicht"
-    if not _is_valid_process_name(process_name):
-        return "Alleen letters, cijfers, spaties, - en _ toegestaan"
-    proc = Process.by_name(school_id, process_name)
-    if must_exist and proc is None:
-        return "Proces bestaat niet"
-    if not must_exist and proc is not None:
-        return "Proces bestaat al"
-    return None
-
-
-@app.route("/processes/create", methods=["POST"])
-@login_required
-def create_process():
-    """Create a new process"""
-    school_id = effective_school_id()
-    if school_id is None:
-        return redirect(url_for("admin.dashboard"))
-    process_name = request.form.get("process_name", "").strip()
-    if error := _validate_process_name(school_id, process_name, must_exist=False):
-        flash(error, "error")
-        return redirect(url_for("processes"))
-    proc = Process(school_id=school_id, name=process_name)
-    db.session.add(proc)
-    db.session.commit()
-    os.makedirs(get_process_path(school_id, process_name))
-    session["process_id"] = process_name
-    return redirect(url_for("upload_edexml"))
-
-
-@app.route("/processes/delete/<process_name>", methods=["POST"])
-@login_required
-def delete_process(process_name):
-    """Delete a process"""
-    school_id = effective_school_id()
-    if school_id is None:
-        return redirect(url_for("admin.dashboard"))
-    if error := _validate_process_name(school_id, process_name, must_exist=True):
-        flash(error, "error")
-        return redirect(url_for("processes"))
-    proc = Process.by_name(school_id, process_name)
-    db.session.delete(proc)
-    db.session.commit()
-    shutil.rmtree(get_process_path(school_id, process_name))
-    return redirect(url_for("processes"))
-
-
-@app.route("/processes/select/<process_id>")
-@login_required
-def select_process(process_id):
-    """Select process"""
-    if not _is_valid_process_name(process_id):
-        abort(404)
-    school_id = effective_school_id()
-    if school_id is None:
-        return redirect(url_for("admin.dashboard"))
-    proc = Process.by_name(school_id, process_id)
-    if proc is None:
-        abort(404)
-
-    session["process_id"] = process_id
-    path = get_process_path(school_id, process_id)
-    preferences_path = os.path.join(path, "preferences.xlsx")
-    if os.path.exists(preferences_path):
-        return redirect(url_for("not_together_page"))
-    groups_path = os.path.join(path, "groups.xlsx")
-    if os.path.exists(groups_path):
-        return redirect(url_for("student_preferences"))
-    candidates_path = os.path.join(path, "relevant_students_and_groups.json")
-    if os.path.exists(candidates_path):
-        return redirect(url_for("groups_to_page"))
-    return redirect(url_for("upload_edexml"))
 
 
 def file_to_io(uploaded_file) -> BytesIO:
@@ -799,7 +689,7 @@ def show_sociogram():
     path = get_file_path(school_id, process_id, "sociogram.html")
     if not os.path.exists(path):
         flash("Sociogram niet beschikbaar.", "error")
-        return redirect(url_for("processes"))
+        return redirect(url_for("processes.index"))
     with open(path, encoding="utf-8") as fh:
         plotly_div = fh.read()
     return render_template("sociogram.html", plotly_div=plotly_div)
@@ -817,7 +707,7 @@ def result_page():
     path = get_file_path(school_id, process_id, "result_tables.json")
     if not os.path.exists(path):
         flash("Resultaat niet beschikbaar.", "error")
-        return redirect(url_for("processes"))
+        return redirect(url_for("processes.index"))
     with open(path, encoding="utf-8") as fh:
         dataframes = json.load(fh)
     return render_template("result.html", dataframes=dataframes)

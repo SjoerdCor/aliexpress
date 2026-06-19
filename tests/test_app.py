@@ -13,6 +13,7 @@ import pytest
 from werkzeug.datastructures import MultiDict
 from werkzeug.security import generate_password_hash
 
+import aliexpress.routes.processes as proc_module
 import app as flask_module
 from aliexpress.errors import ValidationError
 from aliexpress.extensions import db
@@ -61,6 +62,34 @@ def _make_process_row(school_id, name):
     db.session.add(proc)
     db.session.commit()
     return proc
+
+
+class TestProcessesBlueprint:
+    """Smoke tests: processes blueprint routes are reachable and require_process guards them."""
+
+    def test_processes_list_is_reachable(self, client):
+        """/processes returns 200 for an authenticated school user."""
+        assert client.get("/processes").status_code == 200
+
+    def test_require_process_redirects_without_active_process(self, client):
+        """require_process redirects to /processes when no process is in session."""
+        with client.session_transaction() as sess:
+            sess.pop("process_id", None)
+        resp = client.get("/groups_to")
+        assert resp.status_code == 302
+        assert "/processes" in resp.headers["Location"]
+
+    def test_create_process_path_traversal_flashes_error(self, client, monkeypatch):
+        """POST /processes/create with a traversal name shows a user-friendly error."""
+        monkeypatch.setattr(
+            proc_module,
+            "get_process_path",
+            lambda *_: (_ for _ in ()).throw(PermissionError("traversal")),
+        )
+        resp = client.post("/processes/create", data={"process_name": "ok-name"})
+        assert resp.status_code == 302
+        flashes = _flashes(client)
+        assert any(cat == "error" for cat, _ in flashes)
 
 
 class TestCreateProcess:
