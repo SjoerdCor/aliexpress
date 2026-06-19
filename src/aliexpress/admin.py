@@ -55,6 +55,7 @@ def login():
         if admin is None or not check_password_hash(admin.password_hash, password):
             flash("Ongeldige gebruikersnaam of wachtwoord.", "error")
             return render_template("admin_login.html")
+        session.clear()
         login_user(admin, remember=False)
         return redirect(url_for("admin.dashboard"))
     return render_template("admin_login.html")

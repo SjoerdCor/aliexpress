@@ -241,6 +241,7 @@ def login():
         if school is None or not check_password_hash(school.password_hash, password):
             flash("Ongeldige schoolcode of wachtwoord.", "error")
             return render_template("login.html")
+        session.clear()
         login_user(school, remember=False)
         if school.must_change_password:
             return redirect(url_for("change_password"))
@@ -252,7 +253,7 @@ def login():
 @login_required
 def logout():
     """Log the current user (school or admin) out and redirect to the login page."""
-    session.pop("impersonating_school", None)
+    session.clear()
     logout_user()
     return redirect(url_for("login"))
 
