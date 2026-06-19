@@ -177,6 +177,10 @@ test_output.txt
 CLAUDE.md
 .claude/
 
+# Personal dev scripts
+kill-server.ps1
+kill-server.bat
+
 # Scratch notebooks and solver result directories
 notebooks/Untitled*.ipynb
 notebooks/*/
