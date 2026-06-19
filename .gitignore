@@ -173,8 +173,13 @@ solver.log
 test_err.txt
 test_output.txt
 
-# Claude Code project instructions (personal workflow, not project code)
+# Claude Code project instructions and personal workflow config
 CLAUDE.md
+.claude/
+
+# Personal dev scripts
+kill-server.ps1
+kill-server.bat
 
 # Scratch notebooks and solver result directories
 notebooks/Untitled*.ipynb
