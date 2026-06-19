@@ -24,6 +24,14 @@ _Avoid_: indeling, uitkomst
 Één verdelingsrun voor een school, geïdentificeerd door naam. Bevat de invoerbestanden, status en resultaten van die run.
 _Avoid_: run, sessie, taak
 
+**School**:
+De basisschool die de app gebruikt. Een school logt in met een eigen account en is eigenaar van al haar processen. De school ís de geauthenticeerde entiteit — er bestaat geen aparte gebruiker.
+_Avoid_: klant, gebruiker, organisatie
+
+**Beheerder**:
+De systeembeheerder die scholen aanmaakt en namens een school in de app kan kijken (impersonatie). Een beheerder heeft geen eigen processen.
+_Avoid_: admin, superuser
+
 **Processenlijst**:
-De pagina waarop een ingelogde gebruiker al haar processen ziet. Fungeert als veilig ankerpunt: bij fouten en onbekende pagina's wordt de gebruiker hierheen gestuurd.
+De pagina waarop een ingelogde school al haar processen ziet. Fungeert als veilig ankerpunt: bij fouten en onbekende pagina's wordt de gebruiker hierheen gestuurd.
 _Avoid_: homepage, dashboard, overzicht
