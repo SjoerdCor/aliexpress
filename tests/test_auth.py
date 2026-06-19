@@ -140,8 +140,8 @@ class TestLoginWall:
 
     def test_input_templates_are_accessible_without_login(self, unauthed_client):
         """Template downloads stay public even without a session."""
-        response = unauthed_client.get("/input_templates/voorkeuren_template.xlsx")
-        assert response.status_code != 302
+        response = unauthed_client.get("/input_templates/voorkeuren.xlsx")
+        assert response.status_code == 200
 
 
 class TestLoginRateLimit:

@@ -245,19 +245,27 @@ class TestProcessesList:
 class TestSelectProcess:
     """Tests for GET /processes/select/<process_id>."""
 
-    def test_unknown_process_gives_404(self, client):
-        """Selecting a process that does not exist returns 404."""
-        assert client.get("/processes/select/bestaat_niet").status_code == 404
+    def test_unknown_process_redirects_with_error(self, client):
+        """Selecting a process that does not exist flashes an error and redirects."""
+        response = client.get("/processes/select/bestaat_niet")
+        assert response.status_code == 302
+        assert _flashes(client) == [
+            ("error", "Deze pagina bestaat niet of je hebt er geen toegang toe.")
+        ]
 
-    def test_malformed_process_id_gives_404(self, client, tmp_path):
+    def test_malformed_process_id_redirects_with_error(self, client, tmp_path):
         """A tampered id with path characters is rejected on format, before any path use.
 
         ``bad.name`` would reach the route (dots are valid in a URL segment) but must not
-        be turned into a filesystem path: the format check rejects it with a 404.
+        be turned into a filesystem path: the format check rejects it and redirects.
         """
         # Even if a dir existed, the format check must block it.
         (tmp_path / SCHOOL_ID / "bad.name").mkdir(parents=True, exist_ok=True)
-        assert client.get("/processes/select/bad.name").status_code == 404
+        response = client.get("/processes/select/bad.name")
+        assert response.status_code == 302
+        assert _flashes(client) == [
+            ("error", "Deze pagina bestaat niet of je hebt er geen toegang toe.")
+        ]
 
     def test_empty_process_redirects_to_upload_edexml(self, client, tmp_path):
         """A process with no files starts at the first step: upload EDEXML."""
@@ -924,9 +932,13 @@ class TestSchoolIsolation:
             db.session.commit()
 
     def test_cannot_select_other_schools_process(self, client):
-        """GET /processes/select/<id> returns 404 for a process owned by another school."""
+        """GET /processes/select/<id> flashes an error for a process owned by another school."""
         self._create_other_school_process()
-        assert client.get("/processes/select/geheimproces").status_code == 404
+        response = client.get("/processes/select/geheimproces")
+        assert response.status_code == 302
+        assert _flashes(client) == [
+            ("error", "Deze pagina bestaat niet of je hebt er geen toegang toe.")
+        ]
 
     def test_cannot_delete_other_schools_process(self, client):
         """POST /processes/delete/<name> flashes 'bestaat niet' for another school's process."""
