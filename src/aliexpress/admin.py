@@ -93,7 +93,7 @@ def impersonate(schoolcode):
         current_user.username,
         schoolcode,
     )
-    return redirect(url_for("processes"))
+    return redirect(url_for("processes.index"))
 
 
 @admin_bp.route("/stop-impersonating")

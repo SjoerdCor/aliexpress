@@ -50,7 +50,7 @@ def login():
         return redirect(
             url_for("admin.dashboard")
             if current_user.is_admin
-            else url_for("processes")
+            else url_for("processes.index")
         )
     if request.method == "POST":
         schoolcode = request.form.get("schoolcode", "").strip()
@@ -63,7 +63,7 @@ def login():
         login_user(school, remember=False)
         if school.must_change_password:
             return redirect(url_for("auth.change_password"))
-        return redirect(url_for("processes"))
+        return redirect(url_for("processes.index"))
     return render_template("login.html")
 
 
@@ -81,7 +81,7 @@ def logout():
 def change_password():
     """Force a school to set their own password after first login."""
     if current_user.is_admin or not current_user.must_change_password:
-        return redirect(url_for("processes"))
+        return redirect(url_for("processes.index"))
     if request.method == "POST":
         password = request.form.get("wachtwoord", "")
         confirm = request.form.get("wachtwoord_bevestig", "")
@@ -103,5 +103,5 @@ def change_password():
         db.session.commit()
         logger.info("School '%s' changed their password", current_user.schoolcode)
         flash("Wachtwoord ingesteld. Je bent nu ingelogd.", "success")
-        return redirect(url_for("processes"))
+        return redirect(url_for("processes.index"))
     return render_template("change_password.html")
