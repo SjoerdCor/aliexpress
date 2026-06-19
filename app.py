@@ -46,6 +46,7 @@ from aliexpress.http_errors import register_error_handlers
 from aliexpress.logging_config import add_file_handler, configure_logging
 from aliexpress.main import distribute_students_once
 from aliexpress.models import Admin, LogLine, Process, Run, School
+from aliexpress.storage import get_file_path, get_process_path
 from aliexpress.validation_messages import to_validation_message
 
 configure_logging()
@@ -80,9 +81,9 @@ ensure_secret_key(app)
 LOG_DIR = os.path.join(app.instance_path, "logs")
 os.makedirs(LOG_DIR, exist_ok=True)
 add_file_handler(os.path.join(LOG_DIR, "aliexpress.log"))
-BASE_DIR = os.path.join(app.instance_path, "storage")
-os.makedirs(BASE_DIR, exist_ok=True)
-logger.debug("Created dir if not exists: %s", BASE_DIR)
+app.config["STORAGE_DIR"] = os.path.join(app.instance_path, "storage")
+os.makedirs(app.config["STORAGE_DIR"], exist_ok=True)
+logger.debug("Created dir if not exists: %s", app.config["STORAGE_DIR"])
 
 # A relative SQLite URI is resolved against the instance folder, which must exist first.
 os.makedirs(app.instance_path, exist_ok=True)
@@ -128,24 +129,6 @@ def effective_school_id():
 register_error_handlers(app)
 
 
-def get_process_path(school_id, process_id):
-    """Return the directory for a process, confined to the school's subdirectory."""
-    path = os.path.join(BASE_DIR, school_id, process_id)
-    school_dir = os.path.join(BASE_DIR, school_id)
-    assert os.path.commonpath([path, school_dir]) == os.path.normpath(school_dir)
-    return path
-
-
-def get_file_path(school_id, process_id, filename):
-    """Return the path to a file within a process directory."""
-    return os.path.join(get_process_path(school_id, process_id), filename)
-
-
-def _get_process(school_id, process_name):
-    """Look up a Process by school + name. Returns None when not found."""
-    return Process.query.filter_by(school_id=school_id, name=process_name).first()
-
-
 def require_process(f):
     """Route decorator: redirect to /processes when no active process is in session."""
 
@@ -157,34 +140,6 @@ def require_process(f):
         return f(*args, **kwargs)
 
     return wrapper
-
-
-def _reset_run(school_id, process_name):
-    """Start a fresh run for this process: reset its row, logs and stale result files.
-
-    Runs in the request context; the committed row is then visible to the background
-    threads (which open their own session in their own app context).
-    """
-    proc = _get_process(school_id, process_name)
-    if proc.run is not None:
-        db.session.delete(proc.run)
-        db.session.flush()  # ensure delete is sent before re-inserting with same PK
-    run = Run(process_id=proc.id)
-    db.session.add(run)
-    db.session.commit()
-    for filename in ("results.xlsx", "result_tables.json", "sociogram.html"):
-        stale = get_file_path(school_id, process_name, filename)
-        if os.path.exists(stale):
-            os.remove(stale)
-
-
-def _set_status(school_id, process_name, new_status, message=None):
-    """Update the run's status (and optional error message) for this process."""
-    proc = _get_process(school_id, process_name)
-    run = proc.run
-    run.status = new_status
-    run.message = message
-    db.session.commit()
 
 
 def _write_result_files(school_id, process_name, result):
@@ -282,7 +237,7 @@ def processes():
     school_id = effective_school_id()
     if school_id is None:
         return redirect(url_for("admin.dashboard"))
-    os.makedirs(os.path.join(BASE_DIR, school_id), exist_ok=True)
+    os.makedirs(os.path.join(app.config["STORAGE_DIR"], school_id), exist_ok=True)
     procs = (
         Process.query.filter_by(school_id=school_id).order_by(Process.created_at).all()
     )
@@ -300,7 +255,7 @@ def _validate_process_name(school_id, process_name, must_exist=True):
         return "Naam is verplicht"
     if not _is_valid_process_name(process_name):
         return "Alleen letters, cijfers, spaties, - en _ toegestaan"
-    proc = _get_process(school_id, process_name)
+    proc = Process.by_name(school_id, process_name)
     if must_exist and proc is None:
         return "Proces bestaat niet"
     if not must_exist and proc is not None:
@@ -337,7 +292,7 @@ def delete_process(process_name):
     if error := _validate_process_name(school_id, process_name, must_exist=True):
         flash(error, "error")
         return redirect(url_for("processes"))
-    proc = _get_process(school_id, process_name)
+    proc = Process.by_name(school_id, process_name)
     db.session.delete(proc)
     db.session.commit()
     shutil.rmtree(get_process_path(school_id, process_name))
@@ -353,7 +308,7 @@ def select_process(process_id):
     school_id = effective_school_id()
     if school_id is None:
         return redirect(url_for("admin.dashboard"))
-    proc = _get_process(school_id, process_id)
+    proc = Process.by_name(school_id, process_id)
     if proc is None:
         abort(404)
 
@@ -759,7 +714,9 @@ def _handle_failure(exc, school_id, process_name):
     else:
         log_msg = "Uncaught exception"
     logger.exception(log_msg)
-    _set_status(school_id, process_name, "error", to_validation_message(exc))
+    Process.by_name(school_id, process_name).run.set_status(
+        "error", to_validation_message(exc)
+    )
 
 
 def _run_solve_thread(school_id, process_name, groups_to_path, not_together, run_id):
@@ -773,10 +730,12 @@ def _run_solve_thread(school_id, process_name, groups_to_path, not_together, run
         db.session.add(LogLine(run_id=run_id, text=message))
         db.session.commit()
 
-    preferences_path = get_file_path(school_id, process_name, "preferences.xlsx")
     with app.app_context():
         try:  # pylint: disable=broad-exception-caught
-            _set_status(school_id, process_name, "running")
+            preferences_path = get_file_path(
+                school_id, process_name, "preferences.xlsx"
+            )
+            Process.by_name(school_id, process_name).run.set_status("running")
             result = distribute_students_once(
                 preferences_path, groups_to_path, not_together, on_update=on_update
             )
@@ -784,7 +743,7 @@ def _run_solve_thread(school_id, process_name, groups_to_path, not_together, run
             # Write artifacts before flipping to "done" so the result page never
             # races ahead of the files it needs.
             _write_result_files(school_id, process_name, result)
-            _set_status(school_id, process_name, "done")
+            Process.by_name(school_id, process_name).run.set_status("done")
         except Exception as exc:  # pylint: disable=broad-exception-caught
             _handle_failure(exc, school_id, process_name)
 
@@ -850,10 +809,15 @@ def start_distribution():
     with open(get_file_path(school_id, process_name, "preferences.xlsx"), "rb") as fh:
         preferences_bytes = BytesIO(fh.read())
 
-    _reset_run(school_id, process_name)
+    proc = Process.by_name(school_id, process_name)
+    Run.reset(proc.id)
+    for _stale in ("results.xlsx", "result_tables.json", "sociogram.html"):
+        _path = get_file_path(school_id, process_name, _stale)
+        if os.path.exists(_path):
+            os.remove(_path)
     # Capture the integer PK before spawning threads so they append log lines without
     # a school+name lookup on every on_update call.
-    run_id = _get_process(school_id, process_name).id
+    run_id = proc.id
     Thread(
         target=_create_sociogram_thread,
         args=(preferences_bytes, groups_to_path, school_id, process_name, run_id),
@@ -874,7 +838,7 @@ def status():
     if school_id is None:
         return redirect(url_for("admin.dashboard"))
     process_name = session["process_id"]
-    proc = _get_process(school_id, process_name)
+    proc = Process.by_name(school_id, process_name)
     if proc is None or proc.run is None:
         return jsonify({"status_studentdistribution": "unknown", "logs": []})
     run = proc.run
