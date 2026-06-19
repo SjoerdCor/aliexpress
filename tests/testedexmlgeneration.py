@@ -97,10 +97,36 @@ def generate_dummy_groups(n_groups_per_jaarlaag=3):
     return df
 
 
+def _make_leerling_record(groep, jaargroep):
+    """Genereert één dummy leerling-dict voor de gegeven groep en jaargroep."""
+    achternaam = fake.last_name()
+    voorvoegsel, achternaam = split_achternaam(achternaam)
+    aantal_voornamen = random.randint(1, 3)
+    voornamen = " ".join(fake.first_name() for _ in range(aantal_voornamen))
+    roepnaam = voornamen.split()[0]
+    voorletters = "".join(name[0] for name in voornamen.split())
+    return {
+        "key": fake.unique.random_number(digits=4, fix_len=True),
+        "achternaam": achternaam,
+        "voornamen": voornamen,
+        "voorletters": voorletters,
+        "roepnaam": roepnaam,
+        "geboortedatum": fake.date_between(start_date="-13y", end_date="-4y").strftime(
+            "%Y-%m-%d"
+        ),
+        "geslacht": np.random.choice([1, 2]),
+        "jaargroep": jaargroep,
+        "groep": groep,
+        "instroomdatum": fake.date_between(start_date="-6y", end_date="-1y").strftime(
+            "%Y-%m-%d"
+        ),
+        "voorvoegsel": voorvoegsel,
+    }
+
+
 def generate_dummy_leerlingen(df_groepen_dummy, n_leerlingen=250):
     """Genereert een DataFrame met dummy leerlingen."""
     groepen_keuze = np.random.choice(df_groepen_dummy["key"], size=n_leerlingen)
-
     data = []
     for groep in groepen_keuze:
         jaargroep = (
@@ -108,37 +134,7 @@ def generate_dummy_leerlingen(df_groepen_dummy, n_leerlingen=250):
             .sample()
             .values[0]
         )
-        achternaam = fake.last_name()
-        voorvoegsel, achternaam = split_achternaam(achternaam)
-
-        aantal_voornamen = random.randint(1, 3)
-        voornamen = " ".join(fake.first_name() for _ in range(aantal_voornamen))
-        roepnaam = voornamen.split()[0]
-        voorletters = "".join(name[0] for name in voornamen.split())
-        geslacht = np.random.choice([1, 2])
-        instroomdatum = fake.date_between(start_date="-6y", end_date="-1y").strftime(
-            "%Y-%m-%d"
-        )
-        geboortedatum = fake.date_between(start_date="-13y", end_date="-4y").strftime(
-            "%Y-%m-%d"
-        )
-        leerlingnummer = fake.unique.random_number(digits=4, fix_len=True)
-        data.append(
-            {
-                "key": leerlingnummer,
-                "achternaam": achternaam,
-                "voornamen": voornamen,
-                "voorletters": voorletters,
-                "roepnaam": roepnaam,
-                "geboortedatum": geboortedatum,
-                "geslacht": geslacht,
-                "jaargroep": jaargroep,
-                "groep": groep,
-                "instroomdatum": instroomdatum,
-                "voorvoegsel": voorvoegsel,
-            }
-        )
-
+        data.append(_make_leerling_record(groep, jaargroep))
     return pd.DataFrame(data)
 
 
