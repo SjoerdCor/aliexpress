@@ -7,12 +7,12 @@ import webbrowser
 from dotenv import load_dotenv
 from flask import Flask, render_template
 
-from aliexpress.admin import admin_bp
 from aliexpress.cli import admins as admins_cli
 from aliexpress.cli import schools as schools_cli
 from aliexpress.extensions import db, limiter, login_manager
 from aliexpress.http_errors import register_error_handlers
 from aliexpress.logging_config import add_file_handler, configure_logging
+from aliexpress.routes.admin import admin_bp
 from aliexpress.routes.auth import auth_bp, load_user
 from aliexpress.routes.processes import processes_bp
 from aliexpress.routes.results import results_bp
