@@ -11,6 +11,7 @@ import pandas as pd
 import pandera.pandas as pa
 
 from .errors import ValidationError
+from .preferences_data import PreferenceData
 
 
 def validate_schema_with_filetype(
@@ -407,6 +408,20 @@ class VoorkeurenProcessor:
             self.input[self.student_info_cols]
             .droplevel([1, 2], "columns")
             .to_dict("index")
+        )
+
+    def to_preference_data(self) -> PreferenceData:
+        """Bundle the processed outputs into the canonical ``PreferenceData`` contract.
+
+        Combines the long-format preferences (``self.df``), the per-student meta info and
+        the display maps that the solver and reporting layers use separately today.
+        Call after :meth:`process`.
+        """
+        return PreferenceData(
+            preferences=self.df,
+            students_info=self.get_students_meta_info(),
+            student_display=self.student_display,
+            stamgroep_display=self.stamgroep_display,
         )
 
 

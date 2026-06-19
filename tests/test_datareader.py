@@ -645,6 +645,32 @@ def test_voorkeuren_processor_process_and_get_students_meta_info(valid_voorkeure
     assert dicts_equal_with_nan(meta, expected)
 
 
+def test_voorkeuren_processor_to_preference_data():
+    """to_preference_data bundles the four outputs the solver/reporting use today.
+
+    Reads the synthetic example sheet from tests/integration (never real student data),
+    runs the full pipeline, and checks the PreferenceData fields equal the loose outputs.
+    """
+    groups_to, _ = datareader.read_groups_excel("tests/integration/groepen_small.xlsx")
+    all_to_groups = list(groups_to.keys())
+
+    processor = datareader.VoorkeurenProcessor(
+        "tests/integration/voorkeuren_small.xlsx"
+    )
+    processor.process(all_to_groups=all_to_groups)
+
+    pd_data = processor.to_preference_data()
+
+    pd.testing.assert_frame_equal(pd_data.preferences, processor.df)
+    # NaN-aware: MinimaleTevredenheid is NaN for most students, and NaN != NaN.
+    pd.testing.assert_frame_equal(
+        pd.DataFrame(pd_data.students_info),
+        pd.DataFrame(processor.get_students_meta_info()),
+    )
+    assert pd_data.student_display == processor.student_display
+    assert pd_data.stamgroep_display == processor.stamgroep_display
+
+
 def test_validate_not_together_success():
     """Valid rules pass without error and are returned unchanged."""
     rules = [{"group": {"Alice", "Bob"}, "Max_aantal_samen": 1}]
