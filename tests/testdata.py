@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 
 from aliexpress.datareader import VOORKEUREN_SCHEMA
+from tests.testedexmlgeneration import SAMPLE_GROUP_NAMES
 
 random.seed(42)
 
@@ -19,18 +20,7 @@ def generate_groups(n_groups=4, sample_group_names=None) -> pd.DataFrame:
     """Create the groups-DataFrame"""
     assert 1 < n_groups <= 10
     if sample_group_names is None:
-        sample_group_names = [
-            "Beren",
-            "Otters",
-            "Panda's",
-            "Flamingo's",
-            "Alpaca's",
-            "Pinguins",
-            "Vossen",
-            "Zebras",
-            "Giraffen",
-            "Stokstaartjes",
-        ]
+        sample_group_names = SAMPLE_GROUP_NAMES
     selected_names = sample_group_names[:n_groups]
 
     rows = {}

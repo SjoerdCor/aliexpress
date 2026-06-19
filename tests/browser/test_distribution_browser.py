@@ -10,9 +10,9 @@ from pathlib import Path
 
 import pytest
 
-import app as flask_module
 from aliexpress.extensions import db as flask_db
 from aliexpress.models import Process
+from app import app
 from tests.browser.conftest import TEST_SCHOOLCODE
 
 _INTEGRATION = Path(__file__).parents[1] / "integration"
@@ -24,7 +24,7 @@ def _make_process(live_server, tmp_path, page, name="browserrun"):
     proc.mkdir(parents=True, exist_ok=True)
     shutil.copy(_INTEGRATION / "voorkeuren_small.xlsx", proc / "preferences.xlsx")
     shutil.copy(_INTEGRATION / "groepen_small.xlsx", proc / "groups.xlsx")
-    with flask_module.app.app_context():
+    with app.app_context():
         flask_db.session.add(Process(school_id=TEST_SCHOOLCODE, name=name))
         flask_db.session.commit()
     page.goto(f"{live_server}/processes/select/{name}")  # sets the session process

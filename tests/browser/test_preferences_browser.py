@@ -6,9 +6,9 @@ import json
 
 import pytest
 
-import app as flask_module
 from aliexpress.extensions import db as flask_db
 from aliexpress.models import Process
+from app import app
 from tests.browser.conftest import TEST_SCHOOLCODE
 
 
@@ -21,7 +21,7 @@ def _open_preferences(live_server, tmp_path, page):
     )
     # select_process lands on student_preferences once groups.xlsx exists.
     (proc / "groups.xlsx").write_bytes(b"dummy")
-    with flask_module.app.app_context():
+    with app.app_context():
         flask_db.session.add(Process(school_id=TEST_SCHOOLCODE, name="browsertest"))
         flask_db.session.commit()
     page.goto(f"{live_server}/processes/select/browsertest")

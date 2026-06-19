@@ -7,26 +7,25 @@ imports here can be at the top without ordering constraints.
 import pytest
 from werkzeug.security import generate_password_hash
 
-import app as flask_module
-from aliexpress.extensions import db
+from aliexpress.extensions import db, limiter
 from aliexpress.models import School
 from app import app as flask_app
 
 
 @pytest.fixture()
-def client(tmp_path, monkeypatch):
+def client(tmp_path):
     """Flask test client logged in as a test school; database tables reset per test.
 
     Almost all routes are protected, so logging in by default avoids duplicating
     auth setup in every test. Use ``unauthed_client`` to test unauthenticated behaviour.
     """
-    monkeypatch.setattr(flask_module, "BASE_DIR", str(tmp_path))
     flask_app.config["TESTING"] = True
     flask_app.config["SECRET_KEY"] = "test-secret-key"
+    flask_app.config["STORAGE_DIR"] = str(tmp_path)
     # The shared client logs in for every test; without this the suite would trip the
     # login rate limit. flask-limiter reads RATELIMIT_ENABLED only at init, so toggle the
     # live attribute. One dedicated test re-enables it to cover the limiter itself.
-    flask_module.limiter.enabled = False
+    limiter.enabled = False
     with flask_app.app_context():
         db.drop_all()
         db.create_all()
@@ -43,12 +42,12 @@ def client(tmp_path, monkeypatch):
 
 
 @pytest.fixture()
-def unauthed_client(tmp_path, monkeypatch):
+def unauthed_client(tmp_path):
     """Flask test client without a logged-in session; database tables reset per test."""
-    monkeypatch.setattr(flask_module, "BASE_DIR", str(tmp_path))
     flask_app.config["TESTING"] = True
     flask_app.config["SECRET_KEY"] = "test-secret-key"
-    flask_module.limiter.enabled = False
+    flask_app.config["STORAGE_DIR"] = str(tmp_path)
+    limiter.enabled = False
     with flask_app.app_context():
         db.drop_all()
         db.create_all()

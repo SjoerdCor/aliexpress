@@ -22,8 +22,8 @@ from flask import (
 from flask_login import current_user, login_user
 from werkzeug.security import check_password_hash
 
-from .extensions import db, limiter
-from .models import Admin, Process, School
+from aliexpress.extensions import db, limiter
+from aliexpress.models import Admin, Process, School
 
 logger = logging.getLogger("aliexpress.admin")
 
@@ -93,7 +93,7 @@ def impersonate(schoolcode):
         current_user.username,
         schoolcode,
     )
-    return redirect(url_for("processes"))
+    return redirect(url_for("processes.index"))
 
 
 @admin_bp.route("/stop-impersonating")

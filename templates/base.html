@@ -36,14 +36,14 @@
                     {% if current_user.is_admin %}
                     <a href="{{ url_for('admin.dashboard') }}">Beheerdersdashboard</a>
                     {% if session.get('impersonating_school') %}
-                    <a href="{{ url_for('processes') }}">Groepsindelingen</a>
+                    <a href="{{ url_for('processes.index') }}">Groepsindelingen</a>
                     <a href="{{ url_for('admin.stop_impersonating') }}">Stop met bekijken</a>
                     {% endif %}
                     {% else %}
                     <a href="{{ url_for('home') }}">Start</a>
-                    <a href="{{ url_for('processes') }}">Groepsindelingen</a>
+                    <a href="{{ url_for('processes.index') }}">Groepsindelingen</a>
                     {% endif %}
-                    <a href="{{ url_for('logout') }}" class="menu-logout">Uitloggen</a>
+                    <a href="{{ url_for('auth.logout') }}" class="menu-logout">Uitloggen</a>
                 </nav>
             </div>
         </div>

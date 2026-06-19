@@ -20,7 +20,7 @@ def register_error_handlers(app):
         other route, sharing the same message through to_validation_message.
         """
         flash(to_validation_message(error), "error")
-        return redirect(request.referrer or url_for("processes"))
+        return redirect(request.referrer or url_for("processes.index"))
 
     @app.errorhandler(429)
     def too_many_requests(_error):
@@ -28,13 +28,13 @@ def register_error_handlers(app):
         flash(
             "Te veel inlogpogingen. Wacht een minuut en probeer het opnieuw.", "error"
         )
-        return redirect(url_for("login"))
+        return redirect(url_for("auth.login"))
 
     @app.errorhandler(404)
     def page_not_found(_error):
         """Friendly Dutch message for missing pages; redirects to the processes list."""
         flash("Deze pagina bestaat niet of je hebt er geen toegang toe.", "error")
-        return redirect(url_for("processes"))
+        return redirect(url_for("processes.index"))
 
     @app.errorhandler(500)
     def internal_error(error):
@@ -45,4 +45,4 @@ def register_error_handlers(app):
             "Neem contact op met de ontwikkelaar als dit blijft gebeuren.",
             "error",
         )
-        return redirect(url_for("processes"))
+        return redirect(url_for("processes.index"))

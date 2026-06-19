@@ -104,6 +104,11 @@ class Process(db.Model):
         db.UniqueConstraint("school_id", "name", name="uq_process_school_name"),
     )
 
+    @classmethod
+    def by_name(cls, school_id, name):
+        """Return the Process for this school + name, or None when not found."""
+        return cls.query.filter_by(school_id=school_id, name=name).first()
+
 
 class Run(db.Model):
     """The current solve run for one process (1-to-1 with Process)."""
@@ -120,6 +125,27 @@ class Run(db.Model):
         cascade="all, delete-orphan",
         order_by="LogLine.id",
     )
+
+    @classmethod
+    def reset(cls, process_id):
+        """Replace any existing run for this process with a fresh pending run.
+
+        Deletes the old row first (cascading to log lines) so the new run starts
+        clean. Commits when done; callers in background threads open their own
+        session and will see the new row.
+        """
+        existing = db.session.get(cls, process_id)
+        if existing is not None:
+            db.session.delete(existing)
+            db.session.flush()
+        db.session.add(cls(process_id=process_id))
+        db.session.commit()
+
+    def set_status(self, status, message=None):
+        """Persist a new status (and optional message) for this run."""
+        self.status = status
+        self.message = message
+        db.session.commit()
 
 
 class LogLine(db.Model):
