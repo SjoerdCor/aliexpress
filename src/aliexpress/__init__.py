@@ -64,6 +64,13 @@ def create_app(test_config=None):
     config_class = DevelopmentConfig if env == "development" else ProductionConfig
     app.config.from_object(config_class)
 
+    # SECRET_KEY is read here, after load_dotenv(), so .env is already in os.environ.
+    # It cannot live in the Config class body because class attributes are evaluated at
+    # import time, before load_dotenv() runs (and before uv injects .env on non-uv launchers).
+    app.config["SECRET_KEY"] = os.getenv("SECRET_KEY") or (
+        "dev-fallback-secret" if env == "development" else None
+    )
+
     if test_config is not None:
         app.config.update(test_config)
 
