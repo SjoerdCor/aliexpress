@@ -36,6 +36,12 @@ from aliexpress.form_parsers import parse_groups_to_form
 from aliexpress.main import distribute_students_from_data
 from aliexpress.models import LogLine, Process, Run
 from aliexpress.preferences_data import PreferenceData
+from aliexpress.preferences_form import (
+    Preference,
+    PreferenceKind,
+    StudentEntry,
+    build_preference_data,
+)
 from aliexpress.routes.auth import effective_school_id
 from aliexpress.routes.processes import require_process
 from aliexpress.storage import get_file_path
@@ -195,6 +201,55 @@ def _create_sociogram_thread(ctx: _ThreadContext):
             )
         except Exception:  # pylint: disable=broad-exception-caught
             logger.exception("Could not create sociogram")
+
+
+def _parse_student_entry(candidate: dict, form) -> StudentEntry:
+    """Build a StudentEntry from one candidate dict and the submitted form data.
+
+    Preference fields follow the naming convention ``wens_{key}_{i}_target``,
+    ``wens_{key}_{i}_gewicht``, ``wens_{key}_{i}_soort``; group exclusions use
+    ``nieting_{key}_{i}``.  Iteration stops at the first missing target field.
+    """
+    key = candidate["key"]
+    name = f"{candidate['roepnaam']} {candidate['achternaam']}"
+
+    preferences = []
+    i = 0
+    while True:
+        target = form.get(f"wens_{key}_{i}_target", "").strip()
+        if not target:
+            break
+        gewicht_raw = form.get(f"wens_{key}_{i}_gewicht", "1")
+        soort_raw = form.get(f"wens_{key}_{i}_soort", "Graag met")
+        kind = (
+            PreferenceKind.APART
+            if soort_raw == "Liever niet met"
+            else PreferenceKind.TOGETHER
+        )
+        try:
+            gewicht = float(gewicht_raw)
+        except ValueError:
+            gewicht = 1.0
+        preferences.append(Preference(target=target, weight=gewicht, kind=kind))
+        i += 1
+
+    excluded = []
+    j = 0
+    while True:
+        group = form.get(f"nieting_{key}_{j}", "").strip()
+        if not group:
+            break
+        excluded.append(group)
+        j += 1
+
+    return StudentEntry(
+        student=name,
+        sex=candidate["geslacht"],
+        origin_group=candidate["groepsnaam"],
+        min_satisfaction=None,
+        preferences=preferences,
+        excluded_groups=excluded,
+    )
 
 
 def _load_student_names(groups_to, voorkeuren_path, preferences_path) -> list[str]:
@@ -514,7 +569,41 @@ def upload_preferences():
 @require_process
 def preferences_form():
     """Web-form input path: display and process per-student preferences."""
-    return redirect(url_for("wizard.not_together_page"))
+    school_id = effective_school_id()
+    if school_id is None:
+        return redirect(url_for("admin.dashboard"))
+    process_id = session["process_id"]
+
+    candidates_path = get_file_path(
+        school_id, process_id, "relevant_students_and_groups.json"
+    )
+    groups_to_path = get_file_path(school_id, process_id, "groups.xlsx")
+    try:
+        with open(candidates_path, encoding="utf-8") as fh:
+            candidates = json.load(fh)["candidates"]
+        groups_to, group_display = datareader.read_groups_excel(groups_to_path)
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        _flash_upload_error(exc)
+        return redirect(url_for("wizard.groups_to_page"))
+
+    if request.method == "POST":
+        checked_keys = set(request.form.getlist("gaat_over"))
+        entries = [
+            _parse_student_entry(c, request.form)
+            for c in candidates
+            if c["key"] in checked_keys
+        ]
+        preference_data = build_preference_data(entries, list(groups_to.keys()))
+        voorkeuren_path = get_file_path(school_id, process_id, "voorkeuren.json")
+        _write_voorkeuren_json(voorkeuren_path, preference_data, source="form")
+        return redirect(url_for("wizard.not_together_page"))
+
+    return render_template(
+        "preferences_form.html",
+        candidates=candidates,
+        target_groups=list(groups_to.keys()),
+        group_display=group_display,
+    )
 
 
 @wizard_bp.route("/not_together", methods=["GET", "POST"])

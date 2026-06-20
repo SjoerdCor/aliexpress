@@ -777,3 +777,94 @@ class TestHandleError:
             content_type="application/json",
         )
         assert any(msg == "Er ging iets mis" for _, msg in flashes(client))
+
+
+class TestPreferencesForm:
+    """Tests for GET/POST /preferences_form."""
+
+    CANDIDATES = [
+        {
+            "key": "s1",
+            "roepnaam": "Anna",
+            "achternaam": "Bos",
+            "groepsnaam": "Groen",
+            "geslacht": "Meisje",
+        },
+        {
+            "key": "s2",
+            "roepnaam": "Bram",
+            "achternaam": "Dijk",
+            "groepsnaam": "Groen",
+            "geslacht": "Jongen",
+        },
+    ]
+
+    def _setup(self, client, tmp_path):
+        proc_dir = setup_process(client, tmp_path)
+        (proc_dir / "relevant_students_and_groups.json").write_text(
+            json.dumps({"candidates": self.CANDIDATES, "groups_from": ["Groen"]}),
+            encoding="utf-8",
+        )
+        pd.DataFrame(
+            {"Jongens": [1], "Meisjes": [1]}, index=pd.Index(["Klas A"], name="Groepen")
+        ).to_excel(proc_dir / "groups.xlsx")
+        return proc_dir
+
+    def test_get_returns_200_with_student_names_and_target_groups(
+        self, client, tmp_path
+    ):
+        """GET /preferences_form shows each candidate's name and the target group names."""
+        self._setup(client, tmp_path)
+        response = client.get("/preferences_form")
+        assert response.status_code == 200
+        assert b"Anna" in response.data
+        assert b"Bram" in response.data
+        assert b"Klas A" in response.data
+
+    def test_post_all_checked_writes_voorkeuren_json_and_redirects(
+        self, client, tmp_path
+    ):
+        """POST /preferences_form with all students checked writes voorkeuren.json and
+        redirects to not_together."""
+        proc_dir = self._setup(client, tmp_path)
+        response = client.post(
+            "/preferences_form",
+            data={"gaat_over": ["s1", "s2"]},
+        )
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/not_together")
+        payload = json.loads((proc_dir / "voorkeuren.json").read_text("utf-8"))
+        assert payload["source"] == "form"
+        display_names = set(payload["student_display"].values())
+        assert "Anna Bos" in display_names
+        assert "Bram Dijk" in display_names
+
+    def test_post_unchecked_student_is_excluded(self, client, tmp_path):
+        """POST /preferences_form with only s1 checked excludes Bram from voorkeuren.json."""
+        proc_dir = self._setup(client, tmp_path)
+        client.post("/preferences_form", data={"gaat_over": ["s1"]})
+        payload = json.loads((proc_dir / "voorkeuren.json").read_text("utf-8"))
+        display_names = set(payload["student_display"].values())
+        assert "Anna Bos" in display_names
+        assert "Bram Dijk" not in display_names
+
+    def test_post_with_wish_appears_in_preference_frame(self, client, tmp_path):
+        """POST with a 'Graag met' wish is stored in the preference frame."""
+        proc_dir = self._setup(client, tmp_path)
+        client.post(
+            "/preferences_form",
+            data={
+                "gaat_over": ["s1", "s2"],
+                "wens_s1_0_target": "Bram Dijk",
+                "wens_s1_0_gewicht": "1",
+                "wens_s1_0_soort": "Graag met",
+            },
+        )
+        payload = json.loads((proc_dir / "voorkeuren.json").read_text("utf-8"))
+        records = payload["preferences"]["records"]
+        assert any(
+            r["Leerling"] == "annabos"
+            and r["TypeWens"] == "Graag met"
+            and r["Waarde"] == "bramdijk"
+            for r in records
+        )

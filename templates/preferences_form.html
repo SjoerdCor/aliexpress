@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% set current_step = 3 %}
+{% block header %}Wensen invullen{% endblock %}
+
+{% block content %}
+<form method="post">
+  {% for candidate in candidates %}
+  <div class="candidate-row">
+    <label>
+      <input type="checkbox" name="gaat_over" value="{{ candidate.key }}" checked>
+      {{ candidate.roepnaam }} {{ candidate.achternaam }} ({{ candidate.groepsnaam }})
+    </label>
+  </div>
+  {% endfor %}
+
+  <div class="step-navigation">
+    <a href="{{ url_for('wizard.groups_to_page') }}" class="button previous-step">← Naar Groepen naartoe</a>
+    <button type="submit" class="button next-step">Volgende →</button>
+  </div>
+</form>
+
+<script>
+  // Target groups available for "niet in" wishes — referenced by POST handler tests.
+  const TARGET_GROUPS = {{ target_groups | tojson }};
+  const GROUP_DISPLAY = {{ group_display | tojson }};
+</script>
+{% endblock %}
