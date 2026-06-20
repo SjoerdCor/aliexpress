@@ -351,6 +351,21 @@ def _build_new_candidates(form, groups_from: list) -> list[dict]:
     return candidates
 
 
+def _sorted_for_display(candidates: list[dict]) -> list[dict]:
+    """Order candidates per origin group, alphabetically by roepnaam within each group.
+
+    The "Anders" group (students without a real origin group, e.g. new arrivals) sorts
+    last regardless of its name, so it forms the final block on the page.
+    """
+
+    def key(candidate: dict):
+        group = candidate.get("groepsnaam", "")
+        anders_last = group.strip().lower() == "anders"
+        return (anders_last, group, candidate.get("roepnaam", ""))
+
+    return sorted(candidates, key=key)
+
+
 def _load_pref_form_state(state_path):
     """Load saved form state dict, or None when none exists."""
     if not os.path.exists(state_path):
@@ -748,12 +763,12 @@ def preferences_form():
             return redirect(url_for("wizard.preferences_form"))
         return redirect(url_for("wizard.not_together_page"))
 
-    # GET — load saved state for prefill, or fall back to initial candidates sorted by group
+    # GET — load saved state for prefill, or fall back to initial candidates.
     draft_state = _load_pref_form_state(state_path)
     if draft_state:
-        display_candidates = draft_state["students"]
+        display_candidates = _sorted_for_display(draft_state["students"])
     else:
-        display_candidates = sorted(orig_candidates, key=lambda c: c["groepsnaam"])
+        display_candidates = _sorted_for_display(orig_candidates)
 
     return render_template(
         "preferences_form.html",
