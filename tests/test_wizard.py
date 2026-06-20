@@ -451,6 +451,20 @@ class TestNotTogetherPage:
         assert response.headers["Location"].endswith("/preferences_excel")
         assert any(cat == "error" for cat, _ in flashes(client))
 
+    def test_get_not_together_back_link_points_to_preferences_form_for_form_path(
+        self, client, tmp_path, monkeypatch
+    ):
+        """GET /not_together shows a back link to /preferences_form when input_method=form."""
+        proc_dir = setup_process(client, tmp_path)
+        write_minimal_voorkeuren_json(proc_dir)
+        (proc_dir / "input_method.json").write_text(
+            json.dumps({"method": "formulier"}), encoding="utf-8"
+        )
+        self._mock_file_reads(monkeypatch)
+        response = client.get("/not_together")
+        assert response.status_code == 200
+        assert b"/preferences_form" in response.data
+
     def test_post_duplicate_student_flashes_error(self, client, tmp_path, monkeypatch):
         """A rule with the same student listed twice flashes a Dutch parse error."""
         setup_process(client, tmp_path)
@@ -855,9 +869,8 @@ class TestPreferencesForm:
             "/preferences_form",
             data={
                 "gaat_over": ["s1", "s2"],
-                "wens_s1_0_target": "Bram Dijk",
-                "wens_s1_0_gewicht": "1",
-                "wens_s1_0_soort": "Graag met",
+                "wens_s1_graag_met_target": ["Bram Dijk"],
+                "wens_s1_graag_met_gewicht": ["1"],
             },
         )
         payload = json.loads((proc_dir / "voorkeuren.json").read_text("utf-8"))
@@ -868,3 +881,80 @@ class TestPreferencesForm:
             and r["Waarde"] == "bramdijk"
             for r in records
         )
+
+    def test_get_candidates_sorted_by_group(self, client, tmp_path):
+        """GET /preferences_form returns candidates sorted by groepsnaam."""
+        proc_dir = setup_process(client, tmp_path)
+        candidates = [
+            {
+                "key": "s1",
+                "roepnaam": "Zes",
+                "achternaam": "Z",
+                "groepsnaam": "Zulu",
+                "geslacht": "Jongen",
+            },
+            {
+                "key": "s2",
+                "roepnaam": "Alfa",
+                "achternaam": "A",
+                "groepsnaam": "Alpha",
+                "geslacht": "Meisje",
+            },
+        ]
+        (proc_dir / "relevant_students_and_groups.json").write_text(
+            json.dumps({"candidates": candidates, "groups_from": ["Zulu", "Alpha"]}),
+            encoding="utf-8",
+        )
+        pd.DataFrame(
+            {"Jongens": [1, 1], "Meisjes": [0, 1]},
+            index=pd.Index(["Klas A", "Klas B"], name="Groepen"),
+        ).to_excel(proc_dir / "groups.xlsx")
+        html = client.get("/preferences_form").data.decode("utf-8")
+        pos_alfa = html.find("Alfa")
+        pos_zes = html.find("Zes")
+        assert pos_alfa < pos_zes, "Alpha moet vóór Zulu staan"
+
+    def test_post_with_new_student_appears_in_voorkeuren(self, client, tmp_path):
+        """POST /preferences_form with a new student includes them in voorkeuren.json."""
+        proc_dir = self._setup(client, tmp_path)
+        client.post(
+            "/preferences_form",
+            data={
+                "gaat_over": ["s1", "s2"],
+                "new_voornaam[]": "Emma",
+                "new_achternaam[]": "Jansen",
+                "new_geslacht[]": "Meisje",
+            },
+        )
+        payload = json.loads((proc_dir / "voorkeuren.json").read_text("utf-8"))
+        display_names = set(payload["student_display"].values())
+        assert "Emma Jansen" in display_names
+
+    def test_post_min_satisfaction_stored_in_students_info(self, client, tmp_path):
+        """POST /preferences_form with min_satisfaction is stored in students_info."""
+        proc_dir = self._setup(client, tmp_path)
+        client.post(
+            "/preferences_form",
+            data={"gaat_over": ["s1", "s2"], "min_sat_s1": "0.5"},
+        )
+        payload = json.loads((proc_dir / "voorkeuren.json").read_text("utf-8"))
+        info = payload["students_info"]
+        anna_key = next(
+            k for k, v in payload["student_display"].items() if v == "Anna Bos"
+        )
+        assert info[anna_key]["MinimaleTevredenheid"] == 0.5
+
+    def test_get_after_post_prefills_wishes_from_state(self, client, tmp_path):
+        """GET /preferences_form after a POST prefills the previously saved wish."""
+        proc_dir = self._setup(client, tmp_path)
+        client.post(
+            "/preferences_form",
+            data={
+                "gaat_over": ["s1", "s2"],
+                "wens_s1_graag_met_target": ["Bram Dijk"],
+                "wens_s1_graag_met_gewicht": ["2"],
+            },
+        )
+        assert (proc_dir / "preferences_form_state.json").exists()
+        html = client.get("/preferences_form").data.decode("utf-8")
+        assert "Bram Dijk" in html
