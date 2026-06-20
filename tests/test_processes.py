@@ -188,6 +188,19 @@ class TestSelectProcess:
         assert response.status_code == 302
         assert response.headers["Location"].endswith("/not_together")
 
+    def test_process_with_voorkeuren_json_redirects_to_not_together(
+        self, client, tmp_path
+    ):
+        """A process that has only voorkeuren.json (form path) continues at not_together."""
+        proc_dir = tmp_path / SCHOOL_ID / "procesmetjson"
+        proc_dir.mkdir(parents=True, exist_ok=True)
+        (proc_dir / "voorkeuren.json").write_text("{}", encoding="utf-8")
+        with flask_app.app_context():
+            make_process_row(SCHOOL_ID, "procesmetjson")
+        response = client.get("/processes/select/procesmetjson")
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/not_together")
+
     def test_select_with_done_run_redirects_to_result(self, client, tmp_path):
         """A completed run skips the wizard and goes straight to the result page."""
         proc_dir = tmp_path / SCHOOL_ID / "gedaanproces"

@@ -131,7 +131,9 @@ def _resume_url(proc, path):
         return url_for("results.result_page")
     if proc.run is not None and proc.run.status in ("running", "error"):
         return url_for("results.processing")
-    if os.path.exists(os.path.join(path, "preferences.xlsx")):
+    if os.path.exists(os.path.join(path, "voorkeuren.json")) or os.path.exists(
+        os.path.join(path, "preferences.xlsx")
+    ):
         return url_for("wizard.not_together_page")
     if os.path.exists(os.path.join(path, "groups.xlsx")):
         return url_for("wizard.student_preferences")
