@@ -375,7 +375,7 @@ def _not_together_get_context(school_id, process_id):
         input_method = "excel"
     prev_url = (
         url_for("wizard.preferences_form")
-        if input_method == "formulier"
+        if input_method == "form"
         else url_for("wizard.preferences_excel")
     )
     return existing_rules, prev_url
@@ -577,7 +577,7 @@ def groups_to_page():
         get_file_path(school_id, process_id, "input_method.json"), "w", encoding="utf-8"
     ) as fh:
         json.dump({"method": action}, fh)
-    if action == "formulier":
+    if action == "form":
         return redirect(url_for("wizard.preferences_form"))
     return redirect(url_for("wizard.preferences_excel"))
 
