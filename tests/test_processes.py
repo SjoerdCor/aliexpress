@@ -2,6 +2,8 @@
 
 # pylint: disable=redefined-outer-name  # standard pytest fixture pattern
 
+import json
+
 from werkzeug.security import generate_password_hash
 
 import aliexpress.routes.processes as proc_module
@@ -174,6 +176,22 @@ class TestSelectProcess:
         response = client.get("/processes/select/procesmetgroepen")
         assert response.status_code == 302
         assert response.headers["Location"].endswith("/preferences_excel")
+
+    def test_process_with_groups_xlsx_and_form_method_redirects_to_preferences_form(
+        self, client, tmp_path
+    ):
+        """A process with groups.xlsx + input_method.json form resumes at preferences_form."""
+        proc_dir = tmp_path / SCHOOL_ID / "procesformulier"
+        proc_dir.mkdir(parents=True, exist_ok=True)
+        (proc_dir / "groups.xlsx").write_bytes(b"dummy")
+        (proc_dir / "input_method.json").write_text(
+            json.dumps({"method": "form"}), encoding="utf-8"
+        )
+        with flask_app.app_context():
+            make_process_row(SCHOOL_ID, "procesformulier")
+        response = client.get("/processes/select/procesformulier")
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/preferences_form")
 
     def test_process_with_preferences_xlsx_redirects_to_not_together(
         self, client, tmp_path

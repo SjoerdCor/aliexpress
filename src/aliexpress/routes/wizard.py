@@ -443,7 +443,12 @@ def groups_to_page():
         len(submission.state["disabled_groups"]),
         len(submission.state["new_groups"]),
     )
-    if request.form.get("action") == "formulier":
+    action = request.form.get("action", "excel")
+    with open(
+        get_file_path(school_id, process_id, "input_method.json"), "w", encoding="utf-8"
+    ) as fh:
+        json.dump({"method": action}, fh)
+    if action == "formulier":
         return redirect(url_for("wizard.preferences_form"))
     return redirect(url_for("wizard.preferences_excel"))
 
