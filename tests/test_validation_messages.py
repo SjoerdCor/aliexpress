@@ -83,13 +83,13 @@ class TestErrorMessages:
         assert "Jan" in msg and "groter dan 0" in msg
 
     def test_invalid_min_tevredenheid_form_names_student(self):
-        """'invalid_min_tevredenheid_form' mentions the student and the <= 1 bound."""
+        """'invalid_min_tevredenheid_form' mentions the student and the 100% bound."""
         exc = ValidationError(
             "invalid_min_tevredenheid_form",
             {"leerling": "Jan", "minimale_tevredenheid": 1.5},
         )
         msg = readableerror_to_validation_message(exc)
-        assert "Jan" in msg and "1" in msg
+        assert "Jan" in msg and "100%" in msg
 
     @staticmethod
     def _nulls_schema_error():

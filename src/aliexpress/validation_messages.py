@@ -62,13 +62,15 @@ def readableerror_to_validation_message(exc: Exception) -> str:
             "groepen kun je er maximaal {max_niet_in} uitsluiten, anders is er geen "
             "groep meer over."
         ),
+        # Used by the route layer (Stap 3) to validate the raw form input before a
+        # Preference is constructed; the dataclass itself also rejects a weight <= 0.
         "invalid_gewicht_form": (
             "{leerling} heeft een wens met gewicht {gewicht}. Een gewicht moet groter "
             "dan 0 zijn."
         ),
         "invalid_min_tevredenheid_form": (
-            "{leerling} heeft een minimale tevredenheid van {minimale_tevredenheid}. "
-            "Die mag hoogstens 1 zijn."
+            "{leerling} heeft een te hoge minimale tevredenheid. "
+            "Die mag hoogstens 100% zijn."
         ),
     }
 
