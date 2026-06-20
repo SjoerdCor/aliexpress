@@ -727,9 +727,16 @@ def preferences_form():
     all_groups_to = list(groups_to.keys())
 
     if request.method == "POST":
-        preference_data = _pref_form_post_data(
-            request.form, orig_candidates, groups_from, all_groups_to, state_path
-        )
+        try:
+            preference_data = _pref_form_post_data(
+                request.form, orig_candidates, groups_from, all_groups_to, state_path
+            )
+        except (pa.errors.SchemaError, ValidationError, ValueError) as exc:
+            # The draft state is written before validation runs, so the teacher's work is
+            # preserved; flash a friendly Dutch message and return to the form to fix it
+            # (the form is novalidate + JS-best-effort, so the server must catch this).
+            _flash_upload_error(exc)
+            return redirect(url_for("wizard.preferences_form"))
         _write_voorkeuren_json(
             get_file_path(school_id, process_id, "voorkeuren.json"),
             preference_data,

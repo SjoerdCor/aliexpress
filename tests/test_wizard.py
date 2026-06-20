@@ -945,6 +945,30 @@ class TestPreferencesForm:
         )
         assert abs(info[anna_key]["MinimaleTevredenheid"] - 0.5) < 0.001
 
+    def test_post_with_unknown_target_flashes_and_preserves_draft(
+        self, client, tmp_path
+    ):
+        """An invalid preference (unknown target) must not 500: it flashes a friendly
+        error, redirects back to the form, preserves the draft, and persists nothing."""
+        proc_dir = self._setup(client, tmp_path)
+        response = client.post(
+            "/preferences_form",
+            data={
+                "gaat_over": ["s1", "s2"],
+                "wens_s1_graag_met_target": ["Spook Persoon"],
+                "wens_s1_graag_met_gewicht": ["1"],
+            },
+        )
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/preferences_form")
+        # Invalid input is not persisted as the canonical preferences...
+        assert not (proc_dir / "voorkeuren.json").exists()
+        # ...but the teacher's work is kept as a draft so nothing is lost.
+        assert (proc_dir / "preferences_form_state.json").exists()
+        # The flash survives the redirect and is shown on the form.
+        html = client.get("/preferences_form").data.decode("utf-8")
+        assert "flash" in html.lower()
+
     def test_get_after_post_prefills_wishes_from_state(self, client, tmp_path):
         """GET /preferences_form after a POST prefills the previously saved wish."""
         proc_dir = self._setup(client, tmp_path)
