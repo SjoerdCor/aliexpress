@@ -669,6 +669,7 @@ def test_voorkeuren_processor_to_preference_data():
     )
     assert pd_data.student_display == processor.student_display
     assert pd_data.stamgroep_display == processor.stamgroep_display
+    pd.testing.assert_frame_equal(pd_data.input_sheet, processor.input)
 
 
 def test_validate_not_together_success():

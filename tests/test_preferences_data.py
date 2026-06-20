@@ -2,6 +2,7 @@
 
 import math
 
+import numpy as np
 import pandas as pd
 from pandas.testing import assert_frame_equal
 
@@ -24,6 +25,35 @@ def _sample_preferences() -> pd.DataFrame:
     return pd.DataFrame(
         {"Waarde": ["noot", "mies"], "Gewicht": [1.0, -2.0]},
         index=index,
+    )
+
+
+def _sample_input_sheet() -> pd.DataFrame:
+    """A small wide preferences sheet mirroring ``VoorkeurenProcessor.input``.
+
+    Columns are a ``(TypeWens, Nr, TypeWaarde)`` MultiIndex mixing the meta columns
+    (keyed by NaN sub-levels) with the wish columns; cells contain NaN where a student
+    left a wish blank. This is the structure the reporting layer iterates dynamically.
+    """
+    columns = pd.MultiIndex.from_tuples(
+        [
+            ("MinimaleTevredenheid", np.nan, np.nan),
+            ("Jongen/meisje", np.nan, np.nan),
+            ("Stamgroep", np.nan, np.nan),
+            ("Graag met", 1.0, "Waarde"),
+            ("Graag met", 1.0, "Gewicht"),
+            ("Niet in", 1.0, "Waarde"),
+        ],
+        names=["TypeWens", "Nr", "TypeWaarde"],
+    )
+    index = pd.Index(["aap", "noot"], name="Leerling")
+    return pd.DataFrame(
+        [
+            [0.5, "Jongen", "rood", "noot", 1.0, "blauw"],
+            [np.nan, "Meisje", "blauw", np.nan, np.nan, np.nan],
+        ],
+        index=index,
+        columns=columns,
     )
 
 
@@ -68,6 +98,7 @@ def test_preference_data_round_trips_through_json():
         students_info=_sample_students_info(),
         student_display={"aap": "Aap", "noot": "Noot", "mies": "Mies"},
         stamgroep_display={"rood": "Rood", "blauw": "Blauw"},
+        input_sheet=_sample_input_sheet(),
     )
 
     restored = PreferenceData.from_json(original.to_json())
@@ -76,3 +107,4 @@ def test_preference_data_round_trips_through_json():
     _assert_students_info_equal(restored.students_info, original.students_info)
     assert restored.student_display == original.student_display
     assert restored.stamgroep_display == original.stamgroep_display
+    assert_frame_equal(restored.input_sheet, original.input_sheet)
