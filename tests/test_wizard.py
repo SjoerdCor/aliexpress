@@ -47,7 +47,7 @@ class TestUploadErrors:
         )
 
         assert response.status_code == 302
-        assert response.headers["Location"].endswith("/student_preferences")
+        assert response.headers["Location"].endswith("/preferences_excel")
         assert any(cat == "error" for cat, _msg in flashes(client))
         assert not (proc_dir / "preferences.xlsx").exists()
 
@@ -78,7 +78,7 @@ class TestUploadErrors:
         )
 
         assert response.status_code == 302
-        assert response.headers["Location"].endswith("/student_preferences")
+        assert response.headers["Location"].endswith("/preferences_excel")
         assert any(
             cat == "error" and "verkeerde kolommen" in msg
             for cat, msg in flashes(client)
@@ -125,8 +125,8 @@ class TestGroupsToPage:
         assert response.status_code == 302
         assert any(cat == "error" for cat, _ in flashes(client))
 
-    def test_post_two_groups_redirects_to_student_preferences(self, client, tmp_path):
-        """POST /groups_to with ≥2 groups saves groups.xlsx and redirects to student_preferences."""
+    def test_post_two_groups_redirects_to_preferences_excel(self, client, tmp_path):
+        """POST /groups_to with ≥2 groups saves groups.xlsx and redirects to preferences_excel."""
         proc_dir = setup_process(client, tmp_path)
         write_groups_to_json(
             proc_dir,
@@ -144,7 +144,31 @@ class TestGroupsToPage:
             },
         )
         assert response.status_code == 302
-        assert response.headers["Location"].endswith("/student_preferences")
+        assert response.headers["Location"].endswith("/preferences_excel")
+
+    def test_post_two_groups_with_form_action_redirects_to_preferences_form(
+        self, client, tmp_path
+    ):
+        """POST /groups_to with action='formulier' redirects to /preferences_form."""
+        proc_dir = setup_process(client, tmp_path)
+        write_groups_to_json(
+            proc_dir,
+            {
+                "Klas A": make_students("Jongen", "Meisje"),
+                "Klas B": make_students("Jongen"),
+            },
+        )
+        response = client.post(
+            "/groups_to",
+            data={
+                "group": ["Klas A", "Klas B"],
+                "group_students[Klas A]": ["0", "1"],
+                "group_students[Klas B]": ["0"],
+                "action": "formulier",
+            },
+        )
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/preferences_form")
 
     def test_post_empty_group_is_kept_with_zero_counts(self, client, tmp_path):
         """A group submitted via 'group' but without retained students is kept at 0/0."""
@@ -160,7 +184,7 @@ class TestGroupsToPage:
             },
         )
         assert response.status_code == 302
-        assert response.headers["Location"].endswith("/student_preferences")
+        assert response.headers["Location"].endswith("/preferences_excel")
         saved = pd.read_excel(proc_dir / "groups.xlsx", index_col=0)
         assert saved.loc["Klas A", "Jongens"] == 1
         assert saved.loc["Klas A", "Meisjes"] == 2
@@ -302,7 +326,7 @@ class TestParseGroupsToForm:
 
 
 class TestStudentPreferencesSelection:
-    """GET /student_preferences restores the Stap 1 selection saved on download."""
+    """GET /preferences_excel restores the Stap 1 selection saved on download."""
 
     CANDIDATES = [
         {"key": "s1", "roepnaam": "Anna", "achternaam": "Bos", "groepsnaam": "Groen"},
@@ -328,7 +352,7 @@ class TestStudentPreferencesSelection:
     def test_first_visit_ticks_all_candidates(self, client, tmp_path):
         """Without a saved selection every candidate starts ticked."""
         self._setup(client, tmp_path)
-        html = client.get("/student_preferences").data.decode("utf-8")
+        html = client.get("/preferences_excel").data.decode("utf-8")
         assert self._checkbox_state(html) == {"s1": True, "s2": True, "s3": True}
 
     def test_saved_selection_and_added_student_are_restored(self, client, tmp_path):
@@ -350,7 +374,7 @@ class TestStudentPreferencesSelection:
             ),
             encoding="utf-8",
         )
-        html = client.get("/student_preferences").data.decode("utf-8")
+        html = client.get("/preferences_excel").data.decode("utf-8")
         assert self._checkbox_state(html) == {"s1": True, "s2": False, "s3": True}
         assert 'value="Daan"' in html
         assert 'value="Jongen" selected' in html
@@ -393,7 +417,7 @@ class TestNotTogetherLoadsFromJson:
         response = client.get("/not_together")
 
         assert response.status_code == 302
-        assert response.headers["Location"].endswith("/student_preferences")
+        assert response.headers["Location"].endswith("/preferences_excel")
         assert any(cat == "error" for cat, _ in flashes(client))
 
 
@@ -417,14 +441,14 @@ class TestNotTogetherPage:
             wizard_module.datareader, "VoorkeurenProcessor", lambda _: mock_proc
         )
 
-    def test_missing_files_flashes_error_and_redirects_to_student_preferences(
+    def test_missing_files_flashes_error_and_redirects_to_preferences_excel(
         self, client, tmp_path
     ):
         """not_together_page redirects gracefully when preferences.xlsx is missing."""
         setup_process(client, tmp_path)
         response = client.get("/not_together")
         assert response.status_code == 302
-        assert response.headers["Location"].endswith("/student_preferences")
+        assert response.headers["Location"].endswith("/preferences_excel")
         assert any(cat == "error" for cat, _ in flashes(client))
 
     def test_post_duplicate_student_flashes_error(self, client, tmp_path, monkeypatch):

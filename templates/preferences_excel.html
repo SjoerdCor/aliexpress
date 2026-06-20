@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% set current_step = 3 %}
+{% block header %} Wensen van leerlingen doorgeven{% endblock %}
+{% block content %}
+
+  <h2>Stap 1: Selecteer leerlingen die doorgaan</h2>
+  <p>Vink aan wie naar de volgende groep gaan. Verlengers kunnen uitgevinkt worden. Als er nog leerlingen missen kun je die onderaan toevoegen</p>
+  <form method="post" action="{{ url_for('wizard.preferences_excel') }}" onsubmit="return validateForm()">
+    {% for student in candidates %}
+      <label>
+        <input type="checkbox" name="students" value="{{ student.key }}"
+               {% if selected_ids is none or (student.key|string) in selected_ids %}checked{% endif %}>
+        {{ student.roepnaam }} {{ student.achternaam }} ({{ student.groepsnaam }})
+      </label>
+    {% endfor %}
+
+<ul class="student-list" id="new-students">
+  {% for ns in saved_new_students %}
+  <li>
+    <input type="text" name="new_firstname[]" placeholder="Voornaam" value="{{ ns.roepnaam }}" required>
+    <input type="text" name="new_lastname[]" placeholder="Achternaam" value="{{ ns.achternaam }}" required>
+    <select name="new_gender[]" required>
+      <option value="">Geslacht</option>
+      <option value="Jongen" {% if ns.geslacht == 'Jongen' %}selected{% endif %}>Jongen</option>
+      <option value="Meisje" {% if ns.geslacht == 'Meisje' %}selected{% endif %}>Meisje</option>
+    </select>
+    <select name="new_group[]" required>
+      {% for g in groups_from %}<option value="{{ g }}" {% if g == ns.groepsnaam %}selected{% endif %}>{{ g }}</option>{% endfor %}
+    </select>
+    <button type="button" onclick="this.closest('li').remove()">✖</button>
+  </li>
+  {% endfor %}
+  <li class="add-button">
+    <button type="button" class="button button--small" onclick="addStudentField(this)">
+      + Voeg leerling toe
+    </button>
+  </li>
+</ul>
+    <br><br>
+<button type="submit" name="action" value="download" class="button">
+  Download invulformulier
+</button>
+</form>
+
+<h2>Stap 2: Upload het ingevulde bestand hieronder</h2>
+{% if preferences_uploaded %}
+<div class="instructions-box">
+  <p>✓ Je hebt al een ingevuld bestand geüpload. Je kunt
+    <a href="{{ url_for('results.download_preferences') }}">het ingevulde bestand downloaden</a>
+    om verder te werken, of hieronder een nieuw bestand kiezen om het te vervangen.</p>
+</div>
+{% endif %}
+<form id="upload-form" method="post" action="{{ url_for('wizard.upload_preferences') }}" enctype="multipart/form-data">
+  <label>Upload ingevuld bestand:</label><br>
+  <input type="file" name="preferences" accept=".xlsx"><br>
+  {% if preferences_uploaded %}
+  <small>Je hebt al een bestand geüpload. Kies hier alleen een bestand als je het wilt
+    vervangen — anders ga je verder met het eerder geüploade bestand.</small>
+  {% endif %}
+</form>
+
+
+<div class="instructions-box">
+    <h2>Invulinstructies</h2>
+
+    <h3>Voorkeuren-bestand</h3>
+    <p>
+        Dit is het belangrijkste bestand van ALI Express. Hier kun je basisinformatie over je leeringen invoeren
+        (die wordt gebruikt om de balans in de groepen te bewaren) en de wensen van de leerling op basis van het
+        gesprek.
+        Wat specifieke tips:
+    <ul>
+        <li> Klik op een kolomnaam voor meer informatie over hoe je het moet invullen</li>
+        <li> Controleer dat de naam van de leerling uniek is voor de leerlingen die verdeel moeten worden. Zo niet, voeg
+            de eerste letter van de achternaam toe</li>
+        <li>Vul minimale tevredenheid alleen in alsdeze leerling echt een zetje nodig heeft. Houd er
+            rekening mee dat elke eis hier ten koste gaat van iemands anders tevredenheid.
+        </li>
+        <li>Denk hier echt aan wat de leerling wil. Onwenselijke combinaties kun je in het Niet-samen-bestand invoeren.
+            Ook als iets jou een goede combi lijkt: laat dat aan ALI Express, die weegt alles mee</li>
+        <li>
+            Voer zoveel mogelijk positieve wensen in. Dat geeft ALI Express meer flexibiliteit om voor iedereen een
+            prima oplossing te vinden.
+        </li>
+        <li>
+            Voer hier precies de naam van de leerling of van de groep in. Dus niet "Robin (Blauw)", maar "Blauw" of
+            "Robin" of "Jongens zoals Rene"
+        </li>
+
+        <li> Check of je alle kolommen hebt ingevuld, en of je passende gewichten hebt ingevuld</li>
+    </ul>
+
+    Upload vervolgens het ingevulde bestand. Hij wordt automatisch gecontroleerd of hij goed gevuld is.
+    Als er iets nog niet goed gaat, komt er een foutmelding. Lees de foutmelding zorgvuldig en probeer het te verhelpen.
+    </p>
+</div>
+
+
+<div class="step-navigation">
+    <a href="{{ url_for('wizard.groups_to_page') }}" class="button previous-step">← Naar Groepen naartoe bepalen</a>
+    <button type="submit" form="upload-form" class="button next-step">Naar Niet samen →</button>
+</div>
+
+<script>
+const groupOptions = `{% for g in groups_from %}<option value="{{ g }}">{{ g }}</option>{% endfor %}`;
+
+function addStudentField(button) {
+  const studentList = document.getElementById("new-students");
+  const buttonLi = button.closest("li");
+  const li = document.createElement("li");
+
+  li.innerHTML = `
+    <input type="text" name="new_firstname[]" placeholder="Voornaam" required>
+    <input type="text" name="new_lastname[]" placeholder="Achternaam" required>
+    <select name="new_gender[]" required>
+      <option value="">Geslacht</option>
+      <option value="Jongen">Jongen</option>
+      <option value="Meisje">Meisje</option>
+    </select>
+    <select name="new_group[]" required>
+      ${groupOptions}
+    </select>
+    <button type="button" onclick="this.closest('li').remove()">✖</button>
+  `;
+
+  studentList.insertBefore(li, buttonLi);
+
+}
+
+function validateForm() {
+    const originalStudents = document.querySelectorAll('input[name="students"]:checked');
+    const newFirstnames = document.querySelectorAll('#new-students input[name="new_firstname[]"]');
+    const newLastnames = document.querySelectorAll('#new-students input[name="new_lastname[]"]');
+
+    if (originalStudents.length + newFirstnames.length === 0) {
+        alert("Er moeten minstens één leerling aanwezig zijn.");
+        return false;
+    }
+
+    const studentNames = [];
+    const duplicateStudents = [];
+    for (let i = 0; i < newFirstnames.length; i++) {
+        const fullname = `${newFirstnames[i].value.trim()} ${newLastnames[i].value.trim()}`;
+        if (studentNames.includes(fullname)) {
+            duplicateStudents.push(fullname);
+        } else {
+            studentNames.push(fullname);
+        }
+    }
+
+    if (duplicateStudents.length > 0) {
+        alert("Duplicaten van leerlingen gevonden: " + [...new Set(duplicateStudents)].join(", "));
+        return false;
+    }
+    return true;
+}
+</script>
+
+{% endblock %}

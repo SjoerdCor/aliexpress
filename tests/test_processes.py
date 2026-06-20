@@ -162,10 +162,10 @@ class TestSelectProcess:
         assert response.status_code == 302
         assert response.headers["Location"].endswith("/groups_to")
 
-    def test_process_with_groups_xlsx_redirects_to_student_preferences(
+    def test_process_with_groups_xlsx_redirects_to_preferences_excel(
         self, client, tmp_path
     ):
-        """A process that has groups.xlsx but no preferences continues at student_preferences."""
+        """A process that has groups.xlsx but no preferences continues at preferences_excel."""
         proc_dir = tmp_path / SCHOOL_ID / "procesmetgroepen"
         proc_dir.mkdir(parents=True, exist_ok=True)
         (proc_dir / "groups.xlsx").write_bytes(b"dummy")
@@ -173,7 +173,7 @@ class TestSelectProcess:
             make_process_row(SCHOOL_ID, "procesmetgroepen")
         response = client.get("/processes/select/procesmetgroepen")
         assert response.status_code == 302
-        assert response.headers["Location"].endswith("/student_preferences")
+        assert response.headers["Location"].endswith("/preferences_excel")
 
     def test_process_with_preferences_xlsx_redirects_to_not_together(
         self, client, tmp_path
