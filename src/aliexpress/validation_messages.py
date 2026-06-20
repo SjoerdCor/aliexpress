@@ -57,6 +57,19 @@ def readableerror_to_validation_message(exc: Exception) -> str:
             "Niet-samen-regel {rule_index}: met {n_groups} groepen is het niet mogelijk om "
             "{n_students} leerlingen te verdelen met maximaal {max_samen} bij elkaar."
         ),
+        "too_many_niet_in_form": (
+            "{leerling} mag niet in te veel groepen geweigerd worden: met {n_groepen} "
+            "groepen kun je er maximaal {max_niet_in} uitsluiten, anders is er geen "
+            "groep meer over."
+        ),
+        "invalid_gewicht_form": (
+            "{leerling} heeft een wens met gewicht {gewicht}. Een gewicht moet groter "
+            "dan 0 zijn."
+        ),
+        "invalid_min_tevredenheid_form": (
+            "{leerling} heeft een minimale tevredenheid van {minimale_tevredenheid}. "
+            "Die mag hoogstens 1 zijn."
+        ),
     }
 
     template = friendly_templates.get(exc.code, None)
