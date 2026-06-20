@@ -33,8 +33,9 @@ from aliexpress.errors import (
 )
 from aliexpress.extensions import db
 from aliexpress.form_parsers import parse_groups_to_form
-from aliexpress.main import distribute_students_once
+from aliexpress.main import distribute_students_from_data
 from aliexpress.models import LogLine, Process, Run
+from aliexpress.preferences_data import PreferenceData
 from aliexpress.routes.auth import effective_school_id
 from aliexpress.routes.processes import require_process
 from aliexpress.storage import get_file_path
@@ -43,6 +44,24 @@ from aliexpress.validation_messages import to_validation_message
 logger = logging.getLogger(__name__)
 
 wizard_bp = Blueprint("wizard", __name__)
+
+
+def _write_voorkeuren_json(
+    path: str, preference_data: PreferenceData, source: str
+) -> None:
+    """Persist a PreferenceData as voorkeuren.json, tagged with its input source."""
+    payload = json.loads(preference_data.to_json())
+    payload["source"] = source
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(payload, fh, ensure_ascii=False)
+
+
+def _read_voorkeuren_json(path: str) -> tuple[PreferenceData, str]:
+    """Load a PreferenceData and its source tag from voorkeuren.json."""
+    with open(path, encoding="utf-8") as fh:
+        payload = json.load(fh)
+    source = payload.pop("source", "form")
+    return PreferenceData.from_json(json.dumps(payload)), source
 
 
 @dataclass
@@ -110,6 +129,8 @@ def _run_solve_thread(ctx: _ThreadContext, groups_to_path, not_together):
 
     Each call creates its own app context and DB session. ``ctx.run_id`` is the integer
     PK of the Run row so log lines can be appended without a school+name query per line.
+    Reads preferences from ``voorkeuren.json`` (written by both input paths) so that the
+    solver is independent of the original file format.
     """
 
     def on_update(message):
@@ -118,12 +139,14 @@ def _run_solve_thread(ctx: _ThreadContext, groups_to_path, not_together):
 
     with ctx.app_obj.app_context():
         try:  # pylint: disable=broad-exception-caught
-            preferences_path = get_file_path(
-                ctx.school_id, ctx.process_name, "preferences.xlsx"
+            voorkeuren_path = get_file_path(
+                ctx.school_id, ctx.process_name, "voorkeuren.json"
             )
             Process.by_name(ctx.school_id, ctx.process_name).run.set_status("running")
-            result = distribute_students_once(
-                preferences_path, groups_to_path, not_together, on_update=on_update
+            preference_data, _ = _read_voorkeuren_json(voorkeuren_path)
+            target_groups = datareader.read_groups_excel(groups_to_path)
+            result = distribute_students_from_data(
+                preference_data, target_groups, not_together, on_update=on_update
             )
             logger.info("Distributing students finished successfully")
             # Write artifacts before flipping to "done" so the result page never
@@ -134,11 +157,13 @@ def _run_solve_thread(ctx: _ThreadContext, groups_to_path, not_together):
             _handle_failure(exc, ctx.school_id, ctx.process_name)
 
 
-def _create_sociogram_thread(ctx: _ThreadContext, preferences, groups_to):
+def _create_sociogram_thread(ctx: _ThreadContext):
     """Background thread: build and write the Plotly sociogram HTML.
 
     Runs concurrently with the solver; log lines are appended via ``ctx.run_id`` just
-    like the solver thread does.
+    like the solver thread does. Reads preferences from ``voorkeuren.json`` (written by
+    both input paths) via ``SociogramMaker.from_preference_data``, so the sociogram is
+    available for both the Excel and web-form input paths.
     """
 
     def on_update(message):
@@ -148,8 +173,11 @@ def _create_sociogram_thread(ctx: _ThreadContext, preferences, groups_to):
     with ctx.app_obj.app_context():
         try:  # pylint: disable=broad-exception-caught
             on_update("Sociogram tekenen...")
-            groups_to_data, _ = datareader.read_groups_excel(groups_to)
-            sg = sociogram.SociogramMaker(preferences, list(groups_to_data.keys()))
+            voorkeuren_path = get_file_path(
+                ctx.school_id, ctx.process_name, "voorkeuren.json"
+            )
+            preference_data, _ = _read_voorkeuren_json(voorkeuren_path)
+            sg = sociogram.SociogramMaker.from_preference_data(preference_data)
             fig, g, pos = sg.plot_sociogram()
             logger.info("Sociogram created")
             fig = sociogram.networkx_to_plotly(g, pos)
@@ -167,6 +195,24 @@ def _create_sociogram_thread(ctx: _ThreadContext, preferences, groups_to):
             )
         except Exception:  # pylint: disable=broad-exception-caught
             logger.exception("Could not create sociogram")
+
+
+def _load_student_names(groups_to, voorkeuren_path, preferences_path) -> list[str]:
+    """Return sorted display names of students to populate the not-together dropdown.
+
+    Prefers ``voorkeuren.json`` (canonical, written by both input paths); falls back to
+    reading the raw Excel for processes created before ``voorkeuren.json`` was introduced.
+    """
+    if os.path.exists(voorkeuren_path):
+        preference_data, _ = _read_voorkeuren_json(voorkeuren_path)
+        names = sorted(preference_data.student_display.values())
+    else:
+        processor = datareader.VoorkeurenProcessor(preferences_path)
+        processor.process(all_to_groups=list(groups_to.keys()))
+        logger.debug(processor.student_display)
+        names = sorted(processor.student_display.values())
+    logger.debug(", ".join(names))
+    return names
 
 
 def _load_groups_to(school_id, process_id) -> dict:
@@ -443,6 +489,13 @@ def upload_preferences():
         preferences_path = get_file_path(school_id, process_id, "preferences.xlsx")
         with open(preferences_path, "wb") as fh:
             fh.write(raw)
+        # Persist as voorkeuren.json so the solver and sociogram can load from a single
+        # canonical format regardless of input path (Excel or web form).
+        _write_voorkeuren_json(
+            get_file_path(school_id, process_id, "voorkeuren.json"),
+            processor.to_preference_data(),
+            source="excel",
+        )
         logger.info(
             "Preferences accepted for process %s: %d students",
             process_id,
@@ -463,17 +516,15 @@ def not_together_page():
     if school_id is None:
         return redirect(url_for("admin.dashboard"))
     process_id = session["process_id"]
-    preferences_path = get_file_path(school_id, process_id, "preferences.xlsx")
     groups_to_path = get_file_path(school_id, process_id, "groups.xlsx")
 
     try:
         groups_to, _ = datareader.read_groups_excel(groups_to_path)
-        processor = datareader.VoorkeurenProcessor(preferences_path)
-        processor.process(all_to_groups=list(groups_to.keys()))
-        # Show names as entered in the dropdown; matching happens on the key on submit.
-        logger.debug(processor.student_display)
-        students = sorted(processor.student_display.values())
-        logger.debug(", ".join(students))
+        students = _load_student_names(
+            groups_to,
+            get_file_path(school_id, process_id, "voorkeuren.json"),
+            get_file_path(school_id, process_id, "preferences.xlsx"),
+        )
     except Exception as exc:  # pylint: disable=broad-exception-caught
         _flash_upload_error(exc)
         return redirect(url_for("wizard.student_preferences"))
@@ -531,9 +582,6 @@ def start_distribution():
     else:
         not_together = []
 
-    with open(get_file_path(school_id, process_name, "preferences.xlsx"), "rb") as fh:
-        preferences_bytes = BytesIO(fh.read())
-
     proc = Process.by_name(school_id, process_name)
     Run.reset(proc.id)
     for _stale in ("results.xlsx", "result_tables.json", "sociogram.html"):
@@ -551,8 +599,6 @@ def start_distribution():
         process_name=process_name,
         run_id=run_id,
     )
-    Thread(
-        target=_create_sociogram_thread, args=(ctx, preferences_bytes, groups_to_path)
-    ).start()
+    Thread(target=_create_sociogram_thread, args=(ctx,)).start()
     Thread(target=_run_solve_thread, args=(ctx, groups_to_path, not_together)).start()
     return redirect(url_for("results.processing"))

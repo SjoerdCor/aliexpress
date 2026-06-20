@@ -8,6 +8,12 @@ from unittest.mock import MagicMock
 
 from aliexpress.extensions import db
 from aliexpress.models import Process
+from aliexpress.preferences_form import (
+    Preference,
+    PreferenceKind,
+    StudentEntry,
+    build_preference_data,
+)
 from app import app as flask_app
 
 # Must match the schoolcode created in tests/conftest.py's ``client`` fixture.
@@ -64,3 +70,42 @@ def write_groups_to_json(proc_dir, groups_to):
 def make_students(*genders):
     """Build a list of minimal student dicts with the given genders, in order."""
     return [{"geslacht": sex, "roepnaam": "x", "achternaam": "y"} for sex in genders]
+
+
+def write_minimal_voorkeuren_json(
+    proc_dir,
+    students=None,
+    all_to_groups=None,
+    source="form",
+):
+    """Write a minimal but valid voorkeuren.json to proc_dir for use in route tests.
+
+    Defaults to two students (Alice/Jongen and Bob/Meisje) and two groups (klas a, klas b).
+    Pass ``students`` as a list of ``StudentEntry`` objects to override.
+    """
+    if all_to_groups is None:
+        all_to_groups = ["klas a", "klas b"]
+    if students is None:
+        students = [
+            StudentEntry(
+                student="Alice",
+                sex="Jongen",
+                origin_group="Groep 4",
+                min_satisfaction=None,
+                preferences=[
+                    Preference(target="Bob", weight=1.0, kind=PreferenceKind.TOGETHER)
+                ],
+            ),
+            StudentEntry(
+                student="Bob",
+                sex="Meisje",
+                origin_group="Groep 4",
+                min_satisfaction=None,
+            ),
+        ]
+    preference_data = build_preference_data(students, all_to_groups)
+    payload = json.loads(preference_data.to_json())
+    payload["source"] = source
+    (proc_dir / "voorkeuren.json").write_text(
+        json.dumps(payload, ensure_ascii=False), encoding="utf-8"
+    )

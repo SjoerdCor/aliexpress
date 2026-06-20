@@ -22,6 +22,7 @@ from tests.helpers import (
     make_students,
     setup_process,
     write_groups_to_json,
+    write_minimal_voorkeuren_json,
 )
 
 
@@ -356,6 +357,46 @@ class TestStudentPreferencesSelection:
         assert 'value="Blauw" selected' in html
 
 
+class TestNotTogetherLoadsFromJson:
+    """GET /not_together reads student names from voorkeuren.json when it exists."""
+
+    def _mock_groups(self, monkeypatch):
+        monkeypatch.setattr(
+            wizard_module.datareader,
+            "read_groups_excel",
+            lambda _: (
+                {"klas a": None, "klas b": None},
+                {"klas a": "Klas A", "klas b": "Klas B"},
+            ),
+        )
+
+    def test_renders_student_names_from_voorkeuren_json(
+        self, client, tmp_path, monkeypatch
+    ):
+        """GET /not_together with only voorkeuren.json renders Alice and Bob in the dropdown."""
+        proc_dir = setup_process(client, tmp_path)
+        write_minimal_voorkeuren_json(proc_dir)  # writes Alice + Bob
+        self._mock_groups(monkeypatch)
+
+        html = client.get("/not_together").data.decode("utf-8")
+
+        assert "Alice" in html
+        assert "Bob" in html
+
+    def test_missing_json_and_xlsx_redirects_with_error(
+        self, client, tmp_path, monkeypatch
+    ):
+        """GET /not_together without any preferences file redirects with an error flash."""
+        setup_process(client, tmp_path)
+        self._mock_groups(monkeypatch)
+
+        response = client.get("/not_together")
+
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/student_preferences")
+        assert any(cat == "error" for cat, _ in flashes(client))
+
+
 class TestNotTogetherPage:
     """Tests for POST /not_together error paths."""
 
@@ -402,6 +443,53 @@ class TestNotTogetherPage:
         assert any(cat == "error" for cat, _ in flashes(client))
 
 
+class TestUploadPreferencesWritesJson:
+    """POST /upload_preferences with a valid Excel also writes voorkeuren.json."""
+
+    _GROUPS = {"blauw": None, "groen": None, "geel": None, "oranje": None}
+
+    def _mock_groups(self, monkeypatch):
+        monkeypatch.setattr(
+            wizard_module.datareader,
+            "read_groups_excel",
+            lambda _: (self._GROUPS, {k: k.capitalize() for k in self._GROUPS}),
+        )
+
+    def test_valid_upload_writes_voorkeuren_json(self, client, tmp_path, monkeypatch):
+        """A successful Excel upload persists voorkeuren.json alongside preferences.xlsx."""
+        proc_dir = setup_process(client, tmp_path)
+        self._mock_groups(monkeypatch)
+        with open("testdata/voorkeuren_klein.xlsx", "rb") as fh:
+            raw = fh.read()
+
+        client.post(
+            "/upload_preferences",
+            data={"preferences": (BytesIO(raw), "voorkeuren.xlsx")},
+            content_type="multipart/form-data",
+        )
+
+        assert (proc_dir / "voorkeuren.json").exists()
+        payload = json.loads((proc_dir / "voorkeuren.json").read_text("utf-8"))
+        assert payload.get("source") == "excel"
+
+    def test_valid_upload_still_writes_preferences_xlsx(
+        self, client, tmp_path, monkeypatch
+    ):
+        """preferences.xlsx (for the sociogram) is still written alongside voorkeuren.json."""
+        proc_dir = setup_process(client, tmp_path)
+        self._mock_groups(monkeypatch)
+        with open("testdata/voorkeuren_klein.xlsx", "rb") as fh:
+            raw = fh.read()
+
+        client.post(
+            "/upload_preferences",
+            data={"preferences": (BytesIO(raw), "voorkeuren.xlsx")},
+            content_type="multipart/form-data",
+        )
+
+        assert (proc_dir / "preferences.xlsx").exists()
+
+
 class TestStartDistribution:
     """Tests for GET /start_distribution (run lifecycle with a mocked solver)."""
 
@@ -409,10 +497,12 @@ class TestStartDistribution:
         """Run both background threads synchronously with a mocked solver and sociogram.
 
         Returns the solver mock so a test can inspect the arguments it was called with.
+        Both SociogramMaker() and SociogramMaker.from_preference_data() return the same
+        mock maker so the mock works for both the Excel and form input paths.
         """
         monkeypatch.setattr(wizard_module, "Thread", immediate_thread)
         solver = MagicMock(side_effect=exc) if exc else MagicMock(return_value=result)
-        monkeypatch.setattr(wizard_module, "distribute_students_once", solver)
+        monkeypatch.setattr(wizard_module, "distribute_students_from_data", solver)
         monkeypatch.setattr(
             wizard_module.datareader,
             "read_groups_excel",
@@ -420,8 +510,11 @@ class TestStartDistribution:
         )
         maker = MagicMock()
         maker.plot_sociogram.return_value = (MagicMock(), MagicMock(), MagicMock())
+        mock_sociogram_cls = MagicMock()
+        mock_sociogram_cls.return_value = maker
+        mock_sociogram_cls.from_preference_data.return_value = maker
         monkeypatch.setattr(
-            wizard_module.sociogram, "SociogramMaker", lambda *a, **k: maker
+            wizard_module.sociogram, "SociogramMaker", mock_sociogram_cls
         )
         fig = MagicMock()
         fig.to_html.return_value = "<div>socio</div>"
@@ -442,7 +535,7 @@ class TestStartDistribution:
     ):
         """A successful run writes the artifacts and only then sets status 'done'."""
         proc_dir = setup_process(client, tmp_path)
-        (proc_dir / "preferences.xlsx").write_bytes(b"dummy")
+        write_minimal_voorkeuren_json(proc_dir)
         (proc_dir / "groups.xlsx").write_bytes(b"dummy")
         result = {
             "download": BytesIO(b"excel-bytes"),
@@ -464,7 +557,7 @@ class TestStartDistribution:
     ):
         """A solver failure records status 'error' with a friendly message, no result file."""
         proc_dir = setup_process(client, tmp_path)
-        (proc_dir / "preferences.xlsx").write_bytes(b"dummy")
+        write_minimal_voorkeuren_json(proc_dir)
         (proc_dir / "groups.xlsx").write_bytes(b"dummy")
         exc = ValidationError("wrong_columns_preferences", {"wrong_columns": "Kolom A"})
         self._patch_pipeline(monkeypatch, exc=exc)
@@ -478,9 +571,9 @@ class TestStartDistribution:
     def test_not_together_json_is_loaded_when_present(
         self, client, tmp_path, monkeypatch
     ):
-        """When not_together.json exists it is parsed and passed to distribute_students_once."""
+        """When not_together.json exists it is parsed and passed to the solver."""
         proc_dir = setup_process(client, tmp_path)
-        (proc_dir / "preferences.xlsx").write_bytes(b"dummy")
+        write_minimal_voorkeuren_json(proc_dir)
         (proc_dir / "groups.xlsx").write_bytes(b"dummy")
         (proc_dir / "not_together.json").write_text(
             '[{"group": ["Alice", "Bob"], "Max_aantal_samen": 1}]', encoding="utf-8"
@@ -490,8 +583,28 @@ class TestStartDistribution:
 
         response = client.get("/start_distribution")
         assert response.status_code == 302
+        # distribute_students_from_data(preference_data, target_groups, not_together, ...)
         passed = solver.call_args.args[2]
         assert passed == [{"group": {"Alice", "Bob"}, "Max_aantal_samen": 1}]
+
+    def test_form_path_solver_and_sociogram_succeed_with_only_voorkeuren_json(
+        self, client, tmp_path, monkeypatch
+    ):
+        """Solver and sociogram both complete when only voorkeuren.json exists (form path)."""
+        proc_dir = setup_process(client, tmp_path)
+        write_minimal_voorkeuren_json(proc_dir, source="form")
+        (proc_dir / "groups.xlsx").write_bytes(b"dummy")
+        result = {
+            "download": BytesIO(b"form-excel"),
+            "dataframes": {"Groepsindeling": pd.DataFrame({"A": [1]})},
+        }
+        self._patch_pipeline(monkeypatch, result=result)
+
+        response = client.get("/start_distribution")
+        assert response.status_code == 302
+        assert (proc_dir / "results.xlsx").read_bytes() == b"form-excel"
+        assert (proc_dir / "sociogram.html").read_text("utf-8") == "<div>socio</div>"
+        assert self._read_run().status == "done"
 
 
 class TestStatus:
