@@ -3,25 +3,529 @@
 {% block header %}Wensen invullen{% endblock %}
 
 {% block content %}
-<form method="post">
+
+{# Collect known names for autocomplete + JS validation #}
+{% set known_names = [] %}
+{% for c in candidates %}
+  {% if known_names.append(c.roepnaam ~ " " ~ c.achternaam) %}{% endif %}
+{% endfor %}
+
+{# Server-side template data injected as JSON; the JS script below reads it. #}
+<script type="application/json" id="pref-form-data">
+{
+  "known_names": {{ known_names | tojson }},
+  "target_groups": {{ target_groups | tojson }},
+  "group_display": {{ group_display | tojson }},
+  "groups_from": {{ groups_from | tojson }},
+  "draft_state": {{ draft_state | tojson if draft_state else 'null' }}
+}
+</script>
+
+<datalist id="student-list">
+  {% for name in known_names %}<option value="{{ name }}">{% endfor %}
+</datalist>
+
+<div class="instructions-box">
+  Vink aan welke leerlingen doorgaan. Klik een leerling open om wensen in te voeren.
+  Bevestig elke wens afzonderlijk. Gebruik <strong>Tussentijds opslaan</strong> om nieuwe
+  leerlingen toe te voegen en hun wensen in te kunnen voeren.
+</div>
+
+<form method="post" id="preferences-form" novalidate>
+
+  {# ── Nieuwe leerlingen ──────────────────────────────────────────────────── #}
+  <details class="group-details new-student-details">
+    <summary class="group-summary">Nieuwe leerling toevoegen</summary>
+    <div id="new-student-rows"></div>
+    <button type="button" class="button button--small" style="margin-top:0.4rem"
+            onclick="addNewStudentRow()">+ Leerling toevoegen</button>
+  </details>
+
+  {# ── Per-leerling blokken gegroepeerd op groepsnaam ─────────────────────── #}
+  {% set current_group = namespace(name=None) %}
   {% for candidate in candidates %}
-  <div class="candidate-row">
-    <label>
-      <input type="checkbox" name="gaat_over" value="{{ candidate.key }}" checked>
-      {{ candidate.roepnaam }} {{ candidate.achternaam }} ({{ candidate.groepsnaam }})
-    </label>
-  </div>
+  {% set key = candidate.key %}
+  {% set display_name = candidate.roepnaam ~ " " ~ candidate.achternaam %}
+  {% set going = candidate.going_over is not defined or candidate.going_over %}
+
+  {% if candidate.groepsnaam != current_group.name %}
+    {% if not loop.first %}</details>{% endif %}
+    {% set current_group.name = candidate.groepsnaam %}
+    <details class="group-details">
+    <summary class="group-summary">{{ candidate.groepsnaam }}</summary>
+  {% endif %}
+
+  <details class="candidate-details" id="block-{{ key }}"
+           open {% if not going %}data-disabled="1"{% endif %}>
+    <summary class="candidate-summary"
+             onclick="handleCandidateSummaryClick(event, '{{ key }}')">
+      <label class="candidate-label" onclick="event.stopPropagation()">
+        <input type="checkbox" name="gaat_over" value="{{ key }}"
+               {% if going %}checked{% endif %}
+               class="gaat-over-checkbox" data-key="{{ key }}"
+               onchange="toggleCandidate('{{ key }}', this.checked)">
+        <span class="candidate-name">{{ display_name }}</span>
+      </label>
+      <span class="candidate-wish-preview" id="preview-{{ key }}"></span>
+    </summary>
+
+    <div class="candidate-content" id="content-{{ key }}">
+
+      {# ── Min tevredenheid ──────────────────────────────────────────────── #}
+      <div class="min-sat-row">
+        <label class="min-sat-label">
+          Min. tevredenheid
+          <abbr title="De minimale tevredenheid die deze leerling moet halen (0% = geen eis, 50% = wens 1 of 2 moet uitkomen, 100% = wens 1 moet altijd uitkomen). Laat leeg voor geen eis.">ℹ</abbr>
+        </label>
+        <span class="min-sat-wrap">
+          <input type="number" name="min_sat_{{ key }}" class="min-sat-input"
+                 min="0" max="100" step="1" placeholder="—"
+                 {% if candidate.min_satisfaction is defined and candidate.min_satisfaction is not none %}
+                 value="{{ (candidate.min_satisfaction * 100) | round | int }}"
+                 {% endif %}
+                 oninput="validateMinSat(this, '{{ key }}')">
+          <span class="min-sat-pct">%</span>
+        </span>
+        <span class="field-error" id="err-minsat-{{ key }}"></span>
+      </div>
+
+      {# ── Wens helper: renders a wish section ───────────────────────────── #}
+      {# tooltip passed as explicit parameter because Jinja2 macros cannot access {% set %} variables from outer scope #}
+      {% macro wish_section(key, soort, label, tooltip) %}
+      <div class="wish-section">
+        <p class="wish-section-label">
+          {{ label }}
+          <abbr title="{{ tooltip }}">ℹ</abbr>
+        </p>
+        <div class="chips-area" id="chips-{{ soort }}-{{ key }}"></div>
+        <div class="wish-pending-area" id="pending-{{ soort }}-{{ key }}" style="display:none">
+          <input type="text" list="student-list" placeholder="Naam leerling…"
+                 autocomplete="off" class="wish-name-input"
+                 onkeydown="if(event.key==='Enter'){event.preventDefault();confirmWish('{{ key }}','{{ soort }}');}">
+          <input type="number" min="0.01" step="0.1" value="1" class="wish-weight-input"
+                 title="Gewicht: elk positief getal — hoe hoger, hoe zwaarder de wens weegt.">
+          <abbr title="Gewicht: elk positief getal. Bijv. 1 = normaal, 2 = belangrijk, 3 = zeer belangrijk.">ℹ</abbr>
+          <button type="button" class="button button--small"
+                  onclick="confirmWish('{{ key }}','{{ soort }}')">✓ Bevestig</button>
+          <button type="button" class="button button--small button--cancel"
+                  onclick="cancelWish('{{ key }}','{{ soort }}')">✖ Annuleer</button>
+          <span class="field-error" id="err-{{ soort }}-{{ key }}"></span>
+        </div>
+        <button type="button" class="button button--small wish-add-btn"
+                id="btn-{{ soort }}-{{ key }}"
+                onclick="openWishInput('{{ key }}','{{ soort }}')">+ Wens toevoegen</button>
+      </div>
+      {% endmacro %}
+
+      {{ wish_section(key, 'graag_met', 'Graag met',
+           'Leerlingen waarbij deze leerling graag in dezelfde klas zit. Gewicht bepaalt hoe zwaar de wens weegt (elk positief getal, bijv. 1=normaal, 2=belangrijk).') }}
+      {{ wish_section(key, 'liever_niet_met', 'Liever niet met',
+           'Leerlingen waarbij deze leerling liever niet in dezelfde klas zit. Gewicht bepaalt hoe zwaar de wens weegt.') }}
+
+      {# ── Niet in groep ─────────────────────────────────────────────────── #}
+      {% if target_groups | length > 1 %}
+      <div class="wish-section">
+        <p class="wish-section-label">Niet in groep <abbr title="Groepen waar deze leerling absoluut niet in geplaatst mag worden. Je kunt maximaal (aantal doelgroepen - 1) groepen uitsluiten.">ℹ</abbr></p>
+        <div class="chips-area" id="chips-nieting-{{ key }}"></div>
+        <div class="wish-add-area">
+          <select class="nieting-select" id="nieting-select-{{ key }}">
+            <option value="">— kies groep —</option>
+            {% for gkey in target_groups %}
+            <option value="{{ group_display[gkey] }}">{{ group_display[gkey] }}</option>
+            {% endfor %}
+          </select>
+          <button type="button" class="button button--small"
+                  onclick="addNietIn('{{ key }}', {{ target_groups | length - 1 }})">
+            + Toevoegen
+          </button>
+          <span class="field-error" id="err-nieting-{{ key }}"></span>
+        </div>
+      </div>
+      {% endif %}
+
+    </div>{# .candidate-content #}
+  </details>{# .candidate-details #}
   {% endfor %}
+  {% if candidates %}</details>{% endif %}{# close last group-details #}
 
   <div class="step-navigation">
-    <a href="{{ url_for('wizard.groups_to_page') }}" class="button previous-step">← Naar Groepen naartoe</a>
-    <button type="submit" class="button next-step">Volgende →</button>
+    <a href="{{ url_for('wizard.groups_to_page') }}" class="button previous-step">
+      ← Naar Groepen naartoe
+    </a>
+    <button type="submit" name="action" value="opslaan" class="button button--secondary">
+      Tussentijds opslaan
+    </button>
+    <button type="submit" name="action" value="volgende" class="button next-step">
+      Naar niet samen →
+    </button>
   </div>
 </form>
 
 <script>
-  // Target groups available for "niet in" wishes — referenced by POST handler tests.
-  const TARGET_GROUPS = {{ target_groups | tojson }};
-  const GROUP_DISPLAY = {{ group_display | tojson }};
+// ── Server-side data ──────────────────────────────────────────────────────────
+const _fd = JSON.parse(document.getElementById('pref-form-data').textContent);
+// Any unhandled JS error is logged to console but must never block form submit.
+const STUDENT_NAMES = new Set(_fd.known_names);
+const TARGET_GROUPS = _fd.target_groups;
+const GROUP_DISPLAY = _fd.group_display;
+const GROUPS_FROM = _fd.groups_from;
+const DRAFT = _fd.draft_state;
+
+let newStudentCount = 0;  // increments for each new student row
+
+// Track which student keys are checked
+const checkedKeys = new Set(
+  Array.from(document.querySelectorAll('.gaat-over-checkbox:checked')).map(cb => cb.value)
+);
+
+// ── Candidate details interaction ─────────────────────────────────────────────
+
+function handleCandidateSummaryClick(event, key) {
+  // Don't toggle details if the click was on the checkbox or its label
+  if (event.target.closest('.candidate-label')) {
+    event.preventDefault();
+  }
+}
+
+// ── Open / confirm / cancel wish input ───────────────────────────────────────
+
+function openWishInput(key, soort) {
+  const pending = document.getElementById(`pending-${soort}-${key}`);
+  const btn = document.getElementById(`btn-${soort}-${key}`);
+  pending.style.display = '';
+  btn.style.display = 'none';
+  pending.querySelector('.wish-name-input').focus();
+}
+
+function cancelWish(key, soort) {
+  const pending = document.getElementById(`pending-${soort}-${key}`);
+  const btn = document.getElementById(`btn-${soort}-${key}`);
+  pending.querySelector('.wish-name-input').value = '';
+  pending.querySelector('.wish-weight-input').value = '1';
+  document.getElementById(`err-${soort}-${key}`).textContent = '';
+  pending.style.display = 'none';
+  btn.style.display = '';
+}
+
+function confirmWish(key, soort) {
+  const pending = document.getElementById(`pending-${soort}-${key}`);
+  const errEl = document.getElementById(`err-${soort}-${key}`);
+  const nameInput = pending.querySelector('.wish-name-input');
+  const weightInput = pending.querySelector('.wish-weight-input');
+  const name = nameInput.value.trim();
+  const weight = parseFloat(weightInput.value);
+
+  if (!name) { errEl.textContent = 'Voer een naam in.'; return; }
+  if (!STUDENT_NAMES.has(name)) { errEl.textContent = `"${name}" is geen bekende leerling.`; return; }
+
+  // Check if target student is unchecked (not going over)
+  const matchingCbs = Array.from(document.querySelectorAll('.gaat-over-checkbox')).filter(cb => {
+    const strong = cb.closest('.candidate-label')?.querySelector('.candidate-name');
+    return strong?.textContent?.trim() === name;
+  });
+  if (matchingCbs.length > 0 && matchingCbs.every(cb => !cb.checked)) {
+    errEl.textContent = `${name} gaat niet mee en kan niet als wens worden ingevoerd.`;
+    return;
+  }
+
+  // Duplicate check across both wish types for this student
+  const allTargets = new Set(
+    ['graag_met', 'liever_niet_met'].flatMap(s =>
+      Array.from((document.getElementById(`chips-${s}-${key}`) || { querySelectorAll: () => [] })
+        .querySelectorAll('input[data-name]')).map(i => i.dataset.name)
+    )
+  );
+  if (allTargets.has(name)) { errEl.textContent = `${name} is al als wens opgenomen.`; return; }
+  if (isNaN(weight) || weight <= 0) { errEl.textContent = 'Gewicht moet een positief getal zijn.'; return; }
+
+  const chipsContainer = document.getElementById(`chips-${soort}-${key}`);
+  chipsContainer.appendChild(makeWishChip(key, soort, name, weight));
+  updatePreview(key);
+
+  nameInput.value = '';
+  weightInput.value = '1';
+  errEl.textContent = '';
+  pending.style.display = 'none';
+  document.getElementById(`btn-${soort}-${key}`).style.display = '';
+}
+
+function makeWishChip(key, soort, name, weight) {
+  const chip = document.createElement('span');
+  chip.className = 'wish-chip student-chip';
+  const lbl = document.createElement('span');
+  lbl.textContent = `${name} (×${weight})`;
+  const del = document.createElement('button');
+  del.type = 'button';
+  del.className = 'delete-btn chip-del';
+  del.title = 'Verwijder wens';
+  del.textContent = '✖';
+  del.onclick = () => { chip.remove(); updatePreview(key); };
+  const hiddenName = document.createElement('input');
+  hiddenName.type = 'hidden';
+  hiddenName.name = `wens_${key}_${soort}_target`;
+  hiddenName.dataset.name = name;
+  hiddenName.value = name;
+  const hiddenWeight = document.createElement('input');
+  hiddenWeight.type = 'hidden';
+  hiddenWeight.name = `wens_${key}_${soort}_gewicht`;
+  hiddenWeight.value = weight;
+  chip.append(lbl, del, hiddenName, hiddenWeight);
+  return chip;
+}
+
+// ── Preview tekst naast naam in gesloten state ────────────────────────────────
+
+function updatePreview(key) {
+  const preview = document.getElementById(`preview-${key}`);
+  if (!preview) return;
+  const graag = document.getElementById(`chips-graag_met-${key}`)?.querySelectorAll('.wish-chip').length || 0;
+  const liever = document.getElementById(`chips-liever_niet_met-${key}`)?.querySelectorAll('.wish-chip').length || 0;
+  const parts = [];
+  if (graag > 0) parts.push(`${graag}× graag met`);
+  if (liever > 0) parts.push(`${liever}× liever niet met`);
+  preview.textContent = parts.length ? `(${parts.join(', ')})` : '';
+}
+
+// ── Niet in groep ─────────────────────────────────────────────────────────────
+
+function addNietIn(key, maxAllowed) {
+  const chipsContainer = document.getElementById(`chips-nieting-${key}`);
+  const select = document.getElementById(`nieting-select-${key}`);
+  const errEl = document.getElementById(`err-nieting-${key}`);
+  const group = select.value;
+
+  if (!group) { errEl.textContent = 'Kies een groep.'; return; }
+  const existing = Array.from(chipsContainer.querySelectorAll('input[type="hidden"]')).map(i => i.value);
+  if (existing.includes(group)) { errEl.textContent = `${group} is al gekozen.`; return; }
+  if (existing.length >= maxAllowed) {
+    errEl.textContent = `Maximaal ${maxAllowed} groepen (minstens 1 van de ${TARGET_GROUPS.length} doelgroepen moet overblijven).`;
+    return;
+  }
+  errEl.textContent = '';
+  select.value = '';
+
+  const chip = document.createElement('span');
+  chip.className = 'student-chip';
+  const lbl = document.createElement('span');
+  lbl.textContent = group;
+  const del = document.createElement('button');
+  del.type = 'button';
+  del.className = 'delete-btn chip-del';
+  del.textContent = '✖';
+  del.onclick = () => chip.remove();
+  const hidden = document.createElement('input');
+  hidden.type = 'hidden';
+  hidden.name = `nieting_${key}`;
+  hidden.value = group;
+  chip.append(lbl, del, hidden);
+  chipsContainer.appendChild(chip);
+}
+
+// ── Toggle gaat-over ──────────────────────────────────────────────────────────
+
+function toggleCandidate(key, checked) {
+  checked ? checkedKeys.add(key) : checkedKeys.delete(key);
+  const block = document.getElementById(`block-${key}`);
+  block.querySelectorAll('.candidate-content input, .candidate-content select, .candidate-content button').forEach(el => {
+    el.disabled = !checked;
+  });
+  block.classList.toggle('candidate-disabled', !checked);
+
+  // Warn if this student is already a confirmed wish target
+  if (!checked) {
+    const name = block.querySelector('.candidate-name')?.textContent?.trim();
+    if (!name) return;
+    const refs = [];
+    document.querySelectorAll('.wish-chip input[data-name]').forEach(inp => {
+      if (inp.dataset.name === name) {
+        const ownerName = inp.closest('.candidate-details')?.querySelector('.candidate-name')?.textContent?.trim();
+        if (ownerName && ownerName !== name) refs.push(ownerName);
+      }
+    });
+    if (refs.length > 0) {
+      alert(`Let op: ${name} is uitgevinkt maar staat nog als wens bij: ${refs.join(', ')}. Verwijder die wens(en) als dat gewenst is.`);
+    }
+  }
+}
+
+// ── Min. tevredenheid validatie ───────────────────────────────────────────────
+
+function validateMinSat(input, key) {
+  const errEl = document.getElementById(`err-minsat-${key}`);
+  const v = parseFloat(input.value);
+  if (input.value !== '' && (isNaN(v) || v < 0 || v > 100)) {
+    errEl.textContent = 'Voer een getal in tussen 0 en 100.';
+    input.setCustomValidity('0–100');
+  } else {
+    errEl.textContent = '';
+    input.setCustomValidity('');
+  }
+}
+
+// ── Nieuwe leerlingen ─────────────────────────────────────────────────────────
+
+function wishSectionHTML(key, soort, label) {
+  return `
+    <div class="wish-section">
+      <p class="wish-section-label">${label}</p>
+      <div class="chips-area" id="chips-${soort}-${key}"></div>
+      <div class="wish-pending-area" id="pending-${soort}-${key}" style="display:none">
+        <input type="text" list="student-list" placeholder="Naam leerling…"
+               autocomplete="off" class="wish-name-input">
+        <input type="number" min="0.01" step="0.1" value="1" class="wish-weight-input"
+               title="Gewicht: elk positief getal.">
+        <button type="button" class="button button--small"
+                onclick="confirmWish('${key}','${soort}')">✓ Bevestig</button>
+        <button type="button" class="button button--small button--cancel"
+                onclick="cancelWish('${key}','${soort}')">✖ Annuleer</button>
+        <span class="field-error" id="err-${soort}-${key}"></span>
+      </div>
+      <button type="button" class="button button--small wish-add-btn"
+              id="btn-${soort}-${key}"
+              onclick="openWishInput('${key}','${soort}')">+ Wens toevoegen</button>
+    </div>`;
+}
+
+function addNewStudentRow() {
+  const container = document.getElementById('new-student-rows');
+  const idx = newStudentCount++;
+  const key = `new_${idx}`;
+  const groepOptions = GROUPS_FROM.map(g => `<option value="${g}">${g}</option>`).join('');
+  const groupOptions = TARGET_GROUPS.length > 1
+    ? TARGET_GROUPS.map(gk => `<option value="${GROUP_DISPLAY[gk] || gk}">${GROUP_DISPLAY[gk] || gk}</option>`).join('')
+    : '';
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'new-student-block';
+  wrapper.id = `new-block-${key}`;
+  wrapper.innerHTML = `
+    <div class="new-student-row">
+      <input type="hidden" name="new_key[]" value="${key}">
+      <input type="text" name="new_voornaam[]" placeholder="Voornaam"
+             oninput="onNewNameInput('${key}', this.form)">
+      <input type="text" name="new_achternaam[]" placeholder="Achternaam"
+             oninput="onNewNameInput('${key}', this.form)">
+      <select name="new_geslacht[]">
+        <option value="">— geslacht —</option>
+        <option value="Jongen">Jongen</option>
+        <option value="Meisje">Meisje</option>
+      </select>
+      ${groepOptions ? `<select name="new_groep[]">${groepOptions}</select>` : ''}
+      <input type="checkbox" name="gaat_over" value="${key}" checked
+             class="gaat-over-checkbox" data-key="${key}"
+             onchange="toggleCandidate('${key}', this.checked)">
+      <label>Gaat mee</label>
+      <button type="button" class="delete-btn"
+              onclick="removeNewStudentRow(this, '${key}')">✖</button>
+    </div>
+    <div id="content-${key}" class="new-student-wishes">
+      ${wishSectionHTML(key, 'graag_met', 'Graag met')}
+      ${wishSectionHTML(key, 'liever_niet_met', 'Liever niet met')}
+      ${TARGET_GROUPS.length > 1 ? `
+      <div class="wish-section">
+        <p class="wish-section-label">Niet in groep</p>
+        <div class="chips-area" id="chips-nieting-${key}"></div>
+        <div class="wish-add-area">
+          <select class="nieting-select" id="nieting-select-${key}">
+            <option value="">— kies groep —</option>
+            ${groupOptions}
+          </select>
+          <button type="button" class="button button--small"
+                  onclick="addNietIn('${key}', ${TARGET_GROUPS.length - 1})">+ Toevoegen</button>
+          <span class="field-error" id="err-nieting-${key}"></span>
+        </div>
+      </div>` : ''}
+    </div>`;
+  container.appendChild(wrapper);
+  checkedKeys.add(key);  // new students are checked by default
+  // Wire up keydown on wish inputs for Enter key
+  wrapper.querySelectorAll('.wish-name-input').forEach(inp => {
+    const soort = inp.closest('.wish-pending-area')?.id?.replace(`pending-`, '')?.replace(`-${key}`, '') || '';
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); confirmWish(key, soort); }
+    });
+  });
+}
+
+function onNewNameInput(key, form) {
+  // Update STUDENT_NAMES for autocomplete/validation once both names are filled
+  const wrapper = document.getElementById(`new-block-${key}`);
+  const vn = wrapper?.querySelector('[name="new_voornaam[]"]')?.value?.trim() || '';
+  const an = wrapper?.querySelector('[name="new_achternaam[]"]')?.value?.trim() || '';
+  if (vn && an) {
+    STUDENT_NAMES.add(`${vn} ${an}`);
+    refreshDatalist();
+  }
+}
+
+function removeNewStudentRow(btn, key) {
+  const wrapper = btn.closest('.new-student-block');
+  const vn = wrapper?.querySelector('[name="new_voornaam[]"]')?.value?.trim() || '';
+  const an = wrapper?.querySelector('[name="new_achternaam[]"]')?.value?.trim() || '';
+  if (vn && an) STUDENT_NAMES.delete(`${vn} ${an}`);
+  checkedKeys.delete(key);
+  wrapper?.remove();
+  refreshDatalist();
+}
+
+function refreshDatalist() {
+  const dl = document.getElementById('student-list');
+  dl.querySelectorAll('option[data-dynamic]').forEach(o => o.remove());
+  STUDENT_NAMES.forEach(name => {
+    // Only add names not already in the static list
+    const existing = Array.from(dl.querySelectorAll('option')).some(o => o.value === name);
+    if (!existing) {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.dataset.dynamic = '1';
+      dl.appendChild(opt);
+    }
+  });
+}
+
+// ── Prefill from saved state ──────────────────────────────────────────────────
+
+if (DRAFT) {
+  DRAFT.students.forEach(s => {
+    const key = s.key;
+    (s.graag_met || []).forEach(w => {
+      const c = document.getElementById(`chips-graag_met-${key}`);
+      if (c) { c.appendChild(makeWishChip(key, 'graag_met', w.target, w.weight)); updatePreview(key); }
+    });
+    (s.liever_niet_met || []).forEach(w => {
+      const c = document.getElementById(`chips-liever_niet_met-${key}`);
+      if (c) { c.appendChild(makeWishChip(key, 'liever_niet_met', w.target, w.weight)); updatePreview(key); }
+    });
+    (s.niet_in || []).forEach(group => {
+      const cc = document.getElementById(`chips-nieting-${key}`);
+      if (!cc) return;
+      const chip = document.createElement('span');
+      chip.className = 'student-chip';
+      const lbl = document.createElement('span');
+      lbl.textContent = group;
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'delete-btn chip-del';
+      del.textContent = '✖';
+      del.onclick = () => chip.remove();
+      const hidden = document.createElement('input');
+      hidden.type = 'hidden';
+      hidden.name = `nieting_${key}`;
+      hidden.value = group;
+      chip.append(lbl, del, hidden);
+      cc.appendChild(chip);
+    });
+    if (s.going_over === false) {
+      const cb = document.querySelector(`input.gaat-over-checkbox[value="${key}"]`);
+      if (cb) { cb.checked = false; toggleCandidate(key, false); }
+    }
+  });
+}
+
+// Apply initial disabled state for blocks with data-disabled attribute
+document.querySelectorAll('.candidate-details[data-disabled]').forEach(block => {
+  const key = block.id.replace('block-', '');
+  toggleCandidate(key, false);
+});
 </script>
 {% endblock %}

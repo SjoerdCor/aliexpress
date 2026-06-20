@@ -99,6 +99,15 @@ input[type="submit"] {
   padding: 0.3rem 0.8rem;
   border-radius: 0.2rem;
 }
+
+.button--cancel {
+  background-color: #e0e0e0;
+  color: #333;
+}
+
+.button--cancel:hover {
+  background-color: #c8c8c8;
+}
 .button:hover {
 	background-color: #cc8000;
 }
@@ -788,4 +797,245 @@ table.dataframe th {
 
 .admin-table tr:hover td {
     background: #fafafa;
+}
+
+/* Preferences form — details/summary structuur */
+.group-details {
+    margin-bottom: 0.8rem;
+}
+
+.group-summary {
+    cursor: pointer;
+    font-size: 0.85em;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #666;
+    padding: 0.4rem 0.5rem;
+    background: #f0f0f0;
+    border-radius: 5px;
+    user-select: none;
+    list-style: none;
+}
+
+.group-summary::-webkit-details-marker { display: none; }
+.group-summary::before { content: "▶ "; font-size: 0.8em; }
+.group-details[open] > .group-summary::before { content: "▼ "; }
+
+.new-student-details {
+    border: 1px dashed #ccc;
+    border-radius: 8px;
+    padding: 0.2rem 0.6rem 0.6rem;
+    margin-bottom: 1.2rem;
+}
+
+.new-student-details > .group-summary {
+    background: none;
+    color: #555;
+}
+
+.candidate-details {
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    margin: 0.3rem 0 0.3rem 0.5rem;
+    background: #fafafa;
+    transition: border-color 0.15s;
+}
+
+.candidate-details:not(.candidate-disabled):hover {
+    border-color: #b8b8b8;
+}
+
+.candidate-details.candidate-disabled {
+    opacity: 0.4;
+}
+
+.candidate-summary {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.45rem 0.7rem;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+}
+
+.candidate-summary::-webkit-details-marker { display: none; }
+
+.candidate-label {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-weight: bold;
+    cursor: pointer;
+    flex: 1;
+}
+
+.candidate-name {
+    font-weight: bold;
+}
+
+.candidate-wish-preview {
+    font-size: 0.8em;
+    color: #888;
+    font-style: italic;
+}
+
+.candidate-content {
+    padding: 0.5rem 0.8rem 0.6rem;
+    border-top: 1px solid #eee;
+}
+
+.min-sat-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.6rem;
+}
+
+.min-sat-label {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.85em;
+    color: #666;
+    white-space: nowrap;
+}
+
+.min-sat-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.15rem;
+}
+
+.min-sat-input {
+    width: 4rem;
+    text-align: right;
+}
+
+.min-sat-pct {
+    font-size: 0.9em;
+    color: #555;
+}
+
+.field-error {
+    color: #c00;
+    font-size: 0.82em;
+    font-weight: bold;
+}
+
+.wish-section {
+    margin-bottom: 0.55rem;
+}
+
+.wish-section-label {
+    font-size: 0.8em;
+    font-weight: bold;
+    color: #666;
+    margin: 0.25rem 0 0.2rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.wish-pending-area {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    margin: 0.2rem 0 0.25rem;
+    padding: 0.35rem 0.55rem;
+    background: #edf4ff;
+    border: 1px solid #b8d4f5;
+    border-radius: 6px;
+}
+
+.wish-add-area {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    margin-top: 0.2rem;
+}
+
+.wish-name-input {
+    flex: 1 1 150px;
+    min-width: 100px;
+}
+
+.wish-weight-input {
+    width: 4rem;
+    text-align: right;
+}
+
+.wish-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin: 0.1rem 0.2rem 0.1rem 0;
+    padding: 0.2rem 0.5rem;
+    background: #3a7bd5;
+    color: #fff;
+    border: none;
+    border-radius: 20px;
+    font-size: 0.88em;
+}
+
+.wish-chip .chip-del {
+    color: #dde;
+    background: none;
+    border: none;
+    padding: 0 0 0 0.1rem;
+    cursor: pointer;
+    font-size: 0.85em;
+}
+
+.wish-chip .chip-del:hover {
+    color: #fff;
+}
+
+/* Niet-in chips use the default .student-chip style (orange) */
+.chips-area { min-height: 1.2em; }
+
+.nieting-select {
+    min-width: 140px;
+}
+
+.new-student-block {
+    background: #f7f9ff;
+    border: 1px solid #d0d8f0;
+    border-radius: 6px;
+    padding: 0.5rem 0.7rem;
+    margin-bottom: 0.5rem;
+}
+
+.new-student-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.4rem;
+}
+
+.new-student-wishes {
+    padding-left: 0.5rem;
+    border-left: 2px solid #c0ccee;
+    margin-top: 0.4rem;
+}
+
+.button--secondary {
+    background-color: #7a9cdf;
+}
+
+.button--secondary:hover {
+    background-color: #5a7bbf;
+}
+
+/* Legacy placeholder — no longer used but kept for smooth diff */
+.new-student-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.4rem;
 }

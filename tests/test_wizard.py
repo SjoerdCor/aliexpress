@@ -915,12 +915,13 @@ class TestPreferencesForm:
         assert pos_alfa < pos_zes, "Alpha moet vóór Zulu staan"
 
     def test_post_with_new_student_appears_in_voorkeuren(self, client, tmp_path):
-        """POST /preferences_form with a new student includes them in voorkeuren.json."""
+        """POST /preferences_form with a new student (incl. new_key[]) includes them."""
         proc_dir = self._setup(client, tmp_path)
         client.post(
             "/preferences_form",
             data={
-                "gaat_over": ["s1", "s2"],
+                "gaat_over": ["s1", "s2", "new_0"],
+                "new_key[]": "new_0",
                 "new_voornaam[]": "Emma",
                 "new_achternaam[]": "Jansen",
                 "new_geslacht[]": "Meisje",
@@ -931,18 +932,18 @@ class TestPreferencesForm:
         assert "Emma Jansen" in display_names
 
     def test_post_min_satisfaction_stored_in_students_info(self, client, tmp_path):
-        """POST /preferences_form with min_satisfaction is stored in students_info."""
+        """POST /preferences_form with min_satisfaction percentage is stored as 0-1 decimal."""
         proc_dir = self._setup(client, tmp_path)
         client.post(
             "/preferences_form",
-            data={"gaat_over": ["s1", "s2"], "min_sat_s1": "0.5"},
+            data={"gaat_over": ["s1", "s2"], "min_sat_s1": "50"},
         )
         payload = json.loads((proc_dir / "voorkeuren.json").read_text("utf-8"))
         info = payload["students_info"]
         anna_key = next(
             k for k, v in payload["student_display"].items() if v == "Anna Bos"
         )
-        assert info[anna_key]["MinimaleTevredenheid"] == 0.5
+        assert abs(info[anna_key]["MinimaleTevredenheid"] - 0.5) < 0.001
 
     def test_get_after_post_prefills_wishes_from_state(self, client, tmp_path):
         """GET /preferences_form after a POST prefills the previously saved wish."""
