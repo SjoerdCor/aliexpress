@@ -248,7 +248,7 @@ def _parse_student_entry(candidate: dict, form) -> StudentEntry:
 
     raw_min_sat = form.get(f"min_sat_{key}", "").strip()
     try:
-        min_satisfaction = float(raw_min_sat) if raw_min_sat else None
+        min_satisfaction = float(raw_min_sat) / 100.0 if raw_min_sat else None
     except ValueError:
         min_satisfaction = None
 
@@ -265,82 +265,90 @@ def _parse_student_entry(candidate: dict, form) -> StudentEntry:
 def _build_form_state(entries: list[StudentEntry], all_candidates: list[dict]) -> dict:
     """Serialize submitted form state to a dict for prefill on next GET.
 
-    Stores every student (going-over or not) with their wishes so the form can
-    be fully reconstructed when the user navigates back to this page.
+    Stores ALL candidates (going-over and not) so the form can be fully
+    reconstructed on reload.  Candidates absent from ``entries`` (i.e., unchecked)
+    are included with ``going_over: false`` and empty wish lists.
     """
-    going_keys = {e.student for e in entries}
-    candidate_by_name = {
-        f"{c['roepnaam']} {c['achternaam']}": c for c in all_candidates
-    }
+    entry_by_name = {e.student: e for e in entries}
+    going_names = set(entry_by_name)
     state_students = []
-    for entry in entries:
-        c = candidate_by_name.get(entry.student, {})
+    for c in all_candidates:
+        name = f"{c['roepnaam']} {c['achternaam']}"
+        entry = entry_by_name.get(name)
         state_students.append(
             {
-                "key": c.get("key", entry.student),
-                "roepnaam": c.get("roepnaam", entry.student.split()[0]),
-                "achternaam": c.get("achternaam", " ".join(entry.student.split()[1:])),
-                "groepsnaam": entry.origin_group,
-                "geslacht": entry.sex,
-                "going_over": entry.student in going_keys,
-                "min_satisfaction": entry.min_satisfaction,
+                "key": c["key"],
+                "roepnaam": c["roepnaam"],
+                "achternaam": c["achternaam"],
+                "groepsnaam": c.get("groepsnaam", ""),
+                "geslacht": c.get("geslacht", ""),
+                "going_over": name in going_names,
+                "min_satisfaction": entry.min_satisfaction if entry else None,
                 "graag_met": [
                     {"target": p.target, "weight": p.weight}
-                    for p in entry.preferences
+                    for p in (entry.preferences if entry else [])
                     if p.kind == PreferenceKind.TOGETHER
                 ],
                 "liever_niet_met": [
                     {"target": p.target, "weight": p.weight}
-                    for p in entry.preferences
+                    for p in (entry.preferences if entry else [])
                     if p.kind == PreferenceKind.APART
                 ],
-                "niet_in": entry.excluded_groups,
+                "niet_in": entry.excluded_groups if entry else [],
             }
         )
     return {"students": state_students}
 
 
-def _parse_new_students(form, groups_from: list) -> list[StudentEntry]:
-    """Parse newly added students from the web form.
-
-    Fields are ``new_voornaam[]``, ``new_achternaam[]``, ``new_geslacht[]``,
-    and optionally ``new_groep[]``.  Rows missing name or gender are silently skipped.
-    """
-    new_names = form.getlist("new_voornaam[]")
-    new_lastnames = form.getlist("new_achternaam[]")
-    new_genders = form.getlist("new_geslacht[]")
-    new_groups = form.getlist("new_groep[]")
-    fallback_group = groups_from[0] if groups_from else ""
-    entries = []
-    for vnaam, anaam, geslacht, groep in zip_longest(
-        new_names, new_lastnames, new_genders, new_groups, fillvalue=""
-    ):
-        vnaam, anaam = vnaam.strip(), anaam.strip()
-        if vnaam and anaam and geslacht:
-            entries.append(
-                StudentEntry(
-                    student=f"{vnaam} {anaam}",
-                    sex=geslacht,
-                    origin_group=groep or fallback_group,
-                    min_satisfaction=None,
-                )
-            )
-    return entries
-
-
 def _pref_form_post_data(form, orig_candidates, groups_from, all_groups_to, state_path):
-    """Parse form, save intermediate state, return the resulting PreferenceData."""
+    """Parse form, save intermediate state, return the resulting PreferenceData.
+
+    New students submitted via ``new_key[]`` / ``new_voornaam[]`` / ... are parsed
+    as full candidates (including their wishes) so they appear in the next draft.
+    """
     checked_keys = set(form.getlist("gaat_over"))
     entries = [
         _parse_student_entry(c, form)
         for c in orig_candidates
         if c["key"] in checked_keys
     ]
-    entries.extend(_parse_new_students(form, groups_from))
-    state = _build_form_state(entries, orig_candidates)
+    # New students: client assigns keys new_0, new_1, ... so wishes are linkable
+    new_candidates = _build_new_candidates(form, groups_from)
+    entries.extend(_parse_student_entry(c, form) for c in new_candidates)
+    state = _build_form_state(entries, orig_candidates + new_candidates)
     with open(state_path, "w", encoding="utf-8") as fh:
         json.dump(state, fh, ensure_ascii=False)
     return build_preference_data(entries, all_groups_to)
+
+
+def _build_new_candidates(form, groups_from: list) -> list[dict]:
+    """Build candidate dicts for students added via the web form.
+
+    Expects parallel lists: ``new_key[]``, ``new_voornaam[]``, ``new_achternaam[]``,
+    ``new_geslacht[]``, and optionally ``new_groep[]``.
+    """
+    keys = form.getlist("new_key[]")
+    voornamen = form.getlist("new_voornaam[]")
+    achternamen = form.getlist("new_achternaam[]")
+    geslachten = form.getlist("new_geslacht[]")
+    groepen = form.getlist("new_groep[]")
+    fallback = groups_from[0] if groups_from else ""
+    candidates = []
+    for key, vn, an, geslacht, groep in zip_longest(
+        keys, voornamen, achternamen, geslachten, groepen, fillvalue=""
+    ):
+        vn, an = vn.strip(), an.strip()
+        if vn and an and geslacht and key:
+            candidates.append(
+                {
+                    "key": key,
+                    "roepnaam": vn,
+                    "achternaam": an,
+                    "geslacht": geslacht,
+                    "groepsnaam": groep or fallback,
+                }
+            )
+    return candidates
 
 
 def _load_pref_form_state(state_path):
@@ -727,6 +735,10 @@ def preferences_form():
             preference_data,
             source="form",
         )
+        action = request.form.get("action", "volgende")
+        if action == "opslaan":
+            flash("Wensen tussentijds opgeslagen.", "success")
+            return redirect(url_for("wizard.preferences_form"))
         return redirect(url_for("wizard.not_together_page"))
 
     # GET — load saved state for prefill, or fall back to initial candidates sorted by group
