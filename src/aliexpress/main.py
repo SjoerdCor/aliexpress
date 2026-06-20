@@ -9,6 +9,7 @@ import pandas as pd
 import pandera as pa
 
 from . import datareader, errors, problemsolver, solutions
+from .preferences_data import PreferenceData
 from .problemsolver import GroupBalance
 
 FILE_PREFERENCES = "voorkeuren.xlsx"
@@ -41,10 +42,12 @@ def _read_groups(path):
 
 
 def _read_preferences(path, groups_to):
+    """Read and validate the preferences xlsx into a :class:`PreferenceData`."""
+
     def _inner():
         processor = datareader.VoorkeurenProcessor(path)
-        preferences = processor.process(all_to_groups=list(groups_to.keys()))
-        return processor, preferences
+        processor.process(all_to_groups=list(groups_to.keys()))
+        return processor.to_preference_data()
 
     return _safe_read(
         _inner,
@@ -126,19 +129,19 @@ def _check_feasibility(ps):
     )
 
 
-def _export(ps, preferences, processor, students_info, group_display):
+def _export(ps, preference_data, group_display):
     """Build the download workbook and result tables from the already-solved problem."""
     display_names = solutions.DisplayNames(
-        student=processor.student_display,
+        student=preference_data.student_display,
         group=group_display,
-        stamgroep=processor.stamgroep_display,
+        stamgroep=preference_data.stamgroep_display,
     )
     # The solver works on matching keys; translate to names as entered before reporting.
     result, preferences, input_sheet, students_info = solutions.to_display_names(
         ps.extract_solution(),
-        preferences,
-        processor.input,
-        students_info,
+        preference_data.preferences,
+        preference_data.input_sheet,
+        preference_data.students_info,
         display_names,
     )
     sa = solutions.SolutionAnalyzer(result, preferences, input_sheet, students_info)
@@ -158,12 +161,14 @@ def _export(ps, preferences, processor, students_info, group_display):
     return output, dfs
 
 
+# pylint: disable-next=too-many-arguments,too-many-positional-arguments  # public orchestrator entry point; each parameter is a distinct, independent input passed by name
 def distribute_students_once(
     path_preferences=FILE_PREFERENCES,
     path_groups_to=FILE_GROUPS_TO,
     not_together: list[dict] | None = None,
     on_update=lambda msg: None,
     groupbalance: GroupBalance | None = None,
+    preference_data: PreferenceData | None = None,
 ):
     """Distribute all students with preferences over all groups with lexmaxmin.
 
@@ -181,11 +186,17 @@ def distribute_students_once(
             still lets every student fulfil a positive wish (see
             :meth:`ProblemSolver.solve_within_minimal_relaxation`). Pass a GroupBalance to
             override this with fixed manual limits instead.
+        preference_data : PreferenceData | None
+            Pre-built preferences (e.g. reconstructed from ``voorkeuren.json``). When
+            given, the preferences xlsx at ``path_preferences`` is not read and this object
+            is fed straight through the pipeline. When None (the default), the xlsx is read.
     """
     groups_to, group_display = _read_groups(path_groups_to)
-    processor, preferences = _read_preferences(path_preferences, groups_to)
+    if preference_data is None:
+        preference_data = _read_preferences(path_preferences, groups_to)
 
-    students_info = processor.get_students_meta_info()
+    preferences = preference_data.preferences
+    students_info = preference_data.students_info
     if not_together is None:
         not_together = []
     datareader.validate_not_together(not_together, students_info.keys(), len(groups_to))
@@ -197,7 +208,9 @@ def distribute_students_once(
     on_update("Alle bestanden zijn gevalideerd!")
     logger.info("All files read")
 
-    _log_initial_state(groups_to, students_info, on_update, processor.stamgroep_display)
+    _log_initial_state(
+        groups_to, students_info, on_update, preference_data.stamgroep_display
+    )
 
     ps = problemsolver.ProblemSolver(
         preferences,
@@ -217,7 +230,7 @@ def distribute_students_once(
         logger.info("Finding first solution... lexmaxmin")
         ps.run()
 
-    output, dfs = _export(ps, preferences, processor, students_info, group_display)
+    output, dfs = _export(ps, preference_data, group_display)
     logger.info("Done!")
     on_update("Klaar!")
     return {"download": output, "dataframes": dfs}

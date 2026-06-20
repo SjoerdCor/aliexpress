@@ -12,8 +12,9 @@ import re
 import pandas as pd
 import pytest
 
-from aliexpress import errors
+from aliexpress import datareader, errors
 from aliexpress.main import distribute_students_once
+from aliexpress.preferences_data import PreferenceData
 from aliexpress.problemsolver import GroupBalance
 
 _NOT_TOGETHER_SMALL = [
@@ -312,6 +313,46 @@ def test_distribute_students_once_happy_flow_full():
     assert jaar["VerschilJongensMeisjes"].max() <= 3
     assert totaal["Groepsgrootte"].max() - totaal["Groepsgrootte"].min() <= 2
     assert jaar["Groepsgrootte"].max() - jaar["Groepsgrootte"].min() <= 1
+
+
+def _dataframe(table):
+    """Return the underlying DataFrame for a result table (Styler or plain frame)."""
+    return table.data if isinstance(table, pd.io.formats.style.Styler) else table
+
+
+def test_distribute_students_from_json_matches_xlsx():
+    """A run driven from a JSON-serialised PreferenceData equals the plain xlsx run.
+
+    Reads the synthetic small example, builds a PreferenceData, serialises it to JSON and
+    back, and asserts the resulting tables are identical to a normal distribute-from-xlsx
+    run. This proves the JSON source path is lossless end to end (never real student data).
+    """
+    common = {
+        "path_groups_to": "tests/integration/groepen_small.xlsx",
+        "not_together": _NOT_TOGETHER_SMALL,
+        "on_update": lambda msg: None,
+        "groupbalance": GroupBalance(max_imbalance_boys_girls_total=7),
+    }
+
+    from_xlsx = distribute_students_once(
+        path_preferences="tests/integration/voorkeuren_small.xlsx", **common
+    )
+
+    groups_to, _ = datareader.read_groups_excel(common["path_groups_to"])
+    processor = datareader.VoorkeurenProcessor(
+        "tests/integration/voorkeuren_small.xlsx"
+    )
+    processor.process(all_to_groups=list(groups_to.keys()))
+    restored = PreferenceData.from_json(processor.to_preference_data().to_json())
+
+    from_json = distribute_students_once(preference_data=restored, **common)
+
+    assert from_xlsx["dataframes"].keys() == from_json["dataframes"].keys()
+    for key in from_xlsx["dataframes"]:
+        pd.testing.assert_frame_equal(
+            _dataframe(from_xlsx["dataframes"][key]),
+            _dataframe(from_json["dataframes"][key]),
+        )
 
 
 def test_distribute_students_once_happy_flow_infeasible():

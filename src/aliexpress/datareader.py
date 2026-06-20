@@ -422,6 +422,7 @@ class VoorkeurenProcessor:
             students_info=self.get_students_meta_info(),
             student_display=self.student_display,
             stamgroep_display=self.stamgroep_display,
+            input_sheet=self.input,
         )
 
 
