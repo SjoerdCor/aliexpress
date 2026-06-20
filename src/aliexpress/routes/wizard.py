@@ -204,14 +204,14 @@ def _create_sociogram_thread(ctx: _ThreadContext):
             logger.exception("Could not create sociogram")
 
 
-def _parse_wish_list(form, key, soort_field_value) -> list[Preference]:
-    """Parse all confirmed wishes of one kind for a student from the submitted form."""
+def _parse_preference_list(form, key, soort_field_value) -> list[Preference]:
+    """Parse all preferences of one kind for a student from the submitted form."""
     kind = (
         PreferenceKind.APART
         if soort_field_value == "liever_niet_met"
         else PreferenceKind.TOGETHER
     )
-    prefix = f"wens_{key}_{soort_field_value}"
+    prefix = f"preference_{key}_{soort_field_value}"
     targets = form.getlist(f"{prefix}_target")
     weights = form.getlist(f"{prefix}_gewicht")
     result = []
@@ -232,17 +232,17 @@ def _parse_wish_list(form, key, soort_field_value) -> list[Preference]:
 def _parse_student_entry(candidate: dict, form) -> StudentEntry:
     """Build a StudentEntry from one candidate dict and the submitted form data.
 
-    Graag-met wishes use fields ``wens_{key}_graag_met_target[]`` / ``_gewicht[]``.
-    Liever-niet-met wishes use ``wens_{key}_liever_niet_met_target[]`` / ``_gewicht[]``.
+    Graag-met preferences use ``preference_{key}_graag_met_target[]`` / ``_gewicht[]``.
+    Liever-niet-met use ``preference_{key}_liever_niet_met_target[]`` / ``_gewicht[]``.
     Group exclusions use ``nieting_{key}[]``.
     Min. satisfaction uses ``min_sat_{key}``.
     """
     key = candidate["key"]
     name = f"{candidate['roepnaam']} {candidate['achternaam']}"
 
-    preferences = _parse_wish_list(form, key, "graag_met") + _parse_wish_list(
-        form, key, "liever_niet_met"
-    )
+    preferences = _parse_preference_list(
+        form, key, "graag_met"
+    ) + _parse_preference_list(form, key, "liever_niet_met")
 
     excluded = [g.strip() for g in form.getlist(f"nieting_{key}") if g.strip()]
 

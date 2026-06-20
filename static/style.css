@@ -1039,3 +1039,58 @@ table.dataframe th {
     flex-wrap: wrap;
     margin-bottom: 0.4rem;
 }
+
+/* ── Preference combobox (preferences_form) ─────────────────────────────────
+   A constrained typeahead: only listed classmates or destination groups can be
+   chosen, so free-text "unknown student" input is impossible. */
+.preference-section {
+    margin: 0.4rem 0;
+}
+
+.preference-section-label {
+    margin: 0.2rem 0;
+    font-weight: 600;
+}
+
+.combobox {
+    position: relative;
+    display: inline-block;
+    min-width: 16rem;
+    max-width: 100%;
+}
+
+.combobox-input {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.combobox-list {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    z-index: 20;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    max-height: 12rem;
+    overflow-y: auto;
+    background: #fff;
+    border: 1px solid #bbb;
+    border-radius: 0 0 4px 4px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+}
+
+.combobox-list[hidden] {
+    display: none;
+}
+
+.combobox-option {
+    padding: 0.35rem 0.6rem;
+    cursor: pointer;
+}
+
+.combobox-option:hover,
+.combobox-option.active {
+    background: #e8f0fe;
+}

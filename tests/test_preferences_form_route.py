@@ -89,8 +89,8 @@ class TestPreferencesForm:
             "/preferences_form",
             data={
                 "gaat_over": ["s1", "s2"],
-                "wens_s1_graag_met_target": ["Bram Dijk"],
-                "wens_s1_graag_met_gewicht": ["1"],
+                "preference_s1_graag_met_target": ["Bram Dijk"],
+                "preference_s1_graag_met_gewicht": ["1"],
             },
         )
         payload = json.loads((proc_dir / "voorkeuren.json").read_text("utf-8"))
@@ -212,8 +212,8 @@ class TestPreferencesForm:
             "/preferences_form",
             data={
                 "gaat_over": ["s1", "s2"],
-                "wens_s1_graag_met_target": ["Spook Persoon"],
-                "wens_s1_graag_met_gewicht": ["1"],
+                "preference_s1_graag_met_target": ["Spook Persoon"],
+                "preference_s1_graag_met_gewicht": ["1"],
             },
         )
         assert response.status_code == 302
@@ -233,8 +233,8 @@ class TestPreferencesForm:
             "/preferences_form",
             data={
                 "gaat_over": ["s1", "s2"],
-                "wens_s1_graag_met_target": ["Bram Dijk"],
-                "wens_s1_graag_met_gewicht": ["2"],
+                "preference_s1_graag_met_target": ["Bram Dijk"],
+                "preference_s1_graag_met_gewicht": ["2"],
             },
         )
         assert (proc_dir / "preferences_form_state.json").exists()
