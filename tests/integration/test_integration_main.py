@@ -13,8 +13,15 @@ import pandas as pd
 import pytest
 
 from aliexpress import datareader, errors
+from aliexpress.datareader import GroupCounts
 from aliexpress.main import distribute_students_from_data, distribute_students_once
 from aliexpress.preferences_data import PreferenceData
+from aliexpress.preferences_form import (
+    Preference,
+    PreferenceKind,
+    StudentEntry,
+    build_preference_data,
+)
 from aliexpress.problemsolver import GroupBalance
 
 _NOT_TOGETHER_SMALL = [
@@ -359,6 +366,53 @@ def test_distribute_students_from_json_matches_xlsx():
             _dataframe(from_xlsx["dataframes"][key]),
             _dataframe(from_json["dataframes"][key]),
         )
+
+
+def test_solver_stacks_duplicate_group_preferences():
+    """The solver accepts duplicate group preferences and stacks them (ADR 0004).
+
+    John names group 'Blauw' twice (a strong and a mild pull); Jane names it once. Both are
+    placed in Blauw and fully satisfied, but John's wish total exceeds Jane's — proving the
+    two group preferences are kept distinct and added, not collapsed into one.
+    """
+
+    def together(target, weight):
+        return Preference(target=target, weight=weight, kind=PreferenceKind.TOGETHER)
+
+    students = [
+        StudentEntry(
+            "John",
+            "Jongen",
+            "A",
+            None,
+            [together("Blauw", 2.0), together("Blauw", 0.5)],
+        ),
+        StudentEntry("Jane", "Meisje", "B", None, [together("Blauw", 2.0)]),
+        StudentEntry("Tom", "Jongen", "C", None, []),
+        StudentEntry("Sara", "Meisje", "D", None, []),
+    ]
+    target_groups = GroupCounts(
+        counts={
+            "blauw": {"Jongens": 0, "Meisjes": 0},
+            "rood": {"Jongens": 0, "Meisjes": 0},
+        },
+        display={"blauw": "Blauw", "rood": "Rood"},
+    )
+    preference_data = build_preference_data(students, all_to_groups=["blauw", "rood"])
+
+    result = distribute_students_from_data(
+        preference_data, target_groups, on_update=lambda msg: None
+    )
+
+    dfs = _tables(result)  # solver ran and produced the full, downloadable report
+    tevr = dfs["Leerlingtevredenheid"].data
+    assert tevr.loc["John", "Tevredenheid"] == 1.0
+    assert (
+        tevr.loc["John", "Aantal gehonoreerde wensen"]
+        == tevr.loc["John", "Aantal wensen"]
+    )
+    # Stacking: John (two group preferences) outweighs Jane (one) — not collapsed.
+    assert tevr.loc["John", "Aantal wensen"] > tevr.loc["Jane", "Aantal wensen"]
 
 
 def test_distribute_students_once_happy_flow_infeasible():

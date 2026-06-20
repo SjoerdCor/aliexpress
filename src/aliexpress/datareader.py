@@ -100,7 +100,8 @@ def validate_long_preferences(
     the checks stay in one place:
 
     - ``Gewicht`` must be > 0 (negation into "Liever niet met" happens afterwards);
-    - every ``Waarde`` is unique within a Leerling (no duplicate target);
+    - every *student* ``Waarde`` is unique within a Leerling (no duplicate classmate);
+      group targets may repeat and appear in both directions (they stack/counteract, ADR 0004);
     - a ``Niet in`` target must be a known group; a ``Graag met``/``Liever niet met``
       target must be a known group *or* a known student.
 
@@ -125,7 +126,16 @@ def validate_long_preferences(
     """
 
     def waarde_unique_within_leerling(frame: pd.DataFrame) -> bool:
-        return frame.groupby("Leerling")["Waarde"].apply(lambda s: s.is_unique).all()
+        # Uniqueness applies to classmate targets, not to group preferences. Naming the
+        # same classmate twice is redundant or contradictory, but a "Graag met"/"Liever
+        # niet met" *group* target may repeat and appear in both directions: two friends
+        # already in a group stack the pull, a positive and a negative preference for the
+        # same group counteract. "Niet in" group exclusions stay unique. See ADR 0004.
+        is_group_preference = frame.index.get_level_values("TypeWens").isin(
+            ["Graag met", "Liever niet met"]
+        ) & frame["Waarde"].isin(all_to_groups)
+        checked = frame[~is_group_preference]
+        return checked.groupby("Leerling")["Waarde"].apply(lambda s: s.is_unique).all()
 
     def waarde_matches_typewens(frame: pd.DataFrame) -> pd.Series:
         mask_nietin = frame.index.get_level_values("TypeWens") == "Niet in"

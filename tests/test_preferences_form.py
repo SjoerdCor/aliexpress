@@ -124,6 +124,48 @@ def test_duplicate_target_within_one_student_is_rejected():
     assert exc.value.check.name == "duplicated_values_preferences"
 
 
+def test_duplicate_group_target_is_allowed():
+    """The same group twice for one student is allowed: group preferences stack (ADR 0004)."""
+    students = [
+        _student(
+            student="John",
+            preferences=[_together("Blauw", 2.0), _together("Blauw", 0.5)],
+        ),
+    ]
+    data = build_preference_data(students, all_to_groups=["rood", "blauw"])
+    rows = data.preferences.xs(("john", "Graag met"), level=["Leerling", "TypeWens"])
+    assert rows.shape[0] == 2
+    assert sorted(rows["Gewicht"].tolist()) == [0.5, 2.0]
+
+
+def test_group_target_in_both_directions_is_allowed():
+    """A group may be both 'graag met' and 'liever niet met' — they stack/counteract."""
+    students = [
+        _student(
+            student="John",
+            preferences=[_together("Blauw", 2.0), _apart("Blauw", 1.0)],
+        ),
+    ]
+    data = build_preference_data(students, all_to_groups=["rood", "blauw"])
+    # Post-negation both collapse into "Graag met": +2 and -1.
+    weights = sorted(data.preferences.xs("john", level="Leerling")["Gewicht"].tolist())
+    assert weights == [-1.0, 2.0]
+
+
+def test_same_student_in_both_lists_is_rejected():
+    """The same student as both 'graag met' and 'liever niet met' is contradictory."""
+    students = [
+        _student(
+            student="John",
+            preferences=[_together("Jane", 1.0), _apart("Jane", 1.0)],
+        ),
+        _student(student="Jane", sex="Meisje", origin_group="Blauw"),
+    ]
+    with pytest.raises(pa.errors.SchemaError) as exc:
+        build_preference_data(students, all_to_groups=["rood", "blauw"])
+    assert exc.value.check.name == "duplicated_values_preferences"
+
+
 def test_unknown_target_is_rejected():
     """A target that is neither a known student nor a known group is rejected."""
     # 'graag met' a non-existent name.
