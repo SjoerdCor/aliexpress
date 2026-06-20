@@ -1,6 +1,7 @@
 """Processes blueprint: list, create, delete, and select distribution processes."""
 
 import functools
+import json
 import logging
 import os
 import re
@@ -121,6 +122,17 @@ def delete(process_name):
     return redirect(url_for("processes.index"))
 
 
+def _preferences_url(path):
+    """Return the preferences URL based on the saved input method, defaulting to Excel."""
+    method_path = os.path.join(path, "input_method.json")
+    if os.path.exists(method_path):
+        with open(method_path, encoding="utf-8") as fh:
+            method = json.load(fh).get("method", "excel")
+        if method == "form":
+            return url_for("wizard.preferences_form")
+    return url_for("wizard.preferences_excel")
+
+
 def _resume_url(proc, path):
     """Return the URL where an existing process should resume.
 
@@ -136,7 +148,7 @@ def _resume_url(proc, path):
     ):
         return url_for("wizard.not_together_page")
     if os.path.exists(os.path.join(path, "groups.xlsx")):
-        return url_for("wizard.preferences_excel")
+        return _preferences_url(path)
     if os.path.exists(os.path.join(path, "relevant_students_and_groups.json")):
         return url_for("wizard.groups_to_page")
     return url_for("wizard.upload_edexml")
