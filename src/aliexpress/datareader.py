@@ -4,7 +4,7 @@ import re
 import warnings
 import xml.etree.ElementTree as ET
 from io import BytesIO
-from typing import Iterable
+from typing import Iterable, NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -474,15 +474,35 @@ def validate_not_together(
     return rules
 
 
-def read_groups_excel(path_groups_to) -> tuple[dict, dict]:
+class GroupCounts(NamedTuple):
+    """Per destination group: its current boy/girl counts plus its display name.
+
+    Both dicts are keyed by the group's ``matching_key`` (what the solver works with):
+
+    - ``counts`` maps each group to its *current* boy/girl occupancy,
+      ``{"Jongens": int, "Meisjes": int}`` — the students already in the group that the
+      distribution then builds on (this is the ``groups_to`` the solver consumes).
+    - ``display`` maps each key back to the group name as entered, for user-facing
+      reporting.
+
+    Being a ``NamedTuple`` it stays tuple-compatible, so
+    ``groups_to, group_display = read_groups_excel(...)`` keeps working for callers that
+    only need the two dicts.
+    """
+
+    counts: dict
+    display: dict
+
+
+def read_groups_excel(path_groups_to) -> GroupCounts:
     """Read the target groups from excel.
 
     Returns
     -------
-    tuple[dict, dict]
-        ``(groups_to, group_display)``. ``groups_to`` is keyed by ``matching_key`` (so it
-        matches the keyed wish targets); ``group_display`` maps each key back to the group
-        name as entered, for the report layer.
+    GroupCounts
+        ``GroupCounts(counts, display)``. ``counts`` maps each group's ``matching_key`` to
+        its current ``{"Jongens", "Meisjes"}`` occupancy; ``display`` maps each key back to
+        the group name as entered, for the report layer.
     """
     df = pd.read_excel(path_groups_to)
     schema = pa.DataFrameSchema(
@@ -507,7 +527,7 @@ def read_groups_excel(path_groups_to) -> tuple[dict, dict]:
         .set_index("Groepen")
         .to_dict(orient="index")
     )
-    return groups_to, group_display
+    return GroupCounts(counts=groups_to, display=group_display)
 
 
 class EdexReader:  # pylint: disable=too-few-public-methods  # data exposed via attributes set in __init__

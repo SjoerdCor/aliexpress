@@ -13,7 +13,7 @@ import pandas as pd
 import pytest
 
 from aliexpress import datareader, errors
-from aliexpress.main import distribute_students_once
+from aliexpress.main import distribute_students_from_data, distribute_students_once
 from aliexpress.preferences_data import PreferenceData
 from aliexpress.problemsolver import GroupBalance
 
@@ -338,14 +338,20 @@ def test_distribute_students_from_json_matches_xlsx():
         path_preferences="tests/integration/voorkeuren_small.xlsx", **common
     )
 
-    groups_to, _ = datareader.read_groups_excel(common["path_groups_to"])
+    target_groups = datareader.read_groups_excel(common["path_groups_to"])
     processor = datareader.VoorkeurenProcessor(
         "tests/integration/voorkeuren_small.xlsx"
     )
-    processor.process(all_to_groups=list(groups_to.keys()))
+    processor.process(all_to_groups=list(target_groups.counts.keys()))
     restored = PreferenceData.from_json(processor.to_preference_data().to_json())
 
-    from_json = distribute_students_once(preference_data=restored, **common)
+    from_json = distribute_students_from_data(
+        restored,
+        target_groups,
+        not_together=common["not_together"],
+        on_update=common["on_update"],
+        groupbalance=common["groupbalance"],
+    )
 
     assert from_xlsx["dataframes"].keys() == from_json["dataframes"].keys()
     for key in from_xlsx["dataframes"]:
