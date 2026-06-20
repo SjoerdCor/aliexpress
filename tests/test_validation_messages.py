@@ -65,6 +65,32 @@ class TestErrorMessages:
         msg = readableerror_to_validation_message(exc)
         assert "Jan Jansen" in msg
 
+    def test_too_many_niet_in_form_names_student_and_cap(self):
+        """'too_many_niet_in_form' mentions the student and the maximum exclusions."""
+        exc = ValidationError(
+            "too_many_niet_in_form",
+            {"leerling": "Jan", "max_niet_in": 2, "n_groepen": 3},
+        )
+        msg = readableerror_to_validation_message(exc)
+        assert "Jan" in msg and "2" in msg and "3" in msg
+
+    def test_invalid_gewicht_form_names_student_and_weight(self):
+        """'invalid_gewicht_form' mentions the student and the offending weight."""
+        exc = ValidationError(
+            "invalid_gewicht_form", {"leerling": "Jan", "gewicht": 0.0}
+        )
+        msg = readableerror_to_validation_message(exc)
+        assert "Jan" in msg and "groter dan 0" in msg
+
+    def test_invalid_min_tevredenheid_form_names_student(self):
+        """'invalid_min_tevredenheid_form' mentions the student and the <= 1 bound."""
+        exc = ValidationError(
+            "invalid_min_tevredenheid_form",
+            {"leerling": "Jan", "minimale_tevredenheid": 1.5},
+        )
+        msg = readableerror_to_validation_message(exc)
+        assert "Jan" in msg and "1" in msg
+
     @staticmethod
     def _nulls_schema_error():
         """A real pandera SERIES_CONTAINS_NULLS error, as a missing value would raise."""
