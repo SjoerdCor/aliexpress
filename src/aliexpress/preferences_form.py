@@ -11,10 +11,6 @@ go through :func:`datareader.validate_long_preferences` (one source of truth). T
 bounds that only make sense for the form (``min_satisfaction <= 1`` and the "Niet in" cap)
 are enforced here, raising :class:`errors.ValidationError` with Dutch message keys. A
 non-positive weight is rejected at construction time by :class:`Preference`.
-
-Identifiers are English; the data strings/keys ("Graag met" / "Liever niet met" /
-"Niet in", "Jongen/meisje", "Stamgroep", "MinimaleTevredenheid", ...) stay Dutch because
-they are the data contract with the schema and solver.
 """
 
 from __future__ import annotations
@@ -66,7 +62,7 @@ class StudentEntry:
 
     student: str
     sex: str  # "Jongen" | "Meisje" (data values stay Dutch)
-    origin_group: str  # the student's current group (stamgroep)
+    origin_group: str  # the student's current group
     min_satisfaction: float | None
     preferences: list[Preference] = field(default_factory=list)
     excluded_groups: list[str] = field(default_factory=list)
