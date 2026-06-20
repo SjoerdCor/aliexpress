@@ -22,10 +22,12 @@ def _sample_preferences() -> pd.DataFrame:
         ],
         names=["Leerling", "TypeWens", "Nr"],
     )
+    # The column axis carries the "TypeWaarde" name in the real frame (left over from the
+    # wide->long stack); keep it here so the round-trip is exercised for that name too.
     return pd.DataFrame(
         {"Waarde": ["noot", "mies"], "Gewicht": [1.0, -2.0]},
         index=index,
-    )
+    ).rename_axis(columns="TypeWaarde")
 
 
 def _sample_input_sheet() -> pd.DataFrame:

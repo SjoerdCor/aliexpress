@@ -49,6 +49,7 @@ class PreferenceData:
         payload = {
             "preferences": {
                 "index_names": list(self.preferences.index.names),
+                "column_names": list(self.preferences.columns.names),
                 "dtypes": {col: str(dtype) for col, dtype in frame.dtypes.items()},
                 "records": frame.to_dict("records"),
             },
@@ -67,6 +68,9 @@ class PreferenceData:
         frame = pd.DataFrame(pref["records"])
         frame = frame.astype(pref["dtypes"])
         frame = frame.set_index(pref["index_names"])
+        # Restore the column-axis name (e.g. "TypeWaarde") that reset_index/to_dict drops,
+        # so the round-trip is exact for the long-format frame.
+        frame.columns.names = pref["column_names"]
         return cls(
             preferences=frame,
             students_info=payload["students_info"],
