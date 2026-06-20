@@ -5,6 +5,7 @@ import logging
 import os
 from dataclasses import dataclass
 from io import BytesIO
+from itertools import zip_longest
 from threading import Thread
 from typing import Any
 
@@ -203,53 +204,173 @@ def _create_sociogram_thread(ctx: _ThreadContext):
             logger.exception("Could not create sociogram")
 
 
-def _parse_student_entry(candidate: dict, form) -> StudentEntry:
-    """Build a StudentEntry from one candidate dict and the submitted form data.
-
-    Preference fields follow the naming convention ``wens_{key}_{i}_target``,
-    ``wens_{key}_{i}_gewicht``, ``wens_{key}_{i}_soort``; group exclusions use
-    ``nieting_{key}_{i}``.  Iteration stops at the first missing target field.
-    """
-    key = candidate["key"]
-    name = f"{candidate['roepnaam']} {candidate['achternaam']}"
-
-    preferences = []
-    i = 0
-    while True:
-        target = form.get(f"wens_{key}_{i}_target", "").strip()
+def _parse_wish_list(form, key, soort_field_value) -> list[Preference]:
+    """Parse all confirmed wishes of one kind for a student from the submitted form."""
+    kind = (
+        PreferenceKind.APART
+        if soort_field_value == "liever_niet_met"
+        else PreferenceKind.TOGETHER
+    )
+    prefix = f"wens_{key}_{soort_field_value}"
+    targets = form.getlist(f"{prefix}_target")
+    weights = form.getlist(f"{prefix}_gewicht")
+    result = []
+    for target, gewicht_raw in zip(targets, weights):
+        target = target.strip()
         if not target:
-            break
-        gewicht_raw = form.get(f"wens_{key}_{i}_gewicht", "1")
-        soort_raw = form.get(f"wens_{key}_{i}_soort", "Graag met")
-        kind = (
-            PreferenceKind.APART
-            if soort_raw == "Liever niet met"
-            else PreferenceKind.TOGETHER
-        )
+            continue
         try:
             gewicht = float(gewicht_raw)
         except ValueError:
             gewicht = 1.0
-        preferences.append(Preference(target=target, weight=gewicht, kind=kind))
-        i += 1
+        if gewicht <= 0:
+            gewicht = 1.0
+        result.append(Preference(target=target, weight=gewicht, kind=kind))
+    return result
 
-    excluded = []
-    j = 0
-    while True:
-        group = form.get(f"nieting_{key}_{j}", "").strip()
-        if not group:
-            break
-        excluded.append(group)
-        j += 1
+
+def _parse_student_entry(candidate: dict, form) -> StudentEntry:
+    """Build a StudentEntry from one candidate dict and the submitted form data.
+
+    Graag-met wishes use fields ``wens_{key}_graag_met_target[]`` / ``_gewicht[]``.
+    Liever-niet-met wishes use ``wens_{key}_liever_niet_met_target[]`` / ``_gewicht[]``.
+    Group exclusions use ``nieting_{key}[]``.
+    Min. satisfaction uses ``min_sat_{key}``.
+    """
+    key = candidate["key"]
+    name = f"{candidate['roepnaam']} {candidate['achternaam']}"
+
+    preferences = _parse_wish_list(form, key, "graag_met") + _parse_wish_list(
+        form, key, "liever_niet_met"
+    )
+
+    excluded = [g.strip() for g in form.getlist(f"nieting_{key}") if g.strip()]
+
+    raw_min_sat = form.get(f"min_sat_{key}", "").strip()
+    try:
+        min_satisfaction = float(raw_min_sat) if raw_min_sat else None
+    except ValueError:
+        min_satisfaction = None
 
     return StudentEntry(
         student=name,
         sex=candidate["geslacht"],
         origin_group=candidate["groepsnaam"],
-        min_satisfaction=None,
+        min_satisfaction=min_satisfaction,
         preferences=preferences,
         excluded_groups=excluded,
     )
+
+
+def _build_form_state(entries: list[StudentEntry], all_candidates: list[dict]) -> dict:
+    """Serialize submitted form state to a dict for prefill on next GET.
+
+    Stores every student (going-over or not) with their wishes so the form can
+    be fully reconstructed when the user navigates back to this page.
+    """
+    going_keys = {e.student for e in entries}
+    candidate_by_name = {
+        f"{c['roepnaam']} {c['achternaam']}": c for c in all_candidates
+    }
+    state_students = []
+    for entry in entries:
+        c = candidate_by_name.get(entry.student, {})
+        state_students.append(
+            {
+                "key": c.get("key", entry.student),
+                "roepnaam": c.get("roepnaam", entry.student.split()[0]),
+                "achternaam": c.get("achternaam", " ".join(entry.student.split()[1:])),
+                "groepsnaam": entry.origin_group,
+                "geslacht": entry.sex,
+                "going_over": entry.student in going_keys,
+                "min_satisfaction": entry.min_satisfaction,
+                "graag_met": [
+                    {"target": p.target, "weight": p.weight}
+                    for p in entry.preferences
+                    if p.kind == PreferenceKind.TOGETHER
+                ],
+                "liever_niet_met": [
+                    {"target": p.target, "weight": p.weight}
+                    for p in entry.preferences
+                    if p.kind == PreferenceKind.APART
+                ],
+                "niet_in": entry.excluded_groups,
+            }
+        )
+    return {"students": state_students}
+
+
+def _parse_new_students(form, groups_from: list) -> list[StudentEntry]:
+    """Parse newly added students from the web form.
+
+    Fields are ``new_voornaam[]``, ``new_achternaam[]``, ``new_geslacht[]``,
+    and optionally ``new_groep[]``.  Rows missing name or gender are silently skipped.
+    """
+    new_names = form.getlist("new_voornaam[]")
+    new_lastnames = form.getlist("new_achternaam[]")
+    new_genders = form.getlist("new_geslacht[]")
+    new_groups = form.getlist("new_groep[]")
+    fallback_group = groups_from[0] if groups_from else ""
+    entries = []
+    for vnaam, anaam, geslacht, groep in zip_longest(
+        new_names, new_lastnames, new_genders, new_groups, fillvalue=""
+    ):
+        vnaam, anaam = vnaam.strip(), anaam.strip()
+        if vnaam and anaam and geslacht:
+            entries.append(
+                StudentEntry(
+                    student=f"{vnaam} {anaam}",
+                    sex=geslacht,
+                    origin_group=groep or fallback_group,
+                    min_satisfaction=None,
+                )
+            )
+    return entries
+
+
+def _pref_form_post_data(form, orig_candidates, groups_from, all_groups_to, state_path):
+    """Parse form, save intermediate state, return the resulting PreferenceData."""
+    checked_keys = set(form.getlist("gaat_over"))
+    entries = [
+        _parse_student_entry(c, form)
+        for c in orig_candidates
+        if c["key"] in checked_keys
+    ]
+    entries.extend(_parse_new_students(form, groups_from))
+    state = _build_form_state(entries, orig_candidates)
+    with open(state_path, "w", encoding="utf-8") as fh:
+        json.dump(state, fh, ensure_ascii=False)
+    return build_preference_data(entries, all_groups_to)
+
+
+def _load_pref_form_state(state_path):
+    """Load saved form state dict, or None when none exists."""
+    if not os.path.exists(state_path):
+        return None
+    with open(state_path, encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def _not_together_get_context(school_id, process_id):
+    """Return (existing_rules, prev_url) for a GET to /not_together."""
+    nt_path = get_file_path(school_id, process_id, "not_together.json")
+    if os.path.exists(nt_path):
+        with open(nt_path, encoding="utf-8") as fh:
+            existing_rules = json.load(fh)
+    else:
+        existing_rules = []
+    method_path = get_file_path(school_id, process_id, "input_method.json")
+    if os.path.exists(method_path):
+        with open(method_path, encoding="utf-8") as fh:
+            input_method = json.load(fh).get("method", "excel")
+    else:
+        input_method = "excel"
+    prev_url = (
+        url_for("wizard.preferences_form")
+        if input_method == "formulier"
+        else url_for("wizard.preferences_excel")
+    )
+    return existing_rules, prev_url
 
 
 def _load_student_names(groups_to, voorkeuren_path, preferences_path) -> list[str]:
@@ -579,35 +700,49 @@ def preferences_form():
         return redirect(url_for("admin.dashboard"))
     process_id = session["process_id"]
 
-    candidates_path = get_file_path(
-        school_id, process_id, "relevant_students_and_groups.json"
-    )
-    groups_to_path = get_file_path(school_id, process_id, "groups.xlsx")
+    state_path = get_file_path(school_id, process_id, "preferences_form_state.json")
     try:
-        with open(candidates_path, encoding="utf-8") as fh:
-            candidates = json.load(fh)["candidates"]
-        groups_to, group_display = datareader.read_groups_excel(groups_to_path)
+        with open(
+            get_file_path(school_id, process_id, "relevant_students_and_groups.json"),
+            encoding="utf-8",
+        ) as fh:
+            raw = json.load(fh)
+        orig_candidates = raw["candidates"]
+        groups_from = raw.get("groups_from", [])
+        groups_to, group_display = datareader.read_groups_excel(
+            get_file_path(school_id, process_id, "groups.xlsx")
+        )
     except Exception as exc:  # pylint: disable=broad-exception-caught
         _flash_upload_error(exc)
         return redirect(url_for("wizard.groups_to_page"))
 
+    all_groups_to = list(groups_to.keys())
+
     if request.method == "POST":
-        checked_keys = set(request.form.getlist("gaat_over"))
-        entries = [
-            _parse_student_entry(c, request.form)
-            for c in candidates
-            if c["key"] in checked_keys
-        ]
-        preference_data = build_preference_data(entries, list(groups_to.keys()))
-        voorkeuren_path = get_file_path(school_id, process_id, "voorkeuren.json")
-        _write_voorkeuren_json(voorkeuren_path, preference_data, source="form")
+        preference_data = _pref_form_post_data(
+            request.form, orig_candidates, groups_from, all_groups_to, state_path
+        )
+        _write_voorkeuren_json(
+            get_file_path(school_id, process_id, "voorkeuren.json"),
+            preference_data,
+            source="form",
+        )
         return redirect(url_for("wizard.not_together_page"))
+
+    # GET — load saved state for prefill, or fall back to initial candidates sorted by group
+    draft_state = _load_pref_form_state(state_path)
+    if draft_state:
+        display_candidates = draft_state["students"]
+    else:
+        display_candidates = sorted(orig_candidates, key=lambda c: c["groepsnaam"])
 
     return render_template(
         "preferences_form.html",
-        candidates=candidates,
-        target_groups=list(groups_to.keys()),
+        candidates=display_candidates,
+        target_groups=all_groups_to,
         group_display=group_display,
+        groups_from=groups_from,
+        draft_state=draft_state,
     )
 
 
@@ -635,17 +770,13 @@ def not_together_page():
     n_groups = len(groups_to)
 
     if request.method == "GET":
-        nt_path = get_file_path(school_id, process_id, "not_together.json")
-        if os.path.exists(nt_path):
-            with open(nt_path, encoding="utf-8") as fh:
-                existing_rules = json.load(fh)
-        else:
-            existing_rules = []
+        existing_rules, prev_url = _not_together_get_context(school_id, process_id)
         return render_template(
             "not_together.html",
             students=students,
             n_groups=n_groups,
             existing_rules=existing_rules,
+            prev_preferences_url=prev_url,
         )
 
     n_rules = int(request.form.get("n_rules", 0))
