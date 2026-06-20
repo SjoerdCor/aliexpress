@@ -1,4 +1,4 @@
-"""Tests for building PreferenceData from web-form wishes (Stap 2).
+"""Tests for building PreferenceData from web-form preferences (Stap 2).
 
 The builder turns small, readable dataclasses (one per student) into the canonical
 ``PreferenceData`` contract the solver consumes, reusing the shared long-format
@@ -15,42 +15,55 @@ import pytest
 
 from aliexpress.errors import ValidationError
 from aliexpress.preferences_data import PreferenceData
-from aliexpress.preferences_form import StudentWishes, Wish, build_preference_data
+from aliexpress.preferences_form import (
+    Preference,
+    PreferenceKind,
+    StudentEntry,
+    build_preference_data,
+)
 
 
-def _student(**overrides) -> StudentWishes:
-    """Construct a StudentWishes with sensible defaults; override any field by keyword."""
-    base = StudentWishes(
-        leerling="John",
-        geslacht="Jongen",
-        stamgroep="Rood",
-        minimale_tevredenheid=None,
-        graag_met=[],
-        liever_niet_met=[],
-        niet_in=[],
+def _student(**overrides) -> StudentEntry:
+    """Construct a StudentEntry with sensible defaults; override any field by keyword."""
+    base = StudentEntry(
+        student="John",
+        sex="Jongen",
+        origin_group="Rood",
+        min_satisfaction=None,
+        preferences=[],
+        excluded_groups=[],
     )
     return replace(base, **overrides)
 
 
-def test_valid_wishes_build_preference_data():
-    """A graag-met + liever-niet-met wish yields the expected long rows and negation.
+def _together(target, weight):
+    """A 'graag met' preference."""
+    return Preference(target=target, weight=weight, kind=PreferenceKind.TOGETHER)
 
-    'Liever niet met' must carry a negative weight (post-negation), and the wide
-    input_sheet must hold the original pre-negation wishes keyed by matching_key.
+
+def _apart(target, weight):
+    """A 'liever niet met' preference."""
+    return Preference(target=target, weight=weight, kind=PreferenceKind.APART)
+
+
+def test_valid_preferences_build_preference_data():
+    """A together + apart preference yields the expected long rows and negation.
+
+    The apart preference must carry a negative weight (post-negation), and the wide
+    input_sheet must hold the original pre-negation preferences keyed by matching_key.
     """
     students = [
         _student(
-            leerling="John",
-            graag_met=[Wish(naam="Jane", gewicht=2.0)],
-            liever_niet_met=[Wish(naam="Blauw", gewicht=3.0)],
+            student="John",
+            preferences=[_together("Jane", 2.0), _apart("Blauw", 3.0)],
         ),
-        _student(leerling="Jane", geslacht="Meisje", stamgroep="Blauw"),
+        _student(student="Jane", sex="Meisje", origin_group="Blauw"),
     ]
     data = build_preference_data(students, all_to_groups=["rood", "blauw"])
 
     # Long-format preferences are post-negation: "Liever niet met" collapses into
     # "Graag met" with a negative weight (toggle_negative_weights), appended after the
-    # positive graag-met rows and renumbered.
+    # positive together rows and renumbered.
     prefs = data.preferences
     assert prefs.loc[("john", "Graag met", 1.0), "Waarde"] == "jane"
     assert prefs.loc[("john", "Graag met", 1.0), "Gewicht"] == 2.0
@@ -68,7 +81,7 @@ def test_valid_wishes_build_preference_data():
     assert data.students_info["john"]["Stamgroep"] == "rood"
     assert math.isnan(data.students_info["john"]["MinimaleTevredenheid"])
 
-    # Wide input_sheet holds the pre-negation wish keyed by matching_key.
+    # Wide input_sheet holds the pre-negation preference keyed by matching_key.
     sheet = data.input_sheet
     assert sheet.loc["john", ("Graag met", 1.0, "Waarde")] == "jane"
     assert sheet.loc["john", ("Graag met", 1.0, "Gewicht")] == 2.0
@@ -81,18 +94,18 @@ def test_valid_wishes_build_preference_data():
     assert sheet.columns.names == ["TypeWens", "Nr", "TypeWaarde"]
 
 
-def test_niet_in_up_to_groups_minus_one_is_allowed():
+def test_excluded_groups_up_to_groups_minus_one_is_allowed():
     """A student may avoid all but one group; avoiding every group is rejected."""
     groups = ["rood", "blauw", "groen"]
 
     ok = build_preference_data(
-        [_student(niet_in=["Rood", "Blauw"])], all_to_groups=groups
+        [_student(excluded_groups=["Rood", "Blauw"])], all_to_groups=groups
     )
     assert ok.preferences.xs("Niet in", level="TypeWens").shape[0] == 2
 
     with pytest.raises(ValidationError) as exc:
         build_preference_data(
-            [_student(niet_in=["Rood", "Blauw", "Groen"])], all_to_groups=groups
+            [_student(excluded_groups=["Rood", "Blauw", "Groen"])], all_to_groups=groups
         )
     assert exc.value.code == "too_many_niet_in_form"
 
@@ -101,10 +114,10 @@ def test_duplicate_target_within_one_student_is_rejected():
     """The same target twice for one student fails the shared uniqueness check."""
     students = [
         _student(
-            leerling="John",
-            graag_met=[Wish("Jane", 1.0), Wish("Jane", 2.0)],
+            student="John",
+            preferences=[_together("Jane", 1.0), _together("Jane", 2.0)],
         ),
-        _student(leerling="Jane", geslacht="Meisje", stamgroep="Blauw"),
+        _student(student="Jane", sex="Meisje", origin_group="Blauw"),
     ]
     with pytest.raises(pa.errors.SchemaError) as exc:
         build_preference_data(students, all_to_groups=["rood", "blauw"])
@@ -116,7 +129,7 @@ def test_unknown_target_is_rejected():
     # 'graag met' a non-existent name.
     with pytest.raises(pa.errors.SchemaError) as exc:
         build_preference_data(
-            [_student(graag_met=[Wish("Ghost", 1.0)])],
+            [_student(preferences=[_together("Ghost", 1.0)])],
             all_to_groups=["rood", "blauw"],
         )
     assert exc.value.check.name == "invalid_values_preferences"
@@ -125,58 +138,55 @@ def test_unknown_target_is_rejected():
     with pytest.raises(pa.errors.SchemaError) as exc:
         build_preference_data(
             [
-                _student(leerling="John", niet_in=["Jane"]),
-                _student(leerling="Jane", geslacht="Meisje", stamgroep="Blauw"),
+                _student(student="John", excluded_groups=["Jane"]),
+                _student(student="Jane", sex="Meisje", origin_group="Blauw"),
             ],
             all_to_groups=["rood", "blauw"],
         )
     assert exc.value.check.name == "invalid_values_preferences"
 
 
-def test_non_positive_weight_is_rejected():
-    """A weight of zero or below is rejected with a friendly form error."""
-    students = [
-        _student(leerling="John", graag_met=[Wish("Jane", 0.0)]),
-        _student(leerling="Jane", geslacht="Meisje", stamgroep="Blauw"),
-    ]
-    with pytest.raises(ValidationError) as exc:
-        build_preference_data(students, all_to_groups=["rood", "blauw"])
-    assert exc.value.code == "invalid_gewicht_form"
+def test_non_positive_weight_is_rejected_at_construction():
+    """A Preference enforces weight > 0 as an invariant (the route flashes a message)."""
+    with pytest.raises(ValueError):
+        Preference(target="Jane", weight=0.0, kind=PreferenceKind.TOGETHER)
 
 
-def test_minimale_tevredenheid_above_one_is_rejected():
-    """MinimaleTevredenheid must be <= 1; a higher value is rejected."""
+def test_min_satisfaction_above_one_is_rejected():
+    """min_satisfaction must be <= 1 (100%); a higher value is rejected."""
     with pytest.raises(ValidationError) as exc:
         build_preference_data(
-            [_student(minimale_tevredenheid=1.5)], all_to_groups=["rood", "blauw"]
+            [_student(min_satisfaction=1.5)], all_to_groups=["rood", "blauw"]
         )
     assert exc.value.code == "invalid_min_tevredenheid_form"
 
 
-def test_negative_minimale_tevredenheid_is_allowed():
-    """A negative MinimaleTevredenheid is allowed (liever-niet-met can go negative)."""
+def test_negative_min_satisfaction_is_allowed():
+    """A negative min_satisfaction is allowed (an apart preference can go negative)."""
     data = build_preference_data(
-        [_student(minimale_tevredenheid=-2.0)], all_to_groups=["rood", "blauw"]
+        [_student(min_satisfaction=-2.0)], all_to_groups=["rood", "blauw"]
     )
     assert data.students_info["john"]["MinimaleTevredenheid"] == -2.0
 
 
-def test_student_without_wishes_is_allowed():
-    """A selected student who entered no wishes still produces valid PreferenceData."""
+def test_student_without_preferences_is_allowed():
+    """A selected student who entered no preferences still produces valid PreferenceData."""
     data = build_preference_data(
-        [_student(leerling="John")], all_to_groups=["rood", "blauw"]
+        [_student(student="John")], all_to_groups=["rood", "blauw"]
     )
     assert data.preferences.empty
     assert data.students_info["john"]["Jongen/meisje"] == "Jongen"
     assert data.student_display["john"] == "John"
 
 
-def test_unlimited_graag_met_is_accepted_and_round_trips():
-    """Eight 'graag met' wishes are accepted (no fixed column cap) and survive JSON."""
+def test_unlimited_together_is_accepted_and_round_trips():
+    """Eight together preferences are accepted (no fixed column cap) and survive JSON."""
     targets = [f"Mate{i}" for i in range(8)]
-    students = [_student(leerling="John", graag_met=[Wish(t, 1.0) for t in targets])]
+    students = [
+        _student(student="John", preferences=[_together(t, 1.0) for t in targets])
+    ]
     students += [
-        _student(leerling=t, geslacht="Meisje", stamgroep="Blauw") for t in targets
+        _student(student=t, sex="Meisje", origin_group="Blauw") for t in targets
     ]
 
     data = build_preference_data(students, all_to_groups=["rood", "blauw"])
