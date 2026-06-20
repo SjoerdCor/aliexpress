@@ -71,7 +71,10 @@
 
   <div class="step-navigation">
     <a href="{{ url_for('wizard.upload_edexml') }}" class="button previous-step">← Naar Schoolinformatie uploaden</a>
-    <input type="submit" value="Naar leerlingen →" class="button next-step">
+    <div class="next-steps">
+      <button type="submit" name="action" value="excel" class="button">Wensen via Excel →</button>
+      <button type="submit" name="action" value="formulier" class="button">Wensen via formulier →</button>
+    </div>
   </div>
 </form>
 

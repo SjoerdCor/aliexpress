@@ -388,14 +388,16 @@ def groups_to_page():
         len(submission.state["disabled_groups"]),
         len(submission.state["new_groups"]),
     )
-    return redirect(url_for("wizard.student_preferences"))
+    if request.form.get("action") == "formulier":
+        return redirect(url_for("wizard.preferences_form"))
+    return redirect(url_for("wizard.preferences_excel"))
 
 
-@wizard_bp.route("/student_preferences", methods=["GET", "POST"])
+@wizard_bp.route("/preferences_excel", methods=["GET", "POST"])
 @login_required
 @require_process
-def student_preferences():
-    """Display page where the teacher can add preferences for the student"""
+def preferences_excel():
+    """Display the Excel-based preferences page: download template, upload filled file."""
     school_id = effective_school_id()
     if school_id is None:
         return redirect(url_for("admin.dashboard"))
@@ -412,7 +414,7 @@ def student_preferences():
     if request.method == "GET":
         selection = _load_student_selection(school_id, process_id)
         return render_template(
-            "student_preferences.html",
+            "preferences_excel.html",
             candidates=candidates,
             groups_from=groups_from,
             preferences_uploaded=os.path.exists(
@@ -426,7 +428,7 @@ def student_preferences():
     selected_ids = request.form.getlist("students")
     if len(new_students) + len(selected_ids) == 0:
         flash("Er moet minsten één leerling aanwezig zijn", "error")
-        return redirect(url_for("wizard.student_preferences"))
+        return redirect(url_for("wizard.preferences_excel"))
 
     try:
         df_total = candidatedetermination.combine_students(
@@ -435,7 +437,7 @@ def student_preferences():
     except DuplicateNameError as exc:
         logger.exception(exc)
         flash(f"Vond leerlingen dubbel: {exc.context['duplicate_names']}", "error")
-        return redirect(url_for("wizard.student_preferences"))
+        return redirect(url_for("wizard.preferences_excel"))
 
     # Remember exactly what the teacher selected so the page restores on return.
     _save_student_selection(school_id, process_id, selected_ids, new_students)
@@ -475,7 +477,7 @@ def upload_preferences():
             )
             return redirect(url_for("wizard.not_together_page"))
         flash("Upload eerst het ingevulde bestand om verder te gaan.", "error")
-        return redirect(url_for("wizard.student_preferences"))
+        return redirect(url_for("wizard.preferences_excel"))
     try:
         raw = upload.read()
         groups_to_path = get_file_path(school_id, process_id, "groups.xlsx")
@@ -503,7 +505,15 @@ def upload_preferences():
         )
     except Exception as exc:  # pylint: disable=broad-exception-caught
         _flash_upload_error(exc)
-        return redirect(url_for("wizard.student_preferences"))
+        return redirect(url_for("wizard.preferences_excel"))
+    return redirect(url_for("wizard.not_together_page"))
+
+
+@wizard_bp.route("/preferences_form", methods=["GET", "POST"])
+@login_required
+@require_process
+def preferences_form():
+    """Web-form input path: display and process per-student preferences."""
     return redirect(url_for("wizard.not_together_page"))
 
 
@@ -527,7 +537,7 @@ def not_together_page():
         )
     except Exception as exc:  # pylint: disable=broad-exception-caught
         _flash_upload_error(exc)
-        return redirect(url_for("wizard.student_preferences"))
+        return redirect(url_for("wizard.preferences_excel"))
     n_groups = len(groups_to)
 
     if request.method == "GET":

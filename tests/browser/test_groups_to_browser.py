@@ -39,7 +39,7 @@ def test_switched_off_group_keeps_its_ticks(open_groups_to, page):
     )
     page.click('.group-block[data-group="Klas B"] .group-disable')
     page.click('input[value="Naar leerlingen →"]')
-    page.wait_for_url("**/student_preferences")
+    page.wait_for_url("**/preferences_excel")
 
     state = _state(proc)
     assert state["disabled_groups"] == ["Klas B"]
@@ -56,7 +56,7 @@ def test_added_empty_group_is_saved(open_groups_to, page):
     page.click('button:has-text("Nieuwe lege groep")')
     page.fill("#new-groups input.group-name-input", "Extra groep")
     page.click('input[value="Naar leerlingen →"]')
-    page.wait_for_url("**/student_preferences")
+    page.wait_for_url("**/preferences_excel")
 
     assert _state(proc)["new_groups"] == ["Extra groep"]
     saved = _groups_xlsx(proc)

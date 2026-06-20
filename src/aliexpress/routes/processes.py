@@ -136,7 +136,7 @@ def _resume_url(proc, path):
     ):
         return url_for("wizard.not_together_page")
     if os.path.exists(os.path.join(path, "groups.xlsx")):
-        return url_for("wizard.student_preferences")
+        return url_for("wizard.preferences_excel")
     if os.path.exists(os.path.join(path, "relevant_students_and_groups.json")):
         return url_for("wizard.groups_to_page")
     return url_for("wizard.upload_edexml")
