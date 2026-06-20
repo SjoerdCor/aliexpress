@@ -164,7 +164,7 @@ class TestGroupsToPage:
                 "group": ["Klas A", "Klas B"],
                 "group_students[Klas A]": ["0", "1"],
                 "group_students[Klas B]": ["0"],
-                "action": "formulier",
+                "action": "form",
             },
         )
         assert response.status_code == 302
@@ -458,7 +458,7 @@ class TestNotTogetherPage:
         proc_dir = setup_process(client, tmp_path)
         write_minimal_voorkeuren_json(proc_dir)
         (proc_dir / "input_method.json").write_text(
-            json.dumps({"method": "formulier"}), encoding="utf-8"
+            json.dumps({"method": "form"}), encoding="utf-8"
         )
         self._mock_file_reads(monkeypatch)
         response = client.get("/not_together")

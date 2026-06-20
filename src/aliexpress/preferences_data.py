@@ -65,7 +65,13 @@ class PreferenceData:
         """Reconstruct a ``PreferenceData`` from a string produced by :meth:`to_json`."""
         payload = json.loads(data)
         pref = payload["preferences"]
-        frame = pd.DataFrame(pref["records"])
+        # pd.DataFrame([]) produces a frame with no columns, so astype would fail.
+        # Provide explicit column names when records is empty.
+        frame = (
+            pd.DataFrame(pref["records"])
+            if pref["records"]
+            else pd.DataFrame(columns=list(pref["dtypes"]))
+        )
         frame = frame.astype(pref["dtypes"])
         frame = frame.set_index(pref["index_names"])
         # Restore the column-axis name (e.g. "TypeWaarde") that reset_index/to_dict drops,
