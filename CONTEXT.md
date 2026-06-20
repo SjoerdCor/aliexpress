@@ -9,8 +9,12 @@ Een kind dat wordt ingedeeld in een nieuwe groep.
 _Avoid_: student, kind, pupil
 
 **Groep**:
-Een nieuwe klas waaraan leerlingen worden toegewezen. Niet te verwarren met de huidige groep waar een leerling vandaan komt.
+Een klas leerlingen. In een verdeling worden leerlingen vanuit hun huidige groep over bestemmingsgroepen verdeeld; "groep" is op zichzelf rolneutraal — of een groep herkomst of bestemming is, volgt uit de context, niet uit het woord.
 _Avoid_: klas (ambigu tussen oud en nieuw)
+
+**Bestemmingsgroep**:
+De groep waarin een leerling door de verdeling wordt geplaatst. Een bestemmingsgroep kan al leerlingen bevatten die er blijven; de verdeling verdeelt de overige leerlingen over de bestemmingsgroepen, rekening houdend met die huidige aantallen jongens en meisjes.
+_Avoid_: nieuwe groep, doelgroep
 
 **Voorkeur**:
 De wens van een leerling om wel of niet met een andere leerling in dezelfde groep te zitten.

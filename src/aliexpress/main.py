@@ -9,6 +9,7 @@ import pandas as pd
 import pandera as pa
 
 from . import datareader, errors, problemsolver, solutions
+from .datareader import GroupCounts
 from .preferences_data import PreferenceData
 from .problemsolver import GroupBalance
 
@@ -32,8 +33,8 @@ def _safe_read(fn, *, filetype, technical_message, catch=Exception):
         ) from e
 
 
-def _read_groups(path):
-    """Return ``(groups_to, group_display)`` for the target groups file."""
+def _read_groups(path) -> GroupCounts:
+    """Return a :class:`GroupCounts` for the target groups file."""
     return _safe_read(
         lambda: datareader.read_groups_excel(path),
         filetype="groepen",
@@ -129,11 +130,11 @@ def _check_feasibility(ps):
     )
 
 
-def _export(ps, preference_data, group_display):
+def _export(ps, preference_data, target_groups):
     """Build the download workbook and result tables from the already-solved problem."""
     display_names = solutions.DisplayNames(
         student=preference_data.student_display,
-        group=group_display,
+        group=target_groups.display,
         stamgroep=preference_data.stamgroep_display,
     )
     # The solver works on matching keys; translate to names as entered before reporting.
@@ -161,45 +162,50 @@ def _export(ps, preference_data, group_display):
     return output, dfs
 
 
-# pylint: disable-next=too-many-arguments,too-many-positional-arguments  # public orchestrator entry point; each parameter is a distinct, independent input passed by name
-def distribute_students_once(
-    path_preferences=FILE_PREFERENCES,
-    path_groups_to=FILE_GROUPS_TO,
+def distribute_students_from_data(
+    preference_data: PreferenceData,
+    target_groups: GroupCounts,
     not_together: list[dict] | None = None,
     on_update=lambda msg: None,
     groupbalance: GroupBalance | None = None,
-    preference_data: PreferenceData | None = None,
 ):
-    """Distribute all students with preferences over all groups with lexmaxmin.
+    """Distribute all students over all groups with lexmaxmin — the pure data core.
 
-    Parameters:
-        not_together : list[dict] | None
-            Not-together rules built from web-form data or constructed in tests.
-            Each dict has keys 'group' (set[str]) and
-            'Max_aantal_samen' (int). Pass None or omit for no constraints.
-        on_update : func
-            Takes a user friendly message and decides what to do with it for the calling
-            function. By default, ignores them
-        groupbalance : GroupBalance | None
-            Class-balance constraints. When None (the default), the balance is determined
-            automatically: satisfaction is maximized within the minimal relaxation that
-            still lets every student fulfil a positive wish (see
-            :meth:`ProblemSolver.solve_within_minimal_relaxation`). Pass a GroupBalance to
-            override this with fixed manual limits instead.
-        preference_data : PreferenceData | None
-            Pre-built preferences (e.g. reconstructed from ``voorkeuren.json``). When
-            given, the preferences xlsx at ``path_preferences`` is not read and this object
-            is fed straight through the pipeline. When None (the default), the xlsx is read.
+    Reads no files: it takes pre-built ``preference_data`` and ``target_groups`` and
+    feeds them straight through the solve + export pipeline. It is the shared core behind
+    :func:`distribute_students_once`, and the entry point intended for callers that already
+    hold these objects in memory — e.g. the web route once it loads the preferences from
+    ``voorkeuren.json`` (wired up in a later step). To read both Excel files from disk
+    first, use :func:`distribute_students_once`.
+
+    Parameters
+    ----------
+    preference_data : PreferenceData
+        The processed preferences, student meta info and display maps.
+    target_groups : GroupCounts
+        The destination groups; ``target_groups.counts`` is the solver's keyed group dict
+        (current boy/girl occupancy) and ``target_groups.display`` maps those keys back to
+        the names as entered.
+    not_together : list[dict] | None
+        Not-together rules built from web-form data or constructed in tests. Each dict has
+        keys 'group' (set[str]) and 'Max_aantal_samen' (int). Pass None for no constraints.
+    on_update : func
+        Takes a user-friendly message and decides what to do with it for the calling
+        function. By default, ignores them.
+    groupbalance : GroupBalance | None
+        Class-balance constraints. When None (the default), the balance is determined
+        automatically: satisfaction is maximized within the minimal relaxation that still
+        lets every student fulfil a positive wish (see
+        :meth:`ProblemSolver.solve_within_minimal_relaxation`). Pass a GroupBalance to
+        override this with fixed manual limits instead.
     """
-    groups_to, group_display = _read_groups(path_groups_to)
-    if preference_data is None:
-        preference_data = _read_preferences(path_preferences, groups_to)
-
     preferences = preference_data.preferences
     students_info = preference_data.students_info
     if not_together is None:
         not_together = []
-    datareader.validate_not_together(not_together, students_info.keys(), len(groups_to))
+    datareader.validate_not_together(
+        not_together, students_info.keys(), len(target_groups.counts)
+    )
     # Rule groups hold names as entered; the solver matches on the same keys as students.
     not_together = [
         {**rule, "group": {datareader.matching_key(s) for s in rule["group"]}}
@@ -209,13 +215,16 @@ def distribute_students_once(
     logger.info("All files read")
 
     _log_initial_state(
-        groups_to, students_info, on_update, preference_data.stamgroep_display
+        target_groups.counts,
+        students_info,
+        on_update,
+        preference_data.stamgroep_display,
     )
 
     ps = problemsolver.ProblemSolver(
         preferences,
         students_info,
-        groups_to,
+        target_groups.counts,
         not_together,
         groupbalance=groupbalance,
         optimize="lexmaxmin",
@@ -230,10 +239,31 @@ def distribute_students_once(
         logger.info("Finding first solution... lexmaxmin")
         ps.run()
 
-    output, dfs = _export(ps, preference_data, group_display)
+    output, dfs = _export(ps, preference_data, target_groups)
     logger.info("Done!")
     on_update("Klaar!")
     return {"download": output, "dataframes": dfs}
+
+
+def distribute_students_once(
+    path_preferences=FILE_PREFERENCES,
+    path_groups_to=FILE_GROUPS_TO,
+    not_together: list[dict] | None = None,
+    on_update=lambda msg: None,
+    groupbalance: GroupBalance | None = None,
+):
+    """Convenience wrapper for the CLI and tests: read both Excel files, then distribute.
+
+    Reads the preferences from ``path_preferences`` and the target groups from
+    ``path_groups_to``, then delegates to :func:`distribute_students_from_data`, which is
+    the pure data core. See that function for the ``not_together``, ``on_update`` and
+    ``groupbalance`` parameters.
+    """
+    target_groups = _read_groups(path_groups_to)
+    preference_data = _read_preferences(path_preferences, target_groups.counts)
+    return distribute_students_from_data(
+        preference_data, target_groups, not_together, on_update, groupbalance
+    )
 
 
 if __name__ == "__main__":
