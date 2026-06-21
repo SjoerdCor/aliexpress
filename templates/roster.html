@@ -4,12 +4,21 @@
 
 {% block content %}
 
+{# Known names for the client-side collision check; the server validates too. #}
+{% set known_names = [] %}
+{% for c in candidates %}{% if known_names.append(c.roepnaam ~ " " ~ c.achternaam) %}{% endif %}{% endfor %}
+<script type="application/json" id="roster-data">
+{
+  "groups_from": {{ groups_from | tojson }},
+  "known_names": {{ known_names | tojson }},
+  "new_students": {{ new_students | tojson }}
+}
+</script>
+
 <details class="instructions-box" open>
   <summary>Wat doe je hier?</summary>
-  <p>Je leerlingen staan hier al, ingeladen uit je bestand — je hoeft niemand opnieuw in
-  te voeren. Vink alleen uit wie blijft zitten (verlengers).</p>
-  <p>Stroomt er een leerling van buiten in, of gaat iemand versneld door? Voeg die
-  onderaan toe. Meestal is dat niemand.</p>
+  <p>Je leerlingen staan al klaar uit je bestand. Vink uit wie blijft zitten (verlengers).
+  Stroomt er iemand van buiten in? Voeg die onderaan toe.</p>
 </details>
 
 <form method="post" id="roster-form">
@@ -32,34 +41,12 @@
   {% if candidates %}</div>{% endif %}
 
   {# ── Incoming students added by hand ─────────────────────────────────────── #}
-  <h3 class="zone-heading">Leerling van buiten toevoegen</h3>
-  <p class="help-example">Alleen nodig als een leerling van een andere school instroomt of
-  versneld doorgaat. Meestal hoef je hier niets te doen.</p>
-  <ul class="student-list" id="new-students">
-    {% for ns in new_students %}
-    <li class="new-student-row">
-      <input type="hidden" name="new_key[]" value="{{ ns.key }}">
-      <input type="checkbox" name="gaat_over" value="{{ ns.key }}" checked hidden>
-      <input type="text" name="new_voornaam[]" placeholder="Voornaam" value="{{ ns.roepnaam }}">
-      <input type="text" name="new_achternaam[]" placeholder="Achternaam" value="{{ ns.achternaam }}">
-      <select name="new_geslacht[]">
-        <option value="">— geslacht —</option>
-        <option value="Jongen" {% if ns.geslacht == 'Jongen' %}selected{% endif %}>Jongen</option>
-        <option value="Meisje" {% if ns.geslacht == 'Meisje' %}selected{% endif %}>Meisje</option>
-      </select>
-      <select name="new_groep[]" title="Herkomstgroep">
-        {% for g in groups_from %}<option value="{{ g }}" {% if g == ns.groepsnaam %}selected{% endif %}>{{ g }}</option>{% endfor %}
-        <option value="Anders" {% if ns.groepsnaam == 'Anders' %}selected{% endif %}>Anders</option>
-      </select>
-      <button type="button" class="delete-btn" onclick="this.closest('li').remove()">✖</button>
-    </li>
-    {% endfor %}
-    <li class="add-button">
-      <button type="button" class="button button--small" onclick="addNewStudentRow()">
-        + Leerling van buiten toevoegen
-      </button>
-    </li>
-  </ul>
+  <h3 class="zone-heading">Leerling van buiten</h3>
+  <p class="help-example">Alleen voor een leerling van buiten. Meestal niet nodig.</p>
+  <div id="new-students"></div>
+  <button type="button" class="button button--small" onclick="addNewStudentRow()">
+    + Leerling toevoegen
+  </button>
 
   {# The teacher picks here how to enter preferences; each button records the route. #}
   <div class="step-navigation">
@@ -74,32 +61,130 @@
 </form>
 
 <script>
-const GROUPS_FROM = {{ groups_from | tojson }};
-let newStudentCount = {{ new_students | length }};
+const _rd = JSON.parse(document.getElementById("roster-data").textContent);
+// groups_from already ends with "Anders" (the catch-all for an external origin); only add
+// it when an older payload is missing it, so the dropdown never shows it twice.
+const GROUPS_FROM = _rd.groups_from.includes("Anders")
+  ? _rd.groups_from
+  : [..._rd.groups_from, "Anders"];
+const KNOWN_NAMES = new Set(_rd.known_names.map(normalizeName));
+let newStudentCount = 0;
 
-function addNewStudentRow() {
+function normalizeName(name) {
+  return name.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+// Names already taken by a confirmed new student, so two new rows can't clash either.
+function confirmedNewNames(exceptLi) {
+  const names = new Set();
+  document.querySelectorAll('.new-student-row[data-confirmed="1"]').forEach(li => {
+    if (li === exceptLi) return;
+    names.add(normalizeName(rowValues(li).name));
+  });
+  return names;
+}
+
+function rowValues(li) {
+  const vn = li.querySelector('[name="new_voornaam[]"]').value.trim();
+  const an = li.querySelector('[name="new_achternaam[]"]').value.trim();
+  const sex = li.querySelector('[name="new_geslacht[]"]').value;
+  const groep = li.querySelector('[name="new_groep[]"]').value;
+  return { vn, an, sex, groep, name: `${vn} ${an}`.trim() };
+}
+
+function addNewStudentRow(prefill) {
   const list = document.getElementById("new-students");
-  const addLi = list.querySelector(".add-button");
   const key = `new_${newStudentCount++}`;
-  const groupOptions = [...GROUPS_FROM, "Anders"]
-    .map(g => `<option value="${g}"${g === "Anders" ? " selected" : ""}>${g}</option>`)
-    .join("");
-  const li = document.createElement("li");
+  const groupOptions = GROUPS_FROM
+    .map(g => `<option value="${g}">${g}</option>`).join("");
+  const li = document.createElement("div");
   li.className = "new-student-row";
+  li.dataset.confirmed = "0";
   li.innerHTML = `
     <input type="hidden" name="new_key[]" value="${key}">
     <input type="checkbox" name="gaat_over" value="${key}" checked hidden>
-    <input type="text" name="new_voornaam[]" placeholder="Voornaam">
-    <input type="text" name="new_achternaam[]" placeholder="Achternaam">
-    <select name="new_geslacht[]">
-      <option value="">— geslacht —</option>
-      <option value="Jongen">Jongen</option>
-      <option value="Meisje">Meisje</option>
-    </select>
-    <select name="new_groep[]" title="Herkomstgroep">${groupOptions}</select>
-    <button type="button" class="delete-btn" onclick="this.closest('li').remove()">✖</button>`;
-  list.insertBefore(li, addLi);
+    <div class="ns-edit">
+      <input type="text" name="new_voornaam[]" placeholder="Voornaam">
+      <input type="text" name="new_achternaam[]" placeholder="Achternaam">
+      <select name="new_geslacht[]">
+        <option value="">— geslacht —</option>
+        <option value="Jongen">Jongen</option>
+        <option value="Meisje">Meisje</option>
+      </select>
+      <select name="new_groep[]" title="Herkomstgroep">${groupOptions}</select>
+      <button type="button" class="button button--small ns-confirm">Toevoegen</button>
+      <button type="button" class="delete-btn ns-remove">✖</button>
+      <span class="field-error ns-error"></span>
+    </div>
+    <span class="student-chip ns-chip" hidden>
+      <span class="ns-chip-label"></span>
+      <button type="button" class="button button--small ns-edit-btn">Wijzig</button>
+      <button type="button" class="delete-btn ns-remove">✖</button>
+    </span>`;
+  list.appendChild(li);
+  wireRow(li);
+  if (prefill) {
+    li.querySelector('[name="new_voornaam[]"]').value = prefill.roepnaam || "";
+    li.querySelector('[name="new_achternaam[]"]').value = prefill.achternaam || "";
+    li.querySelector('[name="new_geslacht[]"]').value = prefill.geslacht || "";
+    setSelect(li.querySelector('[name="new_groep[]"]'), prefill.groepsnaam);
+    confirmRow(li);  // saved students come back confirmed
+  }
+  return li;
 }
+
+function setSelect(select, value) {
+  if ([...select.options].some(o => o.value === value)) select.value = value;
+}
+
+function wireRow(li) {
+  li.querySelector(".ns-confirm").onclick = () => confirmRow(li);
+  li.querySelector(".ns-edit-btn").onclick = () => editRow(li);
+  li.querySelectorAll(".ns-remove").forEach(b => (b.onclick = () => li.remove()));
+}
+
+// Confirm turns the editable row into a compact chip, after a quick name check.
+function confirmRow(li) {
+  const { vn, an, sex, groep, name } = rowValues(li);
+  const err = li.querySelector(".ns-error");
+  if (!vn || !an || !sex) {
+    err.textContent = "Vul voornaam, achternaam én geslacht in.";
+    return;
+  }
+  const norm = normalizeName(name);
+  if (KNOWN_NAMES.has(norm) || confirmedNewNames(li).has(norm)) {
+    err.textContent = `Er bestaat al een leerling "${name}". Geef een onderscheidende naam.`;
+    return;
+  }
+  err.textContent = "";
+  const extra = (groep && groep !== "Anders") ? ` · uit ${groep}` : "";
+  li.querySelector(".ns-chip-label").textContent = `${name} · ${sex}${extra}`;
+  li.querySelector(".ns-edit").hidden = true;
+  li.querySelector(".ns-chip").hidden = false;
+  li.dataset.confirmed = "1";
+}
+
+function editRow(li) {
+  li.querySelector(".ns-chip").hidden = true;
+  li.querySelector(".ns-edit").hidden = false;
+  li.dataset.confirmed = "0";
+}
+
+// Rebuild any saved new students as confirmed chips.
+(_rd.new_students || []).forEach(ns => addNewStudentRow(ns));
+
+// Block submit while a started row is still unconfirmed; empty rows are ignored server-side.
+document.getElementById("roster-form").addEventListener("submit", e => {
+  const unfinished = [...document.querySelectorAll('.new-student-row[data-confirmed="0"]')]
+    .filter(li => { const v = rowValues(li); return v.vn || v.an || v.sex; });
+  if (unfinished.length) {
+    e.preventDefault();
+    const li = unfinished[0];
+    li.querySelector(".ns-error").textContent =
+      'Klik "Toevoegen" om deze leerling te bevestigen, of verwijder de regel.';
+    li.scrollIntoView({ block: "center" });
+  }
+});
 </script>
 
 {% endblock %}
