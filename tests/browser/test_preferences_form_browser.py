@@ -93,6 +93,34 @@ def test_tussentijds_opslaan_shows_flash_and_stays_on_page(live_server, tmp_path
 
 
 @pytest.mark.usefixtures("login")
+def test_group_counter_and_empty_marker(live_server, tmp_path, page):
+    """Each group shows 'X van Y met voorkeur'; an empty block shows 'nog geen voorkeur'."""
+    _open_preferences_form(live_server, tmp_path, page)
+    counter = page.locator(
+        ".group-details:not(.new-student-details) .group-counter"
+    ).first
+    assert "0 van 2" in counter.inner_text().lower()
+    _open_group(page)
+    assert "nog geen voorkeur" in page.locator("#preview-s1").inner_text().lower()
+
+    page.fill("#combo-graag_met-s1", "Bram")
+    page.press("#combo-graag_met-s1", "Enter")
+    assert "1 van 2" in counter.inner_text().lower()
+    assert "nog geen voorkeur" not in page.locator("#preview-s1").inner_text().lower()
+    assert "graag met" in page.locator("#preview-s1").inner_text().lower()
+
+
+@pytest.mark.usefixtures("login")
+def test_collapse_group_students_to_preview(live_server, tmp_path, page):
+    """'Klap leerlingen dicht' collapses the open candidate blocks in a group."""
+    _open_preferences_form(live_server, tmp_path, page)
+    _open_group(page)
+    assert page.locator("#block-s1").get_attribute("open") is not None
+    page.click(".group-details:not(.new-student-details) .group-collapse-btn")
+    assert page.locator("#block-s1").get_attribute("open") is None
+
+
+@pytest.mark.usefixtures("login")
 def test_combobox_opens_on_focus(live_server, tmp_path, page):
     """Focusing a preference combobox opens its option list without typing."""
     _open_preferences_form(live_server, tmp_path, page)

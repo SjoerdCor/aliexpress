@@ -52,7 +52,9 @@
     {% if not loop.first %}</details>{% endif %}
     {% set current_group.name = candidate.groepsnaam %}
     <details class="group-details">
-    <summary class="group-summary">{{ candidate.groepsnaam }}</summary>
+    <summary class="group-summary">{{ candidate.groepsnaam }}<span class="group-counter"></span></summary>
+    <button type="button" class="button button--small group-collapse-btn"
+            onclick="toggleGroupStudents(this)">Klap leerlingen dicht</button>
   {% endif %}
 
   <details class="candidate-details" id="block-{{ key }}"
@@ -405,7 +407,7 @@ function makePreferenceChip(key, soort, name, weight, isGroup) {
   return chip;
 }
 
-// ── Preview tekst naast naam in gesloten state ────────────────────────────────
+// ── Preview tekst naast naam + per-groep overzicht ────────────────────────────
 
 function updatePreview(key) {
   const preview = document.getElementById(`preview-${key}`);
@@ -415,7 +417,41 @@ function updatePreview(key) {
   const parts = [];
   if (graag > 0) parts.push(`${graag}× graag met`);
   if (liever > 0) parts.push(`${liever}× liever niet met`);
-  preview.textContent = parts.length ? `(${parts.join(', ')})` : '';
+  const block = preview.closest('.candidate-details');
+  const disabled = block?.classList.contains('candidate-disabled');
+  if (parts.length) {
+    preview.textContent = `(${parts.join(', ')})`;
+    preview.classList.remove('preview-empty');
+  } else if (disabled) {
+    preview.textContent = '';  // a student who does not go over needs no marker
+  } else {
+    // Empty is a valid end state (counts as fully satisfied) — neutral, not a warning.
+    preview.textContent = '— nog geen voorkeur';
+    preview.classList.add('preview-empty');
+  }
+  updateGroupCounters();
+}
+
+// Per-group tally in the group header: how many going-over students have a preference.
+function updateGroupCounters() {
+  document.querySelectorAll('.group-details:not(.new-student-details)').forEach(group => {
+    const counter = group.querySelector(':scope > summary .group-counter');
+    if (!counter) return;
+    const going = [...group.querySelectorAll('.candidate-details')]
+      .filter(b => !b.classList.contains('candidate-disabled'));
+    const withPref = going.filter(b => b.querySelectorAll('.preference-chip').length > 0);
+    counter.textContent = going.length
+      ? ` — ${withPref.length} van ${going.length} met voorkeur`
+      : '';
+  });
+}
+
+// Collapse/expand all student blocks in one group to a scannable preview list.
+function toggleGroupStudents(btn) {
+  const blocks = [...btn.closest('.group-details').querySelectorAll('.candidate-details')];
+  const anyOpen = blocks.some(b => b.open);
+  blocks.forEach(b => { b.open = !anyOpen; });
+  btn.textContent = anyOpen ? 'Klap leerlingen open' : 'Klap leerlingen dicht';
 }
 
 // ── Niet in groep ─────────────────────────────────────────────────────────────
@@ -705,5 +741,10 @@ document.querySelectorAll('.candidate-details[data-disabled]').forEach(block => 
   const key = block.id.replace('block-', '');
   toggleCandidate(key, false);
 });
+
+// Initial preview ("nog geen voorkeur") + per-group counters for every candidate.
+document.querySelectorAll('.candidate-wish-preview').forEach(p =>
+  updatePreview(p.id.replace('preview-', '')));
+updateGroupCounters();
 </script>
 {% endblock %}
