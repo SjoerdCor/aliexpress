@@ -1149,3 +1149,50 @@ table.dataframe th {
     font-weight: normal;
     margin: 0.2rem 0;
 }
+
+/* New-student cards: an "af / niet af" state, like a committed chip. */
+.zone-heading {
+    margin: 1.5rem 0 0.5rem;
+    color: #e69900;
+}
+
+.new-student-block {
+    border: 1px solid #e0c4a0;
+    border-radius: 0.4rem;
+    padding: 0.5rem 0.7rem;
+    margin-bottom: 0.6rem;
+}
+
+.new-student-block[data-complete="1"] {
+    background: #f3faf3;
+    border-color: #b6d7b0;
+}
+
+.new-student-edit {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+}
+
+/* An explicit display rule overrides the [hidden] attribute, so restore hiding. */
+.new-student-edit[hidden],
+.new-student-summary[hidden] {
+    display: none;
+}
+
+.new-student-status {
+    font-size: 0.85em;
+    color: #a06a00;
+    font-style: italic;
+}
+
+.new-student-summary {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.new-student-name {
+    font-weight: 600;
+}
