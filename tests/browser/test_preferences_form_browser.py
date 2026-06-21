@@ -121,6 +121,24 @@ def test_collapse_group_students_to_preview(live_server, tmp_path, page):
 
 
 @pytest.mark.usefixtures("login")
+def test_dangling_preference_is_removed_with_undo(live_server, tmp_path, page):
+    """Unchecking a student removes preferences pointing to them, with a bundled undo."""
+    _open_preferences_form(live_server, tmp_path, page)
+    _open_group(page)
+    page.fill("#combo-graag_met-s1", "Bram")
+    page.press("#combo-graag_met-s1", "Enter")
+    assert page.locator("#chips-graag_met-s1 .preference-chip").count() == 1
+
+    # Bram (s2) no longer goes over → the preference to Bram is auto-removed.
+    page.uncheck("input.gaat-over-checkbox[value='s2']")
+    assert page.locator("#chips-graag_met-s1 .preference-chip").count() == 0
+    assert page.locator("#undo-banner").is_visible()
+
+    page.click("#undo-banner button:has-text('Ongedaan maken')")
+    assert page.locator("#chips-graag_met-s1 .preference-chip").count() == 1
+
+
+@pytest.mark.usefixtures("login")
 def test_combobox_opens_on_focus(live_server, tmp_path, page):
     """Focusing a preference combobox opens its option list without typing."""
     _open_preferences_form(live_server, tmp_path, page)
