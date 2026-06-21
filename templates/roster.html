@@ -16,9 +16,9 @@
 </script>
 
 <details class="instructions-box" open>
-  <summary>Wat doe je hier?</summary>
-  <p>Je leerlingen staan al klaar uit je bestand. Vink uit wie blijft zitten (verlengers).
-  Stroomt er iemand van buiten in? Voeg die onderaan toe.</p>
+  <summary>Vink aan wie ingedeeld moeten worden</summary>
+  <p>Vink uit wie blijft zitten (verlengers). Stroomt er iemand van buiten in of is er iemand die versneld
+    doorgaat? Voeg die onderaan toe.</p>
 </details>
 
 <form method="post" id="roster-form">
@@ -41,8 +41,9 @@
   {% if candidates %}</div>{% endif %}
 
   {# ── Incoming students added by hand ─────────────────────────────────────── #}
-  <h3 class="zone-heading">Leerling van buiten</h3>
-  <p class="help-example">Alleen voor een leerling van buiten. Meestal niet nodig.</p>
+  <h3 class="zone-heading">Extra leerlingen</h3>
+  <p class="help-example">Voeg hier leerlingen toe die nog niet aangevinkt zijn; bijvoorbeeld voor
+    versnelde leerlingen of zij-instromers. Meestal niet nodig.</p>
   <div id="new-students"></div>
   <button type="button" class="button button--small" onclick="addNewStudentRow()">
     + Leerling toevoegen
