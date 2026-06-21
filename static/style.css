@@ -75,12 +75,16 @@ input[type="submit"] {
   font-family: inherit;
   font-size: 1rem;
   padding: 0.75rem 1.5rem;
-  background-color: #e69900;
+  background-color: #ff9933;
   color: white;
   border-radius: 0.5rem;
   cursor: pointer;
   text-align: center;
   display: inline-block;
+}
+
+input[type="submit"]:hover {
+  background-color: #cc8000;
 }
 
 .button {
@@ -89,8 +93,8 @@ input[type="submit"] {
   padding: 0.6rem 1.2rem;
   background-color: #ff9933;
   color: white;
+  border: none;
   border-radius: 0.4rem;
-  border-color: #ff9933;
   text-decoration: none;
   cursor: pointer;
   transition: background-color 0.2s ease;
@@ -643,20 +647,6 @@ table.dataframe th {
     outline: none;
 }
 
-.login-form .btn-primary {
-    all: unset;
-    font-family: inherit;
-    font-size: 1rem;
-    padding: 0.75rem 1.5rem;
-    margin-top: 8px;
-    background-color: #e69900;
-    color: white;
-    border-radius: 0.5rem;
-    cursor: pointer;
-    text-align: center;
-    display: inline-block;
-}
-
 /* School-bar: schoolnaam links, hamburgermenu rechts */
 .school-bar {
     display: flex;
@@ -753,28 +743,6 @@ table.dataframe th {
     margin-left: 12px;
     color: #856404;
     font-weight: 600;
-}
-
-/* Secondary button */
-.btn-secondary {
-    display: inline-block;
-    padding: 8px 16px;
-    background: #f0f0f0;
-    color: #333;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    text-decoration: none;
-    font-size: 0.9rem;
-    cursor: pointer;
-}
-
-.btn-secondary:hover {
-    background: #e0e0e0;
-}
-
-.btn-sm {
-    padding: 4px 10px;
-    font-size: 0.8rem;
 }
 
 /* Admin dashboard table */
