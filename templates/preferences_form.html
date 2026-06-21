@@ -423,7 +423,7 @@ function updatePreview(key) {
     preview.textContent = `(${parts.join(', ')})`;
     preview.classList.remove('preview-empty');
   } else if (disabled) {
-    preview.textContent = '';  // a student who does not go over needs no marker
+    preview.textContent = '';  // a student who does not transfer needs no marker
   } else {
     // Empty is a valid end state (counts as fully satisfied) — neutral, not a warning.
     preview.textContent = '— nog geen voorkeur';
@@ -499,21 +499,56 @@ function toggleCandidate(key, checked) {
   });
   block.classList.toggle('candidate-disabled', !checked);
 
-  // Warn if this student is already a confirmed wish target
-  if (!checked) {
-    const name = block.querySelector('.candidate-name')?.textContent?.trim();
-    if (!name) return;
-    const refs = [];
-    document.querySelectorAll('.preference-chip input[data-name]').forEach(inp => {
-      if (inp.dataset.name === name) {
-        const refOwner = inp.closest('.candidate-details, .new-student-block')?.querySelector('.candidate-name')?.textContent?.trim();
-        if (refOwner && refOwner !== name) refs.push(refOwner);
-      }
-    });
-    if (refs.length > 0) {
-      alert(`Let op: ${name} is uitgevinkt maar staat nog als voorkeur bij: ${refs.join(', ')}. Verwijder die voorkeur(en) als dat gewenst is.`);
-    }
+  if (!checked) removeDanglingPreferences(block.querySelector('.candidate-name')?.textContent?.trim());
+  updateGroupCounters();
+}
+
+// When a student no longer transfers to a new group, preferences pointing to them become
+// invalid. Remove them automatically (a classmate target that does not transfer cannot be
+// honoured) but keep them recoverable via a single bundled undo, so nothing is lost silently.
+function removeDanglingPreferences(name) {
+  if (!name) return;
+  const removed = [];
+  document.querySelectorAll('.preference-chip input[data-name]').forEach(inp => {
+    if (inp.dataset.isgroup === '1' || inp.dataset.name !== name) return;
+    const chip = inp.closest('.preference-chip');
+    const area = chip.closest('.chips-area');
+    const m = area?.id.match(/^chips-(graag_met|liever_niet_met)-(.+)$/);
+    if (!m) return;
+    const [, soort, ownerKey] = m;
+    const weight = chip.querySelector('input[name$="_gewicht"]')?.value || 1;
+    removed.push({ ownerKey, soort, name, weight });
+    chip.remove();
+    updatePreview(ownerKey);
+  });
+  if (removed.length) showUndoBanner(name, removed);
+}
+
+function showUndoBanner(name, removed) {
+  let banner = document.getElementById('undo-banner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'undo-banner';
+    banner.className = 'undo-banner';
+    document.getElementById('preferences-form').prepend(banner);
   }
+  banner.innerHTML = '';
+  const msg = document.createElement('span');
+  const n = removed.length;
+  msg.textContent = `${n} voorkeur${n === 1 ? '' : 'en'} naar ${name} verwijderd omdat ${name} niet meegaat.`;
+  const undo = document.createElement('button');
+  undo.type = 'button';
+  undo.className = 'button button--small';
+  undo.textContent = 'Ongedaan maken';
+  undo.onclick = () => {
+    removed.forEach(r => {
+      const c = document.getElementById(`chips-${r.soort}-${r.ownerKey}`);
+      if (c) { c.appendChild(makePreferenceChip(r.ownerKey, r.soort, r.name, r.weight, false)); updatePreview(r.ownerKey); }
+    });
+    banner.remove();
+    updateGroupCounters();
+  };
+  banner.append(msg, undo);
 }
 
 // ── Nieuwe leerlingen ─────────────────────────────────────────────────────────
@@ -617,7 +652,7 @@ function addNewStudentRow() {
       </div>` : ''}
     </div>`;
   container.appendChild(wrapper);
-  checkedKeys.add(key);  // new students always go over
+  checkedKeys.add(key);  // new students always transfer to a new group
   wrapper.querySelectorAll('.combobox-input').forEach(initCombobox);
 }
 
