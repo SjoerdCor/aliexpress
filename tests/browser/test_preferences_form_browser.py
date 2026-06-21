@@ -4,7 +4,8 @@
 
 These cover the JS behaviours that the Flask test client cannot exercise: the constrained
 combobox (select a known student or group, no free text), chip add/remove, duplicate rules,
-tussentijds opslaan round-trip, nieuwe leerling, and forward navigation.
+tussentijds opslaan round-trip, and forward navigation. The population is fixed by the
+roster step, so this page only enters preferences (no checkboxes or new students here).
 """
 
 import json
@@ -128,24 +129,6 @@ def test_autosave_restores_work_on_reload(live_server, tmp_path, page):
     chips = page.locator("#chips-graag_met-s1 .preference-chip")
     assert chips.count() == 1
     assert "Bram Dijk" in chips.first.inner_text()
-
-
-@pytest.mark.usefixtures("login")
-def test_dangling_preference_is_removed_with_undo(live_server, tmp_path, page):
-    """Unchecking a student removes preferences pointing to them, with a bundled undo."""
-    _open_preferences_form(live_server, tmp_path, page)
-    _open_group(page)
-    page.fill("#combo-graag_met-s1", "Bram")
-    page.press("#combo-graag_met-s1", "Enter")
-    assert page.locator("#chips-graag_met-s1 .preference-chip").count() == 1
-
-    # Bram (s2) no longer goes over → the preference to Bram is auto-removed.
-    page.uncheck("input.gaat-over-checkbox[value='s2']")
-    assert page.locator("#chips-graag_met-s1 .preference-chip").count() == 0
-    assert page.locator("#undo-banner").is_visible()
-
-    page.click("#undo-banner button:has-text('Ongedaan maken')")
-    assert page.locator("#chips-graag_met-s1 .preference-chip").count() == 1
 
 
 @pytest.mark.usefixtures("login")
@@ -359,80 +342,3 @@ def test_preference_chip_persists_after_opslaan(live_server, tmp_path, page):
     chips = page.locator("#chips-graag_met-s1 .preference-chip")
     assert chips.count() == 1
     assert "Bram Dijk" in chips.first.inner_text()
-
-
-def _add_new_student(page, voornaam, achternaam, geslacht="Meisje", confirm=True):
-    """Open the new-student section, add one student, optionally click 'Voeg toe'."""
-    page.click("details.new-student-details > summary")
-    page.click("details.new-student-details button:has-text('Leerling toevoegen')")
-    row = page.locator(".new-student-block").last
-    row.locator("[name='new_voornaam[]']").fill(voornaam)
-    row.locator("[name='new_achternaam[]']").fill(achternaam)
-    if geslacht:
-        row.locator("[name='new_geslacht[]']").select_option(geslacht)
-    if confirm:
-        row.locator("button:has-text('Voeg toe')").click()
-    return row
-
-
-@pytest.mark.usefixtures("login")
-def test_completed_new_student_is_submitted(live_server, tmp_path, page):
-    """A finished ('Voeg toe') student hides its inputs, shows a summary, and is submitted."""
-    proc = _open_preferences_form(live_server, tmp_path, page)
-    row = _add_new_student(page, "Emma", "Jansen")
-    assert row.get_attribute("data-complete") == "1"
-    # The input fields disappear; a compact summary (name · sex · origin group) shows.
-    assert row.locator(".new-student-edit").is_hidden()
-    summary = row.locator(".new-student-summary")
-    assert summary.is_visible()
-    assert "Uit groep" in summary.inner_text()
-    assert summary.locator("button:has-text('Voorkeuren invoeren')").is_visible()
-
-    page.click("button.next-step")
-    page.wait_for_url("**/not_together")
-    payload = json.loads((proc / "voorkeuren.json").read_text("utf-8"))
-    assert "Emma Jansen" in set(payload["student_display"].values())
-
-
-@pytest.mark.usefixtures("login")
-def test_unfinished_new_student_blocks_submit(live_server, tmp_path, page):
-    """A started-but-unfinished new student (missing geslacht) blocks submit."""
-    _open_preferences_form(live_server, tmp_path, page)
-    _add_new_student(page, "Emma", "Jansen", geslacht="", confirm=False)
-    page.click("button.next-step")
-    # Submit is blocked: we stay on the form and see a message on the row.
-    page.wait_for_timeout(300)
-    assert "/preferences_form" in page.url
-    assert page.locator(".new-student-block .field-error").first.inner_text() != ""
-
-
-@pytest.mark.usefixtures("login")
-def test_new_student_name_collision_is_flagged_on_name_alone(
-    live_server, tmp_path, page
-):
-    """A name clash is flagged live, on the name alone — geslacht need not match."""
-    _open_preferences_form(live_server, tmp_path, page)
-    # No geslacht filled: the collision must still be detected from the name.
-    row = _add_new_student(page, "Anna", "Bos", geslacht="", confirm=False)
-    assert (
-        "bestaat al"
-        in row.locator(".new-student-edit .field-error").inner_text().lower()
-    )
-    # Trying to finish keeps it uncommitted.
-    row.locator("button:has-text('Voeg toe')").click()
-    assert row.get_attribute("data-complete") == "0"
-
-
-@pytest.mark.usefixtures("login")
-def test_finished_new_student_is_selectable_as_target(live_server, tmp_path, page):
-    """Once finished, a new student can be chosen as a preference of an existing student."""
-    _open_preferences_form(live_server, tmp_path, page)
-    _add_new_student(page, "Emma", "Jansen")
-    _open_group(page)
-    page.fill("#combo-graag_met-s1", "Emma")
-    assert (
-        page.locator(
-            "#list-graag_met-s1 .combobox-option:has-text('Emma Jansen')"
-        ).count()
-        == 1
-    )

@@ -33,7 +33,7 @@ class TestPreferencesForm:
         },
     ]
 
-    def _setup(self, client, tmp_path):
+    def _setup(self, client, tmp_path, participants=None):
         proc_dir = setup_process(client, tmp_path)
         (proc_dir / "relevant_students_and_groups.json").write_text(
             json.dumps({"candidates": self.CANDIDATES, "groups_from": ["Groen"]}),
@@ -42,6 +42,17 @@ class TestPreferencesForm:
         pd.DataFrame(
             {"Jongens": [1], "Meisjes": [1]}, index=pd.Index(["Klas A"], name="Groepen")
         ).to_excel(proc_dir / "groups.xlsx")
+        # The roster step has run: the population is settled before preferences are entered.
+        (proc_dir / "roster.json").write_text(
+            json.dumps(
+                {
+                    "participants": (
+                        participants if participants is not None else self.CANDIDATES
+                    )
+                }
+            ),
+            encoding="utf-8",
+        )
         return proc_dir
 
     def test_get_returns_200_with_student_names_and_target_groups(
@@ -55,16 +66,13 @@ class TestPreferencesForm:
         assert b"Bram" in response.data
         assert b"Klas A" in response.data
 
-    def test_post_all_checked_writes_voorkeuren_json_and_redirects(
+    def test_post_writes_voorkeuren_json_for_all_participants_and_redirects(
         self, client, tmp_path
     ):
-        """POST /preferences_form with all students checked writes voorkeuren.json and
-        redirects to not_together."""
+        """POST /preferences_form writes voorkeuren.json for every roster participant and
+        redirects to not_together (the population is fixed by the roster step)."""
         proc_dir = self._setup(client, tmp_path)
-        response = client.post(
-            "/preferences_form",
-            data={"gaat_over": ["s1", "s2"]},
-        )
+        response = client.post("/preferences_form", data={})
         assert response.status_code == 302
         assert response.headers["Location"].endswith("/not_together")
         payload = json.loads((proc_dir / "voorkeuren.json").read_text("utf-8"))
@@ -73,14 +81,13 @@ class TestPreferencesForm:
         assert "Anna Bos" in display_names
         assert "Bram Dijk" in display_names
 
-    def test_post_unchecked_student_is_excluded(self, client, tmp_path):
-        """POST /preferences_form with only s1 checked excludes Bram from voorkeuren.json."""
+    def test_get_redirects_to_roster_when_no_roster_yet(self, client, tmp_path):
+        """Without a settled roster the page sends the teacher to 'Wie gaat mee' first."""
         proc_dir = self._setup(client, tmp_path)
-        client.post("/preferences_form", data={"gaat_over": ["s1"]})
-        payload = json.loads((proc_dir / "voorkeuren.json").read_text("utf-8"))
-        display_names = set(payload["student_display"].values())
-        assert "Anna Bos" in display_names
-        assert "Bram Dijk" not in display_names
+        (proc_dir / "roster.json").unlink()
+        response = client.get("/preferences_form")
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/roster")
 
     def test_post_with_wish_appears_in_preference_frame(self, client, tmp_path):
         """POST with a 'Graag met' wish is stored in the preference frame."""
@@ -88,7 +95,6 @@ class TestPreferencesForm:
         client.post(
             "/preferences_form",
             data={
-                "gaat_over": ["s1", "s2"],
                 "preference_s1_graag_met_target": ["Bram Dijk"],
                 "preference_s1_graag_met_gewicht": ["1"],
             },
@@ -110,7 +116,6 @@ class TestPreferencesForm:
             "/preferences_form",
             data={
                 "action": "autosave",
-                "gaat_over": ["s1", "s2"],
                 "preference_s1_graag_met_target": ["Bram Dijk"],
                 "preference_s1_graag_met_gewicht": ["1"],
             },
@@ -138,9 +143,8 @@ class TestPreferencesForm:
                 "geslacht": "Meisje",
             },
         ]
-        (proc_dir / "relevant_students_and_groups.json").write_text(
-            json.dumps({"candidates": candidates, "groups_from": ["Zulu", "Alpha"]}),
-            encoding="utf-8",
+        (proc_dir / "roster.json").write_text(
+            json.dumps({"participants": candidates}), encoding="utf-8"
         )
         pd.DataFrame(
             {"Jongens": [1, 1], "Meisjes": [0, 1]},
@@ -151,29 +155,12 @@ class TestPreferencesForm:
         pos_zes = html.find("Zes")
         assert pos_alfa < pos_zes, "Alpha moet vóór Zulu staan"
 
-    def test_post_with_new_student_appears_in_voorkeuren(self, client, tmp_path):
-        """POST /preferences_form with a new student (incl. new_key[]) includes them."""
-        proc_dir = self._setup(client, tmp_path)
-        client.post(
-            "/preferences_form",
-            data={
-                "gaat_over": ["s1", "s2", "new_0"],
-                "new_key[]": "new_0",
-                "new_voornaam[]": "Emma",
-                "new_achternaam[]": "Jansen",
-                "new_geslacht[]": "Meisje",
-            },
-        )
-        payload = json.loads((proc_dir / "voorkeuren.json").read_text("utf-8"))
-        display_names = set(payload["student_display"].values())
-        assert "Emma Jansen" in display_names
-
     def test_post_min_satisfaction_stored_in_students_info(self, client, tmp_path):
         """POST /preferences_form with min_satisfaction percentage is stored as 0-1 decimal."""
         proc_dir = self._setup(client, tmp_path)
         client.post(
             "/preferences_form",
-            data={"gaat_over": ["s1", "s2"], "min_sat_s1": "50"},
+            data={"min_sat_s1": "50"},
         )
         payload = json.loads((proc_dir / "voorkeuren.json").read_text("utf-8"))
         info = payload["students_info"]
@@ -209,9 +196,8 @@ class TestPreferencesForm:
                 "geslacht": "Jongen",
             },
         ]
-        (proc_dir / "relevant_students_and_groups.json").write_text(
-            json.dumps({"candidates": candidates, "groups_from": ["Beren", "Anders"]}),
-            encoding="utf-8",
+        (proc_dir / "roster.json").write_text(
+            json.dumps({"participants": candidates}), encoding="utf-8"
         )
         pd.DataFrame(
             {"Jongens": [1], "Meisjes": [1]}, index=pd.Index(["Klas A"], name="Groepen")
@@ -228,7 +214,6 @@ class TestPreferencesForm:
         response = client.post(
             "/preferences_form",
             data={
-                "gaat_over": ["s1", "s2"],
                 "preference_s1_graag_met_target": ["Spook Persoon"],
                 "preference_s1_graag_met_gewicht": ["1"],
             },
@@ -249,7 +234,6 @@ class TestPreferencesForm:
         client.post(
             "/preferences_form",
             data={
-                "gaat_over": ["s1", "s2"],
                 "preference_s1_graag_met_target": ["Bram Dijk"],
                 "preference_s1_graag_met_gewicht": ["2"],
             },
@@ -257,3 +241,26 @@ class TestPreferencesForm:
         assert (proc_dir / "preferences_form_state.json").exists()
         html = client.get("/preferences_form").data.decode("utf-8")
         assert "Bram Dijk" in html
+
+    def test_dangling_preference_dropped_with_notice_when_target_left_roster(
+        self, client, tmp_path
+    ):
+        """If a preference points to a leerling who was later removed from the roster, the
+        GET drops it and shows a friendly notice about the removal."""
+        proc_dir = self._setup(client, tmp_path)
+        # Anna (s1) prefers Bram (s2); save that as a draft.
+        client.post(
+            "/preferences_form",
+            data={
+                "action": "autosave",
+                "preference_s1_graag_met_target": ["Bram Dijk"],
+                "preference_s1_graag_met_gewicht": ["1"],
+            },
+        )
+        # Now Bram is no longer a participant (removed on the roster step).
+        (proc_dir / "roster.json").write_text(
+            json.dumps({"participants": [self.CANDIDATES[0]]}), encoding="utf-8"
+        )
+        html = client.get("/preferences_form").data.decode("utf-8")
+        assert "Bram Dijk" in html  # named in the removal notice
+        assert "is verwijderd" in html
