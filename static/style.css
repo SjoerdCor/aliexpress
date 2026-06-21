@@ -1196,3 +1196,19 @@ table.dataframe th {
 .new-student-name {
     font-weight: 600;
 }
+
+/* Per-group tally + "nog geen voorkeur" marker (informational, not a warning). */
+.group-counter {
+    color: #666;
+    font-weight: normal;
+    font-size: 0.9em;
+}
+
+.preview-empty {
+    color: #999;
+    font-style: italic;
+}
+
+.group-collapse-btn {
+    margin: 0.3rem 0 0.5rem;
+}
