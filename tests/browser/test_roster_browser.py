@@ -92,10 +92,10 @@ def test_origin_group_dropdown_has_single_anders(live_server, tmp_path, page):
 
 @pytest.mark.usefixtures("login")
 def test_excel_choice_keeps_existing_students_in_roster(live_server, tmp_path, page):
-    """Choosing 'Wensen via Excel' must carry the pre-checked existing students into the
+    """Choosing 'Voorkeuren via Excel' must carry the pre-checked existing students into the
     roster (regression: the Excel download reported 'no students')."""
     proc = _open_roster(live_server, tmp_path, page)
-    page.click("button:has-text('Wensen via Excel')")
+    page.click("button:has-text('Voorkeuren via Excel')")
     page.wait_for_url("**/preferences_excel")
     roster = json.loads((proc / "roster.json").read_text("utf-8"))
     assert {p["key"] for p in roster["participants"]} == {"s1", "s2"}
@@ -106,7 +106,7 @@ def test_confirmed_new_student_submits(live_server, tmp_path, page):
     """A confirmed new student is written to roster.json on forward."""
     proc = _open_roster(live_server, tmp_path, page)
     _add_student(page, "Emma", "Jansen")
-    page.click("button:has-text('Wensen via formulier')")
+    page.click("button:has-text('Voorkeuren via formulier')")
     page.wait_for_url("**/preferences_form")
     roster = json.loads((proc / "roster.json").read_text("utf-8"))
     assert "Emma Jansen" in {
@@ -119,7 +119,7 @@ def test_unconfirmed_row_blocks_submit(live_server, tmp_path, page):
     """A started-but-unconfirmed row blocks forward navigation with a message."""
     _open_roster(live_server, tmp_path, page)
     _add_student(page, "Emma", "Jansen", geslacht="", confirm=False)
-    page.click("button:has-text('Wensen via formulier')")
+    page.click("button:has-text('Voorkeuren via formulier')")
     page.wait_for_timeout(300)
     assert "/roster" in page.url
     assert page.locator(".new-student-row .ns-error").first.inner_text() != ""
@@ -149,7 +149,7 @@ def test_saved_new_student_restored_as_chip(live_server, tmp_path, page):
     """A saved new student comes back as a confirmed chip after a reload."""
     _open_roster(live_server, tmp_path, page)
     _add_student(page, "Emma", "Jansen")
-    page.click("button:has-text('Wensen via formulier')")
+    page.click("button:has-text('Voorkeuren via formulier')")
     page.wait_for_url("**/preferences_form")
 
     page.goto(f"{live_server}/roster")

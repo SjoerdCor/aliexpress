@@ -65,7 +65,7 @@ def readableerror_to_validation_message(exc: Exception) -> str:
         # Used by the route layer (Stap 3) to validate the raw form input before a
         # Preference is constructed; the dataclass itself also rejects a weight <= 0.
         "invalid_gewicht_form": (
-            "{leerling} heeft een wens met gewicht {gewicht}. Een gewicht moet groter "
+            "{leerling} heeft een voorkeur met gewicht {gewicht}. Een gewicht moet groter "
             "dan 0 zijn."
         ),
         "invalid_min_tevredenheid_form": (
@@ -116,8 +116,8 @@ def schemaerror_to_validation_message(exc: pa.errors.SchemaError) -> str:
         if students:
             return (
                 f"In het {exc.filetype}-bestand mist een waarde bij: "
-                f"{', '.join(students)}. Vul bij elke wens een naam of groep in, of haal "
-                "het bijbehorende gewicht weg als er geen wens is."
+                f"{', '.join(students)}. Vul bij elke voorkeur een naam of groep in, of haal "
+                "het bijbehorende gewicht weg als er geen voorkeur is."
             )
         return (
             f"In het {exc.filetype}-bestand zijn niet alle verplichte velden gevuld "

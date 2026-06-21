@@ -156,7 +156,7 @@ def _export(ps, preference_data, target_groups):
         "Klassenoverzicht": sa.group_report,
         "Overgangsmatrix": sa.display_transition_matrix(),
         "Leerlingtevredenheid": sa.display_student_performance(),
-        "VervuldeWensen": sa.display_satisfied_preferences(),
+        "VervuldeVoorkeuren": sa.display_satisfied_preferences(),
     }
 
     return output, dfs
