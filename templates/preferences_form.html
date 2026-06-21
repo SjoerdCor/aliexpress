@@ -21,11 +21,17 @@
 }
 </script>
 
-<div class="instructions-box">
-  <strong>Stap 1.</strong> Voeg eerst nieuwe of ingestroomde leerlingen toe en klik
-  <em>Voeg toe</em> als een leerling compleet is — dan kun je hen ook als voorkeur kiezen.
-  <strong>Stap 2.</strong> Vink per groep aan wie meegaat en vul de voorkeuren in.
-</div>
+<details class="instructions-box" open>
+  <summary>Hoe werkt deze pagina?</summary>
+  <p><strong>Stap 1.</strong> Voeg eerst nieuwe of ingestroomde leerlingen toe en klik
+  <em>Voeg toe</em> als een leerling compleet is — dan kun je hen ook als voorkeur kiezen.</p>
+  <p><strong>Stap 2.</strong> Vink per groep aan wie meegaat en vul per leerling de
+  voorkeuren in: kies bij <em>Graag met</em> of <em>Liever niet met</em> een klasgenoot
+  of een groep.</p>
+  <p class="help-example"><em>Voorbeeld:</em> Anna wil graag bij Bo en een beetje bij Sem.
+  Klik Anna open, kies bij <em>Graag met</em> eerst Bo (klik op de chip en zet de
+  intensiteit op <em>hartsvriend</em>), kies dan Sem en zet die op <em>een beetje</em>.</p>
+</details>
 
 <form method="post" id="preferences-form" novalidate>
 
@@ -53,8 +59,6 @@
     {% set current_group.name = candidate.groepsnaam %}
     <details class="group-details">
     <summary class="group-summary">{{ candidate.groepsnaam }}<span class="group-counter"></span></summary>
-    <button type="button" class="button button--small group-collapse-btn"
-            onclick="toggleGroupStudents(this)">Klap leerlingen dicht</button>
   {% endif %}
 
   <details class="candidate-details" id="block-{{ key }}"
@@ -79,7 +83,7 @@
       <div class="preference-section">
         <p class="preference-section-label">
           {{ label }}
-          <abbr title="{{ tooltip }}">ℹ</abbr>
+          <button type="button" class="info-pop" data-help="{{ tooltip }}">ℹ</button>
         </p>
         <div class="chips-area" id="chips-{{ soort }}-{{ key }}"></div>
         <div class="combobox">
@@ -101,7 +105,7 @@
       {# ── Niet in groep ─────────────────────────────────────────────────── #}
       {% if target_groups | length > 1 %}
       <div class="wish-section">
-        <p class="wish-section-label">Niet in groep <abbr title="Groepen waar deze leerling absoluut niet in geplaatst mag worden. Je kunt maximaal (aantal doelgroepen - 1) groepen uitsluiten.">ℹ</abbr></p>
+        <p class="wish-section-label">Niet in groep <button type="button" class="info-pop" data-help="Een harde grens: deze leerling komt zéker niet in deze groep — bijvoorbeeld omdat er al een oudere broer of zus in zit. Dit is iets anders dan 'liever niet met' een groep, dat een zachte voorkeur is die mag wijken. Je kunt hoogstens (aantal groepen − 1) groepen uitsluiten.">ℹ</button></p>
         <div class="chips-area" id="chips-nieting-{{ key }}"></div>
         <div class="wish-add-area">
           <select class="nieting-select" id="nieting-select-{{ key }}">
@@ -123,9 +127,13 @@
       {% set ms = candidate.min_satisfaction if candidate.min_satisfaction is defined else none %}
       {% set ms_pct = (ms * 100) | round | int if ms is not none else 0 %}
       <details class="extra-zekerheid">
-        <summary>Extra zekerheid voor deze leerling
-          <abbr title="Bedoeld voor een leerling die sociaal kwetsbaarder is en zeker bij een vertrouwd iemand moet komen. Let op: dit gaat ten koste van de algehele tevredenheid — om deze leerling zeker te plaatsen, valt de verdeling voor de groep als geheel mogelijk minder gunstig uit. Vooral 'Alle voorkeuren gehonoreerd' bij veel leerlingen kan de verdeling onhaalbaar maken. Gebruik het alleen waar het echt nodig is.">ℹ</abbr>
-        </summary>
+        <summary>Extra zekerheid voor deze leerling</summary>
+        <p class="extra-zekerheid-help">Bedoeld voor een leerling die sociaal kwetsbaarder
+          is en zeker bij een vertrouwd iemand moet komen. Let op: dit gaat ten koste van de
+          algehele tevredenheid — om deze leerling zeker te plaatsen, valt de verdeling voor
+          de groep als geheel mogelijk minder gunstig uit. Vooral "Alle voorkeuren
+          gehonoreerd" bij veel leerlingen kan de verdeling onhaalbaar maken. Gebruik het
+          alleen waar het echt nodig is.</p>
         <div class="extra-zekerheid-options">
           <label><input type="radio" name="min_sat_{{ key }}" value=""
                  {% if ms_pct <= 0 %}checked{% endif %}> Geen extra eis</label>
@@ -340,7 +348,7 @@ function intensityCaption(soort) {
 function makePreferenceChip(key, soort, name, weight, isGroup) {
   weight = parseFloat(weight) || 1;
   const chip = document.createElement('span');
-  chip.className = 'preference-chip student-chip';
+  chip.className = `preference-chip student-chip preference-chip--${soort}`;
 
   const lbl = document.createElement('span');
   lbl.className = 'chip-label';
@@ -446,13 +454,6 @@ function updateGroupCounters() {
   });
 }
 
-// Collapse/expand all student blocks in one group to a scannable preview list.
-function toggleGroupStudents(btn) {
-  const blocks = [...btn.closest('.group-details').querySelectorAll('.candidate-details')];
-  const anyOpen = blocks.some(b => b.open);
-  blocks.forEach(b => { b.open = !anyOpen; });
-  btn.textContent = anyOpen ? 'Klap leerlingen open' : 'Klap leerlingen dicht';
-}
 
 // ── Niet in groep ─────────────────────────────────────────────────────────────
 
@@ -473,7 +474,7 @@ function addNietIn(key, maxAllowed) {
   select.value = '';
 
   const chip = document.createElement('span');
-  chip.className = 'student-chip';
+  chip.className = 'student-chip niet-in-chip';
   const lbl = document.createElement('span');
   lbl.textContent = group;
   const del = document.createElement('button');
@@ -746,7 +747,7 @@ if (DRAFT) {
       const cc = document.getElementById(`chips-nieting-${key}`);
       if (!cc) return;
       const chip = document.createElement('span');
-      chip.className = 'student-chip';
+      chip.className = 'student-chip niet-in-chip';
       const lbl = document.createElement('span');
       lbl.textContent = group;
       const del = document.createElement('button');
@@ -781,6 +782,33 @@ document.querySelectorAll('.candidate-details[data-disabled]').forEach(block => 
 document.querySelectorAll('.candidate-wish-preview').forEach(p =>
   updatePreview(p.id.replace('preview-', '')));
 updateGroupCounters();
+
+// ── Click-popovers for the heavier ⓘ explanations (short ones stay hover-title) ──
+let _openInfoBtn = null;
+function closeInfoPopover() {
+  document.querySelectorAll('.info-popover').forEach(p => p.remove());
+}
+function showInfoPopover(btn) {
+  const wasOpen = _openInfoBtn === btn;
+  closeInfoPopover();
+  _openInfoBtn = null;
+  if (wasOpen) return;  // second click closes it
+  const pop = document.createElement('div');
+  pop.className = 'info-popover';
+  pop.textContent = btn.dataset.help;
+  btn.insertAdjacentElement('afterend', pop);
+  _openInfoBtn = btn;
+}
+document.querySelectorAll('.info-pop').forEach(btn => {
+  btn.addEventListener('click', e => {
+    e.preventDefault();
+    e.stopPropagation();  // keep a surrounding <summary> from toggling
+    showInfoPopover(btn);
+  });
+});
+document.addEventListener('click', e => {
+  if (!e.target.closest('.info-popover')) { closeInfoPopover(); _openInfoBtn = null; }
+});
 
 // ── Autosave: a long entry session must never be lost ─────────────────────────
 // Every change is debounced and posted as a background "autosave" that writes only the
