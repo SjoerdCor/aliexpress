@@ -140,14 +140,14 @@ def delete(process_name):
 
 
 def _preferences_url(path):
-    """Return the preferences URL based on the saved input method, defaulting to Excel."""
+    """Return the preferences URL based on the saved input method, defaulting to the form."""
     method_path = os.path.join(path, "input_method.json")
     if os.path.exists(method_path):
         with open(method_path, encoding="utf-8") as fh:
-            method = json.load(fh).get("method", "excel")
-        if method == "form":
-            return url_for("wizard.preferences_form")
-    return url_for("wizard.preferences_excel")
+            method = json.load(fh).get("method", "form")
+        if method == "excel":
+            return url_for("wizard.preferences_excel")
+    return url_for("wizard.preferences_form")
 
 
 def _resume_url(proc, path):

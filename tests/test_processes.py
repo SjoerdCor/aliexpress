@@ -186,6 +186,9 @@ class TestSelectProcess:
         (proc_dir / "roster.json").write_text(
             json.dumps({"participants": []}), encoding="utf-8"
         )
+        (proc_dir / "input_method.json").write_text(
+            json.dumps({"method": "excel"}), encoding="utf-8"
+        )
         with flask_app.app_context():
             make_process_row(SCHOOL_ID, "procesmetroster")
         response = client.get("/processes/select/procesmetroster")
