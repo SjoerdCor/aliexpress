@@ -407,26 +407,6 @@ def _load_groups_to_state(school_id, process_id):
         return json.load(f)
 
 
-def _load_student_selection(school_id, process_id):
-    """Load the saved student selection, or None when the page was not used yet."""
-    path = get_file_path(school_id, process_id, "student_selection.json")
-    if not os.path.exists(path):
-        return None
-    with open(path, encoding="utf-8") as fh:
-        return json.load(fh)
-
-
-def _save_student_selection(school_id, process_id, selected_ids, new_students):
-    """Persist which candidates were ticked and which students were added by hand."""
-    path = get_file_path(school_id, process_id, "student_selection.json")
-    with open(path, "w", encoding="utf-8") as fh:
-        json.dump(
-            {"selected_ids": selected_ids, "new_students": new_students},
-            fh,
-            ensure_ascii=False,
-        )
-
-
 def _parse_not_together_form(form, n_rules):
     """Parse not-together form fields into rule dicts. Returns (rules, error_msg)."""
     rules = []
@@ -464,20 +444,6 @@ def _save_not_together(school_id, process_id, rules):
     path = get_file_path(school_id, process_id, "not_together.json")
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(data, fh, ensure_ascii=False)
-
-
-def _extract_new_students(form):
-    """Extract manually added students from form fields"""
-    firstnames = form.getlist("new_firstname[]")
-    lastnames = form.getlist("new_lastname[]")
-    genders = form.getlist("new_gender[]")
-    groups = form.getlist("new_group[]")
-
-    return [
-        {"roepnaam": fn, "achternaam": ln, "geslacht": sex, "groepsnaam": gr}
-        for fn, ln, sex, gr in zip(firstnames, lastnames, genders, groups)
-        if fn.strip() and ln.strip()
-    ]
 
 
 @wizard_bp.route("/input_templates/<path:filename>")
@@ -573,50 +539,38 @@ def groups_to_page():
 @login_required
 @require_process
 def preferences_excel():
-    """Display the Excel-based preferences page: download template, upload filled file."""
+    """Excel input path: download a template prefilled with the roster, then upload it.
+
+    The population is fixed by the shared roster step (ADR 0005), so this page no longer
+    selects students; the download is built straight from ``roster.json``.
+    """
     school_id = effective_school_id()
     if school_id is None:
         return redirect(url_for("admin.dashboard"))
     process_id = session["process_id"]
-    with open(
-        get_file_path(school_id, process_id, "relevant_students_and_groups.json"),
-        "r",
-        encoding="utf-8",
-    ) as f:
-        data = json.load(f)
-    candidates = data.get("candidates", [])
-    groups_from = data.get("groups_from", {})
+    saved_roster = load_roster(get_file_path(school_id, process_id, "roster.json"))
+    if saved_roster is None:
+        # The population must be settled first; send the teacher to "Wie gaat mee".
+        return redirect(url_for("roster.roster_page"))
+    participants = saved_roster["participants"]
 
     if request.method == "GET":
-        selection = _load_student_selection(school_id, process_id)
         return render_template(
             "preferences_excel.html",
-            candidates=candidates,
-            groups_from=groups_from,
             preferences_uploaded=os.path.exists(
                 get_file_path(school_id, process_id, "preferences.xlsx")
             ),
-            # None means "first visit": default to all candidates ticked.
-            selected_ids=set(selection["selected_ids"]) if selection else None,
-            saved_new_students=selection["new_students"] if selection else [],
         )
-    new_students = _extract_new_students(request.form)
-    selected_ids = request.form.getlist("students")
-    if len(new_students) + len(selected_ids) == 0:
-        flash("Er moet minsten één leerling aanwezig zijn", "error")
-        return redirect(url_for("wizard.preferences_excel"))
 
+    if not participants:
+        flash("Er moet minsten één leerling aanwezig zijn", "error")
+        return redirect(url_for("roster.roster_page"))
     try:
-        df_total = candidatedetermination.combine_students(
-            candidates, selected_ids, new_students
-        )
+        df_total = candidatedetermination.students_df_from_records(participants)
     except DuplicateNameError as exc:
         logger.exception(exc)
         flash(f"Vond leerlingen dubbel: {exc.context['duplicate_names']}", "error")
-        return redirect(url_for("wizard.preferences_excel"))
-
-    # Remember exactly what the teacher selected so the page restores on return.
-    _save_student_selection(school_id, process_id, selected_ids, new_students)
+        return redirect(url_for("roster.roster_page"))
 
     groups_to = pd.read_excel(
         get_file_path(school_id, process_id, "groups.xlsx"), index_col=0

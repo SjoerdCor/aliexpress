@@ -7,6 +7,7 @@ import re
 from io import BytesIO
 from unittest.mock import MagicMock
 
+import openpyxl
 import pandas as pd
 from werkzeug.datastructures import MultiDict
 
@@ -325,60 +326,62 @@ class TestParseGroupsToForm:
         assert result.state["original_groups"]["Klas A"]["checked_indices"] == [0]
 
 
-class TestStudentPreferencesSelection:
-    """GET /preferences_excel restores the Stap 1 selection saved on download."""
+class TestPreferencesExcel:
+    """GET/POST /preferences_excel: download a roster-prefilled template, then upload it."""
 
-    CANDIDATES = [
-        {"key": "s1", "roepnaam": "Anna", "achternaam": "Bos", "groepsnaam": "Groen"},
-        {"key": "s2", "roepnaam": "Bram", "achternaam": "Dijk", "groepsnaam": "Groen"},
-        {"key": "s3", "roepnaam": "Cas", "achternaam": "El", "groepsnaam": "Blauw"},
+    PARTICIPANTS = [
+        {
+            "key": "s1",
+            "roepnaam": "Anna",
+            "achternaam": "Bos",
+            "groepsnaam": "Groen",
+            "geslacht": "Meisje",
+        },
+        {
+            "key": "s2",
+            "roepnaam": "Bram",
+            "achternaam": "Dijk",
+            "groepsnaam": "Groen",
+            "geslacht": "Jongen",
+        },
     ]
 
-    def _setup(self, client, tmp_path):
+    def _setup(self, client, tmp_path, with_roster=True):
         proc_dir = setup_process(client, tmp_path)
-        (proc_dir / "relevant_students_and_groups.json").write_text(
-            json.dumps(
-                {"candidates": self.CANDIDATES, "groups_from": ["Groen", "Blauw"]}
-            ),
-            encoding="utf-8",
-        )
+        pd.DataFrame(
+            {"Jongens": [1, 1], "Meisjes": [1, 0]},
+            index=pd.Index(["Klas A", "Klas B"], name="Groepen"),
+        ).to_excel(proc_dir / "groups.xlsx")
+        if with_roster:
+            (proc_dir / "roster.json").write_text(
+                json.dumps({"participants": self.PARTICIPANTS}), encoding="utf-8"
+            )
         return proc_dir
 
-    def _checkbox_state(self, html):
-        """Map each candidate key to whether its checkbox is ticked."""
-        boxes = re.findall(r'<input type="checkbox" name="students"[^>]*>', html)
-        return {re.search(r'value="(s\d)"', b).group(1): "checked" in b for b in boxes}
+    def test_get_redirects_to_roster_when_no_roster_yet(self, client, tmp_path):
+        """Without a settled roster the page sends the teacher to 'Wie gaat mee' first."""
+        self._setup(client, tmp_path, with_roster=False)
+        response = client.get("/preferences_excel")
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/roster")
 
-    def test_first_visit_ticks_all_candidates(self, client, tmp_path):
-        """Without a saved selection every candidate starts ticked."""
+    def test_get_shows_download_without_student_selection(self, client, tmp_path):
+        """The page only offers download + upload; there is no per-student selection."""
         self._setup(client, tmp_path)
         html = client.get("/preferences_excel").data.decode("utf-8")
-        assert self._checkbox_state(html) == {"s1": True, "s2": True, "s3": True}
+        assert "Download invulformulier" in html
+        assert 'name="students"' not in html  # no Stap 1 selection anymore
 
-    def test_saved_selection_and_added_student_are_restored(self, client, tmp_path):
-        """A saved selection un-ticks dropped students and re-fills added ones."""
-        proc_dir = self._setup(client, tmp_path)
-        (proc_dir / "student_selection.json").write_text(
-            json.dumps(
-                {
-                    "selected_ids": ["s1", "s3"],
-                    "new_students": [
-                        {
-                            "roepnaam": "Daan",
-                            "achternaam": "Fok",
-                            "geslacht": "Jongen",
-                            "groepsnaam": "Blauw",
-                        }
-                    ],
-                }
-            ),
-            encoding="utf-8",
-        )
-        html = client.get("/preferences_excel").data.decode("utf-8")
-        assert self._checkbox_state(html) == {"s1": True, "s2": False, "s3": True}
-        assert 'value="Daan"' in html
-        assert 'value="Jongen" selected' in html
-        assert 'value="Blauw" selected' in html
+    def test_post_downloads_excel_prefilled_from_roster(self, client, tmp_path):
+        """POST builds the prefilled workbook straight from the roster participants."""
+        self._setup(client, tmp_path)
+        response = client.post("/preferences_excel")
+        assert response.status_code == 200
+        assert "voorkeuren.xlsx" in response.headers.get("Content-Disposition", "")
+        wb = openpyxl.load_workbook(BytesIO(response.data))
+        names = [wb["Sheet1"][f"A{i}"].value for i in range(4, 8)]
+        joined = " ".join(n for n in names if n)
+        assert "Anna" in joined and "Bram" in joined
 
 
 class TestNotTogetherLoadsFromJson:

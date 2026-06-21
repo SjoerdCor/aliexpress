@@ -91,6 +91,17 @@ def test_origin_group_dropdown_has_single_anders(live_server, tmp_path, page):
 
 
 @pytest.mark.usefixtures("login")
+def test_excel_choice_keeps_existing_students_in_roster(live_server, tmp_path, page):
+    """Choosing 'Wensen via Excel' must carry the pre-checked existing students into the
+    roster (regression: the Excel download reported 'no students')."""
+    proc = _open_roster(live_server, tmp_path, page)
+    page.click("button:has-text('Wensen via Excel')")
+    page.wait_for_url("**/preferences_excel")
+    roster = json.loads((proc / "roster.json").read_text("utf-8"))
+    assert {p["key"] for p in roster["participants"]} == {"s1", "s2"}
+
+
+@pytest.mark.usefixtures("login")
 def test_confirmed_new_student_submits(live_server, tmp_path, page):
     """A confirmed new student is written to roster.json on forward."""
     proc = _open_roster(live_server, tmp_path, page)
