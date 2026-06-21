@@ -300,11 +300,12 @@ def _build_form_state(entries: list[StudentEntry], all_candidates: list[dict]) -
     return {"students": state_students}
 
 
-def _pref_form_post_data(form, orig_candidates, groups_from, all_groups_to, state_path):
-    """Parse form, save intermediate state, return the resulting PreferenceData.
+def _write_pref_form_state(form, orig_candidates, groups_from, state_path):
+    """Parse the form and persist the intermediate draft (``preferences_form_state.json``).
 
-    New students submitted via ``new_key[]`` / ``new_voornaam[]`` / ... are parsed
-    as full candidates (including their wishes) so they appear in the next draft.
+    Returns the parsed ``StudentEntry`` list. Does not validate — it captures whatever is
+    on the page so a reload (or a crash) restores it. New students submitted via
+    ``new_key[]`` / ``new_voornaam[]`` / ... are parsed as full candidates (incl. wishes).
     """
     checked_keys = set(form.getlist("gaat_over"))
     entries = [
@@ -318,6 +319,12 @@ def _pref_form_post_data(form, orig_candidates, groups_from, all_groups_to, stat
     state = _build_form_state(entries, orig_candidates + new_candidates)
     with open(state_path, "w", encoding="utf-8") as fh:
         json.dump(state, fh, ensure_ascii=False)
+    return entries
+
+
+def _pref_form_post_data(form, orig_candidates, groups_from, all_groups_to, state_path):
+    """Parse + save the draft, then validate and return the resulting PreferenceData."""
+    entries = _write_pref_form_state(form, orig_candidates, groups_from, state_path)
     return build_preference_data(entries, all_groups_to)
 
 
@@ -713,6 +720,35 @@ def upload_preferences():
     return redirect(url_for("wizard.not_together_page"))
 
 
+def _handle_pref_form_post(
+    orig_candidates, groups_from, all_groups_to, state_path, voorkeuren_path
+):
+    """Process a POST to /preferences_form and return the response to send.
+
+    Three actions: ``autosave`` saves only the draft (best effort, no validation); the
+    others build and persist ``voorkeuren.json`` and then navigate. Validation errors are
+    flashed and the form re-rendered — the draft is already saved, so nothing is lost.
+    """
+    if request.form.get("action") == "autosave":
+        # Best-effort background save of the draft only (never voorkeuren.json, never
+        # validated): a reload then restores the work via the normal GET prefill.
+        _write_pref_form_state(request.form, orig_candidates, groups_from, state_path)
+        return ("", 204)
+    try:
+        preference_data = _pref_form_post_data(
+            request.form, orig_candidates, groups_from, all_groups_to, state_path
+        )
+    except (pa.errors.SchemaError, ValidationError, ValueError) as exc:
+        # The form is novalidate + JS-best-effort, so the server must catch bad input.
+        _flash_upload_error(exc)
+        return redirect(url_for("wizard.preferences_form"))
+    _write_voorkeuren_json(voorkeuren_path, preference_data, source="form")
+    if request.form.get("action") == "opslaan":
+        flash("Voorkeuren tussentijds opgeslagen.", "success")
+        return redirect(url_for("wizard.preferences_form"))
+    return redirect(url_for("wizard.not_together_page"))
+
+
 @wizard_bp.route("/preferences_form", methods=["GET", "POST"])
 @login_required
 @require_process
@@ -742,26 +778,13 @@ def preferences_form():
     all_groups_to = list(groups_to.keys())
 
     if request.method == "POST":
-        try:
-            preference_data = _pref_form_post_data(
-                request.form, orig_candidates, groups_from, all_groups_to, state_path
-            )
-        except (pa.errors.SchemaError, ValidationError, ValueError) as exc:
-            # The draft state is written before validation runs, so the teacher's work is
-            # preserved; flash a friendly Dutch message and return to the form to fix it
-            # (the form is novalidate + JS-best-effort, so the server must catch this).
-            _flash_upload_error(exc)
-            return redirect(url_for("wizard.preferences_form"))
-        _write_voorkeuren_json(
+        return _handle_pref_form_post(
+            orig_candidates,
+            groups_from,
+            all_groups_to,
+            state_path,
             get_file_path(school_id, process_id, "voorkeuren.json"),
-            preference_data,
-            source="form",
         )
-        action = request.form.get("action", "volgende")
-        if action == "opslaan":
-            flash("Wensen tussentijds opgeslagen.", "success")
-            return redirect(url_for("wizard.preferences_form"))
-        return redirect(url_for("wizard.not_together_page"))
 
     # GET — load saved state for prefill, or fall back to initial candidates.
     draft_state = _load_pref_form_state(state_path)

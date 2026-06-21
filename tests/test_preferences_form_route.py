@@ -102,6 +102,23 @@ class TestPreferencesForm:
             for r in records
         )
 
+    def test_autosave_writes_draft_only(self, client, tmp_path):
+        """A POST with action='autosave' saves the draft state, not voorkeuren.json,
+        and returns 204 (background save, no navigation)."""
+        proc_dir = self._setup(client, tmp_path)
+        response = client.post(
+            "/preferences_form",
+            data={
+                "action": "autosave",
+                "gaat_over": ["s1", "s2"],
+                "preference_s1_graag_met_target": ["Bram Dijk"],
+                "preference_s1_graag_met_gewicht": ["1"],
+            },
+        )
+        assert response.status_code == 204
+        assert (proc_dir / "preferences_form_state.json").exists()
+        assert not (proc_dir / "voorkeuren.json").exists()
+
     def test_get_candidates_sorted_by_group(self, client, tmp_path):
         """GET /preferences_form returns candidates sorted by groepsnaam."""
         proc_dir = setup_process(client, tmp_path)
