@@ -23,10 +23,16 @@
 <details class="instructions-box" open>
   <summary>Hoe werkt deze pagina?</summary>
   <p>Vul per leerling de voorkeuren in: kies bij <em>Graag met</em> of
-  <em>Liever niet met</em> een klasgenoot of een groep.</p>
-  <p class="help-example"><em>Voorbeeld:</em> Anna wil graag bij Bo en een beetje bij Sem.
-  Klik Anna open, kies bij <em>Graag met</em> eerst Bo (klik op de chip en zet de
-  intensiteit op <em>hartsvriend</em>), kies dan Sem en zet die op <em>een beetje</em>.</p>
+  <em>Liever niet met</em> een klasgenoot of een groep. Je kunt ook aangeven als
+een leerling niet naar bepaalde groepen mag (bijvoorbeeld vanwege broers/zussen).
+Je kunt ook aangeven als een leerling voorrang moet krijgen in het toewijzen van de
+voorkeuren.<br>
+Denk hier echt aan wat de leerling wil. Onwenselijke combinaties kun je in het
+Niet-samen-bestand invoeren. Ook als iets jou een goede combi lijkt: laat dat aan
+ALI Express, die weegt alles mee. <br>
+Voer zoveel mogelijk positieve wensen in. Dat geeft ALI Express meer flexibiliteit
+ om voor iedereen een prima oplossing te vinden.
+</p>
 </details>
 
 <form method="post" id="preferences-form" novalidate>
@@ -73,9 +79,9 @@
       {% endmacro %}
 
       {{ preference_section(key, 'graag_met', 'Graag met',
-           'Kies een klasgenoot of een groep waarbij deze leerling graag in dezelfde klas zit.') }}
+           'Kies een klasgenoot of een groep waarbij deze leerling graag in dezelfde klas zit. Je kunt daarna ook een belang van die wens meegeven.') }}
       {{ preference_section(key, 'liever_niet_met', 'Liever niet met',
-           'Kies een klasgenoot of een groep waarbij deze leerling liever niet in dezelfde klas zit.') }}
+           'Kies een klasgenoot of een groep waarbij deze leerling liever niet in dezelfde klas zit. Je kunt daarna ook een belang van die wens meegeven.') }}
 
       {# ── Niet in groep ─────────────────────────────────────────────────── #}
       {% if target_groups | length > 1 %}
