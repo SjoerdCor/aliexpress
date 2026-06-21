@@ -362,13 +362,13 @@ def _not_together_get_context(school_id, process_id):
     method_path = get_file_path(school_id, process_id, "input_method.json")
     if os.path.exists(method_path):
         with open(method_path, encoding="utf-8") as fh:
-            input_method = json.load(fh).get("method", "excel")
+            input_method = json.load(fh).get("method", "form")
     else:
-        input_method = "excel"
+        input_method = "form"
     prev_url = (
-        url_for("wizard.preferences_form")
-        if input_method == "form"
-        else url_for("wizard.preferences_excel")
+        url_for("wizard.preferences_excel")
+        if input_method == "excel"
+        else url_for("wizard.preferences_form")
     )
     return existing_rules, prev_url
 
