@@ -3,43 +3,11 @@
 {% block header %} Wensen van leerlingen doorgeven{% endblock %}
 {% block content %}
 
-  <h2>Stap 1: Selecteer leerlingen die doorgaan</h2>
-  <p>Vink aan wie naar de volgende groep gaan. Verlengers kunnen uitgevinkt worden. Als er nog leerlingen missen kun je die onderaan toevoegen</p>
-  <form method="post" action="{{ url_for('wizard.preferences_excel') }}" onsubmit="return validateForm()">
-    {% for student in candidates %}
-      <label>
-        <input type="checkbox" name="students" value="{{ student.key }}"
-               {% if selected_ids is none or (student.key|string) in selected_ids %}checked{% endif %}>
-        {{ student.roepnaam }} {{ student.achternaam }} ({{ student.groepsnaam }})
-      </label>
-    {% endfor %}
-
-<ul class="student-list" id="new-students">
-  {% for ns in saved_new_students %}
-  <li>
-    <input type="text" name="new_firstname[]" placeholder="Voornaam" value="{{ ns.roepnaam }}" required>
-    <input type="text" name="new_lastname[]" placeholder="Achternaam" value="{{ ns.achternaam }}" required>
-    <select name="new_gender[]" required>
-      <option value="">Geslacht</option>
-      <option value="Jongen" {% if ns.geslacht == 'Jongen' %}selected{% endif %}>Jongen</option>
-      <option value="Meisje" {% if ns.geslacht == 'Meisje' %}selected{% endif %}>Meisje</option>
-    </select>
-    <select name="new_group[]" required>
-      {% for g in groups_from %}<option value="{{ g }}" {% if g == ns.groepsnaam %}selected{% endif %}>{{ g }}</option>{% endfor %}
-    </select>
-    <button type="button" onclick="this.closest('li').remove()">✖</button>
-  </li>
-  {% endfor %}
-  <li class="add-button">
-    <button type="button" class="button button--small" onclick="addStudentField(this)">
-      + Voeg leerling toe
-    </button>
-  </li>
-</ul>
-    <br><br>
-<button type="submit" name="action" value="download" class="button">
-  Download invulformulier
-</button>
+<h2>Stap 1: Download het invulformulier</h2>
+<p>Het formulier is alvast gevuld met de leerlingen die meegaan (bepaald in de stap
+  <em>Wie gaat mee</em>). Vul daarin per leerling de wensen in.</p>
+<form method="post" action="{{ url_for('wizard.preferences_excel') }}">
+  <button type="submit" class="button">Download invulformulier</button>
 </form>
 
 <h2>Stap 2: Upload het ingevulde bestand hieronder</h2>
@@ -97,63 +65,8 @@
 
 
 <div class="step-navigation">
-    <a href="{{ url_for('wizard.groups_to_page') }}" class="button previous-step">← Naar Groepen naartoe bepalen</a>
+    <a href="{{ url_for('roster.roster_page') }}" class="button previous-step">← Naar Wie gaat mee</a>
     <button type="submit" form="upload-form" class="button next-step">Naar Niet samen →</button>
 </div>
-
-<script>
-const groupOptions = `{% for g in groups_from %}<option value="{{ g }}">{{ g }}</option>{% endfor %}`;
-
-function addStudentField(button) {
-  const studentList = document.getElementById("new-students");
-  const buttonLi = button.closest("li");
-  const li = document.createElement("li");
-
-  li.innerHTML = `
-    <input type="text" name="new_firstname[]" placeholder="Voornaam" required>
-    <input type="text" name="new_lastname[]" placeholder="Achternaam" required>
-    <select name="new_gender[]" required>
-      <option value="">Geslacht</option>
-      <option value="Jongen">Jongen</option>
-      <option value="Meisje">Meisje</option>
-    </select>
-    <select name="new_group[]" required>
-      ${groupOptions}
-    </select>
-    <button type="button" onclick="this.closest('li').remove()">✖</button>
-  `;
-
-  studentList.insertBefore(li, buttonLi);
-
-}
-
-function validateForm() {
-    const originalStudents = document.querySelectorAll('input[name="students"]:checked');
-    const newFirstnames = document.querySelectorAll('#new-students input[name="new_firstname[]"]');
-    const newLastnames = document.querySelectorAll('#new-students input[name="new_lastname[]"]');
-
-    if (originalStudents.length + newFirstnames.length === 0) {
-        alert("Er moeten minstens één leerling aanwezig zijn.");
-        return false;
-    }
-
-    const studentNames = [];
-    const duplicateStudents = [];
-    for (let i = 0; i < newFirstnames.length; i++) {
-        const fullname = `${newFirstnames[i].value.trim()} ${newLastnames[i].value.trim()}`;
-        if (studentNames.includes(fullname)) {
-            duplicateStudents.push(fullname);
-        } else {
-            studentNames.push(fullname);
-        }
-    }
-
-    if (duplicateStudents.length > 0) {
-        alert("Duplicaten van leerlingen gevonden: " + [...new Set(duplicateStudents)].join(", "));
-        return false;
-    }
-    return true;
-}
-</script>
 
 {% endblock %}

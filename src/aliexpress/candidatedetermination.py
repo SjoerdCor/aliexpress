@@ -62,20 +62,16 @@ def handle_edexml_upload(df: pd.DataFrame, jaargroep: int):
     return candidates, groups_from, groups_to
 
 
-def combine_students(
-    candidates: dict, selected_ids: list[int], new_students: dict
-) -> pd.DataFrame:
-    """Combine selected and new students into a single DataFrame"""
-    if candidates:
-        df_original = pd.DataFrame(candidates).set_index("key").loc[selected_ids]
-    else:
-        df_original = pd.DataFrame(columns=["roepnaam", "achternaam", "groepsnaam"])
-    df_new = pd.DataFrame(new_students)
-    return (
-        pd.concat([df_original, df_new])
-        .assign(uniekenaam=create_unique_name)
-        .sort_values(["groepsnaam", "uniekenaam"])
+def students_df(students: pd.DataFrame) -> pd.DataFrame:
+    """Assign a unique display name per leerling and sort for the prefilled Excel template."""
+    return students.assign(uniekenaam=create_unique_name).sort_values(
+        ["groepsnaam", "uniekenaam"]
     )
+
+
+def students_df_from_records(students: list[dict]) -> pd.DataFrame:
+    """Build the prefilled-Excel DataFrame from a list of student dicts (roster participants)."""
+    return students_df(pd.DataFrame(students))
 
 
 def create_unique_name(df: pd.DataFrame) -> pd.Series:
