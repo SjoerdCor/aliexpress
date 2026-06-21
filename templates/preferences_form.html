@@ -781,5 +781,38 @@ document.querySelectorAll('.candidate-details[data-disabled]').forEach(block => 
 document.querySelectorAll('.candidate-wish-preview').forEach(p =>
   updatePreview(p.id.replace('preview-', '')));
 updateGroupCounters();
+
+// ── Autosave: a long entry session must never be lost ─────────────────────────
+// Every change is debounced and posted as a background "autosave" that writes only the
+// draft; a reload restores it via the normal prefill. beforeunload still warns while a
+// change has not yet been saved.
+(function () {
+  const form = document.getElementById('preferences-form');
+  let dirty = false, submitting = false, timer = null;
+
+  function autosave() {
+    const data = new FormData(form);
+    data.set('action', 'autosave');
+    fetch(window.location.href, { method: 'POST', body: data })
+      .then(r => { if (r.ok) dirty = false; })
+      .catch(() => {});  // best effort; beforeunload keeps work safe if it fails
+  }
+
+  function scheduleAutosave() {
+    dirty = true;
+    clearTimeout(timer);
+    timer = setTimeout(autosave, 1000);
+  }
+
+  form.addEventListener('input', scheduleAutosave);
+  form.addEventListener('change', scheduleAutosave);
+  // Chip add/remove and other programmatic DOM changes don't fire input/change.
+  new MutationObserver(scheduleAutosave).observe(form, { childList: true, subtree: true });
+
+  form.addEventListener('submit', () => { submitting = true; clearTimeout(timer); });
+  window.addEventListener('beforeunload', e => {
+    if (dirty && !submitting) { e.preventDefault(); e.returnValue = ''; }
+  });
+})();
 </script>
 {% endblock %}

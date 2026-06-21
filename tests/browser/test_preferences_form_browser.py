@@ -121,6 +121,22 @@ def test_collapse_group_students_to_preview(live_server, tmp_path, page):
 
 
 @pytest.mark.usefixtures("login")
+def test_autosave_restores_work_on_reload(live_server, tmp_path, page):
+    """A preference is autosaved in the background and survives a reload without saving."""
+    _open_preferences_form(live_server, tmp_path, page)
+    _open_group(page)
+    page.fill("#combo-graag_met-s1", "Bram")
+    page.press("#combo-graag_met-s1", "Enter")
+    page.wait_for_timeout(1500)  # let the debounced autosave reach the server
+
+    page.goto(f"{live_server}/preferences_form")  # reload without an explicit save
+    _open_group(page)
+    chips = page.locator("#chips-graag_met-s1 .preference-chip")
+    assert chips.count() == 1
+    assert "Bram Dijk" in chips.first.inner_text()
+
+
+@pytest.mark.usefixtures("login")
 def test_dangling_preference_is_removed_with_undo(live_server, tmp_path, page):
     """Unchecking a student removes preferences pointing to them, with a bundled undo."""
     _open_preferences_form(live_server, tmp_path, page)
