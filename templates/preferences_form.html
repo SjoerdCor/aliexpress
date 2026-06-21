@@ -107,19 +107,14 @@
       <div class="wish-section">
         <p class="wish-section-label">Niet in groep <button type="button" class="info-pop" data-help="Een harde grens: deze leerling komt zéker niet in deze groep — bijvoorbeeld omdat er al een oudere broer of zus in zit. Dit is iets anders dan 'liever niet met' een groep, dat een zachte voorkeur is die mag wijken. Je kunt hoogstens (aantal groepen − 1) groepen uitsluiten.">ℹ</button></p>
         <div class="chips-area" id="chips-nieting-{{ key }}"></div>
-        <div class="wish-add-area">
-          <select class="nieting-select" id="nieting-select-{{ key }}">
-            <option value="">— kies groep —</option>
-            {% for gkey in target_groups %}
-            <option value="{{ group_display[gkey] }}">{{ group_display[gkey] }}</option>
-            {% endfor %}
-          </select>
-          <button type="button" class="button button--small"
-                  onclick="addNietIn('{{ key }}', {{ target_groups | length - 1 }})">
-            + Toevoegen
-          </button>
-          <span class="field-error" id="err-nieting-{{ key }}"></span>
-        </div>
+        <select class="nieting-select" id="nieting-select-{{ key }}"
+                onchange="addNietIn('{{ key }}', {{ target_groups | length - 1 }})">
+          <option value="">+ Groep uitsluiten…</option>
+          {% for gkey in target_groups %}
+          <option value="{{ group_display[gkey] }}">{{ group_display[gkey] }}</option>
+          {% endfor %}
+        </select>
+        <span class="field-error" id="err-nieting-{{ key }}"></span>
       </div>
       {% endif %}
 
@@ -463,7 +458,8 @@ function addNietIn(key, maxAllowed) {
   const errEl = document.getElementById(`err-nieting-${key}`);
   const group = select.value;
 
-  if (!group) { errEl.textContent = 'Kies een groep.'; return; }
+  if (!group) return;  // the prompt option ("+ Groep uitsluiten…") was chosen
+  select.value = '';   // return the dropdown to its prompt for the next pick
   const existing = Array.from(chipsContainer.querySelectorAll('input[type="hidden"]')).map(i => i.value);
   if (existing.includes(group)) { errEl.textContent = `${group} is al gekozen.`; return; }
   if (existing.length >= maxAllowed) {
@@ -471,7 +467,6 @@ function addNietIn(key, maxAllowed) {
     return;
   }
   errEl.textContent = '';
-  select.value = '';
 
   const chip = document.createElement('span');
   chip.className = 'student-chip niet-in-chip';
@@ -641,15 +636,12 @@ function addNewStudentRow() {
       <div class="preference-section">
         <p class="preference-section-label">Niet in groep</p>
         <div class="chips-area" id="chips-nieting-${key}"></div>
-        <div class="wish-add-area">
-          <select class="nieting-select" id="nieting-select-${key}">
-            <option value="">— kies groep —</option>
-            ${groupOptions}
-          </select>
-          <button type="button" class="button button--small"
-                  onclick="addNietIn('${key}', ${TARGET_GROUPS.length - 1})">+ Toevoegen</button>
-          <span class="field-error" id="err-nieting-${key}"></span>
-        </div>
+        <select class="nieting-select" id="nieting-select-${key}"
+                onchange="addNietIn('${key}', ${TARGET_GROUPS.length - 1})">
+          <option value="">+ Groep uitsluiten…</option>
+          ${groupOptions}
+        </select>
+        <span class="field-error" id="err-nieting-${key}"></span>
       </div>` : ''}
     </div>`;
   container.appendChild(wrapper);

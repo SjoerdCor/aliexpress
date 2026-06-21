@@ -837,7 +837,7 @@ table.dataframe th {
 .candidate-details {
     border: 1px solid #e0e0e0;
     border-radius: 6px;
-    margin: 0.3rem 0 0.3rem 0.5rem;
+    margin: 0.2rem 0 0.2rem 0.5rem;
     background: #fafafa;
     transition: border-color 0.15s;
 }
@@ -854,7 +854,7 @@ table.dataframe th {
     display: flex;
     align-items: center;
     gap: 0.6rem;
-    padding: 0.45rem 0.7rem;
+    padding: 0.3rem 0.7rem;
     cursor: pointer;
     list-style: none;
     user-select: none;
@@ -882,7 +882,7 @@ table.dataframe th {
 }
 
 .candidate-content {
-    padding: 0.5rem 0.8rem 0.6rem;
+    padding: 0.35rem 0.7rem 0.4rem;
     border-top: 1px solid #eee;
 }
 
@@ -926,14 +926,14 @@ table.dataframe th {
 }
 
 .wish-section {
-    margin-bottom: 0.55rem;
+    margin-bottom: 0.3rem;
 }
 
 .wish-section-label {
     font-size: 0.8em;
     font-weight: bold;
     color: #666;
-    margin: 0.25rem 0 0.2rem;
+    margin: 0.1rem 0 0.15rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
 }
@@ -948,14 +948,6 @@ table.dataframe th {
     background: #edf4ff;
     border: 1px solid #b8d4f5;
     border-radius: 6px;
-}
-
-.wish-add-area {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    flex-wrap: wrap;
-    margin-top: 0.2rem;
 }
 
 .wish-name-input {
@@ -994,8 +986,9 @@ table.dataframe th {
     color: #fff;
 }
 
-/* Niet-in chips use the default .student-chip style (orange) */
-.chips-area { min-height: 1.2em; }
+/* Niet-in chips use the default .student-chip style (orange).
+   An empty chips-area takes no room: the space appears only once a chip exists. */
+.chips-area:empty { display: none; }
 
 .nieting-select {
     min-width: 140px;
@@ -1044,11 +1037,11 @@ table.dataframe th {
    A constrained typeahead: only listed classmates or destination groups can be
    chosen, so free-text "unknown student" input is impossible. */
 .preference-section {
-    margin: 0.4rem 0;
+    margin: 0.25rem 0;
 }
 
 .preference-section-label {
-    margin: 0.2rem 0;
+    margin: 0.1rem 0 0.15rem;
     font-weight: 600;
 }
 
@@ -1135,7 +1128,7 @@ table.dataframe th {
 
 /* Extra zekerheid (min. satisfaction as fixed choices), collapsed by default. */
 .extra-zekerheid {
-    margin-top: 0.6rem;
+    margin-top: 0.4rem;
 }
 
 .extra-zekerheid > summary {
