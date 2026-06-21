@@ -67,25 +67,7 @@
 
     <div class="candidate-content" id="content-{{ key }}">
 
-      {# ── Min tevredenheid ──────────────────────────────────────────────── #}
-      <div class="min-sat-row">
-        <label class="min-sat-label">
-          Min. tevredenheid
-          <abbr title="De minimale tevredenheid die deze leerling moet halen (0% = geen eis, 50% = wens 1 of 2 moet uitkomen, 100% = wens 1 moet altijd uitkomen). Laat leeg voor geen eis.">ℹ</abbr>
-        </label>
-        <span class="min-sat-wrap">
-          <input type="number" name="min_sat_{{ key }}" class="min-sat-input"
-                 min="0" max="100" step="1" placeholder="—"
-                 {% if candidate.min_satisfaction is defined and candidate.min_satisfaction is not none %}
-                 value="{{ (candidate.min_satisfaction * 100) | round | int }}"
-                 {% endif %}
-                 oninput="validateMinSat(this, '{{ key }}')">
-          <span class="min-sat-pct">%</span>
-        </span>
-        <span class="field-error" id="err-minsat-{{ key }}"></span>
-      </div>
-
-      {# ── Voorkeur-sectie: combobox die alleen bekende leerlingen of groepen toelaat ── #}
+      {# Preference section: combobox that only allows known classmates or groups #}
       {# tooltip passed as explicit parameter because Jinja2 macros cannot access {% set %} variables from outer scope #}
       {% macro preference_section(key, soort, label, tooltip) %}
       <div class="preference-section">
@@ -130,6 +112,23 @@
         </div>
       </div>
       {% endif %}
+
+      {# "Extra zekerheid" section: minimum satisfaction expressed as fixed choices #}
+      {% set ms = candidate.min_satisfaction if candidate.min_satisfaction is defined else none %}
+      {% set ms_pct = (ms * 100) | round | int if ms is not none else 0 %}
+      <details class="extra-zekerheid">
+        <summary>Extra zekerheid voor deze leerling
+          <abbr title="Bedoeld voor een leerling die sociaal kwetsbaarder is en zeker bij een vertrouwd iemand moet komen. Let op: dit gaat ten koste van de algehele tevredenheid — om deze leerling zeker te plaatsen, valt de verdeling voor de groep als geheel mogelijk minder gunstig uit. Vooral 'Alle voorkeuren gehonoreerd' bij veel leerlingen kan de verdeling onhaalbaar maken. Gebruik het alleen waar het echt nodig is.">ℹ</abbr>
+        </summary>
+        <div class="extra-zekerheid-options">
+          <label><input type="radio" name="min_sat_{{ key }}" value=""
+                 {% if ms_pct <= 0 %}checked{% endif %}> Geen extra eis</label>
+          <label><input type="radio" name="min_sat_{{ key }}" value="50"
+                 {% if ms_pct > 0 and ms_pct < 100 %}checked{% endif %}> Minstens tevreden</label>
+          <label><input type="radio" name="min_sat_{{ key }}" value="100"
+                 {% if ms_pct >= 100 %}checked{% endif %}> Alle voorkeuren gehonoreerd</label>
+        </div>
+      </details>
 
     </div>{# .candidate-content #}
   </details>{# .candidate-details #}
@@ -474,20 +473,6 @@ function toggleCandidate(key, checked) {
     if (refs.length > 0) {
       alert(`Let op: ${name} is uitgevinkt maar staat nog als voorkeur bij: ${refs.join(', ')}. Verwijder die voorkeur(en) als dat gewenst is.`);
     }
-  }
-}
-
-// ── Min. tevredenheid validatie ───────────────────────────────────────────────
-
-function validateMinSat(input, key) {
-  const errEl = document.getElementById(`err-minsat-${key}`);
-  const v = parseFloat(input.value);
-  if (input.value !== '' && (isNaN(v) || v < 0 || v > 100)) {
-    errEl.textContent = 'Voer een getal in tussen 0 en 100.';
-    input.setCustomValidity('0–100');
-  } else {
-    errEl.textContent = '';
-    input.setCustomValidity('');
   }
 }
 
