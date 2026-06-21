@@ -1094,3 +1094,41 @@ table.dataframe th {
 .combobox-option.active {
     background: #e8f0fe;
 }
+
+/* Intensity pills on a preference chip (click the chip label to reveal). */
+.chip-label {
+    cursor: pointer;
+}
+
+.chip-intensity {
+    color: #555;
+    font-style: italic;
+}
+
+.chip-pills {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-left: 0.4rem;
+}
+
+.chip-pills-caption {
+    font-size: 0.8em;
+    color: #555;
+    margin-right: 0.15rem;
+}
+
+.intensity-pill {
+    border: 1px solid #bbb;
+    background: #f5f5f5;
+    border-radius: 999px;
+    padding: 0.05rem 0.5rem;
+    font-size: 0.85em;
+    cursor: pointer;
+}
+
+.intensity-pill.active {
+    background: #1a73e8;
+    border-color: #1a73e8;
+    color: #fff;
+}
