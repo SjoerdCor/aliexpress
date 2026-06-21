@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% set current_step = 4 %}
+{% block header %} Wensen van leerlingen doorgeven{% endblock %}
+{% block content %}
+
+<h2>Stap 1: Download het invulformulier</h2>
+<p>Het formulier is alvast gevuld met de leerlingen die meegaan (bepaald in de stap
+  <em>Wie gaat mee</em>). Vul daarin per leerling de wensen in.</p>
+<form method="post" action="{{ url_for('wizard.preferences_excel') }}">
+  <button type="submit" class="button">Download invulformulier</button>
+</form>
+
+<h2>Stap 2: Upload het ingevulde bestand hieronder</h2>
+{% if preferences_uploaded %}
+<div class="instructions-box">
+  <p>✓ Je hebt al een ingevuld bestand geüpload. Je kunt
+    <a href="{{ url_for('results.download_preferences') }}">het ingevulde bestand downloaden</a>
+    om verder te werken, of hieronder een nieuw bestand kiezen om het te vervangen.</p>
+</div>
+{% endif %}
+<form id="upload-form" method="post" action="{{ url_for('wizard.upload_preferences') }}" enctype="multipart/form-data">
+  <label>Upload ingevuld bestand:</label><br>
+  <input type="file" name="preferences" accept=".xlsx"><br>
+  {% if preferences_uploaded %}
+  <small>Je hebt al een bestand geüpload. Kies hier alleen een bestand als je het wilt
+    vervangen — anders ga je verder met het eerder geüploade bestand.</small>
+  {% endif %}
+</form>
+
+
+<div class="instructions-box">
+    <h2>Invulinstructies</h2>
+
+    <h3>Voorkeuren-bestand</h3>
+    <p>
+        Dit is het belangrijkste bestand van ALI Express. Hier kun je basisinformatie over je leeringen invoeren
+        (die wordt gebruikt om de balans in de groepen te bewaren) en de wensen van de leerling op basis van het
+        gesprek.
+        Wat specifieke tips:
+    <ul>
+        <li> Klik op een kolomnaam voor meer informatie over hoe je het moet invullen</li>
+        <li> Controleer dat de naam van de leerling uniek is voor de leerlingen die verdeel moeten worden. Zo niet, voeg
+            de eerste letter van de achternaam toe</li>
+        <li>Vul minimale tevredenheid alleen in alsdeze leerling echt een zetje nodig heeft. Houd er
+            rekening mee dat elke eis hier ten koste gaat van iemands anders tevredenheid.
+        </li>
+        <li>Denk hier echt aan wat de leerling wil. Onwenselijke combinaties kun je in het Niet-samen-bestand invoeren.
+            Ook als iets jou een goede combi lijkt: laat dat aan ALI Express, die weegt alles mee</li>
+        <li>
+            Voer zoveel mogelijk positieve wensen in. Dat geeft ALI Express meer flexibiliteit om voor iedereen een
+            prima oplossing te vinden.
+        </li>
+        <li>
+            Voer hier precies de naam van de leerling of van de groep in. Dus niet "Robin (Blauw)", maar "Blauw" of
+            "Robin" of "Jongens zoals Rene"
+        </li>
+
+        <li> Check of je alle kolommen hebt ingevuld, en of je passende gewichten hebt ingevuld</li>
+    </ul>
+
+    Upload vervolgens het ingevulde bestand. Hij wordt automatisch gecontroleerd of hij goed gevuld is.
+    Als er iets nog niet goed gaat, komt er een foutmelding. Lees de foutmelding zorgvuldig en probeer het te verhelpen.
+    </p>
+</div>
+
+
+<div class="step-navigation">
+    <a href="{{ url_for('roster.roster_page') }}" class="button previous-step">← Naar Wie gaat mee</a>
+    <button type="submit" form="upload-form" class="button next-step">Naar Niet samen →</button>
+</div>
+
+{% endblock %}

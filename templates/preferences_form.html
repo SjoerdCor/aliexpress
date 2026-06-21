@@ -1,0 +1,527 @@
+{% extends "base.html" %}
+{% set current_step = 4 %}
+{% block header %}Voorkeuren invullen{% endblock %}
+
+{% block content %}
+
+{# Collect known names for autocomplete + JS validation #}
+{% set known_names = [] %}
+{% for c in candidates %}
+  {% if known_names.append(c.roepnaam ~ " " ~ c.achternaam) %}{% endif %}
+{% endfor %}
+
+{# Server-side template data injected as JSON; the JS script below reads it. #}
+<script type="application/json" id="pref-form-data">
+{
+  "known_names": {{ known_names | tojson }},
+  "target_groups": {{ target_groups | tojson }},
+  "group_display": {{ group_display | tojson }},
+  "draft_state": {{ draft_state | tojson if draft_state else 'null' }}
+}
+</script>
+
+<details class="instructions-box" open>
+  <summary>Hoe werkt deze pagina?</summary>
+  <p>Vul per leerling de voorkeuren in: kies bij <em>Graag met</em> of
+  <em>Liever niet met</em> een klasgenoot of een groep. Je kunt ook aangeven als
+een leerling niet naar bepaalde groepen mag (bijvoorbeeld vanwege broers/zussen).
+Je kunt ook aangeven als een leerling voorrang moet krijgen in het toewijzen van de
+voorkeuren.<br>
+Denk hier echt aan wat de leerling wil. Onwenselijke combinaties kun je in het
+Niet-samen-bestand invoeren. Ook als iets jou een goede combi lijkt: laat dat aan
+ALI Express, die weegt alles mee. <br>
+Voer zoveel mogelijk positieve wensen in. Dat geeft ALI Express meer flexibiliteit
+ om voor iedereen een prima oplossing te vinden.
+</p>
+</details>
+
+<form method="post" id="preferences-form" novalidate>
+
+  {# ── Participants grouped by origin group ────────────────────────────────── #}
+  {% set current_group = namespace(name=None) %}
+  {% for candidate in candidates %}
+  {% set key = candidate.key %}
+  {% set display_name = candidate.roepnaam ~ " " ~ candidate.achternaam %}
+
+  {% if candidate.groepsnaam != current_group.name %}
+    {% if not loop.first %}</details>{% endif %}
+    {% set current_group.name = candidate.groepsnaam %}
+    <details class="group-details">
+    <summary class="group-summary">{{ candidate.groepsnaam }}<span class="group-counter"></span></summary>
+  {% endif %}
+
+  <details class="candidate-details" id="block-{{ key }}" open>
+    <summary class="candidate-summary">
+      <span class="candidate-name">{{ display_name }}</span>
+      <span class="candidate-wish-preview" id="preview-{{ key }}"></span>
+    </summary>
+
+    <div class="candidate-content" id="content-{{ key }}">
+
+      {# Preference section: combobox that only allows known classmates or groups #}
+      {# tooltip passed as explicit parameter because Jinja2 macros cannot access {% set %} variables from outer scope #}
+      {% macro preference_section(key, soort, label, tooltip) %}
+      <div class="preference-section">
+        <p class="preference-section-label">
+          {{ label }}
+          <button type="button" class="info-pop" data-help="{{ tooltip }}">ℹ</button>
+        </p>
+        <div class="chips-area" id="chips-{{ soort }}-{{ key }}"></div>
+        <div class="combobox">
+          <input type="text" class="combobox-input" id="combo-{{ soort }}-{{ key }}"
+                 placeholder="Naam leerling of groep…" autocomplete="off"
+                 role="combobox" aria-expanded="false" aria-autocomplete="list"
+                 data-key="{{ key }}" data-soort="{{ soort }}">
+          <ul class="combobox-list" id="list-{{ soort }}-{{ key }}" role="listbox" hidden></ul>
+        </div>
+        <span class="field-error" id="err-{{ soort }}-{{ key }}"></span>
+      </div>
+      {% endmacro %}
+
+      {{ preference_section(key, 'graag_met', 'Graag met',
+           'Kies een klasgenoot of een groep waarbij deze leerling graag in dezelfde klas zit. Je kunt daarna ook een belang van die wens meegeven.') }}
+      {{ preference_section(key, 'liever_niet_met', 'Liever niet met',
+           'Kies een klasgenoot of een groep waarbij deze leerling liever niet in dezelfde klas zit. Je kunt daarna ook een belang van die wens meegeven.') }}
+
+      {# ── Niet in groep ─────────────────────────────────────────────────── #}
+      {% if target_groups | length > 1 %}
+      <div class="preference-section">
+        <p class="preference-section-label">Niet in groep <button type="button" class="info-pop" data-help="Een harde grens: deze leerling komt zéker niet in deze groep — bijvoorbeeld omdat er al een oudere broer of zus in zit. Dit is iets anders dan 'liever niet met' een groep, dat een zachte voorkeur is die mag wijken. Je kunt hoogstens (aantal groepen − 1) groepen uitsluiten.">ℹ</button></p>
+        <div class="chips-area" id="chips-nieting-{{ key }}"></div>
+        <select class="nieting-select" id="nieting-select-{{ key }}"
+                onchange="addNietIn('{{ key }}', {{ target_groups | length - 1 }})">
+          <option value="">+ Groep uitsluiten…</option>
+          {% for gkey in target_groups %}
+          <option value="{{ group_display[gkey] }}">{{ group_display[gkey] }}</option>
+          {% endfor %}
+        </select>
+        <span class="field-error" id="err-nieting-{{ key }}"></span>
+      </div>
+      {% endif %}
+
+      {# "Extra zekerheid" section: minimum satisfaction expressed as fixed choices #}
+      {% set ms = candidate.min_satisfaction if candidate.min_satisfaction is defined else none %}
+      {% set ms_pct = (ms * 100) | round | int if ms is not none else 0 %}
+      <details class="extra-zekerheid">
+        <summary>Extra zekerheid voor deze leerling</summary>
+        <p class="extra-zekerheid-help">Bedoeld voor een leerling die sociaal kwetsbaarder
+          is en zeker bij een vertrouwd iemand moet komen. Let op: dit gaat ten koste van de
+          algehele tevredenheid — om deze leerling zeker te plaatsen, valt de verdeling voor
+          de groep als geheel mogelijk minder gunstig uit. Vooral "Alle voorkeuren
+          gehonoreerd" bij veel leerlingen kan de verdeling onhaalbaar maken. Gebruik het
+          alleen waar het echt nodig is.</p>
+        <div class="extra-zekerheid-options">
+          <label><input type="radio" name="min_sat_{{ key }}" value=""
+                 {% if ms_pct <= 0 %}checked{% endif %}> Geen extra eis</label>
+          <label><input type="radio" name="min_sat_{{ key }}" value="50"
+                 {% if ms_pct > 0 and ms_pct < 100 %}checked{% endif %}> Minstens tevreden</label>
+          <label><input type="radio" name="min_sat_{{ key }}" value="100"
+                 {% if ms_pct >= 100 %}checked{% endif %}> Alle voorkeuren gehonoreerd</label>
+        </div>
+      </details>
+
+    </div>{# .candidate-content #}
+  </details>{# .candidate-details #}
+  {% endfor %}
+  {% if candidates %}</details>{% endif %}{# close last group-details #}
+
+  <div class="step-navigation">
+    <a href="{{ url_for('roster.roster_page') }}" class="button previous-step">
+      ← Naar Wie gaat mee
+    </a>
+    <button type="submit" name="action" value="opslaan" class="button button--secondary">
+      Tussentijds opslaan
+    </button>
+    <button type="submit" name="action" value="volgende" class="button next-step">
+      Naar niet samen →
+    </button>
+  </div>
+</form>
+
+<script>
+// ── Server-side data ──────────────────────────────────────────────────────────
+const _fd = JSON.parse(document.getElementById('pref-form-data').textContent);
+// Any unhandled JS error is logged to console but must never block form submit.
+const STUDENT_NAMES = new Set(_fd.known_names);
+const TARGET_GROUPS = _fd.target_groups;
+const GROUP_DISPLAY = _fd.group_display;
+const DRAFT = _fd.draft_state;
+
+// Destination-group display names: valid preference targets alongside classmates.
+const GROUP_LABELS = TARGET_GROUPS.map(k => GROUP_DISPLAY[k] || k);
+const GROUP_LABEL_SET = new Set(GROUP_LABELS);
+
+// ── Constrained combobox: pick a known classmate or destination group ─────────
+// Free text cannot become a preference; only listed options can be selected, so an
+// "unknown student" can no longer be entered (prevention over after-the-fact validation).
+
+function ownerName(key) {
+  const block = document.getElementById(`block-${key}`);
+  return block?.querySelector('.candidate-name')?.textContent?.trim() || '';
+}
+
+function chosenStudentNames(key) {
+  const names = new Set();
+  ['graag_met', 'liever_niet_met'].forEach(soort => {
+    const c = document.getElementById(`chips-${soort}-${key}`);
+    if (!c) return;
+    c.querySelectorAll('input[data-name]').forEach(i => {
+      if (i.dataset.isgroup !== '1') names.add(i.dataset.name);
+    });
+  });
+  return names;
+}
+
+function comboOptions(key, query) {
+  const q = query.trim().toLowerCase();
+  const owner = ownerName(key);
+  const chosen = chosenStudentNames(key);  // a classmate may be named only once
+  const students = [...STUDENT_NAMES]
+    .filter(n => n !== owner && !chosen.has(n))
+    .filter(n => n.toLowerCase().includes(q))
+    .sort()
+    .map(n => ({ label: n, isGroup: false }));
+  // Groups may repeat and appear in both directions, so they are always offered.
+  const groups = GROUP_LABELS
+    .filter(g => g.toLowerCase().includes(q))
+    .map(g => ({ label: g, isGroup: true }));
+  return [...students, ...groups];
+}
+
+function renderCombo(input) {
+  const { key, soort } = input.dataset;
+  const list = document.getElementById(`list-${soort}-${key}`);
+  const options = comboOptions(key, input.value);
+  list.innerHTML = '';
+  options.forEach(o => {
+    const li = document.createElement('li');
+    li.className = 'combobox-option';
+    li.setAttribute('role', 'option');
+    li.dataset.value = o.label;
+    li.dataset.isgroup = o.isGroup ? '1' : '0';
+    li.textContent = o.isGroup ? `${o.label} (groep)` : o.label;
+    li.addEventListener('mousedown', e => {
+      e.preventDefault();  // keep focus so the picker stays open
+      pickCombo(input, o.label, o.isGroup);
+    });
+    list.appendChild(li);
+  });
+  list.hidden = options.length === 0;
+  input.setAttribute('aria-expanded', options.length ? 'true' : 'false');
+  // Auto-highlight the first match, so Enter/Tab accept the obvious choice.
+  input._activeIndex = options.length ? 0 : -1;
+  const first = list.querySelector('.combobox-option');
+  if (first) first.classList.add('active');
+}
+
+function acceptActive(input) {
+  const { key, soort } = input.dataset;
+  const items = [...document.getElementById(`list-${soort}-${key}`)
+    .querySelectorAll('.combobox-option')];
+  const chosen = (input._activeIndex >= 0) ? items[input._activeIndex] : items[0];
+  if (chosen) pickCombo(input, chosen.dataset.value, chosen.dataset.isgroup === '1');
+  return Boolean(chosen);
+}
+
+function pickCombo(input, label, isGroup) {
+  const { key, soort } = input.dataset;
+  document.getElementById(`chips-${soort}-${key}`)
+    .appendChild(makePreferenceChip(key, soort, label, 1, isGroup));
+  updatePreview(key);
+  input.value = '';
+  renderCombo(input);  // refresh options (a chosen classmate drops out) and stay open
+  input.focus();
+}
+
+function moveActive(input, delta) {
+  const { key, soort } = input.dataset;
+  const items = [...document.getElementById(`list-${soort}-${key}`)
+    .querySelectorAll('.combobox-option')];
+  if (!items.length) return;
+  let idx = (input._activeIndex ?? -1) + delta;
+  idx = Math.max(0, Math.min(items.length - 1, idx));
+  items.forEach(it => it.classList.remove('active'));
+  items[idx].classList.add('active');
+  items[idx].scrollIntoView({ block: 'nearest' });
+  input._activeIndex = idx;
+}
+
+function initCombobox(input) {
+  const { key, soort } = input.dataset;
+  const list = () => document.getElementById(`list-${soort}-${key}`);
+  input.addEventListener('focus', () => renderCombo(input));
+  input.addEventListener('input', () => renderCombo(input));
+  input.addEventListener('blur', () => setTimeout(() => { const l = list(); if (l) l.hidden = true; }, 150));
+  input.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); moveActive(input, 1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); moveActive(input, -1); }
+    else if (e.key === 'Enter') { e.preventDefault(); acceptActive(input); }
+    else if (e.key === 'Tab') {
+      // Accept the highlighted match while choosing; an empty field lets Tab move focus on.
+      if (!list().hidden && input.value.trim() && acceptActive(input)) e.preventDefault();
+    } else if (e.key === 'Escape') { list().hidden = true; }
+  });
+}
+
+// Intensity levels per preference kind: a teacher picks an intention, not a number.
+// "Graag met" has four levels, "liever niet met" two. Weight 1 is the unmarked default.
+function intensityLevels(soort) {
+  return soort === 'graag_met'
+    ? [{ w: 0.5, l: 'een beetje' }, { w: 1, l: 'normaal' },
+       { w: 2, l: 'heel graag' }, { w: 5, l: 'hartsvriend' }]
+    : [{ w: 1, l: 'liever niet' }, { w: 2, l: 'echt niet' }];
+}
+
+function intensityLabel(soort, weight) {
+  return (intensityLevels(soort).find(x => x.w === weight) || {}).l || '';
+}
+
+// Caption shown above the pills (only while open): clarifies that the buttons set how
+// heavily the preference weighs, without adding clutter to the collapsed chip.
+function intensityCaption(soort) {
+  return soort === 'graag_met' ? 'Hoe graag?' : 'Hoe sterk?';
+}
+
+function makePreferenceChip(key, soort, name, weight, isGroup) {
+  weight = parseFloat(weight) || 1;
+  const chip = document.createElement('span');
+  chip.className = `preference-chip student-chip preference-chip--${soort}`;
+
+  const lbl = document.createElement('span');
+  lbl.className = 'chip-label';
+  const nameSpan = document.createElement('span');
+  nameSpan.textContent = name;
+  const intensity = document.createElement('span');
+  intensity.className = 'chip-intensity';
+  lbl.append(nameSpan, intensity);
+
+  const del = document.createElement('button');
+  del.type = 'button';
+  del.className = 'delete-btn chip-del';
+  del.title = 'Verwijder voorkeur';
+  del.textContent = '✖';
+  del.onclick = () => { chip.remove(); updatePreview(key); };
+
+  const hiddenName = document.createElement('input');
+  hiddenName.type = 'hidden';
+  hiddenName.name = `preference_${key}_${soort}_target`;
+  hiddenName.dataset.name = name;
+  hiddenName.dataset.isgroup = isGroup ? '1' : '0';
+  hiddenName.value = name;
+  const hiddenWeight = document.createElement('input');
+  hiddenWeight.type = 'hidden';
+  hiddenWeight.name = `preference_${key}_${soort}_gewicht`;
+  hiddenWeight.value = weight;
+
+  // Intensity pills, hidden until the chip is clicked. Weight 1 stays unmarked.
+  const pills = document.createElement('span');
+  pills.className = 'chip-pills';
+  pills.hidden = true;
+  const caption = document.createElement('span');
+  caption.className = 'chip-pills-caption';
+  caption.textContent = intensityCaption(soort);
+  pills.appendChild(caption);
+  intensityLevels(soort).forEach(lvl => {
+    const pill = document.createElement('button');
+    pill.type = 'button';
+    pill.className = 'intensity-pill';
+    pill.textContent = lvl.l;
+    pill.dataset.weight = lvl.w;
+    pill.addEventListener('click', e => { e.stopPropagation(); setWeight(lvl.w); });
+    pills.appendChild(pill);
+  });
+
+  function render() {
+    const w = parseFloat(hiddenWeight.value) || 1;
+    // While the pills are open the active pill already shows the choice, so the inline
+    // label is only shown when collapsed (and only for a non-default weight).
+    intensity.textContent = (pills.hidden && w !== 1)
+      ? ` · ${w === 5 ? '♥ ' : ''}${intensityLabel(soort, w)}`
+      : '';
+    pills.querySelectorAll('.intensity-pill').forEach(p =>
+      p.classList.toggle('active', parseFloat(p.dataset.weight) === w));
+  }
+  function setWeight(w) { hiddenWeight.value = w; pills.hidden = true; render(); }
+
+  lbl.style.cursor = 'pointer';
+  lbl.title = 'Klik om de intensiteit te wijzigen';
+  lbl.addEventListener('click', () => { pills.hidden = !pills.hidden; render(); });
+
+  chip.append(lbl, pills, del, hiddenName, hiddenWeight);
+  render();
+  return chip;
+}
+
+// ── Preview tekst naast naam + per-groep overzicht ────────────────────────────
+
+function updatePreview(key) {
+  const preview = document.getElementById(`preview-${key}`);
+  if (!preview) return;
+  const graag = document.getElementById(`chips-graag_met-${key}`)?.querySelectorAll('.preference-chip').length || 0;
+  const liever = document.getElementById(`chips-liever_niet_met-${key}`)?.querySelectorAll('.preference-chip').length || 0;
+  const parts = [];
+  if (graag > 0) parts.push(`${graag}× graag met`);
+  if (liever > 0) parts.push(`${liever}× liever niet met`);
+  if (parts.length) {
+    preview.textContent = `(${parts.join(', ')})`;
+    preview.classList.remove('preview-empty');
+  } else {
+    // Empty is a valid end state (counts as fully satisfied) — neutral, not a warning.
+    preview.textContent = '— nog geen voorkeur';
+    preview.classList.add('preview-empty');
+  }
+  updateGroupCounters();
+}
+
+// Per-group tally in the group header: how many participants have a preference.
+function updateGroupCounters() {
+  document.querySelectorAll('.group-details').forEach(group => {
+    const counter = group.querySelector(':scope > summary .group-counter');
+    if (!counter) return;
+    const blocks = [...group.querySelectorAll('.candidate-details')];
+    const withPref = blocks.filter(b => b.querySelectorAll('.preference-chip').length > 0);
+    counter.textContent = blocks.length
+      ? ` — ${withPref.length} van ${blocks.length} met voorkeur`
+      : '';
+  });
+}
+
+// ── Niet in groep ─────────────────────────────────────────────────────────────
+
+function addNietIn(key, maxAllowed) {
+  const chipsContainer = document.getElementById(`chips-nieting-${key}`);
+  const select = document.getElementById(`nieting-select-${key}`);
+  const errEl = document.getElementById(`err-nieting-${key}`);
+  const group = select.value;
+
+  if (!group) return;  // the prompt option ("+ Groep uitsluiten…") was chosen
+  select.value = '';   // return the dropdown to its prompt for the next pick
+  const existing = Array.from(chipsContainer.querySelectorAll('input[type="hidden"]')).map(i => i.value);
+  if (existing.includes(group)) { errEl.textContent = `${group} is al gekozen.`; return; }
+  if (existing.length >= maxAllowed) {
+    errEl.textContent = `Maximaal ${maxAllowed} groepen (minstens 1 van de ${TARGET_GROUPS.length} doelgroepen moet overblijven).`;
+    return;
+  }
+  errEl.textContent = '';
+
+  const chip = document.createElement('span');
+  chip.className = 'student-chip niet-in-chip';
+  const lbl = document.createElement('span');
+  lbl.textContent = group;
+  const del = document.createElement('button');
+  del.type = 'button';
+  del.className = 'delete-btn chip-del';
+  del.textContent = '✖';
+  del.onclick = () => chip.remove();
+  const hidden = document.createElement('input');
+  hidden.type = 'hidden';
+  hidden.name = `nieting_${key}`;
+  hidden.value = group;
+  chip.append(lbl, del, hidden);
+  chipsContainer.appendChild(chip);
+}
+
+// ── Prefill from saved state ──────────────────────────────────────────────────
+
+if (DRAFT) {
+  DRAFT.students.forEach(s => {
+    const key = s.key;
+    (s.graag_met || []).forEach(w => {
+      const c = document.getElementById(`chips-graag_met-${key}`);
+      if (c) { c.appendChild(makePreferenceChip(key, 'graag_met', w.target, w.weight, GROUP_LABEL_SET.has(w.target))); updatePreview(key); }
+    });
+    (s.liever_niet_met || []).forEach(w => {
+      const c = document.getElementById(`chips-liever_niet_met-${key}`);
+      if (c) { c.appendChild(makePreferenceChip(key, 'liever_niet_met', w.target, w.weight, GROUP_LABEL_SET.has(w.target))); updatePreview(key); }
+    });
+    (s.niet_in || []).forEach(group => {
+      const cc = document.getElementById(`chips-nieting-${key}`);
+      if (!cc) return;
+      const chip = document.createElement('span');
+      chip.className = 'student-chip niet-in-chip';
+      const lbl = document.createElement('span');
+      lbl.textContent = group;
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'delete-btn chip-del';
+      del.textContent = '✖';
+      del.onclick = () => chip.remove();
+      const hidden = document.createElement('input');
+      hidden.type = 'hidden';
+      hidden.name = `nieting_${key}`;
+      hidden.value = group;
+      chip.append(lbl, del, hidden);
+      cc.appendChild(chip);
+    });
+  });
+}
+
+// Wire up every preference combobox rendered server-side.
+document.querySelectorAll('.combobox-input').forEach(initCombobox);
+
+// Initial preview ("nog geen voorkeur") + per-group counters for every candidate.
+document.querySelectorAll('.candidate-wish-preview').forEach(p =>
+  updatePreview(p.id.replace('preview-', '')));
+updateGroupCounters();
+
+// ── Click-popovers for the heavier ⓘ explanations (short ones stay hover-title) ──
+let _openInfoBtn = null;
+function closeInfoPopover() {
+  document.querySelectorAll('.info-popover').forEach(p => p.remove());
+}
+function showInfoPopover(btn) {
+  const wasOpen = _openInfoBtn === btn;
+  closeInfoPopover();
+  _openInfoBtn = null;
+  if (wasOpen) return;  // second click closes it
+  const pop = document.createElement('div');
+  pop.className = 'info-popover';
+  pop.textContent = btn.dataset.help;
+  btn.insertAdjacentElement('afterend', pop);
+  _openInfoBtn = btn;
+}
+document.querySelectorAll('.info-pop').forEach(btn => {
+  btn.addEventListener('click', e => {
+    e.preventDefault();
+    e.stopPropagation();  // keep a surrounding <summary> from toggling
+    showInfoPopover(btn);
+  });
+});
+document.addEventListener('click', e => {
+  if (!e.target.closest('.info-popover')) { closeInfoPopover(); _openInfoBtn = null; }
+});
+
+// ── Autosave: a long entry session must never be lost ─────────────────────────
+// Every change is debounced and posted as a background "autosave" that writes only the
+// draft; a reload restores it via the normal prefill. beforeunload still warns while a
+// change has not yet been saved.
+(function () {
+  const form = document.getElementById('preferences-form');
+  let dirty = false, submitting = false, timer = null;
+
+  function autosave() {
+    const data = new FormData(form);
+    data.set('action', 'autosave');
+    fetch(window.location.href, { method: 'POST', body: data })
+      .then(r => { if (r.ok) dirty = false; })
+      .catch(() => {});  // best effort; beforeunload keeps work safe if it fails
+  }
+
+  function scheduleAutosave() {
+    dirty = true;
+    clearTimeout(timer);
+    timer = setTimeout(autosave, 1000);
+  }
+
+  form.addEventListener('input', scheduleAutosave);
+  form.addEventListener('change', scheduleAutosave);
+  // Chip add/remove and other programmatic DOM changes don't fire input/change.
+  new MutationObserver(scheduleAutosave).observe(form, { childList: true, subtree: true });
+
+  form.addEventListener('submit', () => { submitting = true; clearTimeout(timer); });
+  window.addEventListener('beforeunload', e => {
+    if (dirty && !submitting) { e.preventDefault(); e.returnValue = ''; }
+  });
+})();
+</script>
+{% endblock %}

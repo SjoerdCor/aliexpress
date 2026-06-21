@@ -4,13 +4,14 @@ import re
 import warnings
 import xml.etree.ElementTree as ET
 from io import BytesIO
-from typing import Iterable
+from typing import Iterable, NamedTuple
 
 import numpy as np
 import pandas as pd
 import pandera.pandas as pa
 
 from .errors import ValidationError
+from .preferences_data import PreferenceData
 
 
 def validate_schema_with_filetype(
@@ -86,6 +87,101 @@ def validate_columns(df: pd.DataFrame, expected_columns, file_type: str) -> None
             context={"wrong_columns": msg},
             technical_message=f"Wrong columns for {file_type}: \n{missing=}\n{extra=}",
         )
+
+
+def validate_long_preferences(
+    df: pd.DataFrame, all_to_groups: list, all_leerlingen: list
+) -> pd.DataFrame:
+    """Validate a long-format preferences frame; single source of truth for both paths.
+
+    The frame must have a ``(Leerling, TypeWens, Nr)`` MultiIndex and the columns
+    ``Waarde`` (target name) and ``Gewicht`` (positive weight). Both the Excel path
+    (``VoorkeurenProcessor.validate_preferences``) and the web-form builder call this so
+    the checks stay in one place:
+
+    - ``Gewicht`` must be > 0 (negation into "Liever niet met" happens afterwards);
+    - every *student* ``Waarde`` is unique within a Leerling (no duplicate classmate);
+      group targets may repeat and appear in both directions (they stack/counteract, ADR 0004);
+    - a ``Niet in`` target must be a known group; a ``Graag met``/``Liever niet met``
+      target must be a known group *or* a known student.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The long-format, pre-negation preferences frame.
+    all_to_groups : list
+        Matching keys of the destination groups.
+    all_leerlingen : list
+        Matching keys of the known students.
+
+    Returns
+    -------
+    pd.DataFrame
+        The validated (and coerced) frame.
+
+    Raises
+    ------
+    pandera.errors.SchemaError
+        If any check fails. Callers may enrich the error before re-raising.
+    """
+
+    def waarde_unique_within_leerling(frame: pd.DataFrame) -> bool:
+        # Uniqueness applies to classmate targets, not to group preferences. Naming the
+        # same classmate twice is redundant or contradictory, but a "Graag met"/"Liever
+        # niet met" *group* target may repeat and appear in both directions: two friends
+        # already in a group stack the pull, a positive and a negative preference for the
+        # same group counteract. "Niet in" group exclusions stay unique. See ADR 0004.
+        is_group_preference = frame.index.get_level_values("TypeWens").isin(
+            ["Graag met", "Liever niet met"]
+        ) & frame["Waarde"].isin(all_to_groups)
+        checked = frame[~is_group_preference]
+        return checked.groupby("Leerling")["Waarde"].apply(lambda s: s.is_unique).all()
+
+    def waarde_matches_typewens(frame: pd.DataFrame) -> pd.Series:
+        mask_nietin = frame.index.get_level_values("TypeWens") == "Niet in"
+        mask_other = frame.index.get_level_values("TypeWens").isin(
+            ["Graag met", "Liever niet met"]
+        )
+
+        valid = pd.Series(True, index=frame.index)
+        valid.loc[mask_nietin] = frame.loc[mask_nietin, "Waarde"].isin(all_to_groups)
+        valid.loc[mask_other] = frame.loc[mask_other, "Waarde"].isin(
+            all_to_groups + all_leerlingen
+        )
+        return valid
+
+    schema = pa.DataFrameSchema(
+        columns={
+            "Waarde": pa.Column(str),
+            "Gewicht": pa.Column(float, checks=pa.Check.greater_than(0)),
+        },
+        index=pa.MultiIndex(
+            [
+                pa.Index(str, name="Leerling"),
+                pa.Index(
+                    str,
+                    name="TypeWens",
+                    checks=pa.Check.isin(["Niet in", "Graag met", "Liever niet met"]),
+                ),
+                pa.Index(float, name="Nr"),
+            ]
+        ),
+        checks=[
+            pa.Check(
+                waarde_unique_within_leerling,
+                name="duplicated_values_preferences",
+                error="Column 'Waarde' must be unique within each Leerling.",
+            ),
+            pa.Check(
+                waarde_matches_typewens,
+                name="invalid_values_preferences",
+            ),
+        ],
+        strict=True,
+        coerce=True,
+    )
+
+    return validate_schema_with_filetype(df, schema, filetype="voorkeuren")
 
 
 def toggle_negative_weights(df: pd.DataFrame, mask="Gewicht") -> pd.DataFrame:
@@ -295,25 +391,6 @@ class VoorkeurenProcessor:
 
     def validate_preferences(self, all_to_groups=None) -> None:
         """Validates voorkeuren DataFrame structure and values."""
-
-        def waarde_unique_within_leerling(df: pd.DataFrame) -> bool:
-            return df.groupby("Leerling")["Waarde"].apply(lambda s: s.is_unique).all()
-
-        def waarde_matches_typewens(
-            df: pd.DataFrame, all_to_groups: list, all_leerlingen: list
-        ) -> bool:
-            mask_nietin = df.index.get_level_values("TypeWens") == "Niet in"
-            mask_other = df.index.get_level_values("TypeWens").isin(
-                ["Graag met", "Liever niet met"]
-            )
-
-            valid = pd.Series(True, index=df.index)
-            valid.loc[mask_nietin] = df.loc[mask_nietin, "Waarde"].isin(all_to_groups)
-            valid.loc[mask_other] = df.loc[mask_other, "Waarde"].isin(
-                all_to_groups + all_leerlingen
-            )
-            return valid
-
         all_to_groups = all_to_groups or []
         try:
             all_leerlingen = self.input.index.get_level_values("Leerling").tolist()
@@ -321,43 +398,8 @@ class VoorkeurenProcessor:
             # Make sure it does not error here yet (if index is wrong), must throw SchemaError later
             all_leerlingen = []
 
-        schema = pa.DataFrameSchema(
-            columns={
-                "Waarde": pa.Column(str),
-                "Gewicht": pa.Column(float, checks=pa.Check.greater_than(0)),
-            },
-            index=pa.MultiIndex(
-                [
-                    pa.Index(str, name="Leerling"),
-                    pa.Index(
-                        str,
-                        name="TypeWens",
-                        checks=pa.Check.isin(
-                            ["Niet in", "Graag met", "Liever niet met"]
-                        ),
-                    ),
-                    pa.Index(float, name="Nr"),
-                ]
-            ),
-            checks=[
-                pa.Check(
-                    waarde_unique_within_leerling,
-                    name="duplicated_values_preferences",
-                    error="Column 'Waarde' must be unique within each Leerling.",
-                ),
-                pa.Check(
-                    lambda df: waarde_matches_typewens(
-                        df, all_to_groups, all_leerlingen
-                    ),
-                    name="invalid_values_preferences",
-                ),
-            ],
-            strict=True,
-            coerce=True,
-        )
-
         try:
-            validate_schema_with_filetype(self.df, schema, filetype="voorkeuren")
+            validate_long_preferences(self.df, all_to_groups, all_leerlingen)
         except pa.errors.SchemaError as exc:
             # Surface the offending students by the name as entered, not the matching key,
             # so the Dutch error message in the app layer is recognisable to the teacher.
@@ -409,6 +451,21 @@ class VoorkeurenProcessor:
             .to_dict("index")
         )
 
+    def to_preference_data(self) -> PreferenceData:
+        """Bundle the processed outputs into the canonical ``PreferenceData`` contract.
+
+        Combines the long-format preferences (``self.df``), the per-student meta info and
+        the display maps that the solver and reporting layers use separately today.
+        Call after :meth:`process`.
+        """
+        return PreferenceData(
+            preferences=self.df,
+            students_info=self.get_students_meta_info(),
+            student_display=self.student_display,
+            stamgroep_display=self.stamgroep_display,
+            input_sheet=self.input,
+        )
+
 
 def validate_not_together(
     rules: list[dict], students: Iterable, n_groups: int
@@ -458,15 +515,35 @@ def validate_not_together(
     return rules
 
 
-def read_groups_excel(path_groups_to) -> tuple[dict, dict]:
+class GroupCounts(NamedTuple):
+    """Per destination group: its current boy/girl counts plus its display name.
+
+    Both dicts are keyed by the group's ``matching_key`` (what the solver works with):
+
+    - ``counts`` maps each group to its *current* boy/girl occupancy,
+      ``{"Jongens": int, "Meisjes": int}`` — the students already in the group that the
+      distribution then builds on (this is the ``groups_to`` the solver consumes).
+    - ``display`` maps each key back to the group name as entered, for user-facing
+      reporting.
+
+    Being a ``NamedTuple`` it stays tuple-compatible, so
+    ``groups_to, group_display = read_groups_excel(...)`` keeps working for callers that
+    only need the two dicts.
+    """
+
+    counts: dict
+    display: dict
+
+
+def read_groups_excel(path_groups_to) -> GroupCounts:
     """Read the target groups from excel.
 
     Returns
     -------
-    tuple[dict, dict]
-        ``(groups_to, group_display)``. ``groups_to`` is keyed by ``matching_key`` (so it
-        matches the keyed wish targets); ``group_display`` maps each key back to the group
-        name as entered, for the report layer.
+    GroupCounts
+        ``GroupCounts(counts, display)``. ``counts`` maps each group's ``matching_key`` to
+        its current ``{"Jongens", "Meisjes"}`` occupancy; ``display`` maps each key back to
+        the group name as entered, for the report layer.
     """
     df = pd.read_excel(path_groups_to)
     schema = pa.DataFrameSchema(
@@ -491,7 +568,7 @@ def read_groups_excel(path_groups_to) -> tuple[dict, dict]:
         .set_index("Groepen")
         .to_dict(orient="index")
     )
-    return groups_to, group_display
+    return GroupCounts(counts=groups_to, display=group_display)
 
 
 class EdexReader:  # pylint: disable=too-few-public-methods  # data exposed via attributes set in __init__

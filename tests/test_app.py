@@ -81,9 +81,9 @@ class TestSessionGuard:
             for cat, msg in flashes(client)
         )
 
-    def test_student_preferences_no_session_redirects(self, client):
-        """GET /student_preferences without a session redirects to /processes."""
-        response = client.get("/student_preferences")
+    def test_preferences_excel_no_session_redirects(self, client):
+        """GET /preferences_excel without a session redirects to /processes."""
+        response = client.get("/preferences_excel")
         assert response.status_code == 302
         assert response.headers["Location"].endswith("/processes")
 

@@ -7,7 +7,6 @@ import os
 class Config:
     """Base configuration with default settings."""
 
-    SECRET_KEY = os.getenv("SECRET_KEY")
     DEBUG = False
     TESTING = False
 
@@ -37,7 +36,6 @@ class Config:
 class DevelopmentConfig(Config):
     """Development configuration with debug mode enabled."""
 
-    SECRET_KEY = os.getenv("SECRET_KEY", "dev-fallback-secret")
     DEBUG = True
 
 
