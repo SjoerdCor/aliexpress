@@ -98,3 +98,10 @@ The result is shown in the browser; download the full Excel workbook for the sch
 ## Known limitations
 
 - **Retained students are counted only toward total-group balance, not cohort balance.** Marking a student as staying ("blijft in groep") adjusts the destination group's total boy/girl counts, but does not add them to the redistributed cohort. For a retained student in a year-layer *between* the cohort and the destination — e.g. a group-4 repeater in a 4/5/6 class, onto whom the distributed group-3 cohort is added — only the total-group effect is modelled, not the effect on the cohort's own balance. Forced placement of an individual student into a chosen group is likewise not supported.
+
+## Copyright
+
+Copyright (c) 2024–2026 Sjoerd Cornelissen. All rights reserved.
+
+The source code is not licensed for use, copying, modification, or distribution.
+Interested in using or building on ALI Express? [Reach out via GitHub](https://github.com/SjoerdCor) — there's a lot we can make work.
