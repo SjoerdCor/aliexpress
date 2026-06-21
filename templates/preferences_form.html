@@ -85,8 +85,8 @@ Voer zoveel mogelijk positieve wensen in. Dat geeft ALI Express meer flexibilite
 
       {# ── Niet in groep ─────────────────────────────────────────────────── #}
       {% if target_groups | length > 1 %}
-      <div class="wish-section">
-        <p class="wish-section-label">Niet in groep <button type="button" class="info-pop" data-help="Een harde grens: deze leerling komt zéker niet in deze groep — bijvoorbeeld omdat er al een oudere broer of zus in zit. Dit is iets anders dan 'liever niet met' een groep, dat een zachte voorkeur is die mag wijken. Je kunt hoogstens (aantal groepen − 1) groepen uitsluiten.">ℹ</button></p>
+      <div class="preference-section">
+        <p class="preference-section-label">Niet in groep <button type="button" class="info-pop" data-help="Een harde grens: deze leerling komt zéker niet in deze groep — bijvoorbeeld omdat er al een oudere broer of zus in zit. Dit is iets anders dan 'liever niet met' een groep, dat een zachte voorkeur is die mag wijken. Je kunt hoogstens (aantal groepen − 1) groepen uitsluiten.">ℹ</button></p>
         <div class="chips-area" id="chips-nieting-{{ key }}"></div>
         <select class="nieting-select" id="nieting-select-{{ key }}"
                 onchange="addNietIn('{{ key }}', {{ target_groups | length - 1 }})">
