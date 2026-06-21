@@ -10,8 +10,10 @@ from pathlib import Path
 
 import pytest
 
+from aliexpress import datareader
 from aliexpress.extensions import db as flask_db
 from aliexpress.models import Process
+from aliexpress.routes.wizard import _write_voorkeuren_json
 from app import app
 from tests.browser.conftest import TEST_SCHOOLCODE
 
@@ -22,8 +24,15 @@ def _make_process(live_server, tmp_path, page, name="browserrun"):
     """Create a process with ready-to-solve input files and select it in the browser."""
     proc = tmp_path / TEST_SCHOOLCODE / name
     proc.mkdir(parents=True, exist_ok=True)
-    shutil.copy(_INTEGRATION / "voorkeuren_small.xlsx", proc / "preferences.xlsx")
     shutil.copy(_INTEGRATION / "groepen_small.xlsx", proc / "groups.xlsx")
+    # The solver reads voorkeuren.json (the canonical format both input paths write);
+    # build it from the synthetic workbook exactly like the Excel upload route does.
+    groups_to, _ = datareader.read_groups_excel(str(proc / "groups.xlsx"))
+    processor = datareader.VoorkeurenProcessor(_INTEGRATION / "voorkeuren_small.xlsx")
+    processor.process(all_to_groups=list(groups_to.keys()))
+    _write_voorkeuren_json(
+        str(proc / "voorkeuren.json"), processor.to_preference_data(), source="excel"
+    )
     with app.app_context():
         flask_db.session.add(Process(school_id=TEST_SCHOOLCODE, name=name))
         flask_db.session.commit()
