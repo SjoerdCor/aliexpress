@@ -126,6 +126,19 @@ class TestGroupsToPage:
         assert response.status_code == 302
         assert any(cat == "error" for cat, _ in flashes(client))
 
+    def test_post_duplicate_group_names_flashes_error(self, client, tmp_path):
+        """POST /groups_to with duplicate group names flashes an error and redirects back."""
+        proc_dir = setup_process(client, tmp_path)
+        write_groups_to_json(proc_dir, {"Klas A": make_students("Jongen")})
+        response = client.post(
+            "/groups_to",
+            data={"group": ["Klas A", "Klas A"]},
+        )
+        assert response.status_code == 302
+        messages = flashes(client)
+        assert any(cat == "error" for cat, _ in messages)
+        assert any("Klas A" in msg for _, msg in messages)
+
     def test_post_two_groups_redirects_to_roster(self, client, tmp_path):
         """POST /groups_to with ≥2 groups saves groups.xlsx and redirects to the shared
         roster step ("Wie gaat mee"), regardless of input method (ADR 0005)."""

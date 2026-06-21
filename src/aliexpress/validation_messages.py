@@ -79,6 +79,9 @@ def readableerror_to_validation_message(exc: Exception) -> str:
         "duplicate_new_student": (
             'Er bestaat al een leerling "{naam}". Geef een onderscheidende naam.'
         ),
+        "duplicate_group_names": (
+            "Groepsnamen moeten uniek zijn. Dubbel: {duplicates}."
+        ),
     }
 
     template = friendly_templates.get(exc.code, None)

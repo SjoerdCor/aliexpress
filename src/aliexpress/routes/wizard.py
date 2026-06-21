@@ -507,6 +507,19 @@ def groups_to_page():
             state=_load_groups_to_state(school_id, process_id),
         )
 
+    submitted_names = request.form.getlist("group")
+    seen, duplicates = set(), []
+    for name in submitted_names:
+        if name in seen:
+            duplicates.append(name)
+        seen.add(name)
+    if duplicates:
+        exc = ValidationError(
+            "duplicate_group_names", {"duplicates": ", ".join(duplicates)}
+        )
+        flash(to_validation_message(exc), "error")
+        return redirect(url_for("wizard.groups_to_page"))
+
     submission = parse_groups_to_form(request.form, groups_to)
     if len(submission.distribution) < 2:
         error = "Er moeten minsten twee groepen zijn om de leerlingen over te verdelen"
