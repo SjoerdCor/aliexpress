@@ -23,7 +23,7 @@
     <div class="container">
         <div class="school-bar">
             <span class="school-name">{{ current_user.naam }}</span>
-            <a href="{{ url_for('auth.logout') }}" class="btn-secondary" style="margin-left:auto;">Uitloggen</a>
+            <a href="{{ url_for('auth.logout') }}" class="button--cancel" style="margin-left:auto;">Uitloggen</a>
         </div>
 
         <h1>Scholen</h1>
@@ -52,7 +52,7 @@
                     </td>
                     <td>
                         <a href="{{ url_for('admin.impersonate', schoolcode=entry.school.schoolcode) }}"
-                            class="btn-secondary btn-sm">Bekijk als deze school</a>
+                            class="button--cancel button--small">Bekijk als deze school</a>
                     </td>
                 </tr>
                 {% endfor %}
