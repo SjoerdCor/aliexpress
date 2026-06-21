@@ -170,6 +170,39 @@ def test_selecting_group_creates_chip(live_server, tmp_path, page):
 
 
 @pytest.mark.usefixtures("login")
+def test_chip_intensity_pills_set_weight(live_server, tmp_path, page):
+    """A graag-met chip defaults to weight 1; choosing 'heel graag' sets weight 2."""
+    _open_preferences_form(live_server, tmp_path, page)
+    _open_group(page)
+    page.fill("#combo-graag_met-s1", "Bram")
+    page.press("#combo-graag_met-s1", "Enter")
+
+    weight = page.locator(
+        "#chips-graag_met-s1 input[name='preference_s1_graag_met_gewicht']"
+    )
+    assert weight.input_value() == "1"
+
+    page.click("#chips-graag_met-s1 .chip-label")
+    page.click("#chips-graag_met-s1 .intensity-pill:has-text('heel graag')")
+    assert weight.input_value() == "2"
+    assert (
+        "heel graag"
+        in page.locator("#chips-graag_met-s1 .preference-chip").first.inner_text()
+    )
+
+
+@pytest.mark.usefixtures("login")
+def test_liever_niet_has_two_intensity_levels(live_server, tmp_path, page):
+    """'Liever niet met' offers two intensity levels (liever niet / echt niet)."""
+    _open_preferences_form(live_server, tmp_path, page)
+    _open_group(page)
+    page.fill("#combo-liever_niet_met-s1", "Bram")
+    page.press("#combo-liever_niet_met-s1", "Enter")
+    page.click("#chips-liever_niet_met-s1 .chip-label")
+    assert page.locator("#chips-liever_niet_met-s1 .intensity-pill").count() == 2
+
+
+@pytest.mark.usefixtures("login")
 def test_duplicate_student_is_not_offered_again(live_server, tmp_path, page):
     """Once a classmate is chosen, they are not offered again (uniqueness, ADR 0004)."""
     _open_preferences_form(live_server, tmp_path, page)
