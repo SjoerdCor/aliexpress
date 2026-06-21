@@ -19,13 +19,16 @@ def _open_preferences(live_server, tmp_path, page):
     (proc / "relevant_students_and_groups.json").write_text(
         json.dumps({"candidates": [], "groups_from": []}), encoding="utf-8"
     )
-    # select_process lands on student_preferences once groups.xlsx exists.
+    # With the roster step done (Excel method) select_process lands on preferences_excel.
     (proc / "groups.xlsx").write_bytes(b"dummy")
+    (proc / "roster.json").write_text(
+        json.dumps({"participants": []}), encoding="utf-8"
+    )
     with app.app_context():
         flask_db.session.add(Process(school_id=TEST_SCHOOLCODE, name="browsertest"))
         flask_db.session.commit()
     page.goto(f"{live_server}/processes/select/browsertest")
-    page.wait_for_url("**/student_preferences")
+    page.wait_for_url("**/preferences_excel")
     return proc
 
 
@@ -38,7 +41,7 @@ def test_forward_button_submits_upload_form_and_requires_a_file(
     _open_preferences(live_server, tmp_path, page)
 
     page.click(".step-navigation button.next-step")
-    page.wait_for_url("**/student_preferences")  # stayed on the page
+    page.wait_for_url("**/preferences_excel")  # stayed on the page
 
     assert page.locator(".flash-message").inner_text().strip() != ""
     assert "Upload eerst" in page.locator(".flash-message").inner_text()

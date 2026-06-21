@@ -8,13 +8,33 @@ Webapplicatie waarmee basisscholen leerlingen verdelen over nieuwe groepen, op b
 Een kind dat wordt ingedeeld in een nieuwe groep.
 _Avoid_: student, kind, pupil
 
+**Verlenger**:
+Een leerling die niet meegaat in deze verdeling maar nog een jaar in dezelfde (kleuter)groep blijft. Op de stap "Wie gaat mee" staat elke leerling standaard aangevinkt; een verlenger wordt uitgevinkt en doet dan niet mee aan de verdeling. Geen apart soort leerling — een eigenschap van deze ene verdeling.
+_Avoid_: blijver, zittenblijver
+
 **Groep**:
-Een nieuwe klas waaraan leerlingen worden toegewezen. Niet te verwarren met de huidige groep waar een leerling vandaan komt.
+Een klas leerlingen. In een verdeling worden leerlingen vanuit hun huidige groep over bestemmingsgroepen verdeeld; "groep" is op zichzelf rolneutraal — of een groep herkomst of bestemming is, volgt uit de context, niet uit het woord.
 _Avoid_: klas (ambigu tussen oud en nieuw)
 
+**Bestemmingsgroep**:
+De groep waarin een leerling door de verdeling wordt geplaatst. Een bestemmingsgroep kan al leerlingen bevatten die er blijven; de verdeling verdeelt de overige leerlingen over de bestemmingsgroepen, rekening houdend met die huidige aantallen jongens en meisjes.
+_Avoid_: nieuwe groep, doelgroep
+
 **Voorkeur**:
-De wens van een leerling om wel of niet met een andere leerling in dezelfde groep te zitten.
+Het verlangen van een leerling om wel of niet bij een bepaald doel in dezelfde groep te zitten. Het doel is meestal een klasgenoot, maar kan ook een bestemmingsgroep zijn — bijv. wanneer de gewenste klasgenoot al in die groep zit en dus niet zelf wordt verdeeld (we kennen die niet bij naam, alleen de groep). Een voorkeur komt vanuit de leerling en gaat als gewogen factor de tevredenheid in: de verdeling mag een voorkeur schenden als het geheel daar beter van wordt. Staat tegenover de Niet-samen-regel.
 _Avoid_: wens, keuze
+
+**Niet-samen-regel**:
+Een harde eis vanuit de school/leerkracht dat hoogstens een bepaald aantal van een groepje leerlingen samen in één bestemmingsgroep komt — bijv. zorgleerlingen die samen te veel van de groep vragen, of een dynamiek die de leerkracht onwenselijk vindt. Anders dan een Voorkeur (vanuit de leerling, meegewogen) komt deze regel vanuit de school en wordt altijd gerespecteerd.
+_Avoid_: harde voorkeur, blacklist
+
+**Tevredenheid**:
+De mate waarin de voorkeuren van een leerling in de verdeling zijn ingewilligd, op een verzadigende schaal (iedereen krijgt voorkeur 1 voor wie dan ook voorkeur 2 krijgt). Een leerling zonder voorkeuren geldt als volledig tevreden. De optimalisatie maximaliseert de tevredenheid lexicografisch over de minst tevreden leerlingen.
+_Avoid_: score, geluk
+
+**Niet-in-groep-uitsluiting**:
+Een harde eis dat een specifieke leerling niet in een bepaalde bestemmingsgroep geplaatst mag worden — bedoeld voor gevallen waarin het écht niet kan, met name als er al een familielid (bijv. een oudere broer of zus) in die groep zit. Hard, dus altijd gerespecteerd. Onderscheidt zich van een negatieve Voorkeur naar een groep ("liever niet naar Blauw"), die zacht is en mag wijken.
+_Avoid_: niet in, verbod
 
 **Verdeling**:
 Het resultaat van de optimalisatie: de toewijzing van alle leerlingen aan groepen.

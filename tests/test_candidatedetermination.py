@@ -4,12 +4,12 @@ import pandas as pd
 import pytest
 
 from aliexpress.candidatedetermination import (
-    combine_students,
     create_unique_name,
     get_candidates,
     get_groups_from,
     get_groups_to,
     handle_edexml_upload,
+    students_df_from_records,
 )
 
 
@@ -128,9 +128,9 @@ def test_handle_edexml_upload(sample_df):
     assert isinstance(groups_to, dict)
 
 
-def test_combine_students_and_unique_names():
-    """Test new and old groups work correctly"""
-    candidates = [
+def test_students_df_from_records_assigns_unique_names():
+    """Roster participants get unique display names and are sorted for the Excel template."""
+    participants = [
         {
             "key": "1",
             "roepnaam": "Anna",
@@ -145,28 +145,17 @@ def test_combine_students_and_unique_names():
             "groepsnaam": "X",
             "geslacht": "Meisje",
         },
-    ]
-    selected_ids = ["1", "2"]
-    new_students = [
         {
+            "key": "3",
             "roepnaam": "Chris",
             "achternaam": "Visser",
             "groepsnaam": "Y",
             "geslacht": "Jongen",
-        }
+        },
     ]
-
-    df_total = combine_students(candidates, selected_ids, new_students)
-    df_total_expected = pd.DataFrame(
-        {
-            "roepnaam": {"1": "Anna", "2": "Anna", 0: "Chris"},
-            "achternaam": {"1": "Bakker", "2": "Bos", 0: "Visser"},
-            "groepsnaam": {"1": "X", "2": "X", 0: "Y"},
-            "geslacht": {"1": "Meisje", "2": "Meisje", 0: "Jongen"},
-            "uniekenaam": {"1": "Anna Ba", "2": "Anna Bo", 0: "Chris"},
-        }
-    )
-    pd.testing.assert_frame_equal(df_total, df_total_expected)
+    df_total = students_df_from_records(participants)
+    assert df_total["uniekenaam"].tolist() == ["Anna Ba", "Anna Bo", "Chris"]
+    assert df_total["groepsnaam"].tolist() == ["X", "X", "Y"]
 
 
 def test_create_unique_name_handles_duplicates():

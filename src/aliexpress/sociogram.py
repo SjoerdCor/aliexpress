@@ -31,6 +31,20 @@ class SociogramMaker:
         self.preferences = processor.process(groups)
         self.students_info = processor.get_students_meta_info()
 
+    @classmethod
+    def from_preference_data(cls, preference_data):
+        """Build a SociogramMaker from a PreferenceData object (no Excel file needed).
+
+        ``preference_data.preferences`` and ``preference_data.students_info`` are the
+        same fields the constructor derives via VoorkeurenProcessor, so the sociogram
+        graph is identical regardless of which input path produced the PreferenceData.
+        """
+        obj = cls.__new__(cls)
+        obj.fname = None
+        obj.preferences = preference_data.preferences
+        obj.students_info = preference_data.students_info
+        return obj
+
     @staticmethod
     def min_max_scaler(
         this_value, min_desired, max_desired, min_possible, max_possible

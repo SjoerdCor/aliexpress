@@ -21,6 +21,7 @@ from aliexpress.routes.admin import admin_bp
 from aliexpress.routes.auth import auth_bp, load_user
 from aliexpress.routes.processes import processes_bp
 from aliexpress.routes.results import results_bp
+from aliexpress.routes.roster import roster_bp
 from aliexpress.routes.wizard import wizard_bp
 
 configure_logging()
@@ -64,6 +65,13 @@ def create_app(test_config=None):
     config_class = DevelopmentConfig if env == "development" else ProductionConfig
     app.config.from_object(config_class)
 
+    # SECRET_KEY is read here, after load_dotenv(), so .env is already in os.environ.
+    # It cannot live in the Config class body because class attributes are evaluated at
+    # import time, before load_dotenv() runs (and before uv injects .env on non-uv launchers).
+    app.config["SECRET_KEY"] = os.getenv("SECRET_KEY") or (
+        "dev-fallback-secret" if env == "development" else None
+    )
+
     if test_config is not None:
         app.config.update(test_config)
 
@@ -98,6 +106,7 @@ def create_app(test_config=None):
     app.register_blueprint(auth_bp)
     app.register_blueprint(processes_bp)
     app.register_blueprint(results_bp)
+    app.register_blueprint(roster_bp)
     app.register_blueprint(wizard_bp)
 
     register_error_handlers(app)

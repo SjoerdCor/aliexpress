@@ -85,6 +85,7 @@ input[type="submit"] {
 
 .button {
   display: inline-block;
+  font-family: inherit;
   padding: 0.6rem 1.2rem;
   background-color: #ff9933;
   color: white;
@@ -98,6 +99,15 @@ input[type="submit"] {
 .button--small {
   padding: 0.3rem 0.8rem;
   border-radius: 0.2rem;
+}
+
+.button--cancel {
+  background-color: #e0e0e0;
+  color: #333;
+}
+
+.button--cancel:hover {
+  background-color: #c8c8c8;
 }
 .button:hover {
 	background-color: #cc8000;
@@ -116,6 +126,14 @@ input[type="submit"] {
 }
 
 .step-navigation .next-step {
+  margin-left: auto;
+}
+
+.next-steps {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
   margin-left: auto;
 }
 
@@ -780,4 +798,490 @@ table.dataframe th {
 
 .admin-table tr:hover td {
     background: #fafafa;
+}
+
+/* Preferences form — details/summary structuur */
+.group-details {
+    margin-bottom: 0.8rem;
+}
+
+.group-summary {
+    cursor: pointer;
+    font-size: 0.85em;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #666;
+    padding: 0.4rem 0.5rem;
+    background: #f0f0f0;
+    border-radius: 5px;
+    user-select: none;
+    list-style: none;
+}
+
+.group-summary::-webkit-details-marker { display: none; }
+.group-summary::before { content: "▶ "; font-size: 0.8em; }
+.group-details[open] > .group-summary::before { content: "▼ "; }
+
+.new-student-details {
+    border: 1px dashed #ccc;
+    border-radius: 8px;
+    padding: 0.2rem 0.6rem 0.6rem;
+    margin-bottom: 1.2rem;
+}
+
+.new-student-details > .group-summary {
+    background: none;
+    color: #555;
+}
+
+.candidate-details {
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    margin: 0.2rem 0 0.2rem 0.5rem;
+    background: #fafafa;
+    transition: border-color 0.15s;
+}
+
+.candidate-details:not(.candidate-disabled):hover {
+    border-color: #b8b8b8;
+}
+
+.candidate-details.candidate-disabled {
+    opacity: 0.4;
+}
+
+.candidate-summary {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.3rem 0.7rem;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+}
+
+.candidate-summary::-webkit-details-marker { display: none; }
+
+.candidate-label {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-weight: bold;
+    cursor: pointer;
+    flex: 1;
+}
+
+.candidate-name {
+    font-weight: bold;
+}
+
+.candidate-wish-preview {
+    font-size: 0.8em;
+    color: #888;
+    font-style: italic;
+}
+
+.candidate-content {
+    padding: 0.35rem 0.7rem 0.4rem;
+    border-top: 1px solid #eee;
+}
+
+.min-sat-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.6rem;
+}
+
+.min-sat-label {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.85em;
+    color: #666;
+    white-space: nowrap;
+}
+
+.min-sat-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.15rem;
+}
+
+.min-sat-input {
+    width: 4rem;
+    text-align: right;
+}
+
+.min-sat-pct {
+    font-size: 0.9em;
+    color: #555;
+}
+
+.field-error {
+    color: #c00;
+    font-size: 0.82em;
+    font-weight: bold;
+}
+
+.wish-pending-area {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    margin: 0.2rem 0 0.25rem;
+    padding: 0.35rem 0.55rem;
+    background: #edf4ff;
+    border: 1px solid #b8d4f5;
+    border-radius: 6px;
+}
+
+.wish-name-input {
+    flex: 1 1 150px;
+    min-width: 100px;
+}
+
+.wish-weight-input {
+    width: 4rem;
+    text-align: right;
+}
+
+.wish-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin: 0.1rem 0.2rem 0.1rem 0;
+    padding: 0.2rem 0.5rem;
+    background: #3a7bd5;
+    color: #fff;
+    border: none;
+    border-radius: 20px;
+    font-size: 0.88em;
+}
+
+.wish-chip .chip-del {
+    color: #dde;
+    background: none;
+    border: none;
+    padding: 0 0 0 0.1rem;
+    cursor: pointer;
+    font-size: 0.85em;
+}
+
+.wish-chip .chip-del:hover {
+    color: #fff;
+}
+
+/* Niet-in chips use the default .student-chip style (orange).
+   An empty chips-area takes no room: the space appears only once a chip exists. */
+.chips-area:empty { display: none; }
+
+.nieting-select {
+    min-width: 140px;
+}
+
+.new-student-block {
+    background: #f7f9ff;
+    border: 1px solid #d0d8f0;
+    border-radius: 6px;
+    padding: 0.5rem 0.7rem;
+    margin-bottom: 0.5rem;
+}
+
+.new-student-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.4rem;
+}
+
+.new-student-wishes {
+    padding-left: 0.5rem;
+    border-left: 2px solid #c0ccee;
+    margin-top: 0.4rem;
+}
+
+.button--secondary {
+    background-color: #7a9cdf;
+}
+
+.button--secondary:hover {
+    background-color: #5a7bbf;
+}
+
+/* Legacy placeholder — no longer used but kept for smooth diff */
+.new-student-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.4rem;
+}
+
+/* ── Preference combobox (preferences_form) ─────────────────────────────────
+   A constrained typeahead: only listed classmates or destination groups can be
+   chosen, so free-text "unknown student" input is impossible. */
+.preference-section {
+    margin: 0.25rem 0;
+}
+
+.preference-section-label {
+    margin: 0.1rem 0 0.15rem;
+    font-weight: 600;
+}
+
+.combobox {
+    position: relative;
+    display: inline-block;
+    min-width: 16rem;
+    max-width: 100%;
+}
+
+.combobox-input {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.combobox-list {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    z-index: 20;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    max-height: 12rem;
+    overflow-y: auto;
+    background: #fff;
+    border: 1px solid #bbb;
+    border-radius: 0 0 4px 4px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+}
+
+.combobox-list[hidden] {
+    display: none;
+}
+
+.combobox-option {
+    padding: 0.35rem 0.6rem;
+    cursor: pointer;
+}
+
+.combobox-option:hover,
+.combobox-option.active {
+    background: #e8f0fe;
+}
+
+/* Intensity pills on a preference chip (click the chip label to reveal). */
+.chip-label {
+    cursor: pointer;
+}
+
+.chip-intensity {
+    color: #555;
+    font-style: italic;
+}
+
+.chip-pills {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-left: 0.4rem;
+}
+
+.chip-pills-caption {
+    font-size: 0.8em;
+    color: #555;
+    margin-right: 0.15rem;
+}
+
+.intensity-pill {
+    border: 1px solid #bbb;
+    background: #f5f5f5;
+    border-radius: 999px;
+    padding: 0.05rem 0.5rem;
+    font-size: 0.85em;
+    cursor: pointer;
+}
+
+.intensity-pill.active {
+    background: #1a73e8;
+    border-color: #1a73e8;
+    color: #fff;
+}
+
+/* Extra zekerheid (min. satisfaction as fixed choices), collapsed by default. */
+.extra-zekerheid {
+    margin-top: 0.4rem;
+}
+
+.extra-zekerheid > summary {
+    cursor: pointer;
+    color: #555;
+    font-size: 0.9em;
+}
+
+.extra-zekerheid-help {
+    font-size: 0.85em;
+    color: #555;
+    margin: 0.3rem 0;
+    max-width: 32rem;
+}
+
+.extra-zekerheid-options label {
+    display: block;
+    font-weight: normal;
+    margin: 0.2rem 0;
+}
+
+/* New-student cards: an "af / niet af" state, like a committed chip. */
+.zone-heading {
+    margin: 1.5rem 0 0.5rem;
+    color: #e69900;
+}
+
+.new-student-block {
+    border: 1px solid #e0c4a0;
+    border-radius: 0.4rem;
+    padding: 0.5rem 0.7rem;
+    margin-bottom: 0.6rem;
+}
+
+.new-student-block[data-complete="1"] {
+    background: #f3faf3;
+    border-color: #b6d7b0;
+}
+
+.new-student-edit {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+}
+
+/* An explicit display rule overrides the [hidden] attribute, so restore hiding. */
+.new-student-edit[hidden],
+.new-student-summary[hidden] {
+    display: none;
+}
+
+.new-student-status {
+    font-size: 0.85em;
+    color: #a06a00;
+    font-style: italic;
+}
+
+.new-student-summary {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.new-student-name {
+    font-weight: 600;
+}
+
+/* Per-group tally + "nog geen voorkeur" marker (informational, not a warning). */
+.group-counter {
+    color: #666;
+    font-weight: normal;
+    font-size: 0.9em;
+}
+
+.preview-empty {
+    color: #999;
+    font-style: italic;
+}
+
+/* Visual language for preference chips: colour + a leading sign (never colour alone).
+   These tinted chips use dark text (overriding the orange .student-chip white text). */
+.preference-chip--graag_met {
+    background: #bfe6c4;
+    border: 1px solid #7bbd83;
+    color: #143a1a;
+}
+
+.preference-chip--graag_met .chip-label::before {
+    content: "+ ";
+    color: #1e6b27;
+    font-weight: bold;
+}
+
+.preference-chip--liever_niet_met {
+    background: #f1c4ba;
+    border: 1px solid #cf8a7b;
+    color: #551a11;
+}
+
+.preference-chip--liever_niet_met .chip-label::before {
+    content: "\2212 ";  /* minus sign */
+    color: #962f1f;
+    font-weight: bold;
+}
+
+.niet-in-chip {
+    background: #d8d8d8;
+    border: 1px solid #a6a6a6;
+    color: #222;
+}
+
+/* Dark, readable delete cross on the light chips (the orange default is white). */
+.preference-chip .chip-del,
+.niet-in-chip .chip-del {
+    color: #555;
+}
+
+.preference-chip .chip-del:hover,
+.niet-in-chip .chip-del:hover {
+    color: #000;
+}
+
+/* Worked example in the collapsible help. */
+.help-example {
+    background: #fff;
+    border-left: 3px solid #ff9933;
+    padding: 0.4rem 0.7rem;
+    margin-top: 0.6rem;
+}
+
+/* Click-popover for the heavier ⓘ explanations. */
+.info-pop {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #1a73e8;
+    font-size: 1em;
+    padding: 0 0.2rem;
+}
+
+.info-popover {
+    background: #fff;
+    border: 1px solid #bbb;
+    border-radius: 0.3rem;
+    padding: 0.5rem 0.7rem;
+    margin-top: 0.3rem;
+    max-width: 28rem;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+    font-weight: normal;
+    font-size: 0.9em;
+    color: #333;
+    text-transform: none;  /* parent labels may be uppercased; the help text is not */
+    text-align: left;
+}
+
+/* Undo banner shown when preferences to a no-longer-going student are auto-removed. */
+.undo-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    background: #fff3cd;
+    border: 1px solid #ffe69c;
+    border-radius: 0.4rem;
+    padding: 0.6rem 0.9rem;
+    margin-bottom: 1rem;
 }

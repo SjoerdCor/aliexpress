@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% set current_step = 4 %}
+{% set current_step = 5 %}
 {% block header %}Wie gaan er niet samen?{% endblock %}
 
 {% block content %}
@@ -31,7 +31,7 @@
   </div>
 
   <div class="step-navigation">
-    <a href="{{ url_for('wizard.student_preferences') }}" class="button previous-step">
+    <a href="{{ prev_preferences_url }}" class="button previous-step">
       ← Naar Voorkeuren
     </a>
     <button type="submit" class="button next-step">
