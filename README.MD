@@ -104,4 +104,4 @@ The result is shown in the browser; download the full Excel workbook for the sch
 Copyright (c) 2024–2026 Sjoerd Cornelissen. All rights reserved.
 
 The source code is not licensed for use, copying, modification, or distribution.
-Interested in using or building on ALI Express? [Reach out via GitHub](https://github.com/SjoerdCor) — there's a lot we can make work.
+Interested in using or building on ALI Express? I'd love to hear from you! Reach out at info@sjoerdcornelissen.com — I'm sure we can make it work.
