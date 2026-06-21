@@ -1132,3 +1132,20 @@ table.dataframe th {
     border-color: #1a73e8;
     color: #fff;
 }
+
+/* Extra zekerheid (min. satisfaction as fixed choices), collapsed by default. */
+.extra-zekerheid {
+    margin-top: 0.6rem;
+}
+
+.extra-zekerheid > summary {
+    cursor: pointer;
+    color: #555;
+    font-size: 0.9em;
+}
+
+.extra-zekerheid-options label {
+    display: block;
+    font-weight: normal;
+    margin: 0.2rem 0;
+}

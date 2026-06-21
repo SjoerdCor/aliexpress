@@ -203,6 +203,24 @@ def test_liever_niet_has_two_intensity_levels(live_server, tmp_path, page):
 
 
 @pytest.mark.usefixtures("login")
+def test_extra_zekerheid_choice_round_trips(live_server, tmp_path, page):
+    """'Extra zekerheid' offers fixed choices (default: geen eis); the choice survives
+    Tussentijds opslaan and is restored on reload."""
+    _open_preferences_form(live_server, tmp_path, page)
+    _open_group(page)
+    page.click("#block-s1 .extra-zekerheid > summary")
+    geen = page.locator("#block-s1 .extra-zekerheid input[value='']")
+    assert geen.is_checked()  # default is no extra requirement
+
+    page.check("#block-s1 .extra-zekerheid input[value='100']")
+    page.click("button.button--secondary")
+    page.wait_for_url("**/preferences_form")
+    _open_group(page)
+    page.click("#block-s1 .extra-zekerheid > summary")
+    assert page.locator("#block-s1 .extra-zekerheid input[value='100']").is_checked()
+
+
+@pytest.mark.usefixtures("login")
 def test_duplicate_student_is_not_offered_again(live_server, tmp_path, page):
     """Once a classmate is chosen, they are not offered again (uniqueness, ADR 0004)."""
     _open_preferences_form(live_server, tmp_path, page)
