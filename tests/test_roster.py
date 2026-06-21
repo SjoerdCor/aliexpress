@@ -55,7 +55,7 @@ class TestRosterPage:
         assert response.status_code == 200
         assert b"Anna" in response.data
         assert b"Bram" in response.data
-        assert "staan hier al".encode("utf-8") in response.data
+        assert "staan al klaar".encode("utf-8") in response.data
 
     def test_post_form_choice_writes_roster_method_and_redirects_to_form(
         self, client, tmp_path
