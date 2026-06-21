@@ -16,18 +16,14 @@
   "known_names": {{ known_names | tojson }},
   "target_groups": {{ target_groups | tojson }},
   "group_display": {{ group_display | tojson }},
-  "groups_from": {{ groups_from | tojson }},
   "draft_state": {{ draft_state | tojson if draft_state else 'null' }}
 }
 </script>
 
 <details class="instructions-box" open>
   <summary>Hoe werkt deze pagina?</summary>
-  <p><strong>Stap 1.</strong> Voeg eerst nieuwe of ingestroomde leerlingen toe en klik
-  <em>Voeg toe</em> als een leerling compleet is — dan kun je hen ook als voorkeur kiezen.</p>
-  <p><strong>Stap 2.</strong> Vink per groep aan wie meegaat en vul per leerling de
-  voorkeuren in: kies bij <em>Graag met</em> of <em>Liever niet met</em> een klasgenoot
-  of een groep.</p>
+  <p>Vul per leerling de voorkeuren in: kies bij <em>Graag met</em> of
+  <em>Liever niet met</em> een klasgenoot of een groep.</p>
   <p class="help-example"><em>Voorbeeld:</em> Anna wil graag bij Bo en een beetje bij Sem.
   Klik Anna open, kies bij <em>Graag met</em> eerst Bo (klik op de chip en zet de
   intensiteit op <em>hartsvriend</em>), kies dan Sem en zet die op <em>een beetje</em>.</p>
@@ -35,24 +31,11 @@
 
 <form method="post" id="preferences-form" novalidate>
 
-  {# ── Zone 1: nieuwe leerlingen ──────────────────────────────────────────── #}
-  <h3 class="zone-heading">Stap 1 — Nieuwe leerlingen toevoegen</h3>
-  <details class="group-details new-student-details">
-    <summary class="group-summary">Nieuwe leerling toevoegen</summary>
-    <div id="new-student-rows"></div>
-    <button type="button" class="button button--small" style="margin-top:0.4rem"
-            onclick="addNewStudentRow()">+ Leerling toevoegen</button>
-  </details>
-
-  {# ── Zone 2: bestaande leerlingen per herkomstgroep ─────────────────────── #}
-  <h3 class="zone-heading">Stap 2 — Wie gaat mee en voorkeuren</h3>
-
-  {# ── Per-leerling blokken gegroepeerd op groepsnaam ─────────────────────── #}
+  {# ── Participants grouped by origin group ────────────────────────────────── #}
   {% set current_group = namespace(name=None) %}
   {% for candidate in candidates %}
   {% set key = candidate.key %}
   {% set display_name = candidate.roepnaam ~ " " ~ candidate.achternaam %}
-  {% set going = candidate.going_over is not defined or candidate.going_over %}
 
   {% if candidate.groepsnaam != current_group.name %}
     {% if not loop.first %}</details>{% endif %}
@@ -61,17 +44,9 @@
     <summary class="group-summary">{{ candidate.groepsnaam }}<span class="group-counter"></span></summary>
   {% endif %}
 
-  <details class="candidate-details" id="block-{{ key }}"
-           open {% if not going %}data-disabled="1"{% endif %}>
-    <summary class="candidate-summary"
-             onclick="handleCandidateSummaryClick(event, '{{ key }}')">
-      <label class="candidate-label" onclick="event.stopPropagation()">
-        <input type="checkbox" name="gaat_over" value="{{ key }}"
-               {% if going %}checked{% endif %}
-               class="gaat-over-checkbox" data-key="{{ key }}"
-               onchange="toggleCandidate('{{ key }}', this.checked)">
-        <span class="candidate-name">{{ display_name }}</span>
-      </label>
+  <details class="candidate-details" id="block-{{ key }}" open>
+    <summary class="candidate-summary">
+      <span class="candidate-name">{{ display_name }}</span>
       <span class="candidate-wish-preview" id="preview-{{ key }}"></span>
     </summary>
 
@@ -145,8 +120,8 @@
   {% if candidates %}</details>{% endif %}{# close last group-details #}
 
   <div class="step-navigation">
-    <a href="{{ url_for('wizard.groups_to_page') }}" class="button previous-step">
-      ← Naar Groepen naartoe
+    <a href="{{ url_for('roster.roster_page') }}" class="button previous-step">
+      ← Naar Wie gaat mee
     </a>
     <button type="submit" name="action" value="opslaan" class="button button--secondary">
       Tussentijds opslaan
@@ -164,57 +139,19 @@ const _fd = JSON.parse(document.getElementById('pref-form-data').textContent);
 const STUDENT_NAMES = new Set(_fd.known_names);
 const TARGET_GROUPS = _fd.target_groups;
 const GROUP_DISPLAY = _fd.group_display;
-const GROUPS_FROM = _fd.groups_from;
 const DRAFT = _fd.draft_state;
 
 // Destination-group display names: valid preference targets alongside classmates.
 const GROUP_LABELS = TARGET_GROUPS.map(k => GROUP_DISPLAY[k] || k);
 const GROUP_LABEL_SET = new Set(GROUP_LABELS);
 
-let newStudentCount = 0;  // increments for each new student row
-
-// Track which student keys are checked
-const checkedKeys = new Set(
-  Array.from(document.querySelectorAll('.gaat-over-checkbox:checked')).map(cb => cb.value)
-);
-
-// ── Candidate details interaction ─────────────────────────────────────────────
-
-function handleCandidateSummaryClick(event, key) {
-  // Don't toggle details if the click was on the checkbox or its label
-  if (event.target.closest('.candidate-label')) {
-    event.preventDefault();
-  }
-}
-
 // ── Constrained combobox: pick a known classmate or destination group ─────────
 // Free text cannot become a preference; only listed options can be selected, so an
 // "unknown student" can no longer be entered (prevention over after-the-fact validation).
 
-function ownerOfCheckbox(cb) {
-  const cand = cb.closest('.candidate-details');
-  if (cand) return cand.querySelector('.candidate-name')?.textContent?.trim() || '';
-  const nb = cb.closest('.new-student-block');
-  if (nb) {
-    const vn = nb.querySelector('[name="new_voornaam[]"]')?.value?.trim() || '';
-    const an = nb.querySelector('[name="new_achternaam[]"]')?.value?.trim() || '';
-    return (vn && an) ? `${vn} ${an}` : '';
-  }
-  return '';
-}
-
 function ownerName(key) {
-  const cb = document.querySelector(`.gaat-over-checkbox[value="${key}"]`);
-  return cb ? ownerOfCheckbox(cb) : '';
-}
-
-function notGoingNames() {
-  const names = new Set();
-  document.querySelectorAll('.gaat-over-checkbox:not(:checked)').forEach(cb => {
-    const n = ownerOfCheckbox(cb);
-    if (n) names.add(n);
-  });
-  return names;
+  const block = document.getElementById(`block-${key}`);
+  return block?.querySelector('.candidate-name')?.textContent?.trim() || '';
 }
 
 function chosenStudentNames(key) {
@@ -233,9 +170,8 @@ function comboOptions(key, query) {
   const q = query.trim().toLowerCase();
   const owner = ownerName(key);
   const chosen = chosenStudentNames(key);  // a classmate may be named only once
-  const notGoing = notGoingNames();         // a classmate who does not transfer is no target
   const students = [...STUDENT_NAMES]
-    .filter(n => n !== owner && !chosen.has(n) && !notGoing.has(n))
+    .filter(n => n !== owner && !chosen.has(n))
     .filter(n => n.toLowerCase().includes(q))
     .sort()
     .map(n => ({ label: n, isGroup: false }));
@@ -420,13 +356,9 @@ function updatePreview(key) {
   const parts = [];
   if (graag > 0) parts.push(`${graag}× graag met`);
   if (liever > 0) parts.push(`${liever}× liever niet met`);
-  const block = preview.closest('.candidate-details');
-  const disabled = block?.classList.contains('candidate-disabled');
   if (parts.length) {
     preview.textContent = `(${parts.join(', ')})`;
     preview.classList.remove('preview-empty');
-  } else if (disabled) {
-    preview.textContent = '';  // a student who does not transfer needs no marker
   } else {
     // Empty is a valid end state (counts as fully satisfied) — neutral, not a warning.
     preview.textContent = '— nog geen voorkeur';
@@ -435,20 +367,18 @@ function updatePreview(key) {
   updateGroupCounters();
 }
 
-// Per-group tally in the group header: how many going-over students have a preference.
+// Per-group tally in the group header: how many participants have a preference.
 function updateGroupCounters() {
-  document.querySelectorAll('.group-details:not(.new-student-details)').forEach(group => {
+  document.querySelectorAll('.group-details').forEach(group => {
     const counter = group.querySelector(':scope > summary .group-counter');
     if (!counter) return;
-    const going = [...group.querySelectorAll('.candidate-details')]
-      .filter(b => !b.classList.contains('candidate-disabled'));
-    const withPref = going.filter(b => b.querySelectorAll('.preference-chip').length > 0);
-    counter.textContent = going.length
-      ? ` — ${withPref.length} van ${going.length} met voorkeur`
+    const blocks = [...group.querySelectorAll('.candidate-details')];
+    const withPref = blocks.filter(b => b.querySelectorAll('.preference-chip').length > 0);
+    counter.textContent = blocks.length
+      ? ` — ${withPref.length} van ${blocks.length} met voorkeur`
       : '';
   });
 }
-
 
 // ── Niet in groep ─────────────────────────────────────────────────────────────
 
@@ -485,243 +415,6 @@ function addNietIn(key, maxAllowed) {
   chipsContainer.appendChild(chip);
 }
 
-// ── Toggle gaat-over ──────────────────────────────────────────────────────────
-
-function toggleCandidate(key, checked) {
-  checked ? checkedKeys.add(key) : checkedKeys.delete(key);
-  const block = document.getElementById(`block-${key}`);
-  block.querySelectorAll('.candidate-content input, .candidate-content select, .candidate-content button').forEach(el => {
-    el.disabled = !checked;
-  });
-  block.classList.toggle('candidate-disabled', !checked);
-
-  if (!checked) removeDanglingPreferences(block.querySelector('.candidate-name')?.textContent?.trim());
-  updateGroupCounters();
-}
-
-// When a student no longer transfers to a new group, preferences pointing to them become
-// invalid. Remove them automatically (a classmate target that does not transfer cannot be
-// honoured) but keep them recoverable via a single bundled undo, so nothing is lost silently.
-function removeDanglingPreferences(name) {
-  if (!name) return;
-  const removed = [];
-  document.querySelectorAll('.preference-chip input[data-name]').forEach(inp => {
-    if (inp.dataset.isgroup === '1' || inp.dataset.name !== name) return;
-    const chip = inp.closest('.preference-chip');
-    const area = chip.closest('.chips-area');
-    const m = area?.id.match(/^chips-(graag_met|liever_niet_met)-(.+)$/);
-    if (!m) return;
-    const [, soort, ownerKey] = m;
-    const weight = chip.querySelector('input[name$="_gewicht"]')?.value || 1;
-    removed.push({ ownerKey, soort, name, weight });
-    chip.remove();
-    updatePreview(ownerKey);
-  });
-  if (removed.length) showUndoBanner(name, removed);
-}
-
-function showUndoBanner(name, removed) {
-  let banner = document.getElementById('undo-banner');
-  if (!banner) {
-    banner = document.createElement('div');
-    banner.id = 'undo-banner';
-    banner.className = 'undo-banner';
-    document.getElementById('preferences-form').prepend(banner);
-  }
-  banner.innerHTML = '';
-  const msg = document.createElement('span');
-  const n = removed.length;
-  msg.textContent = `${n} voorkeur${n === 1 ? '' : 'en'} naar ${name} verwijderd omdat ${name} niet meegaat.`;
-  const undo = document.createElement('button');
-  undo.type = 'button';
-  undo.className = 'button button--small';
-  undo.textContent = 'Ongedaan maken';
-  undo.onclick = () => {
-    removed.forEach(r => {
-      const c = document.getElementById(`chips-${r.soort}-${r.ownerKey}`);
-      if (c) { c.appendChild(makePreferenceChip(r.ownerKey, r.soort, r.name, r.weight, false)); updatePreview(r.ownerKey); }
-    });
-    banner.remove();
-    updateGroupCounters();
-  };
-  banner.append(msg, undo);
-}
-
-// ── Nieuwe leerlingen ─────────────────────────────────────────────────────────
-
-function preferenceSectionHTML(key, soort, label) {
-  return `
-    <div class="preference-section">
-      <p class="preference-section-label">${label}</p>
-      <div class="chips-area" id="chips-${soort}-${key}"></div>
-      <div class="combobox">
-        <input type="text" class="combobox-input" id="combo-${soort}-${key}"
-               placeholder="Naam leerling of groep…" autocomplete="off"
-               role="combobox" aria-expanded="false" aria-autocomplete="list"
-               data-key="${key}" data-soort="${soort}">
-        <ul class="combobox-list" id="list-${soort}-${key}" role="listbox" hidden></ul>
-      </div>
-      <span class="field-error" id="err-${soort}-${key}"></span>
-    </div>`;
-}
-
-// Origin-group options for a new student: the existing groups plus "Anders" (default)
-// for an incomer without one. Origin group matters: cliques are maximised per group.
-const NEW_GROUP_OPTIONS = (GROUPS_FROM.includes('Anders') ? GROUPS_FROM : [...GROUPS_FROM, 'Anders']);
-
-function newStudentFields(key) {
-  const b = document.getElementById(`new-block-${key}`);
-  return {
-    block: b,
-    vn: b?.querySelector('[name="new_voornaam[]"]')?.value?.trim() || '',
-    an: b?.querySelector('[name="new_achternaam[]"]')?.value?.trim() || '',
-    sex: b?.querySelector('[name="new_geslacht[]"]')?.value || '',
-  };
-}
-
-function newStudentName(key) {
-  const { vn, an } = newStudentFields(key);
-  return (vn && an) ? `${vn} ${an}` : '';
-}
-
-function addNewStudentRow() {
-  const container = document.getElementById('new-student-rows');
-  const key = `new_${newStudentCount++}`;
-  const groupOptions = TARGET_GROUPS.length > 1
-    ? TARGET_GROUPS.map(gk => `<option value="${GROUP_DISPLAY[gk] || gk}">${GROUP_DISPLAY[gk] || gk}</option>`).join('')
-    : '';
-  const groepOptions = NEW_GROUP_OPTIONS
-    .map(g => `<option value="${g}"${g === 'Anders' ? ' selected' : ''}>${g}</option>`).join('');
-
-  const wrapper = document.createElement('div');
-  wrapper.className = 'new-student-block';
-  wrapper.id = `new-block-${key}`;
-  wrapper.dataset.complete = '0';
-  wrapper.innerHTML = `
-    <input type="hidden" name="new_key[]" value="${key}">
-    <input type="checkbox" name="gaat_over" value="${key}" checked
-           class="gaat-over-checkbox" data-key="${key}" hidden>
-
-    <div class="new-student-edit">
-      <input type="text" name="new_voornaam[]" placeholder="Voornaam"
-             oninput="onNewStudentInput('${key}')">
-      <input type="text" name="new_achternaam[]" placeholder="Achternaam"
-             oninput="onNewStudentInput('${key}')">
-      <select name="new_geslacht[]" onchange="onNewStudentInput('${key}')">
-        <option value="">— geslacht —</option>
-        <option value="Jongen">Jongen</option>
-        <option value="Meisje">Meisje</option>
-      </select>
-      <select name="new_groep[]" title="Herkomstgroep">${groepOptions}</select>
-      <button type="button" class="button button--small"
-              onclick="confirmNewStudent('${key}')">Voeg toe</button>
-      <button type="button" class="delete-btn"
-              onclick="removeNewStudentRow('${key}')">✖</button>
-      <span class="new-student-status">nog niet af</span>
-      <span class="field-error" id="err-new-${key}"></span>
-    </div>
-
-    <div class="new-student-summary" hidden>
-      <span class="new-student-name"></span>
-      <button type="button" class="button button--small"
-              onclick="toggleNewStudentPreferences('${key}')">Voorkeuren invoeren</button>
-      <button type="button" class="button button--small button--cancel"
-              onclick="removeNewStudentRow('${key}')">Verwijder leerling</button>
-    </div>
-
-    <div id="content-${key}" class="new-student-wishes" hidden>
-      ${preferenceSectionHTML(key, 'graag_met', 'Graag met')}
-      ${preferenceSectionHTML(key, 'liever_niet_met', 'Liever niet met')}
-      ${TARGET_GROUPS.length > 1 ? `
-      <div class="preference-section">
-        <p class="preference-section-label">Niet in groep</p>
-        <div class="chips-area" id="chips-nieting-${key}"></div>
-        <select class="nieting-select" id="nieting-select-${key}"
-                onchange="addNietIn('${key}', ${TARGET_GROUPS.length - 1})">
-          <option value="">+ Groep uitsluiten…</option>
-          ${groupOptions}
-        </select>
-        <span class="field-error" id="err-nieting-${key}"></span>
-      </div>` : ''}
-    </div>`;
-  container.appendChild(wrapper);
-  checkedKeys.add(key);  // new students always transfer to a new group
-  wrapper.querySelectorAll('.combobox-input').forEach(initCombobox);
-}
-
-function nameCollision(vn, an) {
-  // A name clash is decided by the name alone, regardless of sex.
-  return vn && an && STUDENT_NAMES.has(`${vn} ${an}`);
-}
-
-function onNewStudentInput(key) {
-  // Live feedback while editing; the student is only committed via "Voeg toe".
-  const { block, vn, an, sex } = newStudentFields(key);
-  const status = block.querySelector('.new-student-status');
-  const err = document.getElementById(`err-new-${key}`);
-  if (nameCollision(vn, an)) {
-    err.textContent = `Er bestaat al een leerling "${vn} ${an}". Geef een onderscheidende naam.`;
-    status.textContent = 'nog niet af';
-    return;
-  }
-  err.textContent = '';
-  status.textContent = (vn && an && sex) ? 'klaar om toe te voegen' : 'nog niet af';
-}
-
-function confirmNewStudent(key) {
-  const { block, vn, an, sex } = newStudentFields(key);
-  const groep = block.querySelector('[name="new_groep[]"]')?.value || '';
-  const err = document.getElementById(`err-new-${key}`);
-  err.textContent = '';
-  if (nameCollision(vn, an)) {
-    err.textContent = `Er bestaat al een leerling "${vn} ${an}". Geef een onderscheidende naam.`;
-    return;
-  }
-  if (!vn || !an || !sex) {
-    err.textContent = 'Vul voornaam, achternaam én geslacht in.';
-    return;
-  }
-  const name = `${vn} ${an}`;
-  STUDENT_NAMES.add(name);
-  block.dataset.complete = '1';
-  block.dataset.committedName = name;
-  // Hide the input fields; the compact summary shows name, sex and origin group.
-  block.querySelector('.new-student-edit').hidden = true;
-  const summary = block.querySelector('.new-student-summary');
-  summary.querySelector('.new-student-name').textContent =
-    `${name} · ${sex}` + (groep ? ` · Uit groep ${groep}` : '');
-  summary.hidden = false;
-}
-
-function toggleNewStudentPreferences(key) {
-  // The preference fields appear only once the student is really added.
-  const wishes = document.getElementById(`content-${key}`);
-  if (wishes) wishes.hidden = !wishes.hidden;
-}
-
-function removeNewStudentRow(key) {
-  const block = document.getElementById(`new-block-${key}`);
-  if (block?.dataset.committedName) STUDENT_NAMES.delete(block.dataset.committedName);
-  checkedKeys.delete(key);
-  block?.remove();
-}
-
-// Block submit if a new student was started but never finished (empty rows are ignored).
-document.getElementById('preferences-form').addEventListener('submit', e => {
-  const unfinished = [...document.querySelectorAll('.new-student-block')].filter(b => {
-    if (b.dataset.complete === '1') return false;
-    const { vn, an, sex } = newStudentFields(b.id.replace('new-block-', ''));
-    return vn || an || sex;  // started but not committed
-  });
-  if (unfinished.length) {
-    e.preventDefault();
-    const first = unfinished[0];
-    const errEl = first.querySelector('.field-error');
-    if (errEl) errEl.textContent = 'Maak deze nieuwe leerling eerst af (klik "Voeg toe") of verwijder de regel.';
-    first.scrollIntoView({ block: 'center' });
-  }
-});
-
 // ── Prefill from saved state ──────────────────────────────────────────────────
 
 if (DRAFT) {
@@ -754,21 +447,11 @@ if (DRAFT) {
       chip.append(lbl, del, hidden);
       cc.appendChild(chip);
     });
-    if (s.going_over === false) {
-      const cb = document.querySelector(`input.gaat-over-checkbox[value="${key}"]`);
-      if (cb) { cb.checked = false; toggleCandidate(key, false); }
-    }
   });
 }
 
 // Wire up every preference combobox rendered server-side.
 document.querySelectorAll('.combobox-input').forEach(initCombobox);
-
-// Apply initial disabled state for blocks with data-disabled attribute
-document.querySelectorAll('.candidate-details[data-disabled]').forEach(block => {
-  const key = block.id.replace('block-', '');
-  toggleCandidate(key, false);
-});
 
 // Initial preview ("nog geen voorkeur") + per-group counters for every candidate.
 document.querySelectorAll('.candidate-wish-preview').forEach(p =>

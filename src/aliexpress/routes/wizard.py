@@ -44,11 +44,7 @@ from aliexpress.preferences_form import (
 )
 from aliexpress.routes.auth import effective_school_id
 from aliexpress.routes.processes import require_process
-from aliexpress.routes.roster import (
-    build_new_candidates,
-    load_candidates,
-    sorted_for_display,
-)
+from aliexpress.routes.roster import load_roster, sorted_for_display
 from aliexpress.storage import get_file_path
 from aliexpress.validation_messages import to_validation_message
 
@@ -266,17 +262,15 @@ def _parse_student_entry(candidate: dict, form) -> StudentEntry:
     )
 
 
-def _build_form_state(entries: list[StudentEntry], all_candidates: list[dict]) -> dict:
-    """Serialize submitted form state to a dict for prefill on next GET.
+def _build_form_state(entries: list[StudentEntry], participants: list[dict]) -> dict:
+    """Serialize submitted preferences to a dict for prefill on next GET.
 
-    Stores ALL candidates (going-over and not) so the form can be fully
-    reconstructed on reload.  Candidates absent from ``entries`` (i.e., unchecked)
-    are included with ``going_over: false`` and empty wish lists.
+    The population is already fixed by the roster step (every participant takes part), so
+    this only carries each participant's preferences, keyed so the page can restore them.
     """
     entry_by_name = {e.student: e for e in entries}
-    going_names = set(entry_by_name)
     state_students = []
-    for c in all_candidates:
+    for c in participants:
         name = f"{c['roepnaam']} {c['achternaam']}"
         entry = entry_by_name.get(name)
         state_students.append(
@@ -286,7 +280,6 @@ def _build_form_state(entries: list[StudentEntry], all_candidates: list[dict]) -
                 "achternaam": c["achternaam"],
                 "groepsnaam": c.get("groepsnaam", ""),
                 "geslacht": c.get("geslacht", ""),
-                "going_over": name in going_names,
                 "min_satisfaction": entry.min_satisfaction if entry else None,
                 "graag_met": [
                     {"target": p.target, "weight": p.weight}
@@ -304,32 +297,50 @@ def _build_form_state(entries: list[StudentEntry], all_candidates: list[dict]) -
     return {"students": state_students}
 
 
-def _write_pref_form_state(form, orig_candidates, groups_from, state_path):
+def _write_pref_form_state(form, participants, state_path):
     """Parse the form and persist the intermediate draft (``preferences_form_state.json``).
 
-    Returns the parsed ``StudentEntry`` list. Does not validate — it captures whatever is
-    on the page so a reload (or a crash) restores it. New students submitted via
-    ``new_key[]`` / ``new_voornaam[]`` / ... are parsed as full candidates (incl. wishes).
+    Returns the parsed ``StudentEntry`` list. Does not validate — it captures whatever is on
+    the page so a reload (or a crash) restores it. The population is the settled roster, so
+    every participant is parsed (there are no checkboxes and no new students here anymore).
     """
-    checked_keys = set(form.getlist("gaat_over"))
-    entries = [
-        _parse_student_entry(c, form)
-        for c in orig_candidates
-        if c["key"] in checked_keys
-    ]
-    # New students: client assigns keys new_0, new_1, ... so wishes are linkable
-    new_candidates = build_new_candidates(form, groups_from)
-    entries.extend(_parse_student_entry(c, form) for c in new_candidates)
-    state = _build_form_state(entries, orig_candidates + new_candidates)
+    entries = [_parse_student_entry(c, form) for c in participants]
+    state = _build_form_state(entries, participants)
     with open(state_path, "w", encoding="utf-8") as fh:
         json.dump(state, fh, ensure_ascii=False)
     return entries
 
 
-def _pref_form_post_data(form, orig_candidates, groups_from, all_groups_to, state_path):
+def _pref_form_post_data(form, participants, all_groups_to, state_path):
     """Parse + save the draft, then validate and return the resulting PreferenceData."""
-    entries = _write_pref_form_state(form, orig_candidates, groups_from, state_path)
+    entries = _write_pref_form_state(form, participants, state_path)
     return build_preference_data(entries, all_groups_to)
+
+
+def _reconcile_dangling(draft_state, participants, group_labels):
+    """Drop draft preferences whose target no longer takes part; return friendly notices.
+
+    A classmate target is valid only when that leerling is still a participant (the teacher
+    may have removed them on the roster step). Group targets stay valid. Mutates
+    ``draft_state`` in place and returns one Dutch message per removed preference.
+    """
+    valid_names = {f"{p['roepnaam']} {p['achternaam']}" for p in participants}
+    valid_targets = valid_names | set(group_labels)
+    notices = []
+    for student in draft_state["students"]:
+        owner = f"{student['roepnaam']} {student['achternaam']}"
+        for kind in ("graag_met", "liever_niet_met"):
+            kept = []
+            for wish in student.get(kind, []):
+                if wish["target"] in valid_targets:
+                    kept.append(wish)
+                else:
+                    notices.append(
+                        f"{wish['target']} gaat niet meer mee — de voorkeur van {owner} "
+                        f"naar {wish['target']} is verwijderd."
+                    )
+            student[kind] = kept
+    return notices
 
 
 def _load_pref_form_state(state_path):
@@ -674,9 +685,7 @@ def upload_preferences():
     return redirect(url_for("wizard.not_together_page"))
 
 
-def _handle_pref_form_post(
-    orig_candidates, groups_from, all_groups_to, state_path, voorkeuren_path
-):
+def _handle_pref_form_post(participants, all_groups_to, state_path, voorkeuren_path):
     """Process a POST to /preferences_form and return the response to send.
 
     Three actions: ``autosave`` saves only the draft (best effort, no validation); the
@@ -686,11 +695,11 @@ def _handle_pref_form_post(
     if request.form.get("action") == "autosave":
         # Best-effort background save of the draft only (never voorkeuren.json, never
         # validated): a reload then restores the work via the normal GET prefill.
-        _write_pref_form_state(request.form, orig_candidates, groups_from, state_path)
+        _write_pref_form_state(request.form, participants, state_path)
         return ("", 204)
     try:
         preference_data = _pref_form_post_data(
-            request.form, orig_candidates, groups_from, all_groups_to, state_path
+            request.form, participants, all_groups_to, state_path
         )
     except (pa.errors.SchemaError, ValidationError, ValueError) as exc:
         # The form is novalidate + JS-best-effort, so the server must catch bad input.
@@ -707,17 +716,18 @@ def _handle_pref_form_post(
 @login_required
 @require_process
 def preferences_form():
-    """Web-form input path: display and process per-student preferences."""
+    """Web-form input path: per-student preferences for the settled roster population."""
     school_id = effective_school_id()
     if school_id is None:
         return redirect(url_for("admin.dashboard"))
     process_id = session["process_id"]
 
     state_path = get_file_path(school_id, process_id, "preferences_form_state.json")
+    saved_roster = load_roster(get_file_path(school_id, process_id, "roster.json"))
+    if saved_roster is None:
+        # The population must be settled first; send the teacher to "Wie gaat mee".
+        return redirect(url_for("roster.roster_page"))
     try:
-        orig_candidates, groups_from = load_candidates(
-            get_file_path(school_id, process_id, "relevant_students_and_groups.json")
-        )
         groups_to, group_display = datareader.read_groups_excel(
             get_file_path(school_id, process_id, "groups.xlsx")
         )
@@ -725,30 +735,38 @@ def preferences_form():
         _flash_upload_error(exc)
         return redirect(url_for("wizard.groups_to_page"))
 
+    participants = saved_roster["participants"]
     all_groups_to = list(groups_to.keys())
 
     if request.method == "POST":
         return _handle_pref_form_post(
-            orig_candidates,
-            groups_from,
+            participants,
             all_groups_to,
             state_path,
             get_file_path(school_id, process_id, "voorkeuren.json"),
         )
 
-    # GET — load saved state for prefill, or fall back to initial candidates.
+    # GET — load saved preferences for prefill, dropping any that now dangle because their
+    # target was removed from the roster, with a friendly notice about what was removed.
     draft_state = _load_pref_form_state(state_path)
+    display_candidates = sorted_for_display(participants)
     if draft_state:
-        display_candidates = sorted_for_display(draft_state["students"])
-    else:
-        display_candidates = sorted_for_display(orig_candidates)
+        group_labels = [group_display[g] for g in all_groups_to]
+        for notice in _reconcile_dangling(draft_state, participants, group_labels):
+            flash(notice, "info")
+        # The preference chips are restored client-side from the draft; carry over the
+        # one server-rendered field (min. satisfaction) so its radio reflects the draft.
+        ms_by_key = {
+            s["key"]: s.get("min_satisfaction") for s in draft_state["students"]
+        }
+        for candidate in display_candidates:
+            candidate["min_satisfaction"] = ms_by_key.get(candidate["key"])
 
     return render_template(
         "preferences_form.html",
         candidates=display_candidates,
         target_groups=all_groups_to,
         group_display=group_display,
-        groups_from=groups_from,
         draft_state=draft_state,
     )
 
