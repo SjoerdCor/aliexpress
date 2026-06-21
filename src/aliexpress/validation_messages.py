@@ -72,6 +72,13 @@ def readableerror_to_validation_message(exc: Exception) -> str:
             "{leerling} heeft een te hoge minimale tevredenheid. "
             "Die mag hoogstens 100% zijn."
         ),
+        # Used by the roster step ("Wie gaat mee") when validating hand-added students.
+        "incomplete_new_student": (
+            "Maak elke nieuwe leerling af: vul voornaam, achternaam én geslacht in."
+        ),
+        "duplicate_new_student": (
+            'Er bestaat al een leerling "{naam}". Geef een onderscheidende naam.'
+        ),
     }
 
     template = friendly_templates.get(exc.code, None)

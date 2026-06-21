@@ -43,6 +43,23 @@ def require_process(f):
     return wrapper
 
 
+def require_school(f):
+    """Route decorator: resolve the effective school and pass it as ``school_id``.
+
+    A logged-in beheerder without an impersonated school has no own school, so the route
+    is redirected to the admin dashboard instead.
+    """
+
+    @functools.wraps(f)
+    def wrapper(*args, **kwargs):
+        school_id = effective_school_id()
+        if school_id is None:
+            return redirect(url_for("admin.dashboard"))
+        return f(*args, school_id=school_id, **kwargs)
+
+    return wrapper
+
+
 def _is_valid_process_name(name):
     """True when the name is a safe single path segment (no separators, no traversal)."""
     return bool(re.match(r"^[\w\- ]+$", name))
@@ -143,14 +160,20 @@ def _resume_url(proc, path):
         return url_for("results.result_page")
     if proc.run is not None and proc.run.status in ("running", "error"):
         return url_for("results.processing")
-    if os.path.exists(os.path.join(path, "voorkeuren.json")) or os.path.exists(
-        os.path.join(path, "preferences.xlsx")
-    ):
-        return url_for("wizard.not_together_page")
-    if os.path.exists(os.path.join(path, "groups.xlsx")):
-        return _preferences_url(path)
-    if os.path.exists(os.path.join(path, "relevant_students_and_groups.json")):
-        return url_for("wizard.groups_to_page")
+
+    def has(*names):
+        return any(os.path.exists(os.path.join(path, n)) for n in names)
+
+    # Latest wizard step whose artifact is present wins; checked newest-first.
+    steps = [
+        (("voorkeuren.json", "preferences.xlsx"), url_for("wizard.not_together_page")),
+        (("roster.json",), _preferences_url(path)),
+        (("groups.xlsx",), url_for("roster.roster_page")),
+        (("relevant_students_and_groups.json",), url_for("wizard.groups_to_page")),
+    ]
+    for names, target in steps:
+        if has(*names):
+            return target
     return url_for("wizard.upload_edexml")
 
 

@@ -56,6 +56,10 @@ def _open_preferences_form(live_server, tmp_path, page):
     (proc / "input_method.json").write_text(
         json.dumps({"method": "form"}), encoding="utf-8"
     )
+    # The roster step ran already (form method chosen), so resume lands on the form.
+    (proc / "roster.json").write_text(
+        json.dumps({"participants": CANDIDATES}), encoding="utf-8"
+    )
     with app.app_context():
         flask_db.session.add(Process(school_id=TEST_SCHOOLCODE, name="browsertest"))
         flask_db.session.commit()

@@ -21,6 +21,7 @@ from aliexpress.routes.admin import admin_bp
 from aliexpress.routes.auth import auth_bp, load_user
 from aliexpress.routes.processes import processes_bp
 from aliexpress.routes.results import results_bp
+from aliexpress.routes.roster import roster_bp
 from aliexpress.routes.wizard import wizard_bp
 
 configure_logging()
@@ -105,6 +106,7 @@ def create_app(test_config=None):
     app.register_blueprint(auth_bp)
     app.register_blueprint(processes_bp)
     app.register_blueprint(results_bp)
+    app.register_blueprint(roster_bp)
     app.register_blueprint(wizard_bp)
 
     register_error_handlers(app)
