@@ -164,10 +164,9 @@ class TestSelectProcess:
         assert response.status_code == 302
         assert response.headers["Location"].endswith("/groups_to")
 
-    def test_process_with_groups_xlsx_redirects_to_preferences_excel(
-        self, client, tmp_path
-    ):
-        """A process that has groups.xlsx but no preferences continues at preferences_excel."""
+    def test_process_with_groups_xlsx_redirects_to_roster(self, client, tmp_path):
+        """A process that has groups.xlsx but no roster yet continues at the shared
+        "Wie gaat mee" step (ADR 0005)."""
         proc_dir = tmp_path / SCHOOL_ID / "procesmetgroepen"
         proc_dir.mkdir(parents=True, exist_ok=True)
         (proc_dir / "groups.xlsx").write_bytes(b"dummy")
@@ -175,15 +174,34 @@ class TestSelectProcess:
             make_process_row(SCHOOL_ID, "procesmetgroepen")
         response = client.get("/processes/select/procesmetgroepen")
         assert response.status_code == 302
-        assert response.headers["Location"].endswith("/preferences_excel")
+        assert response.headers["Location"].endswith("/roster")
 
-    def test_process_with_groups_xlsx_and_form_method_redirects_to_preferences_form(
+    def test_process_with_roster_and_excel_method_redirects_to_preferences_excel(
         self, client, tmp_path
     ):
-        """A process with groups.xlsx + input_method.json form resumes at preferences_form."""
+        """Once the roster is settled, an Excel-method process resumes at preferences_excel."""
+        proc_dir = tmp_path / SCHOOL_ID / "procesmetroster"
+        proc_dir.mkdir(parents=True, exist_ok=True)
+        (proc_dir / "groups.xlsx").write_bytes(b"dummy")
+        (proc_dir / "roster.json").write_text(
+            json.dumps({"participants": []}), encoding="utf-8"
+        )
+        with flask_app.app_context():
+            make_process_row(SCHOOL_ID, "procesmetroster")
+        response = client.get("/processes/select/procesmetroster")
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/preferences_excel")
+
+    def test_process_with_roster_and_form_method_redirects_to_preferences_form(
+        self, client, tmp_path
+    ):
+        """A process with a settled roster + input_method form resumes at preferences_form."""
         proc_dir = tmp_path / SCHOOL_ID / "procesformulier"
         proc_dir.mkdir(parents=True, exist_ok=True)
         (proc_dir / "groups.xlsx").write_bytes(b"dummy")
+        (proc_dir / "roster.json").write_text(
+            json.dumps({"participants": []}), encoding="utf-8"
+        )
         (proc_dir / "input_method.json").write_text(
             json.dumps({"method": "form"}), encoding="utf-8"
         )

@@ -5,7 +5,6 @@ import logging
 import os
 from dataclasses import dataclass
 from io import BytesIO
-from itertools import zip_longest
 from threading import Thread
 from typing import Any
 
@@ -45,6 +44,11 @@ from aliexpress.preferences_form import (
 )
 from aliexpress.routes.auth import effective_school_id
 from aliexpress.routes.processes import require_process
+from aliexpress.routes.roster import (
+    build_new_candidates,
+    load_candidates,
+    sorted_for_display,
+)
 from aliexpress.storage import get_file_path
 from aliexpress.validation_messages import to_validation_message
 
@@ -314,7 +318,7 @@ def _write_pref_form_state(form, orig_candidates, groups_from, state_path):
         if c["key"] in checked_keys
     ]
     # New students: client assigns keys new_0, new_1, ... so wishes are linkable
-    new_candidates = _build_new_candidates(form, groups_from)
+    new_candidates = build_new_candidates(form, groups_from)
     entries.extend(_parse_student_entry(c, form) for c in new_candidates)
     state = _build_form_state(entries, orig_candidates + new_candidates)
     with open(state_path, "w", encoding="utf-8") as fh:
@@ -326,51 +330,6 @@ def _pref_form_post_data(form, orig_candidates, groups_from, all_groups_to, stat
     """Parse + save the draft, then validate and return the resulting PreferenceData."""
     entries = _write_pref_form_state(form, orig_candidates, groups_from, state_path)
     return build_preference_data(entries, all_groups_to)
-
-
-def _build_new_candidates(form, groups_from: list) -> list[dict]:
-    """Build candidate dicts for students added via the web form.
-
-    Expects parallel lists: ``new_key[]``, ``new_voornaam[]``, ``new_achternaam[]``,
-    ``new_geslacht[]``, and optionally ``new_groep[]``.
-    """
-    keys = form.getlist("new_key[]")
-    voornamen = form.getlist("new_voornaam[]")
-    achternamen = form.getlist("new_achternaam[]")
-    geslachten = form.getlist("new_geslacht[]")
-    groepen = form.getlist("new_groep[]")
-    fallback = groups_from[0] if groups_from else ""
-    candidates = []
-    for key, vn, an, geslacht, groep in zip_longest(
-        keys, voornamen, achternamen, geslachten, groepen, fillvalue=""
-    ):
-        vn, an = vn.strip(), an.strip()
-        if vn and an and geslacht and key:
-            candidates.append(
-                {
-                    "key": key,
-                    "roepnaam": vn,
-                    "achternaam": an,
-                    "geslacht": geslacht,
-                    "groepsnaam": groep or fallback,
-                }
-            )
-    return candidates
-
-
-def _sorted_for_display(candidates: list[dict]) -> list[dict]:
-    """Order candidates per origin group, alphabetically by roepnaam within each group.
-
-    The "Anders" group (students without a real origin group, e.g. new arrivals) sorts
-    last regardless of its name, so it forms the final block on the page.
-    """
-
-    def key(candidate: dict):
-        group = candidate.get("groepsnaam", "")
-        anders_last = group.strip().lower() == "anders"
-        return (anders_last, group, candidate.get("roepnaam", ""))
-
-    return sorted(candidates, key=key)
 
 
 def _load_pref_form_state(state_path):
@@ -594,14 +553,9 @@ def groups_to_page():
         len(submission.state["disabled_groups"]),
         len(submission.state["new_groups"]),
     )
-    action = request.form.get("action", "excel")
-    with open(
-        get_file_path(school_id, process_id, "input_method.json"), "w", encoding="utf-8"
-    ) as fh:
-        json.dump({"method": action}, fh)
-    if action == "form":
-        return redirect(url_for("wizard.preferences_form"))
-    return redirect(url_for("wizard.preferences_excel"))
+    # Both input methods go through the shared "Wie gaat mee" step next; the teacher picks
+    # there how to enter preferences, so the input method is recorded by that step (ADR 0005).
+    return redirect(url_for("roster.roster_page"))
 
 
 @wizard_bp.route("/preferences_excel", methods=["GET", "POST"])
@@ -761,13 +715,9 @@ def preferences_form():
 
     state_path = get_file_path(school_id, process_id, "preferences_form_state.json")
     try:
-        with open(
-            get_file_path(school_id, process_id, "relevant_students_and_groups.json"),
-            encoding="utf-8",
-        ) as fh:
-            raw = json.load(fh)
-        orig_candidates = raw["candidates"]
-        groups_from = raw.get("groups_from", [])
+        orig_candidates, groups_from = load_candidates(
+            get_file_path(school_id, process_id, "relevant_students_and_groups.json")
+        )
         groups_to, group_display = datareader.read_groups_excel(
             get_file_path(school_id, process_id, "groups.xlsx")
         )
@@ -789,9 +739,9 @@ def preferences_form():
     # GET — load saved state for prefill, or fall back to initial candidates.
     draft_state = _load_pref_form_state(state_path)
     if draft_state:
-        display_candidates = _sorted_for_display(draft_state["students"])
+        display_candidates = sorted_for_display(draft_state["students"])
     else:
-        display_candidates = _sorted_for_display(orig_candidates)
+        display_candidates = sorted_for_display(orig_candidates)
 
     return render_template(
         "preferences_form.html",

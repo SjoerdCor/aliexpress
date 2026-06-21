@@ -8,6 +8,10 @@ Webapplicatie waarmee basisscholen leerlingen verdelen over nieuwe groepen, op b
 Een kind dat wordt ingedeeld in een nieuwe groep.
 _Avoid_: student, kind, pupil
 
+**Verlenger**:
+Een leerling die niet meegaat in deze verdeling maar nog een jaar in dezelfde (kleuter)groep blijft. Op de stap "Wie gaat mee" staat elke leerling standaard aangevinkt; een verlenger wordt uitgevinkt en doet dan niet mee aan de verdeling. Geen apart soort leerling — een eigenschap van deze ene verdeling.
+_Avoid_: blijver, zittenblijver
+
 **Groep**:
 Een klas leerlingen. In een verdeling worden leerlingen vanuit hun huidige groep over bestemmingsgroepen verdeeld; "groep" is op zichzelf rolneutraal — of een groep herkomst of bestemming is, volgt uit de context, niet uit het woord.
 _Avoid_: klas (ambigu tussen oud en nieuw)
