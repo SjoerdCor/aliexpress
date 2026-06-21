@@ -43,7 +43,7 @@ _EXPECTED_KEYS = {
     "Klassenoverzicht",
     "Overgangsmatrix",
     "Leerlingtevredenheid",
-    "VervuldeWensen",
+    "VervuldeVoorkeuren",
 }
 
 _SMALL_SATISFACTION = {
@@ -54,14 +54,14 @@ _SMALL_SATISFACTION = {
         "Daan": 0.937614,
         "Eva": 0.0,
     },
-    "Aantal gehonoreerde wensen": {
+    "Aantal gehonoreerde voorkeuren": {
         "Anna": 3.0,
         "Bram": 3.0,
         "Claire": 4.0,
         "Daan": 4.0,
         "Eva": 0.0,
     },
-    "Aantal wensen": {
+    "Aantal voorkeuren": {
         "Anna": 5.0,
         "Bram": 3.0,
         "Claire": 7.0,
@@ -116,7 +116,7 @@ _FULL_SATISFACTION = {
         "Vera": 0.533333,
         "Zoe": 0.979573,
     },
-    "Aantal gehonoreerde wensen": {
+    "Aantal gehonoreerde voorkeuren": {
         "Adam": 1.0,
         "Amy": 1.5,
         "Anna": 5.0,
@@ -161,7 +161,7 @@ _FULL_SATISFACTION = {
         "Vera": 1.0,
         "Zoe": 5.0,
     },
-    "Aantal wensen": {
+    "Aantal voorkeuren": {
         "Adam": 5.0,
         "Amy": 5.0,
         "Anna": 7.0,
@@ -224,7 +224,7 @@ def _tables(result):
     assert isinstance(dfs["Klassenoverzicht"], pd.DataFrame)
     assert isinstance(dfs["Overgangsmatrix"], pd.DataFrame)
     assert isinstance(dfs["Leerlingtevredenheid"], pd.io.formats.style.Styler)
-    assert isinstance(dfs["VervuldeWensen"], pd.io.formats.style.Styler)
+    assert isinstance(dfs["VervuldeVoorkeuren"], pd.io.formats.style.Styler)
     return dfs
 
 
@@ -252,10 +252,10 @@ def _assert_consistency(dfs, groups, stamgroepen):
     assert set(trans.index) == stamgroepen
 
     tevr = dfs["Leerlingtevredenheid"].data
-    wensen = dfs["VervuldeWensen"].data
+    voorkeuren = dfs["VervuldeVoorkeuren"].data
     # Every student appears once in the satisfaction tables and is placed exactly once.
     n_students = len(tevr)
-    assert set(wensen.index) == set(tevr.index)
+    assert set(voorkeuren.index) == set(tevr.index)
     assert trans.to_numpy().sum() == n_students
     jaar = klas[klas.index.get_level_values(1) == "Jaarlaag"]
     assert jaar["Groepsgrootte"].sum() == n_students
@@ -408,11 +408,11 @@ def test_solver_stacks_duplicate_group_preferences():
     tevr = dfs["Leerlingtevredenheid"].data
     assert tevr.loc["John", "Tevredenheid"] == 1.0
     assert (
-        tevr.loc["John", "Aantal gehonoreerde wensen"]
-        == tevr.loc["John", "Aantal wensen"]
+        tevr.loc["John", "Aantal gehonoreerde voorkeuren"]
+        == tevr.loc["John", "Aantal voorkeuren"]
     )
     # Stacking: John (two group preferences) outweighs Jane (one) — not collapsed.
-    assert tevr.loc["John", "Aantal wensen"] > tevr.loc["Jane", "Aantal wensen"]
+    assert tevr.loc["John", "Aantal voorkeuren"] > tevr.loc["Jane", "Aantal voorkeuren"]
 
 
 def test_distribute_students_once_happy_flow_infeasible():

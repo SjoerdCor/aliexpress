@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% set current_step = 4 %}
-{% block header %} Wensen van leerlingen doorgeven{% endblock %}
+{% block header %} Voorkeuren van leerlingen doorgeven{% endblock %}
 {% block content %}
 
 <h2>Stap 1: Download het invulformulier</h2>
 <p>Het formulier is alvast gevuld met de leerlingen die meegaan (bepaald in de stap
-  <em>Wie gaat mee</em>). Vul daarin per leerling de wensen in.</p>
+  <em>Wie gaat mee</em>). Vul daarin per leerling de voorkeuren in.</p>
 <form method="post" action="{{ url_for('wizard.preferences_excel') }}">
   <button type="submit" class="button">Download invulformulier</button>
 </form>
@@ -34,7 +34,7 @@
     <h3>Voorkeuren-bestand</h3>
     <p>
         Dit is het belangrijkste bestand van ALI Express. Hier kun je basisinformatie over je leeringen invoeren
-        (die wordt gebruikt om de balans in de groepen te bewaren) en de wensen van de leerling op basis van het
+        (die wordt gebruikt om de balans in de groepen te bewaren) en de voorkeuren van de leerling op basis van het
         gesprek.
         Wat specifieke tips:
     <ul>
@@ -47,7 +47,7 @@
         <li>Denk hier echt aan wat de leerling wil. Onwenselijke combinaties kun je in het Niet-samen-bestand invoeren.
             Ook als iets jou een goede combi lijkt: laat dat aan ALI Express, die weegt alles mee</li>
         <li>
-            Voer zoveel mogelijk positieve wensen in. Dat geeft ALI Express meer flexibiliteit om voor iedereen een
+            Voer zoveel mogelijk positieve voorkeuren in. Dat geeft ALI Express meer flexibiliteit om voor iedereen een
             prima oplossing te vinden.
         </li>
         <li>

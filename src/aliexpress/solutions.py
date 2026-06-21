@@ -341,8 +341,8 @@ class SolutionAnalyzer:
         """
         cols = {
             "RelativeSatisfaction": "Tevredenheid",
-            "AccountedWeightedPreferences": "Aantal gehonoreerde wensen",
-            "NrWeightedPreferences": "Aantal wensen",
+            "AccountedWeightedPreferences": "Aantal gehonoreerde voorkeuren",
+            "NrWeightedPreferences": "Aantal voorkeuren",
         }
 
         # styled = df.style
@@ -357,8 +357,8 @@ class SolutionAnalyzer:
             .format(
                 {
                     "Tevredenheid": "{:.2%}",
-                    "Aantal gehonoreerde wensen": "{:.1f}",
-                    "Aantal wensen": "{:.1f}",
+                    "Aantal gehonoreerde voorkeuren": "{:.1f}",
+                    "Aantal voorkeuren": "{:.1f}",
                 },
                 na_rep="",
             )
@@ -542,7 +542,7 @@ class SolutionAnalyzer:
             self._autoscale_column_width(sheet)
 
             self.display_satisfied_preferences().to_excel(
-                writer, sheet_name="VervuldeWensen"
+                writer, sheet_name="VervuldeVoorkeuren"
             )
             sheet = writer.book.worksheets[-1]
             for cell in sheet["B"]:
