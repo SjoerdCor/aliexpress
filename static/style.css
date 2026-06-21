@@ -1144,6 +1144,13 @@ table.dataframe th {
     font-size: 0.9em;
 }
 
+.extra-zekerheid-help {
+    font-size: 0.85em;
+    color: #555;
+    margin: 0.3rem 0;
+    max-width: 32rem;
+}
+
 .extra-zekerheid-options label {
     display: block;
     font-weight: normal;
@@ -1209,8 +1216,80 @@ table.dataframe th {
     font-style: italic;
 }
 
-.group-collapse-btn {
-    margin: 0.3rem 0 0.5rem;
+/* Visual language for preference chips: colour + a leading sign (never colour alone).
+   These tinted chips use dark text (overriding the orange .student-chip white text). */
+.preference-chip--graag_met {
+    background: #bfe6c4;
+    border: 1px solid #7bbd83;
+    color: #143a1a;
+}
+
+.preference-chip--graag_met .chip-label::before {
+    content: "+ ";
+    color: #1e6b27;
+    font-weight: bold;
+}
+
+.preference-chip--liever_niet_met {
+    background: #f1c4ba;
+    border: 1px solid #cf8a7b;
+    color: #551a11;
+}
+
+.preference-chip--liever_niet_met .chip-label::before {
+    content: "\2212 ";  /* minus sign */
+    color: #962f1f;
+    font-weight: bold;
+}
+
+.niet-in-chip {
+    background: #d8d8d8;
+    border: 1px solid #a6a6a6;
+    color: #222;
+}
+
+/* Dark, readable delete cross on the light chips (the orange default is white). */
+.preference-chip .chip-del,
+.niet-in-chip .chip-del {
+    color: #555;
+}
+
+.preference-chip .chip-del:hover,
+.niet-in-chip .chip-del:hover {
+    color: #000;
+}
+
+/* Worked example in the collapsible help. */
+.help-example {
+    background: #fff;
+    border-left: 3px solid #ff9933;
+    padding: 0.4rem 0.7rem;
+    margin-top: 0.6rem;
+}
+
+/* Click-popover for the heavier ⓘ explanations. */
+.info-pop {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #1a73e8;
+    font-size: 1em;
+    padding: 0 0.2rem;
+}
+
+.info-popover {
+    background: #fff;
+    border: 1px solid #bbb;
+    border-radius: 0.3rem;
+    padding: 0.5rem 0.7rem;
+    margin-top: 0.3rem;
+    max-width: 28rem;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+    font-weight: normal;
+    font-size: 0.9em;
+    color: #333;
+    text-transform: none;  /* parent labels may be uppercased; the help text is not */
+    text-align: left;
 }
 
 /* Undo banner shown when preferences to a no-longer-going student are auto-removed. */

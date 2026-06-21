@@ -111,16 +111,6 @@ def test_group_counter_and_empty_marker(live_server, tmp_path, page):
 
 
 @pytest.mark.usefixtures("login")
-def test_collapse_group_students_to_preview(live_server, tmp_path, page):
-    """'Klap leerlingen dicht' collapses the open candidate blocks in a group."""
-    _open_preferences_form(live_server, tmp_path, page)
-    _open_group(page)
-    assert page.locator("#block-s1").get_attribute("open") is not None
-    page.click(".group-details:not(.new-student-details) .group-collapse-btn")
-    assert page.locator("#block-s1").get_attribute("open") is None
-
-
-@pytest.mark.usefixtures("login")
 def test_autosave_restores_work_on_reload(live_server, tmp_path, page):
     """A preference is autosaved in the background and survives a reload without saving."""
     _open_preferences_form(live_server, tmp_path, page)
@@ -152,6 +142,45 @@ def test_dangling_preference_is_removed_with_undo(live_server, tmp_path, page):
 
     page.click("#undo-banner button:has-text('Ongedaan maken')")
     assert page.locator("#chips-graag_met-s1 .preference-chip").count() == 1
+
+
+@pytest.mark.usefixtures("login")
+def test_help_is_collapsible_and_open_by_default(live_server, tmp_path, page):
+    """The page help is a collapsible block, open by default, with a worked example."""
+    _open_preferences_form(live_server, tmp_path, page)
+    help_box = page.locator("details.instructions-box")
+    assert help_box.get_attribute("open") is not None
+    assert "voorbeeld" in help_box.inner_text().lower()
+
+
+@pytest.mark.usefixtures("login")
+def test_chip_visual_class_per_kind(live_server, tmp_path, page):
+    """Graag-met and liever-niet chips carry distinct kind classes for the visual language."""
+    _open_preferences_form(live_server, tmp_path, page)
+    _open_group(page)
+    page.fill("#combo-graag_met-s1", "Bram")
+    page.press("#combo-graag_met-s1", "Enter")
+    page.fill("#combo-liever_niet_met-s1", "Klas B")
+    page.press("#combo-liever_niet_met-s1", "Enter")
+    assert page.locator("#chips-graag_met-s1 .preference-chip--graag_met").count() == 1
+    assert (
+        page.locator(
+            "#chips-liever_niet_met-s1 .preference-chip--liever_niet_met"
+        ).count()
+        == 1
+    )
+
+
+@pytest.mark.usefixtures("login")
+def test_info_popover_toggles(live_server, tmp_path, page):
+    """Clicking a heavy ⓘ opens a popover; clicking it again closes it."""
+    _open_preferences_form(live_server, tmp_path, page)
+    _open_group(page)
+    info = page.locator("#block-s1 .preference-section .info-pop").first
+    info.click()
+    assert page.locator(".info-popover").count() == 1
+    info.click()
+    assert page.locator(".info-popover").count() == 0
 
 
 @pytest.mark.usefixtures("login")
@@ -270,6 +299,7 @@ def test_extra_zekerheid_choice_round_trips(live_server, tmp_path, page):
     Tussentijds opslaan and is restored on reload."""
     _open_preferences_form(live_server, tmp_path, page)
     _open_group(page)
+    # Extra zekerheid is collapsed by default; open it to reveal the choices + help text.
     page.click("#block-s1 .extra-zekerheid > summary")
     geen = page.locator("#block-s1 .extra-zekerheid input[value='']")
     assert geen.is_checked()  # default is no extra requirement
