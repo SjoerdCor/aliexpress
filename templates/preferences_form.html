@@ -22,20 +22,24 @@
 </script>
 
 <div class="instructions-box">
-  Vink aan welke leerlingen doorgaan. Klik een leerling open om voorkeuren in te voeren.
-  Bevestig elke voorkeur afzonderlijk. Gebruik <strong>Tussentijds opslaan</strong> om nieuwe
-  leerlingen toe te voegen en hun voorkeuren in te kunnen voeren.
+  <strong>Stap 1.</strong> Voeg eerst nieuwe of ingestroomde leerlingen toe en klik
+  <em>Voeg toe</em> als een leerling compleet is — dan kun je hen ook als voorkeur kiezen.
+  <strong>Stap 2.</strong> Vink per groep aan wie meegaat en vul de voorkeuren in.
 </div>
 
 <form method="post" id="preferences-form" novalidate>
 
-  {# ── Nieuwe leerlingen ──────────────────────────────────────────────────── #}
+  {# ── Zone 1: nieuwe leerlingen ──────────────────────────────────────────── #}
+  <h3 class="zone-heading">Stap 1 — Nieuwe leerlingen toevoegen</h3>
   <details class="group-details new-student-details">
     <summary class="group-summary">Nieuwe leerling toevoegen</summary>
     <div id="new-student-rows"></div>
     <button type="button" class="button button--small" style="margin-top:0.4rem"
             onclick="addNewStudentRow()">+ Leerling toevoegen</button>
   </details>
+
+  {# ── Zone 2: bestaande leerlingen per herkomstgroep ─────────────────────── #}
+  <h3 class="zone-heading">Stap 2 — Wie gaat mee en voorkeuren</h3>
 
   {# ── Per-leerling blokken gegroepeerd op groepsnaam ─────────────────────── #}
   {% set current_group = namespace(name=None) %}
@@ -494,39 +498,71 @@ function preferenceSectionHTML(key, soort, label) {
     </div>`;
 }
 
+// Origin-group options for a new student: the existing groups plus "Anders" (default)
+// for an incomer without one. Origin group matters: cliques are maximised per group.
+const NEW_GROUP_OPTIONS = (GROUPS_FROM.includes('Anders') ? GROUPS_FROM : [...GROUPS_FROM, 'Anders']);
+
+function newStudentFields(key) {
+  const b = document.getElementById(`new-block-${key}`);
+  return {
+    block: b,
+    vn: b?.querySelector('[name="new_voornaam[]"]')?.value?.trim() || '',
+    an: b?.querySelector('[name="new_achternaam[]"]')?.value?.trim() || '',
+    sex: b?.querySelector('[name="new_geslacht[]"]')?.value || '',
+  };
+}
+
+function newStudentName(key) {
+  const { vn, an } = newStudentFields(key);
+  return (vn && an) ? `${vn} ${an}` : '';
+}
+
 function addNewStudentRow() {
   const container = document.getElementById('new-student-rows');
-  const idx = newStudentCount++;
-  const key = `new_${idx}`;
-  const groepOptions = GROUPS_FROM.map(g => `<option value="${g}">${g}</option>`).join('');
+  const key = `new_${newStudentCount++}`;
   const groupOptions = TARGET_GROUPS.length > 1
     ? TARGET_GROUPS.map(gk => `<option value="${GROUP_DISPLAY[gk] || gk}">${GROUP_DISPLAY[gk] || gk}</option>`).join('')
     : '';
+  const groepOptions = NEW_GROUP_OPTIONS
+    .map(g => `<option value="${g}"${g === 'Anders' ? ' selected' : ''}>${g}</option>`).join('');
 
   const wrapper = document.createElement('div');
   wrapper.className = 'new-student-block';
   wrapper.id = `new-block-${key}`;
+  wrapper.dataset.complete = '0';
   wrapper.innerHTML = `
-    <div class="new-student-row">
-      <input type="hidden" name="new_key[]" value="${key}">
+    <input type="hidden" name="new_key[]" value="${key}">
+    <input type="checkbox" name="gaat_over" value="${key}" checked
+           class="gaat-over-checkbox" data-key="${key}" hidden>
+
+    <div class="new-student-edit">
       <input type="text" name="new_voornaam[]" placeholder="Voornaam"
-             oninput="onNewNameInput('${key}', this.form)">
+             oninput="onNewStudentInput('${key}')">
       <input type="text" name="new_achternaam[]" placeholder="Achternaam"
-             oninput="onNewNameInput('${key}', this.form)">
-      <select name="new_geslacht[]">
+             oninput="onNewStudentInput('${key}')">
+      <select name="new_geslacht[]" onchange="onNewStudentInput('${key}')">
         <option value="">— geslacht —</option>
         <option value="Jongen">Jongen</option>
         <option value="Meisje">Meisje</option>
       </select>
-      ${groepOptions ? `<select name="new_groep[]">${groepOptions}</select>` : ''}
-      <input type="checkbox" name="gaat_over" value="${key}" checked
-             class="gaat-over-checkbox" data-key="${key}"
-             onchange="toggleCandidate('${key}', this.checked)">
-      <label>Gaat mee</label>
+      <select name="new_groep[]" title="Herkomstgroep">${groepOptions}</select>
+      <button type="button" class="button button--small"
+              onclick="confirmNewStudent('${key}')">Voeg toe</button>
       <button type="button" class="delete-btn"
-              onclick="removeNewStudentRow(this, '${key}')">✖</button>
+              onclick="removeNewStudentRow('${key}')">✖</button>
+      <span class="new-student-status">nog niet af</span>
+      <span class="field-error" id="err-new-${key}"></span>
     </div>
-    <div id="content-${key}" class="new-student-wishes">
+
+    <div class="new-student-summary" hidden>
+      <span class="new-student-name"></span>
+      <button type="button" class="button button--small"
+              onclick="toggleNewStudentPreferences('${key}')">Voorkeuren invoeren</button>
+      <button type="button" class="button button--small button--cancel"
+              onclick="removeNewStudentRow('${key}')">Verwijder leerling</button>
+    </div>
+
+    <div id="content-${key}" class="new-student-wishes" hidden>
       ${preferenceSectionHTML(key, 'graag_met', 'Graag met')}
       ${preferenceSectionHTML(key, 'liever_niet_met', 'Liever niet met')}
       ${TARGET_GROUPS.length > 1 ? `
@@ -545,26 +581,82 @@ function addNewStudentRow() {
       </div>` : ''}
     </div>`;
   container.appendChild(wrapper);
-  checkedKeys.add(key);  // new students are checked by default
+  checkedKeys.add(key);  // new students always go over
   wrapper.querySelectorAll('.combobox-input').forEach(initCombobox);
 }
 
-function onNewNameInput(key, form) {
-  // A new student becomes a selectable preference target once both names are filled.
-  const wrapper = document.getElementById(`new-block-${key}`);
-  const vn = wrapper?.querySelector('[name="new_voornaam[]"]')?.value?.trim() || '';
-  const an = wrapper?.querySelector('[name="new_achternaam[]"]')?.value?.trim() || '';
-  if (vn && an) STUDENT_NAMES.add(`${vn} ${an}`);
+function nameCollision(vn, an) {
+  // A name clash is decided by the name alone, regardless of sex.
+  return vn && an && STUDENT_NAMES.has(`${vn} ${an}`);
 }
 
-function removeNewStudentRow(btn, key) {
-  const wrapper = btn.closest('.new-student-block');
-  const vn = wrapper?.querySelector('[name="new_voornaam[]"]')?.value?.trim() || '';
-  const an = wrapper?.querySelector('[name="new_achternaam[]"]')?.value?.trim() || '';
-  if (vn && an) STUDENT_NAMES.delete(`${vn} ${an}`);
-  checkedKeys.delete(key);
-  wrapper?.remove();
+function onNewStudentInput(key) {
+  // Live feedback while editing; the student is only committed via "Voeg toe".
+  const { block, vn, an, sex } = newStudentFields(key);
+  const status = block.querySelector('.new-student-status');
+  const err = document.getElementById(`err-new-${key}`);
+  if (nameCollision(vn, an)) {
+    err.textContent = `Er bestaat al een leerling "${vn} ${an}". Geef een onderscheidende naam.`;
+    status.textContent = 'nog niet af';
+    return;
+  }
+  err.textContent = '';
+  status.textContent = (vn && an && sex) ? 'klaar om toe te voegen' : 'nog niet af';
 }
+
+function confirmNewStudent(key) {
+  const { block, vn, an, sex } = newStudentFields(key);
+  const groep = block.querySelector('[name="new_groep[]"]')?.value || '';
+  const err = document.getElementById(`err-new-${key}`);
+  err.textContent = '';
+  if (nameCollision(vn, an)) {
+    err.textContent = `Er bestaat al een leerling "${vn} ${an}". Geef een onderscheidende naam.`;
+    return;
+  }
+  if (!vn || !an || !sex) {
+    err.textContent = 'Vul voornaam, achternaam én geslacht in.';
+    return;
+  }
+  const name = `${vn} ${an}`;
+  STUDENT_NAMES.add(name);
+  block.dataset.complete = '1';
+  block.dataset.committedName = name;
+  // Hide the input fields; the compact summary shows name, sex and origin group.
+  block.querySelector('.new-student-edit').hidden = true;
+  const summary = block.querySelector('.new-student-summary');
+  summary.querySelector('.new-student-name').textContent =
+    `${name} · ${sex}` + (groep ? ` · Uit groep ${groep}` : '');
+  summary.hidden = false;
+}
+
+function toggleNewStudentPreferences(key) {
+  // The preference fields appear only once the student is really added.
+  const wishes = document.getElementById(`content-${key}`);
+  if (wishes) wishes.hidden = !wishes.hidden;
+}
+
+function removeNewStudentRow(key) {
+  const block = document.getElementById(`new-block-${key}`);
+  if (block?.dataset.committedName) STUDENT_NAMES.delete(block.dataset.committedName);
+  checkedKeys.delete(key);
+  block?.remove();
+}
+
+// Block submit if a new student was started but never finished (empty rows are ignored).
+document.getElementById('preferences-form').addEventListener('submit', e => {
+  const unfinished = [...document.querySelectorAll('.new-student-block')].filter(b => {
+    if (b.dataset.complete === '1') return false;
+    const { vn, an, sex } = newStudentFields(b.id.replace('new-block-', ''));
+    return vn || an || sex;  // started but not committed
+  });
+  if (unfinished.length) {
+    e.preventDefault();
+    const first = unfinished[0];
+    const errEl = first.querySelector('.field-error');
+    if (errEl) errEl.textContent = 'Maak deze nieuwe leerling eerst af (klik "Voeg toe") of verwijder de regel.';
+    first.scrollIntoView({ block: 'center' });
+  }
+});
 
 // ── Prefill from saved state ──────────────────────────────────────────────────
 

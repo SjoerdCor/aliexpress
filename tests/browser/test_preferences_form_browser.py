@@ -265,22 +265,78 @@ def test_preference_chip_persists_after_opslaan(live_server, tmp_path, page):
     assert "Bram Dijk" in chips.first.inner_text()
 
 
-@pytest.mark.usefixtures("login")
-def test_new_student_row_can_be_added_and_submitted(live_server, tmp_path, page):
-    """Adding a new student row and submitting includes them in voorkeuren.json."""
-    proc = _open_preferences_form(live_server, tmp_path, page)
-
+def _add_new_student(page, voornaam, achternaam, geslacht="Meisje", confirm=True):
+    """Open the new-student section, add one student, optionally click 'Voeg toe'."""
     page.click("details.new-student-details > summary")
     page.click("details.new-student-details button:has-text('Leerling toevoegen')")
+    row = page.locator(".new-student-block").last
+    row.locator("[name='new_voornaam[]']").fill(voornaam)
+    row.locator("[name='new_achternaam[]']").fill(achternaam)
+    if geslacht:
+        row.locator("[name='new_geslacht[]']").select_option(geslacht)
+    if confirm:
+        row.locator("button:has-text('Voeg toe')").click()
+    return row
 
-    row = page.locator(".new-student-block").first
-    row.locator("[name='new_voornaam[]']").fill("Emma")
-    row.locator("[name='new_achternaam[]']").fill("Jansen")
-    row.locator("[name='new_geslacht[]']").select_option("Meisje")
+
+@pytest.mark.usefixtures("login")
+def test_completed_new_student_is_submitted(live_server, tmp_path, page):
+    """A finished ('Voeg toe') student hides its inputs, shows a summary, and is submitted."""
+    proc = _open_preferences_form(live_server, tmp_path, page)
+    row = _add_new_student(page, "Emma", "Jansen")
+    assert row.get_attribute("data-complete") == "1"
+    # The input fields disappear; a compact summary (name · sex · origin group) shows.
+    assert row.locator(".new-student-edit").is_hidden()
+    summary = row.locator(".new-student-summary")
+    assert summary.is_visible()
+    assert "Uit groep" in summary.inner_text()
+    assert summary.locator("button:has-text('Voorkeuren invoeren')").is_visible()
 
     page.click("button.next-step")
     page.wait_for_url("**/not_together")
-
     payload = json.loads((proc / "voorkeuren.json").read_text("utf-8"))
-    display_names = set(payload["student_display"].values())
-    assert "Emma Jansen" in display_names
+    assert "Emma Jansen" in set(payload["student_display"].values())
+
+
+@pytest.mark.usefixtures("login")
+def test_unfinished_new_student_blocks_submit(live_server, tmp_path, page):
+    """A started-but-unfinished new student (missing geslacht) blocks submit."""
+    _open_preferences_form(live_server, tmp_path, page)
+    _add_new_student(page, "Emma", "Jansen", geslacht="", confirm=False)
+    page.click("button.next-step")
+    # Submit is blocked: we stay on the form and see a message on the row.
+    page.wait_for_timeout(300)
+    assert "/preferences_form" in page.url
+    assert page.locator(".new-student-block .field-error").first.inner_text() != ""
+
+
+@pytest.mark.usefixtures("login")
+def test_new_student_name_collision_is_flagged_on_name_alone(
+    live_server, tmp_path, page
+):
+    """A name clash is flagged live, on the name alone — geslacht need not match."""
+    _open_preferences_form(live_server, tmp_path, page)
+    # No geslacht filled: the collision must still be detected from the name.
+    row = _add_new_student(page, "Anna", "Bos", geslacht="", confirm=False)
+    assert (
+        "bestaat al"
+        in row.locator(".new-student-edit .field-error").inner_text().lower()
+    )
+    # Trying to finish keeps it uncommitted.
+    row.locator("button:has-text('Voeg toe')").click()
+    assert row.get_attribute("data-complete") == "0"
+
+
+@pytest.mark.usefixtures("login")
+def test_finished_new_student_is_selectable_as_target(live_server, tmp_path, page):
+    """Once finished, a new student can be chosen as a preference of an existing student."""
+    _open_preferences_form(live_server, tmp_path, page)
+    _add_new_student(page, "Emma", "Jansen")
+    _open_group(page)
+    page.fill("#combo-graag_met-s1", "Emma")
+    assert (
+        page.locator(
+            "#list-graag_met-s1 .combobox-option:has-text('Emma Jansen')"
+        ).count()
+        == 1
+    )
