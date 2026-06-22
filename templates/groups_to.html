@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% set current_step = 2 %}
+{% set current_step = 3 %}
 {% block content %}
 <h2>Hoeveel jongens en meisjes blijven er in elke groep achter?</h2>
 <div class="instructions-box">
@@ -69,9 +69,17 @@
 
   <button class="button" type="button" onclick="addEmptyGroup()">+ Nieuwe lege groep</button>
 
+  <p class="instructions-box">Kies daarna hoe u de voorkeuren invult.
+    <strong>Aanbevolen: gebruik het formulier</strong> — dat gaat sneller en vereist geen
+    download. Kies Excel als u liever offline werkt in een spreadsheetprogramma.</p>
+
+  {# This is the last step before preferences; each button records the chosen route. #}
   <div class="step-navigation">
-    <a href="{{ url_for('wizard.upload_edexml') }}" class="button previous-step">← Naar Schoolinformatie uploaden</a>
-    <button type="submit" class="button next-step">Naar Wie gaat mee →</button>
+    <a href="{{ url_for('roster.roster_page') }}" class="button previous-step">← Naar Wie gaat mee</a>
+    <div class="next-steps">
+      <button type="submit" name="action" value="form" class="button">Voorkeuren via formulier →</button>
+      <button type="submit" name="action" value="excel" class="button button--cancel">Voorkeuren via Excel →</button>
+    </div>
   </div>
 </form>
 

@@ -1,9 +1,10 @@
-"""Roster blueprint: the shared "Wie gaat mee" step (ADR 0005).
+"""Roster blueprint: the shared "Wie gaat mee" step (ADR 0005, reordered by ADR 0006).
 
 Determines which leerlingen take part in this verdeling — confirming who goes (unticking
-Verlengers) and, rarely, adding an incoming student — and lets the teacher choose how to
-enter preferences next (web form or Excel). The resolved population is persisted as
-``roster.json`` and consumed by both preference routes.
+Verlengers) and, rarely, adding an incoming student. It is the first step after the EDEXML
+upload and continues to "Groepen naartoe"; the choice of how to enter preferences (web form
+or Excel) now lives on that next page, its immediate predecessor (ADR 0006). The resolved
+population is persisted as ``roster.json`` and consumed by both preference routes.
 
 The pure form/data helpers below are free of Flask so they can be unit-tested and reused
 by the wizard blueprint without an import cycle.
@@ -149,7 +150,7 @@ def roster_page(school_id):
     except Exception as exc:  # pylint: disable=broad-exception-caught
         logger.exception("Could not read candidates for roster")
         flash(to_validation_message(exc), "error")
-        return redirect(url_for("wizard.groups_to_page"))
+        return redirect(url_for("wizard.upload_edexml"))
 
     if request.method == "POST":
         return _handle_roster_post(school_id, process_id, orig_candidates, groups_from)
@@ -174,7 +175,7 @@ def roster_page(school_id):
 
 
 def _handle_roster_post(school_id, process_id, orig_candidates, groups_from):
-    """Validate + persist the roster, record the chosen preference route, and forward."""
+    """Validate + persist the roster, then continue to "Groepen naartoe" (ADR 0006)."""
     try:
         validate_new_students(request.form, orig_candidates)
     except ValidationError as exc:
@@ -186,15 +187,4 @@ def _handle_roster_post(school_id, process_id, orig_candidates, groups_from):
         get_file_path(school_id, process_id, "roster.json"), "w", encoding="utf-8"
     ) as fh:
         json.dump({"participants": participants}, fh, ensure_ascii=False)
-
-    # The teacher chooses here how to enter preferences; remember it so a later resume and
-    # the not-together back link point at the same page.
-    method = "form" if request.form.get("action") == "form" else "excel"
-    with open(
-        get_file_path(school_id, process_id, "input_method.json"), "w", encoding="utf-8"
-    ) as fh:
-        json.dump({"method": method}, fh)
-    target = (
-        "wizard.preferences_form" if method == "form" else "wizard.preferences_excel"
-    )
-    return redirect(url_for(target))
+    return redirect(url_for("wizard.groups_to_page"))
