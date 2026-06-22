@@ -65,33 +65,39 @@
             });
         </script>
         {% endif %}
+        {# A slim, quiet progress strip: all eight steps stay visible (so nothing is hidden
+           or surprising) but rendered small and unobtrusive — short labels (at most two
+           lines) in a light colour, so the row of text never feels heavy. Shown inside the
+           wizard (current_step 1-8) and, as a static overview, on the home page
+           (stepper_overzicht); the processes dashboard sets neither, so it stays hidden. #}
+        {% if current_step or stepper_overzicht %}
         <div class="stepper">
             <div class="step {% if current_step > 1 %}done{% elif current_step == 1 %}active{% endif %}">
-                <span>Schoolinformatie<br>uploaden</span>
+                <span>Schoolinformatie</span>
             </div>
             <div class="step {% if current_step > 2 %}done{% elif current_step == 2 %}active{% endif %}">
-                <span>Wie gaat<br>mee</span>
+                <span>Wie gaat mee</span>
             </div>
             <div class="step {% if current_step > 3 %}done{% elif current_step == 3 %}active{% endif %}">
-                <span>Groepen naartoe<br>bepalen</span>
+                <span>Groepen naartoe</span>
             </div>
             <div class="step {% if current_step > 4 %}done{% elif current_step == 4 %}active{% endif %}">
-                <span>Voorkeuren <br>doorgeven</span>
+                <span>Voorkeuren doorgeven</span>
             </div>
             <div class="step {% if current_step > 5 %}done{% elif current_step == 5 %}active{% endif %}">
-                <span>Niet<br>samen</span>
+                <span>Niet samen</span>
             </div>
-
             <div class="step {% if current_step > 6 %}done{% elif current_step == 6 %}active{% endif %}">
-                <span>Leerlingen<br>indelen</span>
+                <span>Leerlingen indelen</span>
             </div>
             <div class="step {% if current_step > 7 %}done{% elif current_step == 7 %}active{% endif %}">
-                <span>Resultaat<br> bekijken</span>
+                <span>Resultaat bekijken</span>
             </div>
             <div class="step {% if current_step > 8 %}done{% elif current_step == 8 %}active{% endif %}">
                 <span>Klaar!</span>
             </div>
         </div>
+        {% endif %}
         <h1>{% block header %}{% endblock %}</h1>
         {% block content %}{% endblock %}
     </div>

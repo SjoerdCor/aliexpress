@@ -272,10 +272,9 @@ input[type="submit"]:hover {
 
 .stepper {
   display: flex;
-  justify-content: space-between;
-  margin: 2rem 0;
+  margin: 1.5rem 0;
+  gap: 0.5rem;
   counter-reset: step;
-  gap: 2rem;
 }
 
 .step {
@@ -284,20 +283,21 @@ input[type="submit"]:hover {
   flex: 1;
 }
 
+/* A numbered circle, kept modest in size so it stays light next to the short labels. */
 .step::before {
   counter-increment: step;
   content: counter(step);
-  width: 30px;
-  height: 30px;
-  line-height: 30px;
+  width: 24px;
+  height: 24px;
+  line-height: 24px;
+  font-size: 0.8rem;
   display: block;
-  margin: 0 auto 10px;
+  margin: 0 auto 8px;
   border-radius: 50%;
   background-color: #ddd;
   color: #fff;
   position: relative;
   z-index: 2;
-
 }
 
 .step.active::before {
@@ -305,27 +305,36 @@ input[type="submit"]:hover {
 }
 
 .step.done::before {
-  background-color: #c2a17a  ;
+  background-color: #c2a17a;
 }
 
 .step:not(:last-child)::after {
   content: "";
   position: absolute;
-  top: 15px;
+  top: 11px;
   left: 50%;
-  width: calc(100% + 2rem);
+  width: calc(100% + 0.5rem);
   height: 2px;
-  background-color: #ddd	;
+  background-color: #eee;
   z-index: 1;
 }
 
 .step.done:not(:last-child)::after {
-  background-color: #c2a17a  ;
+  background-color: #c2a17a;
 }
 
-.step a {
-  text-decoration: none;
-  color: inherit;
+/* Non-active labels stay deliberately light (but still readable): the numbered dot and the
+   connecting line carry the done/upcoming state, so the text itself can be quiet and never
+   reads as a heavy wall of words. Only the current step's label is dark and bold. */
+.step span {
+  font-size: 0.72rem;
+  line-height: 1.2;
+  color: #a8a8a8;
+}
+
+.step.active span {
+  color: #444;
+  font-weight: bold;
 }
 
 .download-buttons a {
