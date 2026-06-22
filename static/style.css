@@ -323,13 +323,17 @@ input[type="submit"]:hover {
   background-color: #c2a17a;
 }
 
-/* Non-active labels stay deliberately light (but still readable): the numbered dot and the
-   connecting line carry the done/upcoming state, so the text itself can be quiet and never
-   reads as a heavy wall of words. Only the current step's label is dark and bold. */
+/* Non-active labels stay quiet but remain readable (WCAG AA on the white card): upcoming
+   steps are a secondary grey, done steps take the tan of their dot so the colour matches,
+   and only the current step's label is dark and bold. */
 .step span {
   font-size: 0.72rem;
   line-height: 1.2;
-  color: #a8a8a8;
+  color: #757575; /* upcoming — ~4.5:1 on white */
+}
+
+.step.done span {
+  color: #8a6d3f; /* done — tan family of the dot, ~4.8:1 on white */
 }
 
 .step.active span {
