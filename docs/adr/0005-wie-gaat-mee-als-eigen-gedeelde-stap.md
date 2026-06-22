@@ -1,8 +1,15 @@
 ---
 status: proposed
+amended-by: ADR-0006
 ---
 
 # "Wie gaat mee" wordt een eigen, gedeelde wizardstap vóór het doorgeven van voorkeuren
+
+> **Let op:** de stapvolgorde en de plek van de invoermethode-keuze uit deze ADR zijn
+> herzien door [ADR-0006](0006-wie-gaat-mee-voor-groepen-naartoe.md): "Wie gaat mee" komt
+> nu vóór "Groepen naartoe", en de form/Excel-keuze staat weer op "Groepen naartoe". De
+> overige overwegingen (gedeelde stap, canoniek roster-artifact, bungelende voorkeuren)
+> blijven geldig.
 
 Het bepalen van de populatie — welke leerlingen meegaan en welke [Verlengers](../../CONTEXT.md) worden uitgevinkt, plus het zeldzame toevoegen van een ingestroomde of versneld doorgaande leerling — wordt een **eigen wizardstap "Wie gaat mee"**, geplaatst ná "Groepen naartoe" en vóór het doorgeven van voorkeuren. De stap is **gedeeld door beide invoerroutes** (web-formulier én Excel): de populatie staat los van hóé je daarna voorkeuren invoert.
 

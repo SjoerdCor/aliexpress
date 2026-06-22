@@ -151,8 +151,9 @@ class TestSelectProcess:
         assert response.status_code == 302
         assert response.headers["Location"].endswith("/upload_edexml")
 
-    def test_process_with_json_redirects_to_groups_to(self, client, tmp_path):
-        """A process that has the candidates JSON continues at groups_to."""
+    def test_process_with_json_redirects_to_roster(self, client, tmp_path):
+        """After the EDEXML upload (only the candidates JSON present) the process resumes at
+        the "Wie gaat mee" step (ADR 0006)."""
         proc_dir = tmp_path / SCHOOL_ID / "procesmetjson"
         proc_dir.mkdir(parents=True, exist_ok=True)
         (proc_dir / "relevant_students_and_groups.json").write_text(
@@ -162,19 +163,20 @@ class TestSelectProcess:
             make_process_row(SCHOOL_ID, "procesmetjson")
         response = client.get("/processes/select/procesmetjson")
         assert response.status_code == 302
-        assert response.headers["Location"].endswith("/groups_to")
-
-    def test_process_with_groups_xlsx_redirects_to_roster(self, client, tmp_path):
-        """A process that has groups.xlsx but no roster yet continues at the shared
-        "Wie gaat mee" step (ADR 0005)."""
-        proc_dir = tmp_path / SCHOOL_ID / "procesmetgroepen"
-        proc_dir.mkdir(parents=True, exist_ok=True)
-        (proc_dir / "groups.xlsx").write_bytes(b"dummy")
-        with flask_app.app_context():
-            make_process_row(SCHOOL_ID, "procesmetgroepen")
-        response = client.get("/processes/select/procesmetgroepen")
-        assert response.status_code == 302
         assert response.headers["Location"].endswith("/roster")
+
+    def test_process_with_roster_redirects_to_groups_to(self, client, tmp_path):
+        """A settled roster but no groups.xlsx yet resumes at "Groepen naartoe" (ADR 0006)."""
+        proc_dir = tmp_path / SCHOOL_ID / "procesmetroster2"
+        proc_dir.mkdir(parents=True, exist_ok=True)
+        (proc_dir / "roster.json").write_text(
+            json.dumps({"participants": []}), encoding="utf-8"
+        )
+        with flask_app.app_context():
+            make_process_row(SCHOOL_ID, "procesmetroster2")
+        response = client.get("/processes/select/procesmetroster2")
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/groups_to")
 
     def test_process_with_roster_and_excel_method_redirects_to_preferences_excel(
         self, client, tmp_path

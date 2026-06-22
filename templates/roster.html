@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% set current_step = 3 %}
+{% set current_step = 2 %}
 {% block header %}Wie gaat mee?{% endblock %}
 
 {% block content %}
@@ -19,8 +19,6 @@
   <summary>Vink aan wie ingedeeld moeten worden</summary>
   <p>Vink uit wie blijft zitten (verlengers). Stroomt er iemand van buiten in of is er iemand die versneld
     doorgaat? Voeg die onderaan toe.</p>
-  <p>Kies daarna hoe u de voorkeuren invult. <strong>Aanbevolen: gebruik het formulier</strong> — dat gaat
-    sneller en vereist geen download. Kies Excel als u liever offline werkt in een spreadsheetprogramma.</p>
 </details>
 
 <form method="post" id="roster-form">
@@ -51,15 +49,11 @@
     + Leerling toevoegen
   </button>
 
-  {# The teacher picks here how to enter preferences; each button records the route. #}
   <div class="step-navigation">
-    <a href="{{ url_for('wizard.groups_to_page') }}" class="button previous-step">
-      ← Naar Groepen naartoe
+    <a href="{{ url_for('wizard.upload_edexml') }}" class="button previous-step">
+      ← Naar Schoolinformatie uploaden
     </a>
-    <div class="next-steps">
-      <button type="submit" name="action" value="form" class="button">Voorkeuren via formulier →</button>
-      <button type="submit" name="action" value="excel" class="button button--cancel">Voorkeuren via Excel →</button>
-    </div>
+    <button type="submit" class="button next-step">Naar Groepen naartoe →</button>
   </div>
 </form>
 
