@@ -365,8 +365,10 @@ class VoorkeurenProcessor:
 
     @staticmethod
     def _validate_input(df: pd.DataFrame) -> pd.DataFrame:
-        # This check does not seem to work in pandera (perhaps because
-        # of np.nan in the Index)
+        # Pandera catches missing columns (COLUMN_NOT_IN_DATAFRAME) for NaN-indexed
+        # MultiIndex, but not extra columns (COLUMN_NOT_IN_SCHEMA). validate_columns is
+        # therefore still needed to catch extra columns; it also catches missing columns
+        # first so both cases produce a single, consistent ValidationError.
         expected_columns = pd.MultiIndex.from_tuples(
             VOORKEUREN_SCHEMA.columns.keys(),
             names=["TypeWens", "Nr", "TypeWaarde"],
@@ -480,8 +482,14 @@ def validate_not_together(
     known = {matching_key(s) for s in students}
     for i, rule in enumerate(rules, start=1):
         group = rule["group"]
-        max_samen = rule["Max_aantal_samen"]
         n_students = len(group)
+
+        max_samen = rule.get("Max_aantal_samen")
+        if not isinstance(max_samen, int) or isinstance(max_samen, bool):
+            raise ValidationError(
+                "invalid_max_samen_type_not_together",
+                context={"rule_index": i},
+            )
 
         if n_students < 2:
             raise ValidationError(
