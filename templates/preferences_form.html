@@ -563,7 +563,8 @@ function setBackgroundInert(editor, on) {
     const parent = node.parentElement;
     if (!parent) break;
     for (const child of parent.children) {
-      // The scrim must stay interactive so a backdrop-click can still close the modal.
+      // Skip the scrim itself: it is the presentational backdrop overlay, not background
+      // content to hide from screen readers.
       if (child !== node && child.id !== 'pref-scrim') child.toggleAttribute('inert', on);
     }
     node = parent;

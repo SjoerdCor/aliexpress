@@ -1058,7 +1058,7 @@ table.dataframe th {
     background: #e8f0fe;
 }
 
-/* Intensity pills on a preference chip (click the chip label to reveal). */
+/* Intensity pills on a preference chip. */
 .chip-label {
     cursor: pointer;
 }
@@ -1073,12 +1073,6 @@ table.dataframe th {
     align-items: center;
     gap: 0.25rem;
     margin-left: 0.4rem;
-}
-
-/* The display rule above overrides the [hidden] attribute, so restore hiding (the pills
-   only appear once the chip is clicked — see the same gotcha for .new-student-edit). */
-.chip-pills[hidden] {
-    display: none;
 }
 
 .chip-pills-caption {
