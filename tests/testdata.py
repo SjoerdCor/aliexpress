@@ -1,14 +1,30 @@
-""" "Create test data for the app"""
+"""Generate test data for the app in the native process-directory format.
 
+Produces the files a process needs to run the solver and navigate the wizard UI:
+  voorkeuren.json     — preferences (StudentEntry path, source="testdata")
+  groups.xlsx         — target groups with current boy/girl counts (for the solver)
+  not_together.json   — separation rules
+  roster.json         — participant list (for the "Wie gaat mee" step)
+  input_method.json   — records that the form path was used
+
+Call ``main(n_groups, n_students, n_rules)`` to write everything to ``testdata/``.
+"""
+
+import json
 import math
 import os
 import random
 import string
 
-import numpy as np
 import pandas as pd
 
-from aliexpress.datareader import VOORKEUREN_SCHEMA
+from aliexpress.datareader import matching_key
+from aliexpress.preferences_form import (
+    Preference,
+    PreferenceKind,
+    StudentEntry,
+    build_preference_data,
+)
 from tests.testedexmlgeneration import SAMPLE_GROUP_NAMES
 
 random.seed(42)
@@ -17,7 +33,7 @@ FOLDER = "testdata"
 
 
 def generate_groups(n_groups=4, sample_group_names=None) -> pd.DataFrame:
-    """Create the groups-DataFrame"""
+    """Create the groups-DataFrame with random boy/girl counts."""
     assert 1 < n_groups <= 10
     if sample_group_names is None:
         sample_group_names = SAMPLE_GROUP_NAMES
@@ -33,26 +49,15 @@ def generate_groups(n_groups=4, sample_group_names=None) -> pd.DataFrame:
     return pd.DataFrame.from_dict(rows, orient="index").reset_index(names="Groepen")
 
 
-class PreferenceExcelGenerator:
-    """Class to generate the excel for the preferences
+class NativePreferenceGenerator:
+    """Generate random StudentEntry preferences and write voorkeuren.json.
 
-    Parameters
-    ----------
-    groups_to : list
-        Group names to which the students can be sent
-    n_groups_from : int, optional
-        Number of groups the students are coming from, by default 4
+    Parallel to the old ``PreferenceExcelGenerator`` but produces the native
+    app format (StudentEntry → build_preference_data → voorkeuren.json) instead
+    of an Excel file. Same ``possible_students`` list; same ``groups_to`` / ``n_groups_from``
+    constructor parameters.
     """
 
-    _keys = list(VOORKEUREN_SCHEMA.columns.keys())
-    df_header = pd.DataFrame(
-        [
-            ["Leerling"] + [k[0] for k in _keys],
-            [np.nan] + [k[1] for k in _keys],
-            [np.nan] + [k[2] for k in _keys],
-        ]
-    )
-    del _keys
     possible_students = [
         ("Anna", "Meisje"),
         ("Bram", "Jongen"),
@@ -95,141 +100,222 @@ class PreferenceExcelGenerator:
         ("Zion", "Jongen"),
     ]
 
-    def __init__(self, groups_to: list, n_groups_from=4):
+    def __init__(self, groups_to: list, n_groups_from: int = 4):
+        """
+        Parameters
+        ----------
+        groups_to : list[str]
+            Display names of the destination groups (e.g. ["Blauw", "Geel"]).
+        n_groups_from : int
+            Number of origin groups (single letters A, B, …).
+        """
         self.groups_to = groups_to
         self.groups_from = list(string.ascii_uppercase)[:n_groups_from]
 
     @staticmethod
-    def generate_wishes(student: str, options: list, max_num_wishes=5) -> list[tuple]:
-        """Generate wishes for one student with variable number of students"""
-        my_options = options[:]
-        my_options.remove(student)
-        n_wishes_student = random.randint(0, max_num_wishes)
-        selected = random.sample(my_options, k=n_wishes_student)
-        wishes = [(wish, random.randint(1, 3)) for wish in selected]
-        return wishes
+    def generate_minimale_tevredenheid() -> float | None:
+        """Return None (80 % of the time) or a minimal satisfaction in [0.2, 0.8]."""
+        if random.random() >= 0.2:
+            return None
+        return round(random.uniform(0.2, 0.8), 1)
 
-    @staticmethod
-    def generate_minimale_tevredenheid() -> float:
-        """Generate either np.nan or a minimal satisfaction [0.2, 0.8]"""
-        p_has_minimale_tevredenheid = 0.2
-        minimale_tevredenheid_min = 0.2
-        minimale_tevredenheid_max = 0.8
-        if random.random() >= p_has_minimale_tevredenheid:
-            return np.nan
-        return random.sample(
-            list(np.arange(minimale_tevredenheid_min, minimale_tevredenheid_max, 0.1)),
-            k=1,
-        )[0]
-
-    @staticmethod
-    def generate_not_with(
-        student: str, total: list, wishes: list[tuple]
-    ) -> tuple[str, int]:
-        """Generate a single wish that is not already in wishes for not with"""
+    def _generate_preferences(self, name: str, options: list[str]) -> list[Preference]:
+        """Random TOGETHER preferences (0–5) and optionally one APART preference."""
+        candidates = [o for o in options if o != name]
+        n_together = random.randint(0, min(5, len(candidates)))
+        together_targets = random.sample(candidates, k=n_together)
+        prefs = [
+            Preference(target, float(random.randint(1, 3)), PreferenceKind.TOGETHER)
+            for target in together_targets
+        ]
         if random.random() < 0.5:
-            return ("", "")
-        already_wished = [w[0] for w in wishes]
-        my_options = [x for x in total if x not in already_wished and x != student]
-        person = random.choice(my_options)
-        return (person, random.randint(1, 3))
+            remaining = [o for o in candidates if o not in together_targets]
+            if remaining:
+                prefs.append(
+                    Preference(
+                        random.choice(remaining),
+                        float(random.randint(1, 3)),
+                        PreferenceKind.APART,
+                    )
+                )
+        return prefs
 
-    @staticmethod
-    def generate_not_in(
-        group_names: list[str], wishes: list[tuple], not_with: tuple
-    ) -> list[str, str]:
-        """Generate 0, 1 or 2 groups the student can not be in"""
-        already_wished = [w[0] for w in wishes + [not_with]]
-        possible_groups = [gr for gr in group_names if gr not in already_wished]
-        # -1 because there should always be at least one group to place the student in
-        max_n_not_in_possible = max(min(2, len(possible_groups) - 1), 0)
-        n_not_in = random.randint(0, max_n_not_in_possible)
-        not_in = random.sample(possible_groups, n_not_in)
-
-        return not_in + [""] * (2 - n_not_in)
+    def _generate_excluded_groups(self, preferences: list[Preference]) -> list[str]:
+        """0–2 groups the student may not be placed in (never all groups)."""
+        already_named = {p.target for p in preferences if p.target in self.groups_to}
+        possible = [g for g in self.groups_to if g not in already_named]
+        max_excl = max(min(2, len(possible) - 1), 0)
+        return random.sample(possible, random.randint(0, max_excl))
 
     def generate(
-        self, num_students=35, fname=os.path.join(FOLDER, "voorkeuren_generated.xlsx")
-    ):
-        """Generate and optionally write preference excel for num_students"""
-        assert 1 <= num_students <= 40, "Number of students must be between 1 and 40"
+        self,
+        num_students: int = 35,
+        fname: str | None = None,
+    ) -> list[StudentEntry]:
+        """Build ``num_students`` StudentEntry objects and optionally write voorkeuren.json.
 
-        selected_students = self.possible_students[:num_students]
-        total = [name for name, _ in selected_students] + self.groups_to
+        Parameters
+        ----------
+        num_students : int
+            Number of students to generate (1 – len(possible_students)).
+        fname : str or None
+            Path for ``voorkeuren.json``; when None the file is not written.
 
-        def build_row(name, gender):
-            minimale_tevredenheid = self.generate_minimale_tevredenheid()
+        Returns
+        -------
+        list[StudentEntry]
+            The generated entries (also used for roster.json generation).
+        """
+        assert 1 <= num_students <= len(self.possible_students)
+        selected = self.possible_students[:num_students]
+        all_names = [name for name, _ in selected]
+        options = all_names + self.groups_to
+
+        entries = []
+        for name, sex in selected:
             stamgroep = random.choice(self.groups_from)
-            wishes = self.generate_wishes(name, total)
-            not_with = self.generate_not_with(name, total, wishes)
-            not_in = self.generate_not_in(self.groups_to, wishes, not_with)
+            prefs = self._generate_preferences(name, options)
+            excl = self._generate_excluded_groups(prefs)
+            entries.append(
+                StudentEntry(
+                    student=name,
+                    sex=sex,
+                    origin_group=stamgroep,
+                    min_satisfaction=self.generate_minimale_tevredenheid(),
+                    preferences=prefs,
+                    excluded_groups=excl,
+                )
+            )
 
-            row = [name, minimale_tevredenheid, gender, stamgroep]
-            for i in range(5):
-                row.extend(wishes[i] if i < len(wishes) else ["", ""])
-            return row + list(not_with) + not_in
+        if fname is not None:
+            all_to_groups = [matching_key(g) for g in self.groups_to]
+            preference_data = build_preference_data(entries, all_to_groups)
+            _write_voorkeuren_json(fname, preference_data)
 
-        rows = [build_row(name, gender) for name, gender in selected_students]
-
-        df = pd.concat([self.df_header, pd.DataFrame(rows)])
-        if fname:
-            df.to_excel(fname, index=False, header=False)
-        return df
+        return entries
 
 
-def generate_niet_samen(leerlingen: list, n_groups=4, n_rules=5) -> pd.DataFrame:
-    """Generate the not_together excel file"""
+def generate_not_together(
+    leerlingen: list[str], n_groups: int = 4, n_rules: int = 5
+) -> list[dict]:
+    """Generate random not-together rules as a JSON-serializable list.
+
+    Returns
+    -------
+    list of {"group": [str, ...], "Max_aantal_samen": int}
+        Ready to be written to ``not_together.json`` or passed to the solver.
+    """
     rules = []
     for _ in range(n_rules):
         n_children = random.randint(2, min(12, len(leerlingen)))
         group = random.sample(leerlingen, k=n_children)
-        rule = [math.ceil(n_children / n_groups), *group] + [np.nan] * (12 - n_children)
-        rules.append(rule)
-    cols = ["Max aantal samen"] + [f"Leerling {i}" for i in range(1, 13)]
-    df = pd.DataFrame(rules, columns=cols)
-    return df
+        rules.append(
+            {"group": group, "Max_aantal_samen": math.ceil(n_children / n_groups)}
+        )
+    return rules
 
 
-def main(n_groups=4, n_students=35, n_rules=5):
-    """Generate the three input files and write to testdata"""
-    edexgroupnames = [
-        "3-4-5 Dolfijnen (Leerkracht1 en Leerkracht2)",
-        "3-4-5 Panda's (Leerkracht1 en Leerkracht2)",
-        "3-4-5 Pinguins (Leerkracht1 en Leerkracht2)",
+# ---------------------------------------------------------------------------
+# Private helpers
+# ---------------------------------------------------------------------------
+
+
+def _write_voorkeuren_json(path: str, preference_data) -> None:
+    """Persist a PreferenceData as voorkeuren.json with source tag "testdata"."""
+    payload = json.loads(preference_data.to_json())
+    payload["source"] = "testdata"
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(payload, fh, ensure_ascii=False)
+
+
+def _build_roster_participants(entries: list[StudentEntry]) -> list[dict]:
+    """Convert StudentEntry objects to the roster participant dicts the app expects."""
+    return [
+        {
+            "key": matching_key(e.student),
+            "roepnaam": e.student,
+            "achternaam": "",
+            "geslacht": e.sex,
+            "groepsnaam": e.origin_group,
+        }
+        for e in entries
     ]
-    groups = generate_groups(n_groups, edexgroupnames)
-    groups.to_excel(os.path.join(FOLDER, "groepen_generated.xlsx"), index=False)
-    df_students_excel = PreferenceExcelGenerator(groups["Groepen"].tolist()).generate(
-        n_students
+
+
+# ---------------------------------------------------------------------------
+# Public: write a complete process directory
+# ---------------------------------------------------------------------------
+
+
+def main(n_groups: int = 4, n_students: int = 35, n_rules: int = 5, folder: str = None):
+    """Generate a full set of native process files and write them to ``folder``.
+
+    Parameters
+    ----------
+    n_groups : int
+        Number of destination groups (2–10).
+    n_students : int
+        Number of students to distribute (1–39).
+    n_rules : int
+        Number of not-together rules to generate.
+    folder : str or None
+        Output directory; defaults to ``testdata/``.
+    """
+    if folder is None:
+        folder = FOLDER
+    os.makedirs(folder, exist_ok=True)
+
+    groups_df = generate_groups(n_groups)
+    group_names = groups_df["Groepen"].tolist()
+
+    generator = NativePreferenceGenerator(groups_to=group_names)
+    entries = generator.generate(
+        num_students=n_students,
+        fname=os.path.join(folder, "voorkeuren.json"),
     )
-    leerlingen = df_students_excel[0].iloc[3:].tolist()
-    df_niet_samen = generate_niet_samen(leerlingen, n_groups=n_groups, n_rules=n_rules)
-    df_niet_samen.to_excel(
-        os.path.join(FOLDER, "niet_samen_generated.xlsx"), index=False
-    )
+
+    # groups.xlsx — same format read_groups_excel() expects
+    groups_df.to_excel(os.path.join(folder, "groups.xlsx"), index=False)
+
+    # not_together.json
+    leerlingen = [e.student for e in entries]
+    not_together = generate_not_together(leerlingen, n_groups, n_rules)
+    with open(os.path.join(folder, "not_together.json"), "w", encoding="utf-8") as fh:
+        json.dump(not_together, fh, ensure_ascii=False)
+
+    # roster.json — needed by the preferences form step
+    participants = _build_roster_participants(entries)
+    with open(os.path.join(folder, "roster.json"), "w", encoding="utf-8") as fh:
+        json.dump({"participants": participants}, fh, ensure_ascii=False)
+
+    # input_method.json — marks this process as form-based
+    with open(os.path.join(folder, "input_method.json"), "w", encoding="utf-8") as fh:
+        json.dump({"method": "form"}, fh, ensure_ascii=False)
+
+
+# ---------------------------------------------------------------------------
+# Utility
+# ---------------------------------------------------------------------------
 
 
 def generate_dataframe_function(df, function_name="get_expected_dataframe"):
-    """Generate a function that returns a DataFrame with the given data
+    """Generate a function that returns a DataFrame with the given data.
 
     Used to create expected DataFrames for tests.
     """
     data_dict = df.to_dict(orient="list")
 
-    # Replace NaN with np.nan in values
     def format_value(v):
         if isinstance(v, float) and math.isnan(v):
             return "np.nan"
         return repr(v)
 
-    # Format the data dict
     formatted_data = "{\n"
     for col, values in data_dict.items():
         formatted_list = ", ".join(format_value(v) for v in values)
         formatted_data += f"    {repr(col)}: [{formatted_list}],\n"
     formatted_data += "}"
 
-    # Handle custom index
     use_index = not isinstance(df.index, pd.RangeIndex)
     if use_index:
         index_vals = [format_value(i) for i in df.index.tolist()]
@@ -239,13 +325,11 @@ def generate_dataframe_function(df, function_name="get_expected_dataframe"):
     else:
         index_code = ""
 
-    # Handle column names
     if any(name is not None for name in df.columns.names):
         column_code = f"    df.columns.names = {repr(list(df.columns.names))}\n"
     else:
         column_code = ""
 
-    # Assemble function code
     code = f"""\
 def {function_name}():
     data = {formatted_data}
@@ -253,12 +337,6 @@ def {function_name}():
 {index_code}{column_code}    return df
 """
     return code
-
-    # Example usage:
-    # for name, df in result["dataframes"].items():
-    #     if isinstance(df, pd.io.formats.style.Styler):
-    #         df = df.data
-    #     print(generate_dataframe_function(df, f"get_expected_{name.lower()}_small"))
 
 
 if __name__ == "__main__":

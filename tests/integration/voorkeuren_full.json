@@ -1,0 +1,2269 @@
+{
+  "preferences": {
+    "index_names": [
+      "Leerling",
+      "TypeWens",
+      "Nr"
+    ],
+    "column_names": [
+      "TypeWaarde"
+    ],
+    "dtypes": {
+      "Leerling": "object",
+      "TypeWens": "object",
+      "Nr": "int64",
+      "Waarde": "object",
+      "Gewicht": "float64"
+    },
+    "records": [
+      {
+        "Leerling": "daan",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "jack",
+        "Gewicht": 2.0
+      },
+      {
+        "Leerling": "jack",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "daan",
+        "Gewicht": 2.0
+      },
+      {
+        "Leerling": "jack",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "david",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "jack",
+        "TypeWens": "Graag met",
+        "Nr": 3,
+        "Waarde": "bram",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "jack",
+        "TypeWens": "Graag met",
+        "Nr": 4,
+        "Waarde": "groen",
+        "Gewicht": 0.5
+      },
+      {
+        "Leerling": "jack",
+        "TypeWens": "Niet in",
+        "Nr": 1,
+        "Waarde": "blauw",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "anne",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "blauw",
+        "Gewicht": 1.5
+      },
+      {
+        "Leerling": "anne",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "esmee",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "anne",
+        "TypeWens": "Graag met",
+        "Nr": 3,
+        "Waarde": "nora",
+        "Gewicht": -1.5
+      },
+      {
+        "Leerling": "bram",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "geel",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "bram",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "eline",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "bram",
+        "TypeWens": "Graag met",
+        "Nr": 3,
+        "Waarde": "jack",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "bram",
+        "TypeWens": "Graag met",
+        "Nr": 4,
+        "Waarde": "david",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "bram",
+        "TypeWens": "Graag met",
+        "Nr": 5,
+        "Waarde": "anne",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "bram",
+        "TypeWens": "Graag met",
+        "Nr": 6,
+        "Waarde": "daan",
+        "Gewicht": -1.0
+      },
+      {
+        "Leerling": "esmee",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "blauw",
+        "Gewicht": 1.5
+      },
+      {
+        "Leerling": "esmee",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "bram",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "julian",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "blauw",
+        "Gewicht": 1.5
+      },
+      {
+        "Leerling": "julian",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "bram",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "julian",
+        "TypeWens": "Graag met",
+        "Nr": 3,
+        "Waarde": "cas",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "cas",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "david",
+        "Gewicht": 2.0
+      },
+      {
+        "Leerling": "cas",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "jack",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "eline",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "geel",
+        "Gewicht": 2.0
+      },
+      {
+        "Leerling": "eline",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "anne",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "eline",
+        "TypeWens": "Graag met",
+        "Nr": 3,
+        "Waarde": "fenna",
+        "Gewicht": 1.5
+      },
+      {
+        "Leerling": "eline",
+        "TypeWens": "Graag met",
+        "Nr": 4,
+        "Waarde": "sophie",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "david",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "cas",
+        "Gewicht": 2.0
+      },
+      {
+        "Leerling": "david",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "jack",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "david",
+        "TypeWens": "Niet in",
+        "Nr": 1,
+        "Waarde": "geel",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "anneclaire",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "naomi",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "anneclaire",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "lynn",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "anneclaire",
+        "TypeWens": "Graag met",
+        "Nr": 3,
+        "Waarde": "blauw",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "julia",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "zoe",
+        "Gewicht": 5.0
+      },
+      {
+        "Leerling": "julia",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "blauw",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "lucas",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "david",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "lucas",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "geel",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "lucas",
+        "TypeWens": "Graag met",
+        "Nr": 3,
+        "Waarde": "blauw",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "lucas",
+        "TypeWens": "Niet in",
+        "Nr": 1,
+        "Waarde": "groen",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "jurre",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "tijn",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "jurre",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "jack",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "jurre",
+        "TypeWens": "Graag met",
+        "Nr": 3,
+        "Waarde": "lucas",
+        "Gewicht": -1.0
+      },
+      {
+        "Leerling": "naomi",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "anneclaire",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "naomi",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "oranje",
+        "Gewicht": -1.0
+      },
+      {
+        "Leerling": "jayden",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "vera",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "jayden",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "livb.",
+        "Gewicht": 1.5
+      },
+      {
+        "Leerling": "jayden",
+        "TypeWens": "Graag met",
+        "Nr": 3,
+        "Waarde": "oranje",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "jayden",
+        "TypeWens": "Graag met",
+        "Nr": 4,
+        "Waarde": "max",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "benjamin",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "mats",
+        "Gewicht": 1.5
+      },
+      {
+        "Leerling": "benjamin",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "max",
+        "Gewicht": 1.5
+      },
+      {
+        "Leerling": "lotte",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "groen",
+        "Gewicht": 2.0
+      },
+      {
+        "Leerling": "lotte",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "liva.",
+        "Gewicht": 1.5
+      },
+      {
+        "Leerling": "lotte",
+        "TypeWens": "Graag met",
+        "Nr": 3,
+        "Waarde": "vera",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "amy",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "livb.",
+        "Gewicht": 1.5
+      },
+      {
+        "Leerling": "amy",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "lotte",
+        "Gewicht": 1.5
+      },
+      {
+        "Leerling": "amy",
+        "TypeWens": "Graag met",
+        "Nr": 3,
+        "Waarde": "mats",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "amy",
+        "TypeWens": "Graag met",
+        "Nr": 4,
+        "Waarde": "geel",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "amy",
+        "TypeWens": "Niet in",
+        "Nr": 1,
+        "Waarde": "oranje",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "mats",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "blauw",
+        "Gewicht": 1.5
+      },
+      {
+        "Leerling": "mats",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "vera",
+        "Gewicht": 1.5
+      },
+      {
+        "Leerling": "mats",
+        "TypeWens": "Graag met",
+        "Nr": 3,
+        "Waarde": "amy",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "mats",
+        "TypeWens": "Graag met",
+        "Nr": 4,
+        "Waarde": "benjamin",
+        "Gewicht": 1.5
+      },
+      {
+        "Leerling": "mats",
+        "TypeWens": "Graag met",
+        "Nr": 5,
+        "Waarde": "geel",
+        "Gewicht": 1.5
+      },
+      {
+        "Leerling": "mats",
+        "TypeWens": "Niet in",
+        "Nr": 1,
+        "Waarde": "groen",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "liva.",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "vera",
+        "Gewicht": 1.5
+      },
+      {
+        "Leerling": "liva.",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "lotte",
+        "Gewicht": 1.5
+      },
+      {
+        "Leerling": "liva.",
+        "TypeWens": "Graag met",
+        "Nr": 3,
+        "Waarde": "livb.",
+        "Gewicht": 1.5
+      },
+      {
+        "Leerling": "liva.",
+        "TypeWens": "Graag met",
+        "Nr": 4,
+        "Waarde": "nora",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "livb.",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "amy",
+        "Gewicht": 1.5
+      },
+      {
+        "Leerling": "livb.",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "liva.",
+        "Gewicht": 1.5
+      },
+      {
+        "Leerling": "livb.",
+        "TypeWens": "Graag met",
+        "Nr": 3,
+        "Waarde": "vera",
+        "Gewicht": 1.5
+      },
+      {
+        "Leerling": "livb.",
+        "TypeWens": "Graag met",
+        "Nr": 4,
+        "Waarde": "geel",
+        "Gewicht": 1.5
+      },
+      {
+        "Leerling": "livb.",
+        "TypeWens": "Niet in",
+        "Nr": 1,
+        "Waarde": "blauw",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "max",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "geel",
+        "Gewicht": 1.5
+      },
+      {
+        "Leerling": "max",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "mats",
+        "Gewicht": 1.5
+      },
+      {
+        "Leerling": "max",
+        "TypeWens": "Graag met",
+        "Nr": 3,
+        "Waarde": "livb.",
+        "Gewicht": 1.5
+      },
+      {
+        "Leerling": "max",
+        "TypeWens": "Graag met",
+        "Nr": 4,
+        "Waarde": "jayden",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "max",
+        "TypeWens": "Niet in",
+        "Nr": 1,
+        "Waarde": "groen",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "nora",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "lotte",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "nora",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "liva.",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "nora",
+        "TypeWens": "Graag met",
+        "Nr": 3,
+        "Waarde": "groen",
+        "Gewicht": 2.0
+      },
+      {
+        "Leerling": "vera",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "groen",
+        "Gewicht": 2.0
+      },
+      {
+        "Leerling": "vera",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "liva.",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "vera",
+        "TypeWens": "Graag met",
+        "Nr": 3,
+        "Waarde": "livb.",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "tijn",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "siemx.",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "tijn",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "julia",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "tijn",
+        "TypeWens": "Niet in",
+        "Nr": 1,
+        "Waarde": "geel",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "lynn",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "nora",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "lynn",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "anneclaire",
+        "Gewicht": -1.0
+      },
+      {
+        "Leerling": "zoe",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "julia",
+        "Gewicht": 5.0
+      },
+      {
+        "Leerling": "zoe",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "siemx.",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "zoe",
+        "TypeWens": "Graag met",
+        "Nr": 3,
+        "Waarde": "tijn",
+        "Gewicht": 0.5
+      },
+      {
+        "Leerling": "adam",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "blauw",
+        "Gewicht": 3.0
+      },
+      {
+        "Leerling": "adam",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "siemx.",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "adam",
+        "TypeWens": "Graag met",
+        "Nr": 3,
+        "Waarde": "jurre",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "lois",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "anneclaire",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "siemx.",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "tijn",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "siemx.",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "zoe",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "siemx.",
+        "TypeWens": "Graag met",
+        "Nr": 3,
+        "Waarde": "adam",
+        "Gewicht": -1.0
+      },
+      {
+        "Leerling": "siemx.",
+        "TypeWens": "Niet in",
+        "Nr": 1,
+        "Waarde": "oranje",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "noor",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "blauw",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "noor",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "zoe",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "noor",
+        "TypeWens": "Graag met",
+        "Nr": 3,
+        "Waarde": "julia",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "noor",
+        "TypeWens": "Graag met",
+        "Nr": 4,
+        "Waarde": "oranje",
+        "Gewicht": -1.0
+      },
+      {
+        "Leerling": "jill",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "sophie",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "jill",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "feline",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "nina",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "sophie",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "nina",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "feline",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "nina",
+        "TypeWens": "Graag met",
+        "Nr": 3,
+        "Waarde": "groen",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "nina",
+        "TypeWens": "Graag met",
+        "Nr": 4,
+        "Waarde": "geel",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "sophie",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "feline",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "sophie",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "jill",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "sophie",
+        "TypeWens": "Niet in",
+        "Nr": 1,
+        "Waarde": "oranje",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "siemy.",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "groen",
+        "Gewicht": 1.5
+      },
+      {
+        "Leerling": "siemy.",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "sven",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "siemy.",
+        "TypeWens": "Graag met",
+        "Nr": 3,
+        "Waarde": "lars",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "feline",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "sophie",
+        "Gewicht": 1.5
+      },
+      {
+        "Leerling": "feline",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "nina",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "feline",
+        "TypeWens": "Graag met",
+        "Nr": 3,
+        "Waarde": "iris",
+        "Gewicht": 0.5
+      },
+      {
+        "Leerling": "fenna",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "eline",
+        "Gewicht": 2.0
+      },
+      {
+        "Leerling": "fenna",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "jill",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "fenna",
+        "TypeWens": "Graag met",
+        "Nr": 3,
+        "Waarde": "sophie",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "fenna",
+        "TypeWens": "Graag met",
+        "Nr": 4,
+        "Waarde": "geel",
+        "Gewicht": 0.5
+      },
+      {
+        "Leerling": "sven",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "siemy.",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "sven",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "lars",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "sven",
+        "TypeWens": "Graag met",
+        "Nr": 3,
+        "Waarde": "blauw",
+        "Gewicht": -2.0
+      },
+      {
+        "Leerling": "sven",
+        "TypeWens": "Niet in",
+        "Nr": 1,
+        "Waarde": "groen",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "anna",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "emily",
+        "Gewicht": 5.0
+      },
+      {
+        "Leerling": "anna",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "livb.",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "anna",
+        "TypeWens": "Graag met",
+        "Nr": 3,
+        "Waarde": "amy",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "anna",
+        "TypeWens": "Graag met",
+        "Nr": 4,
+        "Waarde": "geel",
+        "Gewicht": -1.0
+      },
+      {
+        "Leerling": "emily",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "anna",
+        "Gewicht": 5.0
+      },
+      {
+        "Leerling": "emily",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "livb.",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "emily",
+        "TypeWens": "Graag met",
+        "Nr": 3,
+        "Waarde": "amy",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "stijn",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "sven",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "stijn",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "siemy.",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "stijn",
+        "TypeWens": "Graag met",
+        "Nr": 3,
+        "Waarde": "lars",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "stijn",
+        "TypeWens": "Graag met",
+        "Nr": 4,
+        "Waarde": "groen",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "lars",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "siemy.",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "lars",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "sven",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "lars",
+        "TypeWens": "Graag met",
+        "Nr": 3,
+        "Waarde": "stijn",
+        "Gewicht": -0.5
+      },
+      {
+        "Leerling": "iris",
+        "TypeWens": "Graag met",
+        "Nr": 1,
+        "Waarde": "feline",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "iris",
+        "TypeWens": "Graag met",
+        "Nr": 2,
+        "Waarde": "anna",
+        "Gewicht": 1.0
+      },
+      {
+        "Leerling": "iris",
+        "TypeWens": "Graag met",
+        "Nr": 3,
+        "Waarde": "jill",
+        "Gewicht": 1.0
+      }
+    ]
+  },
+  "students_info": {
+    "daan": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Jongen",
+      "Stamgroep": "tovertuin"
+    },
+    "jack": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Jongen",
+      "Stamgroep": "tovertuin"
+    },
+    "anne": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Meisje",
+      "Stamgroep": "tovertuin"
+    },
+    "bram": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Jongen",
+      "Stamgroep": "tovertuin"
+    },
+    "esmee": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Meisje",
+      "Stamgroep": "tovertuin"
+    },
+    "julian": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Jongen",
+      "Stamgroep": "tovertuin"
+    },
+    "cas": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Jongen",
+      "Stamgroep": "tovertuin"
+    },
+    "eline": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Meisje",
+      "Stamgroep": "tovertuin"
+    },
+    "david": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Jongen",
+      "Stamgroep": "tovertuin"
+    },
+    "anneclaire": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Meisje",
+      "Stamgroep": "kaboutertuin"
+    },
+    "julia": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Meisje",
+      "Stamgroep": "kaboutertuin"
+    },
+    "lucas": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Jongen",
+      "Stamgroep": "kaboutertuin"
+    },
+    "jurre": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Jongen",
+      "Stamgroep": "kaboutertuin"
+    },
+    "naomi": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Meisje",
+      "Stamgroep": "kaboutertuin"
+    },
+    "jayden": {
+      "MinimaleTevredenheid": 0.5,
+      "Jongen/meisje": "Jongen",
+      "Stamgroep": "torteltuin"
+    },
+    "benjamin": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Jongen",
+      "Stamgroep": "torteltuin"
+    },
+    "lotte": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Meisje",
+      "Stamgroep": "torteltuin"
+    },
+    "amy": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Meisje",
+      "Stamgroep": "torteltuin"
+    },
+    "mats": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Jongen",
+      "Stamgroep": "torteltuin"
+    },
+    "liva.": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Meisje",
+      "Stamgroep": "torteltuin"
+    },
+    "livb.": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Meisje",
+      "Stamgroep": "torteltuin"
+    },
+    "max": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Jongen",
+      "Stamgroep": "torteltuin"
+    },
+    "nora": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Meisje",
+      "Stamgroep": "torteltuin"
+    },
+    "vera": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Meisje",
+      "Stamgroep": "torteltuin"
+    },
+    "tijn": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Jongen",
+      "Stamgroep": "kaboutertuin"
+    },
+    "lynn": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Meisje",
+      "Stamgroep": "kaboutertuin"
+    },
+    "zoe": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Meisje",
+      "Stamgroep": "kaboutertuin"
+    },
+    "adam": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Jongen",
+      "Stamgroep": "kaboutertuin"
+    },
+    "lois": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Meisje",
+      "Stamgroep": "kaboutertuin"
+    },
+    "siemx.": {
+      "MinimaleTevredenheid": 0.5,
+      "Jongen/meisje": "Jongen",
+      "Stamgroep": "kaboutertuin"
+    },
+    "noor": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Meisje",
+      "Stamgroep": "kaboutertuin"
+    },
+    "jill": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Meisje",
+      "Stamgroep": "vlindertuin"
+    },
+    "nina": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Meisje",
+      "Stamgroep": "vlindertuin"
+    },
+    "sophie": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Meisje",
+      "Stamgroep": "vlindertuin"
+    },
+    "siemy.": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Jongen",
+      "Stamgroep": "vlindertuin"
+    },
+    "feline": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Meisje",
+      "Stamgroep": "vlindertuin"
+    },
+    "fenna": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Meisje",
+      "Stamgroep": "vlindertuin"
+    },
+    "sven": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Jongen",
+      "Stamgroep": "vlindertuin"
+    },
+    "anna": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Meisje",
+      "Stamgroep": "vlindertuin"
+    },
+    "emily": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Meisje",
+      "Stamgroep": "vlindertuin"
+    },
+    "stijn": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Jongen",
+      "Stamgroep": "vlindertuin"
+    },
+    "lars": {
+      "MinimaleTevredenheid": NaN,
+      "Jongen/meisje": "Jongen",
+      "Stamgroep": "vlindertuin"
+    },
+    "iris": {
+      "MinimaleTevredenheid": 0.5,
+      "Jongen/meisje": "Meisje",
+      "Stamgroep": "vlindertuin"
+    }
+  },
+  "student_display": {
+    "daan": "Daan",
+    "jack": "Jack",
+    "anne": "Anne",
+    "bram": "Bram",
+    "esmee": "Esmee",
+    "julian": "Julian",
+    "cas": "Cas",
+    "eline": "Eline",
+    "david": "David",
+    "anneclaire": "Anne Claire",
+    "julia": "Julia",
+    "lucas": "Lucas",
+    "jurre": "Jurre",
+    "naomi": "Naomi",
+    "jayden": "Jayden",
+    "benjamin": "Benjamin",
+    "lotte": "Lotte",
+    "amy": "Amy",
+    "mats": "Mats",
+    "liva.": "Liv A.",
+    "livb.": "Liv B.",
+    "max": "Max",
+    "nora": "Nora",
+    "vera": "Vera",
+    "tijn": "Tijn",
+    "lynn": "Lynn",
+    "zoe": "Zoe",
+    "adam": "Adam",
+    "lois": "Lois",
+    "siemx.": "Siem X.",
+    "noor": "Noor",
+    "jill": "Jill",
+    "nina": "Nina",
+    "sophie": "Sophie",
+    "siemy.": "Siem Y.",
+    "feline": "Feline",
+    "fenna": "Fenna",
+    "sven": "Sven",
+    "anna": "Anna",
+    "emily": "Emily",
+    "stijn": "Stijn",
+    "lars": "Lars",
+    "iris": "Iris"
+  },
+  "stamgroep_display": {
+    "tovertuin": "Tovertuin",
+    "kaboutertuin": "Kaboutertuin",
+    "torteltuin": "Torteltuin",
+    "vlindertuin": "Vlindertuin"
+  },
+  "input_sheet": {
+    "index": [
+      "daan",
+      "jack",
+      "anne",
+      "bram",
+      "esmee",
+      "julian",
+      "cas",
+      "eline",
+      "david",
+      "anneclaire",
+      "julia",
+      "lucas",
+      "jurre",
+      "naomi",
+      "jayden",
+      "benjamin",
+      "lotte",
+      "amy",
+      "mats",
+      "liva.",
+      "livb.",
+      "max",
+      "nora",
+      "vera",
+      "tijn",
+      "lynn",
+      "zoe",
+      "adam",
+      "lois",
+      "siemx.",
+      "noor",
+      "jill",
+      "nina",
+      "sophie",
+      "siemy.",
+      "feline",
+      "fenna",
+      "sven",
+      "anna",
+      "emily",
+      "stijn",
+      "lars",
+      "iris"
+    ],
+    "index_name": "Leerling",
+    "columns": [
+      [
+        "MinimaleTevredenheid",
+        NaN,
+        NaN
+      ],
+      [
+        "Jongen/meisje",
+        NaN,
+        NaN
+      ],
+      [
+        "Stamgroep",
+        NaN,
+        NaN
+      ],
+      [
+        "Graag met",
+        1.0,
+        "Waarde"
+      ],
+      [
+        "Graag met",
+        1.0,
+        "Gewicht"
+      ],
+      [
+        "Graag met",
+        2.0,
+        "Waarde"
+      ],
+      [
+        "Graag met",
+        2.0,
+        "Gewicht"
+      ],
+      [
+        "Graag met",
+        3.0,
+        "Waarde"
+      ],
+      [
+        "Graag met",
+        3.0,
+        "Gewicht"
+      ],
+      [
+        "Graag met",
+        4.0,
+        "Waarde"
+      ],
+      [
+        "Graag met",
+        4.0,
+        "Gewicht"
+      ],
+      [
+        "Graag met",
+        5.0,
+        "Waarde"
+      ],
+      [
+        "Graag met",
+        5.0,
+        "Gewicht"
+      ],
+      [
+        "Liever niet met",
+        1.0,
+        "Waarde"
+      ],
+      [
+        "Liever niet met",
+        1.0,
+        "Gewicht"
+      ],
+      [
+        "Niet in",
+        1.0,
+        "Waarde"
+      ],
+      [
+        "Niet in",
+        2.0,
+        "Waarde"
+      ]
+    ],
+    "column_names": [
+      "TypeWens",
+      "Nr",
+      "TypeWaarde"
+    ],
+    "data": [
+      [
+        NaN,
+        "Jongen",
+        "tovertuin",
+        "jack",
+        2.0,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN
+      ],
+      [
+        NaN,
+        "Jongen",
+        "tovertuin",
+        "daan",
+        2.0,
+        "david",
+        1.0,
+        "bram",
+        1.0,
+        "groen",
+        0.5,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        "blauw",
+        NaN
+      ],
+      [
+        NaN,
+        "Meisje",
+        "tovertuin",
+        "blauw",
+        1.5,
+        "esmee",
+        1.0,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        "nora",
+        1.5,
+        NaN,
+        NaN
+      ],
+      [
+        NaN,
+        "Jongen",
+        "tovertuin",
+        "geel",
+        1.0,
+        "eline",
+        1.0,
+        "jack",
+        1.0,
+        "david",
+        1.0,
+        "anne",
+        1.0,
+        "daan",
+        1.0,
+        NaN,
+        NaN
+      ],
+      [
+        NaN,
+        "Meisje",
+        "tovertuin",
+        "blauw",
+        1.5,
+        "bram",
+        1.0,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN
+      ],
+      [
+        NaN,
+        "Jongen",
+        "tovertuin",
+        "blauw",
+        1.5,
+        "bram",
+        1.0,
+        "cas",
+        1.0,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN
+      ],
+      [
+        NaN,
+        "Jongen",
+        "tovertuin",
+        "david",
+        2.0,
+        "jack",
+        1.0,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN
+      ],
+      [
+        NaN,
+        "Meisje",
+        "tovertuin",
+        "geel",
+        2.0,
+        "anne",
+        1.0,
+        "fenna",
+        1.5,
+        "sophie",
+        1.0,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN
+      ],
+      [
+        NaN,
+        "Jongen",
+        "tovertuin",
+        "cas",
+        2.0,
+        "jack",
+        1.0,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        "geel",
+        NaN
+      ],
+      [
+        NaN,
+        "Meisje",
+        "kaboutertuin",
+        "naomi",
+        NaN,
+        "lynn",
+        NaN,
+        "blauw",
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN
+      ],
+      [
+        NaN,
+        "Meisje",
+        "kaboutertuin",
+        "zoe",
+        5.0,
+        "blauw",
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN
+      ],
+      [
+        NaN,
+        "Jongen",
+        "kaboutertuin",
+        "david",
+        NaN,
+        "geel",
+        NaN,
+        "blauw",
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        "groen",
+        NaN
+      ],
+      [
+        NaN,
+        "Jongen",
+        "kaboutertuin",
+        "tijn",
+        NaN,
+        "jack",
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        "lucas",
+        NaN,
+        NaN,
+        NaN
+      ],
+      [
+        NaN,
+        "Meisje",
+        "kaboutertuin",
+        "anneclaire",
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        "oranje",
+        NaN,
+        NaN,
+        NaN
+      ],
+      [
+        0.5,
+        "Jongen",
+        "torteltuin",
+        "vera",
+        1.0,
+        "livb.",
+        1.5,
+        "oranje",
+        NaN,
+        "max",
+        1.0,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN
+      ],
+      [
+        NaN,
+        "Jongen",
+        "torteltuin",
+        "mats",
+        1.5,
+        "max",
+        1.5,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN
+      ],
+      [
+        NaN,
+        "Meisje",
+        "torteltuin",
+        "groen",
+        2.0,
+        "liva.",
+        1.5,
+        "vera",
+        1.0,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN
+      ],
+      [
+        NaN,
+        "Meisje",
+        "torteltuin",
+        "livb.",
+        1.5,
+        "lotte",
+        1.5,
+        "mats",
+        1.0,
+        "geel",
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        "oranje",
+        NaN
+      ],
+      [
+        NaN,
+        "Jongen",
+        "torteltuin",
+        "blauw",
+        1.5,
+        "vera",
+        1.5,
+        "amy",
+        1.0,
+        "benjamin",
+        1.5,
+        "geel",
+        1.5,
+        NaN,
+        NaN,
+        "groen",
+        NaN
+      ],
+      [
+        NaN,
+        "Meisje",
+        "torteltuin",
+        "vera",
+        1.5,
+        "lotte",
+        1.5,
+        "livb.",
+        1.5,
+        "nora",
+        1.0,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN
+      ],
+      [
+        NaN,
+        "Meisje",
+        "torteltuin",
+        "amy",
+        1.5,
+        "liva.",
+        1.5,
+        "vera",
+        1.5,
+        "geel",
+        1.5,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        "blauw",
+        NaN
+      ],
+      [
+        NaN,
+        "Jongen",
+        "torteltuin",
+        "geel",
+        1.5,
+        "mats",
+        1.5,
+        "livb.",
+        1.5,
+        "jayden",
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        "groen",
+        NaN
+      ],
+      [
+        NaN,
+        "Meisje",
+        "torteltuin",
+        "lotte",
+        1.0,
+        "liva.",
+        1.0,
+        "groen",
+        2.0,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN
+      ],
+      [
+        NaN,
+        "Meisje",
+        "torteltuin",
+        "groen",
+        2.0,
+        "liva.",
+        1.0,
+        "livb.",
+        1.0,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN
+      ],
+      [
+        NaN,
+        "Jongen",
+        "kaboutertuin",
+        "siemx.",
+        NaN,
+        "julia",
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        "geel",
+        NaN
+      ],
+      [
+        NaN,
+        "Meisje",
+        "kaboutertuin",
+        "nora",
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        "anneclaire",
+        NaN,
+        NaN,
+        NaN
+      ],
+      [
+        NaN,
+        "Meisje",
+        "kaboutertuin",
+        "julia",
+        5.0,
+        "siemx.",
+        1.0,
+        "tijn",
+        0.5,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN
+      ],
+      [
+        NaN,
+        "Jongen",
+        "kaboutertuin",
+        "blauw",
+        3.0,
+        "siemx.",
+        NaN,
+        "jurre",
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN
+      ],
+      [
+        NaN,
+        "Meisje",
+        "kaboutertuin",
+        "anneclaire",
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN
+      ],
+      [
+        0.5,
+        "Jongen",
+        "kaboutertuin",
+        "tijn",
+        NaN,
+        "zoe",
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        "adam",
+        NaN,
+        "oranje",
+        NaN
+      ],
+      [
+        NaN,
+        "Meisje",
+        "kaboutertuin",
+        "blauw",
+        NaN,
+        "zoe",
+        NaN,
+        "julia",
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        "oranje",
+        NaN,
+        NaN,
+        NaN
+      ],
+      [
+        NaN,
+        "Meisje",
+        "vlindertuin",
+        "sophie",
+        NaN,
+        "feline",
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN
+      ],
+      [
+        NaN,
+        "Meisje",
+        "vlindertuin",
+        "sophie",
+        NaN,
+        "feline",
+        NaN,
+        "groen",
+        NaN,
+        "geel",
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN
+      ],
+      [
+        NaN,
+        "Meisje",
+        "vlindertuin",
+        "feline",
+        NaN,
+        "jill",
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        "oranje",
+        NaN
+      ],
+      [
+        NaN,
+        "Jongen",
+        "vlindertuin",
+        "groen",
+        1.5,
+        "sven",
+        NaN,
+        "lars",
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN
+      ],
+      [
+        NaN,
+        "Meisje",
+        "vlindertuin",
+        "sophie",
+        1.5,
+        "nina",
+        NaN,
+        "iris",
+        0.5,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN
+      ],
+      [
+        NaN,
+        "Meisje",
+        "vlindertuin",
+        "eline",
+        2.0,
+        "jill",
+        NaN,
+        "sophie",
+        NaN,
+        "geel",
+        0.5,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN
+      ],
+      [
+        NaN,
+        "Jongen",
+        "vlindertuin",
+        "siemy.",
+        NaN,
+        "lars",
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        "blauw",
+        2.0,
+        "groen",
+        NaN
+      ],
+      [
+        NaN,
+        "Meisje",
+        "vlindertuin",
+        "emily",
+        5.0,
+        "livb.",
+        NaN,
+        "amy",
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        "geel",
+        NaN,
+        NaN,
+        NaN
+      ],
+      [
+        NaN,
+        "Meisje",
+        "vlindertuin",
+        "anna",
+        5.0,
+        "livb.",
+        NaN,
+        "amy",
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN
+      ],
+      [
+        NaN,
+        "Jongen",
+        "vlindertuin",
+        "sven",
+        NaN,
+        "siemy.",
+        NaN,
+        "lars",
+        NaN,
+        "groen",
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN
+      ],
+      [
+        NaN,
+        "Jongen",
+        "vlindertuin",
+        "siemy.",
+        NaN,
+        "sven",
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        "stijn",
+        0.5,
+        NaN,
+        NaN
+      ],
+      [
+        0.5,
+        "Meisje",
+        "vlindertuin",
+        "feline",
+        NaN,
+        "anna",
+        NaN,
+        "jill",
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN,
+        NaN
+      ]
+    ],
+    "dtypes": [
+      "float64",
+      "object",
+      "object",
+      "object",
+      "float64",
+      "object",
+      "float64",
+      "object",
+      "float64",
+      "object",
+      "float64",
+      "object",
+      "float64",
+      "object",
+      "float64",
+      "object",
+      "float64"
+    ]
+  },
+  "source": "xlsx"
+}

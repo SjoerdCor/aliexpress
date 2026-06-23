@@ -7,6 +7,7 @@ group-placement tables are checked on their structure and respected class balanc
 than cell-by-cell. The per-student satisfaction - the actual optimization objective - is
 uniquely determined and is asserted in full."""
 
+import json
 import re
 
 import pandas as pd
@@ -366,6 +367,81 @@ def test_distribute_students_from_json_matches_xlsx():
             _dataframe(from_xlsx["dataframes"][key]),
             _dataframe(from_json["dataframes"][key]),
         )
+
+
+def _load_native_scenario(json_path, groups_path, not_together_path):
+    """Load a native-format scenario: voorkeuren.json + groups.xlsx + not_together.json.
+
+    This mirrors exactly what the wizard's start_distribution route does in production,
+    so these helpers exercise the live code path rather than a test-only shortcut.
+    """
+    with open(json_path, encoding="utf-8") as fh:
+        payload = json.load(fh)
+    preference_data = PreferenceData.from_json(json.dumps(payload))
+
+    target_groups = datareader.read_groups_excel(groups_path)
+
+    with open(not_together_path, encoding="utf-8") as fh:
+        raw = json.load(fh)
+    not_together = [
+        {"group": set(r["group"]), "Max_aantal_samen": r["Max_aantal_samen"]}
+        for r in raw
+    ]
+    return preference_data, target_groups, not_together
+
+
+def test_distribute_from_native_files_small():
+    """Small scenario run from native files (voorkeuren_small.json + not_together_small.json).
+
+    Proves the native-file path is lossless: same input data, same satisfaction table as
+    the xlsx-driven test.
+    """
+    preference_data, target_groups, not_together = _load_native_scenario(
+        "tests/integration/voorkeuren_small.json",
+        "tests/integration/groepen_small.xlsx",
+        "tests/integration/not_together_small.json",
+    )
+
+    result = distribute_students_from_data(
+        preference_data,
+        target_groups,
+        not_together=not_together,
+        on_update=lambda msg: None,
+        groupbalance=GroupBalance(max_imbalance_boys_girls_total=7),
+    )
+
+    dfs = _tables(result)
+    tevr, _, _ = _assert_consistency(dfs, {"Beren", "Otters"}, {"A", "B", "D"})
+    _assert_satisfaction(tevr, _SMALL_SATISFACTION)
+
+
+def test_distribute_from_native_files_full():
+    """Full scenario run from native files (voorkeuren_full.json + not_together_full.json).
+
+    Same assertion as test_distribute_students_once_happy_flow_full: the native path
+    and the xlsx path must produce identical satisfaction values.
+    """
+    preference_data, target_groups, not_together = _load_native_scenario(
+        "tests/integration/voorkeuren_full.json",
+        "tests/integration/groepen.xlsx",
+        "tests/integration/not_together_full.json",
+    )
+
+    result = distribute_students_from_data(
+        preference_data,
+        target_groups,
+        not_together=not_together,
+        on_update=lambda msg: None,
+    )
+
+    dfs = _tables(result)
+    tevr, _, _ = _assert_consistency(
+        dfs,
+        {"Blauw", "Geel", "Groen", "Oranje"},
+        {"Kaboutertuin", "Torteltuin", "Tovertuin", "Vlindertuin"},
+    )
+    _assert_satisfaction(tevr, _FULL_SATISFACTION)
+    assert (tevr["Tevredenheid"] > 0).all()
 
 
 def test_solver_stacks_duplicate_group_preferences():

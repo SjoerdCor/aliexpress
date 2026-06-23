@@ -1,0 +1,29 @@
+[
+  {
+    "group": [
+      "Daan",
+      "Anne"
+    ],
+    "Max_aantal_samen": 1
+  },
+  {
+    "group": [
+      "Noor",
+      "Naomi"
+    ],
+    "Max_aantal_samen": 1
+  },
+  {
+    "group": [
+      "Stijn",
+      "Cas",
+      "David",
+      "Adam",
+      "Julian",
+      "Jurre",
+      "Tijn",
+      "Jayden"
+    ],
+    "Max_aantal_samen": 3
+  }
+]
