@@ -664,9 +664,10 @@ def upload_preferences():
 def _handle_pref_form_post(participants, all_groups_to, state_path, voorkeuren_path):
     """Process a POST to /preferences_form and return the response to send.
 
-    Three actions: ``autosave`` saves only the draft (best effort, no validation); the
-    others build and persist ``voorkeuren.json`` and then navigate. Validation errors are
-    flashed and the form re-rendered — the draft is already saved, so nothing is lost.
+    Two actions: ``autosave`` saves only the draft (best effort, no validation — used by the
+    modal's "Opslaan"); otherwise (``volgende``) build and persist ``voorkeuren.json`` and
+    navigate. Validation errors are flashed and the form re-rendered — the draft is already
+    saved, so nothing is lost.
     """
     if request.form.get("action") == "autosave":
         # Best-effort background save of the draft only (never voorkeuren.json, never
@@ -682,9 +683,6 @@ def _handle_pref_form_post(participants, all_groups_to, state_path, voorkeuren_p
         _flash_upload_error(exc)
         return redirect(url_for("wizard.preferences_form"))
     _write_voorkeuren_json(voorkeuren_path, preference_data, source="form")
-    if request.form.get("action") == "opslaan":
-        flash("Voorkeuren tussentijds opgeslagen.", "success")
-        return redirect(url_for("wizard.preferences_form"))
     return redirect(url_for("wizard.not_together_page"))
 
 
@@ -744,6 +742,7 @@ def preferences_form():
         target_groups=all_groups_to,
         group_display=group_display,
         draft_state=draft_state,
+        short_names=candidatedetermination.unique_display_names(participants),
     )
 
 
