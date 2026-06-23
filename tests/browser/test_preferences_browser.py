@@ -24,6 +24,9 @@ def _open_preferences(live_server, tmp_path, page):
     (proc / "roster.json").write_text(
         json.dumps({"participants": []}), encoding="utf-8"
     )
+    (proc / "input_method.json").write_text(
+        json.dumps({"method": "excel"}), encoding="utf-8"
+    )
     with app.app_context():
         flask_db.session.add(Process(school_id=TEST_SCHOOLCODE, name="browsertest"))
         flask_db.session.commit()
