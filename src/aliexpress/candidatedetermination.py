@@ -74,6 +74,20 @@ def students_df_from_records(students: list[dict]) -> pd.DataFrame:
     return students_df(pd.DataFrame(students))
 
 
+def unique_display_names(students: list[dict]) -> dict[str, str]:
+    """Map each participant's full display name (``roepnaam achternaam``) to a short unique
+    name (``roepnaam`` plus as few surname letters as needed to stay unique).
+
+    Display-only: the full name remains the stored, matched identity (see ADR 0007); this
+    just gives the overview a shorter, still-unambiguous label.
+    """
+    uniek = create_unique_name(pd.DataFrame(students).copy())
+    return {
+        f"{s['roepnaam']} {s['achternaam']}": uniek.iloc[i]
+        for i, s in enumerate(students)
+    }
+
+
 def create_unique_name(df: pd.DataFrame) -> pd.Series:
     """Find a unique display name per leerling, from roepnaam and achternaam.
 

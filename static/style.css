@@ -1062,6 +1062,12 @@ table.dataframe th {
     margin-left: 0.4rem;
 }
 
+/* The display rule above overrides the [hidden] attribute, so restore hiding (the pills
+   only appear once the chip is clicked — see the same gotcha for .new-student-edit). */
+.chip-pills[hidden] {
+    display: none;
+}
+
 .chip-pills-caption {
     font-size: 0.8em;
     color: #555;
@@ -1254,3 +1260,123 @@ table.dataframe th {
     padding: 0.6rem 0.9rem;
     margin-bottom: 1rem;
 }
+
+/* ── Preferences overview: flat class headers + read-only rows + edit modal ──────
+   Each pupil is a compact read-only row; clicking it promotes that pupil's hidden
+   editor to an overlay modal (.is-editing) over a dimmed, non-clickable scrim. */
+.group-header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    background: var(--background, #faf7f3);
+    border-bottom: 2px solid #e3d9cc;
+    padding: 0.8rem 0.2rem 0.4rem;
+    margin-top: 1rem;
+}
+.group-header .group-name { font-size: 1.05rem; margin: 0; }
+.group-counter { color: #888; font-size: 0.82rem; }
+
+.candidate-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    padding: 0.55rem 0.6rem;
+    border: 1px solid transparent;
+    border-radius: 0.5rem;
+    cursor: pointer;
+}
+.candidate-row:hover { background: #fff; border-color: #e3d9cc; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06); }
+.candidate-row .row-id { width: 11rem; flex: 0 0 auto; display: inline-flex; align-items: center; gap: 0.35rem; }
+.candidate-row .row-name { font-weight: 600; }
+.candidate-row .row-badge { flex: 0 0 auto; display: inline-flex; }
+.candidate-row .row-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; flex: 1 1 auto; align-items: center; }
+.candidate-row .row-edit { color: #9a6a3a; font-size: 0.85rem; white-space: nowrap; opacity: 0.55; }
+.candidate-row:hover .row-edit { opacity: 1; }
+
+/* The editor is hidden in place until its row is clicked. */
+.candidate-editor { display: none; }
+.candidate-editor.is-editing {
+    display: block;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(560px, calc(100vw - 2rem));
+    max-height: calc(100vh - 3rem);
+    overflow: auto;
+    background: #fff;
+    border-radius: 0.75rem;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+    z-index: 20;
+}
+.candidate-editor .modal-head { position: relative; padding: 1.1rem 1.4rem 0.6rem; border-bottom: 1px solid #eee; }
+
+.candidate-editor .modal-title { margin: 0; font-size: 1.2rem; }
+.candidate-editor .modal-sub { color: #888; font-size: 0.85rem; }
+.candidate-editor .candidate-content { padding: 0.6rem 1.4rem; }
+.candidate-editor .modal-foot { padding: 0.9rem 1.4rem 1.2rem; display: flex; justify-content: flex-end; }
+
+.scrim {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(20, 15, 10, 0.45);
+    z-index: 10;
+}
+.scrim.open { display: block; }
+
+/* While a modal is open the background must not scroll behind the scrim. */
+body.modal-open { overflow: hidden; }
+
+/* Read-only chips on a row: kind via colour + leading sign, intensity via a trailing
+   slot glyph AND a colour-saturation ladder (so meaning never rests on colour alone). */
+.candidate-row .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px 9px;
+    border-radius: 12px;
+    border: 1px solid;
+    font-size: 0.84rem;
+    line-height: 1.5;
+    white-space: nowrap;
+}
+.candidate-row .chip .sign { font-weight: 700; }
+.candidate-row .chip .slot { margin-left: 1px; font-weight: 700; }
+.candidate-row .chip .heart { color: #c0392b; }
+
+.candidate-row .chip--graag .sign { color: #1e6b27; }
+.candidate-row .chip--graag.w-weak { background: #dcefdd; border-color: #a8d3ad; color: #3a5a3e; }
+.candidate-row .chip--graag.w-normal { background: #bfe6c4; border-color: #7bbd83; color: #143d1a; }
+.candidate-row .chip--graag.w-strong { background: #8fd49a; border-color: #3f9b50; color: #0c3214; font-weight: 600; }
+.candidate-row .chip--graag.w-top { background: #6cc47c; border-color: #2f8a40; color: #06270d; font-weight: 600; }
+
+.candidate-row .chip--liever .sign { color: #962f1f; }
+.candidate-row .chip--liever.w-normal { background: #f1c4ba; border-color: #cf8a7b; color: #5a1c10; }
+.candidate-row .chip--liever.w-strong { background: #e79683; border-color: #c0533c; color: #3f1109; font-weight: 600; }
+
+.candidate-row .chip--nietin { background: #d8d8d8; border-color: #a6a6a6; color: #333; }
+.candidate-row .chip--nietin .sign { color: #555; }
+
+/* Extra-zekerheid badge: a small shield by the name, distinct from the preference chips.
+   Two levels: a light outline for "minstens tevreden", a filled gold one for "alle
+   voorkeuren gehonoreerd" (so the stronger demand reads as stronger). */
+.badge-zeker {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 50%;
+    font-size: 0.85rem;
+    cursor: help;
+}
+.badge-zeker--partial { background: #fff; border: 1px solid #e3b85a; }
+.badge-zeker--full { background: #f1c40f; border: 1px solid #c79a08; }
+
+/* Pupil with nothing set: neutral de-emphasis, never a warning colour. */
+.candidate-row--empty .row-name { color: #9a9a9a; font-weight: 500; }
+.candidate-row .row-placeholder { color: #b0a99f; font-style: italic; font-size: 0.86rem; }
