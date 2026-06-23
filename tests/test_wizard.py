@@ -139,9 +139,11 @@ class TestGroupsToPage:
         assert any(cat == "error" for cat, _ in messages)
         assert any("Klas A" in msg for _, msg in messages)
 
-    def test_post_two_groups_redirects_to_roster(self, client, tmp_path):
-        """POST /groups_to with ≥2 groups saves groups.xlsx and redirects to the shared
-        roster step ("Wie gaat mee"), regardless of input method (ADR 0005)."""
+    def test_post_form_choice_records_method_and_redirects_to_form(
+        self, client, tmp_path
+    ):
+        """POST /groups_to with the 'form' button saves groups.xlsx, records
+        input_method=form, and continues to the form preferences page (ADR 0006)."""
         proc_dir = setup_process(client, tmp_path)
         write_groups_to_json(
             proc_dir,
@@ -153,17 +155,22 @@ class TestGroupsToPage:
         response = client.post(
             "/groups_to",
             data={
+                "action": "form",
                 "group": ["Klas A", "Klas B"],
                 "group_students[Klas A]": ["0", "1"],
                 "group_students[Klas B]": ["0"],
             },
         )
         assert response.status_code == 302
-        assert response.headers["Location"].endswith("/roster")
+        assert response.headers["Location"].endswith("/preferences_form")
+        method = json.loads((proc_dir / "input_method.json").read_text("utf-8"))
+        assert method["method"] == "form"
 
-    def test_post_groups_does_not_record_input_method(self, client, tmp_path):
-        """The input method is now chosen on the roster step, so /groups_to must not write
-        input_method.json — it only continues to the shared roster step (ADR 0005)."""
+    def test_post_excel_choice_records_method_and_redirects_to_excel(
+        self, client, tmp_path
+    ):
+        """POST /groups_to with the 'excel' button records input_method=excel and continues
+        to the Excel preferences page (ADR 0006)."""
         proc_dir = setup_process(client, tmp_path)
         write_groups_to_json(
             proc_dir,
@@ -175,14 +182,16 @@ class TestGroupsToPage:
         response = client.post(
             "/groups_to",
             data={
+                "action": "excel",
                 "group": ["Klas A", "Klas B"],
                 "group_students[Klas A]": ["0", "1"],
                 "group_students[Klas B]": ["0"],
             },
         )
         assert response.status_code == 302
-        assert response.headers["Location"].endswith("/roster")
-        assert not (proc_dir / "input_method.json").exists()
+        assert response.headers["Location"].endswith("/preferences_excel")
+        method = json.loads((proc_dir / "input_method.json").read_text("utf-8"))
+        assert method["method"] == "excel"
 
     def test_post_empty_group_is_kept_with_zero_counts(self, client, tmp_path):
         """A group submitted via 'group' but without retained students is kept at 0/0."""
@@ -198,7 +207,7 @@ class TestGroupsToPage:
             },
         )
         assert response.status_code == 302
-        assert response.headers["Location"].endswith("/roster")
+        assert response.headers["Location"].endswith("/preferences_excel")
         saved = pd.read_excel(proc_dir / "groups.xlsx", index_col=0)
         assert saved.loc["Klas A", "Jongens"] == 1
         assert saved.loc["Klas A", "Meisjes"] == 2

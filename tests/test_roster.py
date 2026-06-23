@@ -57,41 +57,23 @@ class TestRosterPage:
         assert b"Bram" in response.data
         assert "Vink aan wie ingedeeld moeten worden".encode("utf-8") in response.data
 
-    def test_post_form_choice_writes_roster_method_and_redirects_to_form(
-        self, client, tmp_path
-    ):
-        """POST /roster with the 'form' button writes roster.json with every participant,
-        records input_method=form, and redirects to the form preferences page."""
+    def test_post_writes_roster_and_redirects_to_groups_to(self, client, tmp_path):
+        """POST /roster writes roster.json with every participant and continues to
+        "Groepen naartoe"; the preference method is chosen there now (ADR 0006), so roster
+        writes no input_method.json."""
         proc_dir = self._setup(client, tmp_path)
-        response = client.post(
-            "/roster", data={"action": "form", "gaat_over": ["s1", "s2"]}
-        )
+        response = client.post("/roster", data={"gaat_over": ["s1", "s2"]})
         assert response.status_code == 302
-        assert response.headers["Location"].endswith("/preferences_form")
+        assert response.headers["Location"].endswith("/groups_to")
         roster = json.loads((proc_dir / "roster.json").read_text("utf-8"))
         keys = {p["key"] for p in roster["participants"]}
         assert keys == {"s1", "s2"}
-        method = json.loads((proc_dir / "input_method.json").read_text("utf-8"))
-        assert method["method"] == "form"
-
-    def test_post_excel_choice_records_method_and_redirects_to_excel(
-        self, client, tmp_path
-    ):
-        """POST /roster with the 'excel' button records input_method=excel and redirects
-        to the Excel preferences page."""
-        proc_dir = self._setup(client, tmp_path)
-        response = client.post(
-            "/roster", data={"action": "excel", "gaat_over": ["s1", "s2"]}
-        )
-        assert response.status_code == 302
-        assert response.headers["Location"].endswith("/preferences_excel")
-        method = json.loads((proc_dir / "input_method.json").read_text("utf-8"))
-        assert method["method"] == "excel"
+        assert not (proc_dir / "input_method.json").exists()
 
     def test_post_unchecked_verlenger_is_excluded(self, client, tmp_path):
         """A verlenger (unticked) is left out of roster.json."""
         proc_dir = self._setup(client, tmp_path)
-        client.post("/roster", data={"action": "form", "gaat_over": ["s1"]})
+        client.post("/roster", data={"gaat_over": ["s1"]})
         roster = json.loads((proc_dir / "roster.json").read_text("utf-8"))
         keys = {p["key"] for p in roster["participants"]}
         assert keys == {"s1"}
@@ -102,7 +84,6 @@ class TestRosterPage:
         client.post(
             "/roster",
             data={
-                "action": "form",
                 "gaat_over": ["s1", "s2", "new_0"],
                 "new_key[]": "new_0",
                 "new_voornaam[]": "Emma",
@@ -129,7 +110,6 @@ class TestRosterPage:
         response = client.post(
             "/roster",
             data={
-                "action": "form",
                 "gaat_over": ["s1", "s2", "new_0"],
                 "new_key[]": "new_0",
                 "new_voornaam[]": "Emma",
@@ -148,7 +128,6 @@ class TestRosterPage:
         client.post(
             "/roster",
             data={
-                "action": "form",
                 "gaat_over": ["s1", "new_0"],  # s2 left behind (verlenger)
                 "new_key[]": "new_0",
                 "new_voornaam[]": "Emma",
@@ -169,7 +148,6 @@ class TestRosterPage:
         response = client.post(
             "/roster",
             data={
-                "action": "form",
                 "gaat_over": ["s1", "s2", "new_0"],
                 "new_key[]": "new_0",
                 "new_voornaam[]": "Anna",

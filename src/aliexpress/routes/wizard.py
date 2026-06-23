@@ -486,7 +486,7 @@ def upload_edexml():
     except Exception as exc:  # pylint: disable=broad-exception-caught
         _flash_upload_error(exc)
         return redirect(url_for("wizard.upload_edexml"))
-    return redirect(url_for("wizard.groups_to_page"))
+    return redirect(url_for("roster.roster_page"))
 
 
 @wizard_bp.route("/groups_to", methods=["GET", "POST"])
@@ -543,9 +543,18 @@ def groups_to_page():
         len(submission.state["disabled_groups"]),
         len(submission.state["new_groups"]),
     )
-    # Both input methods go through the shared "Wie gaat mee" step next; the teacher picks
-    # there how to enter preferences, so the input method is recorded by that step (ADR 0005).
-    return redirect(url_for("roster.roster_page"))
+    # This is the last step before entering preferences, so the teacher picks here how to
+    # enter them (web form or Excel); the choice is recorded for resume and the back link
+    # of the not-together step (ADR 0006, reordering ADR 0005).
+    method = "form" if request.form.get("action") == "form" else "excel"
+    with open(
+        get_file_path(school_id, process_id, "input_method.json"), "w", encoding="utf-8"
+    ) as f:
+        json.dump({"method": method}, f)
+    target = (
+        "wizard.preferences_form" if method == "form" else "wizard.preferences_excel"
+    )
+    return redirect(url_for(target))
 
 
 @wizard_bp.route("/preferences_excel", methods=["GET", "POST"])
