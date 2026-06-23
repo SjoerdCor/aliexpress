@@ -86,10 +86,17 @@ def open_groups_to(live_server, tmp_path, page):
         (proc / "relevant_students_and_groups.json").write_text(
             json.dumps({"groups_to": groups_to}), encoding="utf-8"
         )
+        # "Groepen naartoe" sits after the roster step (ADR 0006) and continues to the
+        # preferences page, which needs a settled roster; provide an empty one so the
+        # forward navigation lands cleanly instead of bouncing back to /roster.
+        (proc / "roster.json").write_text(
+            json.dumps({"participants": []}), encoding="utf-8"
+        )
         with app.app_context():
             flask_db.session.add(Process(school_id=TEST_SCHOOLCODE, name="browsertest"))
             flask_db.session.commit()
         page.goto(f"{live_server}/processes/select/browsertest")
+        page.goto(f"{live_server}/groups_to")
         return proc
 
     return _open

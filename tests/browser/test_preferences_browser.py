@@ -19,7 +19,8 @@ def _open_preferences(live_server, tmp_path, page):
     (proc / "relevant_students_and_groups.json").write_text(
         json.dumps({"candidates": [], "groups_from": []}), encoding="utf-8"
     )
-    # With the roster step done (Excel method) select_process lands on preferences_excel.
+    # With the roster + groups steps done and the Excel method chosen, select_process
+    # resumes on preferences_excel (groups.xlsx present → input_method decides; ADR 0006).
     (proc / "groups.xlsx").write_bytes(b"dummy")
     (proc / "roster.json").write_text(
         json.dumps({"participants": []}), encoding="utf-8"
