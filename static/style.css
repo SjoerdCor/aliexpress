@@ -1313,19 +1313,7 @@ table.dataframe th {
     z-index: 20;
 }
 .candidate-editor .modal-head { position: relative; padding: 1.1rem 1.4rem 0.6rem; border-bottom: 1px solid #eee; }
-.candidate-editor .modal-cancel {
-    position: absolute;
-    top: 0.6rem;
-    right: 0.8rem;
-    border: none;
-    background: none;
-    font-size: 1.6rem;
-    line-height: 1;
-    color: #888;
-    cursor: pointer;
-    padding: 0 0.3rem;
-}
-.candidate-editor .modal-cancel:hover { color: #333; }
+
 .candidate-editor .modal-title { margin: 0; font-size: 1.2rem; }
 .candidate-editor .modal-sub { color: #888; font-size: 0.85rem; }
 .candidate-editor .candidate-content { padding: 0.6rem 1.4rem; }
