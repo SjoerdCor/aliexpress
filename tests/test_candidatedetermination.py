@@ -10,7 +10,22 @@ from aliexpress.candidatedetermination import (
     get_groups_to,
     handle_edexml_upload,
     students_df_from_records,
+    unique_display_names,
 )
+
+
+def test_unique_display_names_maps_full_to_short():
+    """Each participant's full display name maps to a short unique name: just the roepnaam
+    when that is unique, extended with surname letters only to break a tie."""
+    students = [
+        {"roepnaam": "Sanne", "achternaam": "Klaassen"},
+        {"roepnaam": "Sanne", "achternaam": "Kuipers"},
+        {"roepnaam": "Tim", "achternaam": "de Vries"},
+    ]
+    result = unique_display_names(students)
+    assert result["Tim de Vries"] == "Tim"  # unique roepnaam → no surname needed
+    assert result["Sanne Klaassen"] == "Sanne Kl"  # tie broken with minimal letters
+    assert result["Sanne Kuipers"] == "Sanne Ku"
 
 
 # doesn't work with fixtures
