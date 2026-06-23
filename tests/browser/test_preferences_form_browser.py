@@ -110,47 +110,47 @@ def test_modal_opslaan_closes_and_persists(live_server, tmp_path, page):
 
 
 @pytest.mark.usefixtures("login")
-def test_esc_closes_and_discards_changes(live_server, tmp_path, page):
-    """Esc closes the modal and discards the changes made since it opened (no save)."""
+def test_esc_does_not_close_modal(live_server, tmp_path, page):
+    """Esc no longer closes the modal: the edit stays put so a stray keypress cannot lose
+    work — only the explicit Annuleren button discards it."""
     _open_preferences_form(live_server, tmp_path, page)
     _open_pupil_modal(page, "s1")
     page.fill("#combo-graag_met-s1", "Bram")
     page.press("#combo-graag_met-s1", "Enter")
     page.keyboard.press("Escape")
-    assert not page.locator("#editor-s1").is_visible()
-    assert page.locator("#rowchips-s1 .chip").count() == 0  # change reverted
-    _open_pupil_modal(page, "s1")
-    assert page.locator("#chips-graag_met-s1 .preference-chip").count() == 0
+    assert page.locator("#editor-s1").is_visible()  # still open
+    assert page.locator("#chips-graag_met-s1 .preference-chip").count() == 1  # kept
 
 
 @pytest.mark.usefixtures("login")
-def test_x_button_and_backdrop_discard_changes(live_server, tmp_path, page):
-    """The × button and a backdrop click both close without saving, discarding changes."""
+def test_annuleren_discards_and_backdrop_does_not_close(live_server, tmp_path, page):
+    """Annuleren closes the modal and discards the changes; a backdrop click does not close
+    it, so work cannot be lost by an accidental click outside the modal."""
     _open_preferences_form(live_server, tmp_path, page)
     _open_pupil_modal(page, "s1")
     page.fill("#combo-graag_met-s1", "Bram")
     page.press("#combo-graag_met-s1", "Enter")
     page.click("#editor-s1 .modal-cancel")
     assert not page.locator("#editor-s1").is_visible()
-    assert page.locator("#rowchips-s1 .chip").count() == 0
+    assert page.locator("#rowchips-s1 .chip").count() == 0  # discarded
 
     _open_pupil_modal(page, "s1")
     page.fill("#combo-graag_met-s1", "Bram")
     page.press("#combo-graag_met-s1", "Enter")
     page.mouse.click(5, 5)  # a corner only the scrim covers
-    assert not page.locator("#editor-s1").is_visible()
-    assert page.locator("#rowchips-s1 .chip").count() == 0
+    assert page.locator("#editor-s1").is_visible()  # backdrop does not close
+    assert page.locator("#chips-graag_met-s1 .preference-chip").count() == 1  # kept
 
 
 @pytest.mark.usefixtures("login")
 def test_changes_persist_only_after_explicit_opslaan(live_server, tmp_path, page):
-    """After a cancel of pupil A, saving pupil B must not also persist A's discarded edit
-    (the whole-form save would otherwise leak it)."""
+    """After cancelling pupil A with Annuleren, saving pupil B must not also persist A's
+    discarded edit (the whole-form save would otherwise leak it)."""
     _open_preferences_form(live_server, tmp_path, page)
     _open_pupil_modal(page, "s1")
     page.fill("#combo-graag_met-s1", "Bram")
     page.press("#combo-graag_met-s1", "Enter")
-    page.keyboard.press("Escape")  # discard A
+    page.click("#editor-s1 .modal-cancel")  # discard A
 
     _open_pupil_modal(page, "s2")
     page.fill("#combo-graag_met-s2", "Anna")
@@ -298,16 +298,14 @@ def test_no_tussentijds_opslaan_button(live_server, tmp_path, page):
 
 
 @pytest.mark.usefixtures("login")
-def test_intensity_pills_hidden_until_chip_clicked(live_server, tmp_path, page):
-    """The intensity pills stay hidden until the chip label is clicked (ADR 0003), keeping
-    the modal calm."""
+def test_intensity_pills_visible_by_default(live_server, tmp_path, page):
+    """The intensity pills are shown straight away on a fresh chip — the teacher picks the
+    weight without an extra click to reveal them."""
     _open_preferences_form(live_server, tmp_path, page)
     _open_pupil_modal(page, "s1")
     page.fill("#combo-graag_met-s1", "Bram")
     page.press("#combo-graag_met-s1", "Enter")
     pills = page.locator("#chips-graag_met-s1 .chip-pills")
-    assert not pills.is_visible()
-    page.click("#chips-graag_met-s1 .chip-label")
     assert pills.is_visible()
 
 
