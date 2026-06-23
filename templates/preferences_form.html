@@ -16,6 +16,7 @@
   "known_names": {{ known_names | tojson }},
   "target_groups": {{ target_groups | tojson }},
   "group_display": {{ group_display | tojson }},
+  "short_names": {{ short_names | tojson }},
   "draft_state": {{ draft_state | tojson if draft_state else 'null' }}
 }
 </script>
@@ -35,6 +36,8 @@ Voer zoveel mogelijk positieve voorkeuren in. Dat geeft ALI Express meer flexibi
 </p>
 </details>
 
+<div class="scrim" id="pref-scrim"></div>
+
 <form method="post" id="preferences-form" novalidate>
 
   {# ── Participants grouped by origin group ────────────────────────────────── #}
@@ -44,17 +47,33 @@ Voer zoveel mogelijk positieve voorkeuren in. Dat geeft ALI Express meer flexibi
   {% set display_name = candidate.roepnaam ~ " " ~ candidate.achternaam %}
 
   {% if candidate.groepsnaam != current_group.name %}
-    {% if not loop.first %}</details>{% endif %}
     {% set current_group.name = candidate.groepsnaam %}
-    <details class="group-details">
-    <summary class="group-summary">{{ candidate.groepsnaam }}<span class="group-counter"></span></summary>
+    <div class="group-header">
+      <h2 class="group-name">{{ candidate.groepsnaam }}</h2>
+      <span class="group-counter" data-group="{{ candidate.groepsnaam }}"></span>
+    </div>
   {% endif %}
 
-  <details class="candidate-details" id="block-{{ key }}" open>
-    <summary class="candidate-summary">
-      <span class="candidate-name">{{ display_name }}</span>
-      <span class="candidate-wish-preview" id="preview-{{ key }}"></span>
-    </summary>
+  {# Read-only summary row; clicking it opens this pupil's edit modal. #}
+  <div class="candidate-row" id="row-{{ key }}" data-key="{{ key }}"
+       data-group="{{ candidate.groepsnaam }}" role="button" tabindex="0">
+    <span class="row-id">
+      <span class="row-name">{{ short_names.get(display_name, display_name) }}</span>
+      <span class="row-badge" id="rowbadge-{{ key }}"></span>
+    </span>
+    <span class="row-chips" id="rowchips-{{ key }}"></span>
+    <span class="row-edit">Bewerken ✎</span>
+  </div>
+
+  {# Hidden per-pupil editor, promoted to an overlay modal via CSS (.is-editing). It
+     stays inside the one form so its inputs keep posting and prefill keeps working. #}
+  <div class="candidate-editor" id="editor-{{ key }}">
+    <div class="modal-head">
+      <button type="button" class="modal-cancel" data-key="{{ key }}"
+              aria-label="Sluiten zonder opslaan" title="Sluiten zonder opslaan">×</button>
+      <h2 class="modal-title">{{ display_name }}</h2>
+      <div class="modal-sub">uit {{ candidate.groepsnaam }}</div>
+    </div>
 
     <div class="candidate-content" id="content-{{ key }}">
 
@@ -121,17 +140,19 @@ Voer zoveel mogelijk positieve voorkeuren in. Dat geeft ALI Express meer flexibi
       </details>
 
     </div>{# .candidate-content #}
-  </details>{# .candidate-details #}
+
+    <div class="modal-foot">
+      <button type="button" class="button button--primary modal-done" data-key="{{ key }}">
+        Opslaan
+      </button>
+    </div>
+  </div>{# .candidate-editor #}
   {% endfor %}
-  {% if candidates %}</details>{% endif %}{# close last group-details #}
 
   <div class="step-navigation">
     <a href="{{ url_for('roster.roster_page') }}" class="button previous-step">
       ← Naar Wie gaat mee
     </a>
-    <button type="submit" name="action" value="opslaan" class="button button--secondary">
-      Tussentijds opslaan
-    </button>
     <button type="submit" name="action" value="volgende" class="button next-step">
       Naar niet samen →
     </button>
@@ -145,7 +166,12 @@ const _fd = JSON.parse(document.getElementById('pref-form-data').textContent);
 const STUDENT_NAMES = new Set(_fd.known_names);
 const TARGET_GROUPS = _fd.target_groups;
 const GROUP_DISPLAY = _fd.group_display;
+const SHORT_NAMES = _fd.short_names || {};
 const DRAFT = _fd.draft_state;
+
+// Display-only short name; the full name stays the stored identity (ADR 0007). Groups are
+// not in the map, so they fall through to their full label.
+function shortOf(name) { return SHORT_NAMES[name] || name; }
 
 // Destination-group display names: valid preference targets alongside classmates.
 const GROUP_LABELS = TARGET_GROUPS.map(k => GROUP_DISPLAY[k] || k);
@@ -156,8 +182,8 @@ const GROUP_LABEL_SET = new Set(GROUP_LABELS);
 // "unknown student" can no longer be entered (prevention over after-the-fact validation).
 
 function ownerName(key) {
-  const block = document.getElementById(`block-${key}`);
-  return block?.querySelector('.candidate-name')?.textContent?.trim() || '';
+  const title = document.querySelector(`#editor-${key} .modal-title`);
+  return title?.textContent?.trim() || '';
 }
 
 function chosenStudentNames(key) {
@@ -199,7 +225,7 @@ function renderCombo(input) {
     li.setAttribute('role', 'option');
     li.dataset.value = o.label;
     li.dataset.isgroup = o.isGroup ? '1' : '0';
-    li.textContent = o.isGroup ? `${o.label} (groep)` : o.label;
+    li.textContent = o.isGroup ? `${o.label} (groep)` : shortOf(o.label);
     li.addEventListener('mousedown', e => {
       e.preventDefault();  // keep focus so the picker stays open
       pickCombo(input, o.label, o.isGroup);
@@ -227,7 +253,7 @@ function pickCombo(input, label, isGroup) {
   const { key, soort } = input.dataset;
   document.getElementById(`chips-${soort}-${key}`)
     .appendChild(makePreferenceChip(key, soort, label, 1, isGroup));
-  updatePreview(key);
+  renderRow(key);
   input.value = '';
   renderCombo(input);  // refresh options (a chosen classmate drops out) and stay open
   input.focus();
@@ -290,7 +316,7 @@ function makePreferenceChip(key, soort, name, weight, isGroup) {
   const lbl = document.createElement('span');
   lbl.className = 'chip-label';
   const nameSpan = document.createElement('span');
-  nameSpan.textContent = name;
+  nameSpan.textContent = isGroup ? name : shortOf(name);
   const intensity = document.createElement('span');
   intensity.className = 'chip-intensity';
   lbl.append(nameSpan, intensity);
@@ -300,7 +326,7 @@ function makePreferenceChip(key, soort, name, weight, isGroup) {
   del.className = 'delete-btn chip-del';
   del.title = 'Verwijder voorkeur';
   del.textContent = '✖';
-  del.onclick = () => { chip.remove(); updatePreview(key); };
+  del.onclick = () => { chip.remove(); renderRow(key); };
 
   const hiddenName = document.createElement('input');
   hiddenName.type = 'hidden';
@@ -352,41 +378,147 @@ function makePreferenceChip(key, soort, name, weight, isGroup) {
   return chip;
 }
 
-// ── Preview tekst naast naam + per-groep overzicht ────────────────────────────
+// ── Read-only row projection ──────────────────────────────────────────────────
+// The collapsed row mirrors the editor's chips as read-only chips. The editor chips are
+// the single source of truth; renderRow rebuilds the row whenever they change.
 
-function updatePreview(key) {
-  const preview = document.getElementById(`preview-${key}`);
-  if (!preview) return;
-  const graag = document.getElementById(`chips-graag_met-${key}`)?.querySelectorAll('.preference-chip').length || 0;
-  const liever = document.getElementById(`chips-liever_niet_met-${key}`)?.querySelectorAll('.preference-chip').length || 0;
-  const parts = [];
-  if (graag > 0) parts.push(`${graag}× graag met`);
-  if (liever > 0) parts.push(`${liever}× liever niet met`);
-  if (parts.length) {
-    preview.textContent = `(${parts.join(', ')})`;
-    preview.classList.remove('preview-empty');
-  } else {
-    // Empty is a valid end state (counts as fully satisfied) — neutral, not a warning.
-    preview.textContent = '— nog geen voorkeur';
-    preview.classList.add('preview-empty');
+// Intensity → saturation class + trailing glyph. "Never colour alone": the glyph carries
+// the meaning, the saturation reinforces it. Only "graag met" has a weak (~) and a top (♥)
+// level; both kinds share the strong (↑) rung; niet-in has no intensity.
+function intensityEncoding(kind, weight) {
+  if (kind === 'nietin') return { cls: '', glyph: '' };
+  if (kind === 'graag') {
+    if (weight <= 0.5) return { cls: 'w-weak', glyph: '~' };
+    if (weight >= 5) return { cls: 'w-top', glyph: '♥' };
+    if (weight >= 2) return { cls: 'w-strong', glyph: '↑' };
+    return { cls: 'w-normal', glyph: '' };
   }
+  return weight >= 2 ? { cls: 'w-strong', glyph: '↑' } : { cls: 'w-normal', glyph: '' };
+}
+
+function readonlyChipTitle(kind, soort, name, weight) {
+  const kindLabel = { graag: 'Graag met', liever: 'Liever niet met', nietin: 'Niet in groep' }[kind];
+  const word = soort ? intensityLabel(soort, weight) : '';
+  return word ? `${kindLabel}: ${name} (${word})` : `${kindLabel}: ${name}`;
+}
+
+function makeReadonlyChip(soort, name, weight) {
+  const kind = soort === 'graag_met' ? 'graag'
+             : soort === 'liever_niet_met' ? 'liever' : 'nietin';
+  const { cls, glyph } = intensityEncoding(kind, weight);
+  const chip = document.createElement('span');
+  chip.className = `chip chip--${kind}${cls ? ' ' + cls : ''}`;
+  chip.title = readonlyChipTitle(kind, kind === 'nietin' ? null : soort, name, weight);
+  const sign = document.createElement('span');
+  sign.className = 'sign';
+  sign.textContent = { graag: '+', liever: '−', nietin: '⊘' }[kind];
+  const nameSpan = document.createElement('span');
+  nameSpan.textContent = shortOf(name);
+  chip.append(sign, ' ', nameSpan);
+  if (glyph) {
+    const slot = document.createElement('span');
+    slot.className = glyph === '♥' ? 'slot heart' : 'slot';
+    slot.textContent = glyph;
+    chip.append(' ', slot);
+  }
+  return chip;
+}
+
+function renderRow(key) {
+  const target = document.getElementById(`rowchips-${key}`);
+  if (!target) return;
+  target.innerHTML = '';
+  ['graag_met', 'liever_niet_met'].forEach(soort => {
+    const area = document.getElementById(`chips-${soort}-${key}`);
+    if (!area) return;
+    // Strongest first within each type, so the eye lands on the heaviest wishes.
+    [...area.querySelectorAll('.preference-chip')]
+      .map(chip => ({
+        name: chip.querySelector('input[data-name]')?.dataset.name || '',
+        weight: parseFloat(chip.querySelector('input[name$="_gewicht"]')?.value) || 1,
+      }))
+      .sort((a, b) => b.weight - a.weight)
+      .forEach(e => target.appendChild(makeReadonlyChip(soort, e.name, e.weight)));
+  });
+  const nietin = document.getElementById(`chips-nieting-${key}`);
+  if (nietin) {
+    nietin.querySelectorAll('input[type="hidden"]').forEach(h => {
+      target.appendChild(makeReadonlyChip('nieting', h.value, 1));
+    });
+  }
+
+  // Extra zekerheid is a property of the pupil, not a preference: a badge by the name. The
+  // two levels look different — an outline shield for "minstens tevreden", a filled one for
+  // "alle voorkeuren gehonoreerd".
+  const ms = document.querySelector(`#editor-${key} input[name="min_sat_${key}"]:checked`);
+  const msValue = ms ? ms.value : '';
+  const hasExtra = msValue !== '';
+  const badge = document.getElementById(`rowbadge-${key}`);
+  if (badge) {
+    if (msValue === '100') {
+      badge.innerHTML = '<span class="badge-zeker badge-zeker--full"'
+        + ' title="Extra zekerheid: alle voorkeuren gehonoreerd">🛡</span>';
+    } else if (hasExtra) {
+      badge.innerHTML = '<span class="badge-zeker badge-zeker--partial"'
+        + ' title="Extra zekerheid: minstens tevreden">🛡</span>';
+    } else {
+      badge.innerHTML = '';
+    }
+  }
+
+  // Nothing set at all (no preference, no niet-in, no extra zekerheid): neutral accent,
+  // not a warning — an empty choice is a valid, fully-satisfied end state.
+  const row = document.getElementById(`row-${key}`);
+  const isEmpty = target.children.length === 0 && !hasExtra;
+  if (row) row.classList.toggle('candidate-row--empty', isEmpty);
+  if (isEmpty) {
+    const ph = document.createElement('span');
+    ph.className = 'row-placeholder';
+    ph.textContent = '— nog niet ingevuld';
+    target.appendChild(ph);
+  }
+
   updateGroupCounters();
 }
 
-// Per-group tally in the group header: how many participants have a preference.
+// Per-class tally in the flat header: how many pupils have at least one graag/liever
+// preference. Rows are not nested under the header, so they are matched by data-group.
+function hasPreference(key) {
+  const g = document.getElementById(`chips-graag_met-${key}`)?.querySelectorAll('.preference-chip').length || 0;
+  const l = document.getElementById(`chips-liever_niet_met-${key}`)?.querySelectorAll('.preference-chip').length || 0;
+  return (g + l) > 0;
+}
+
 function updateGroupCounters() {
-  document.querySelectorAll('.group-details').forEach(group => {
-    const counter = group.querySelector(':scope > summary .group-counter');
-    if (!counter) return;
-    const blocks = [...group.querySelectorAll('.candidate-details')];
-    const withPref = blocks.filter(b => b.querySelectorAll('.preference-chip').length > 0);
-    counter.textContent = blocks.length
-      ? ` — ${withPref.length} van ${blocks.length} met voorkeur`
+  document.querySelectorAll('.group-counter').forEach(counter => {
+    const rows = [...document.querySelectorAll('.candidate-row')]
+      .filter(r => r.dataset.group === counter.dataset.group);
+    const withPref = rows.filter(r => hasPreference(r.dataset.key));
+    counter.textContent = rows.length
+      ? `— ${withPref.length} van ${rows.length} met voorkeur`
       : '';
   });
 }
 
 // ── Niet in groep ─────────────────────────────────────────────────────────────
+
+function makeNietInChip(key, group) {
+  const chip = document.createElement('span');
+  chip.className = 'student-chip niet-in-chip';
+  const lbl = document.createElement('span');
+  lbl.textContent = group;
+  const del = document.createElement('button');
+  del.type = 'button';
+  del.className = 'delete-btn chip-del';
+  del.textContent = '✖';
+  del.onclick = () => chip.remove();
+  const hidden = document.createElement('input');
+  hidden.type = 'hidden';
+  hidden.name = `nieting_${key}`;
+  hidden.value = group;
+  chip.append(lbl, del, hidden);
+  return chip;
+}
 
 function addNietIn(key, maxAllowed) {
   const chipsContainer = document.getElementById(`chips-nieting-${key}`);
@@ -403,22 +535,7 @@ function addNietIn(key, maxAllowed) {
     return;
   }
   errEl.textContent = '';
-
-  const chip = document.createElement('span');
-  chip.className = 'student-chip niet-in-chip';
-  const lbl = document.createElement('span');
-  lbl.textContent = group;
-  const del = document.createElement('button');
-  del.type = 'button';
-  del.className = 'delete-btn chip-del';
-  del.textContent = '✖';
-  del.onclick = () => chip.remove();
-  const hidden = document.createElement('input');
-  hidden.type = 'hidden';
-  hidden.name = `nieting_${key}`;
-  hidden.value = group;
-  chip.append(lbl, del, hidden);
-  chipsContainer.appendChild(chip);
+  chipsContainer.appendChild(makeNietInChip(key, group));
 }
 
 // ── Prefill from saved state ──────────────────────────────────────────────────
@@ -428,40 +545,144 @@ if (DRAFT) {
     const key = s.key;
     (s.graag_met || []).forEach(w => {
       const c = document.getElementById(`chips-graag_met-${key}`);
-      if (c) { c.appendChild(makePreferenceChip(key, 'graag_met', w.target, w.weight, GROUP_LABEL_SET.has(w.target))); updatePreview(key); }
+      if (c) { c.appendChild(makePreferenceChip(key, 'graag_met', w.target, w.weight, GROUP_LABEL_SET.has(w.target))); renderRow(key); }
     });
     (s.liever_niet_met || []).forEach(w => {
       const c = document.getElementById(`chips-liever_niet_met-${key}`);
-      if (c) { c.appendChild(makePreferenceChip(key, 'liever_niet_met', w.target, w.weight, GROUP_LABEL_SET.has(w.target))); updatePreview(key); }
+      if (c) { c.appendChild(makePreferenceChip(key, 'liever_niet_met', w.target, w.weight, GROUP_LABEL_SET.has(w.target))); renderRow(key); }
     });
     (s.niet_in || []).forEach(group => {
       const cc = document.getElementById(`chips-nieting-${key}`);
-      if (!cc) return;
-      const chip = document.createElement('span');
-      chip.className = 'student-chip niet-in-chip';
-      const lbl = document.createElement('span');
-      lbl.textContent = group;
-      const del = document.createElement('button');
-      del.type = 'button';
-      del.className = 'delete-btn chip-del';
-      del.textContent = '✖';
-      del.onclick = () => chip.remove();
-      const hidden = document.createElement('input');
-      hidden.type = 'hidden';
-      hidden.name = `nieting_${key}`;
-      hidden.value = group;
-      chip.append(lbl, del, hidden);
-      cc.appendChild(chip);
+      if (cc) cc.appendChild(makeNietInChip(key, group));
     });
   });
 }
 
+// ── Per-pupil edit modal ──────────────────────────────────────────────────────
+// Each pupil's editor stays in the form (so its inputs keep posting); clicking the
+// read-only row promotes that editor to an overlay via the .is-editing class.
+// Freeze everything except the modal: inert every sibling along the editor's ancestor
+// path up to <body>. Because the editor stays nested in the form, we cannot inert one
+// container and exempt the modal — we inert the siblings instead. This gives a free
+// focus-trap and hides the background from screen readers.
+function setBackgroundInert(editor, on) {
+  let node = editor;
+  while (node && node !== document.body) {
+    const parent = node.parentElement;
+    if (!parent) break;
+    for (const child of parent.children) {
+      // The scrim must stay interactive so a backdrop-click can still close the modal.
+      if (child !== node && child.id !== 'pref-scrim') child.toggleAttribute('inert', on);
+    }
+    node = parent;
+  }
+}
+
+// Snapshot the editable state on open, so a cancel (×/Esc/backdrop) can revert it. The
+// editor edits live chips, and saveDraft posts the whole form, so an un-reverted cancel
+// would silently persist on the next pupil's save. Reverting keeps the invariant: outside
+// an open modal, the DOM equals the last saved draft.
+function snapshotEditor(key) {
+  const grab = soort => [...document.querySelectorAll(`#chips-${soort}-${key} .preference-chip`)]
+    .map(chip => {
+      const nameInput = chip.querySelector('input[data-name]');
+      return {
+        name: nameInput.dataset.name,
+        isGroup: nameInput.dataset.isgroup === '1',
+        weight: parseFloat(chip.querySelector('input[name$="_gewicht"]').value) || 1,
+      };
+    });
+  const nietArea = document.getElementById(`chips-nieting-${key}`);
+  const ms = document.querySelector(`#editor-${key} input[name="min_sat_${key}"]:checked`);
+  return {
+    graag_met: grab('graag_met'),
+    liever_niet_met: grab('liever_niet_met'),
+    niet_in: nietArea ? [...nietArea.querySelectorAll('input[type="hidden"]')].map(h => h.value) : [],
+    minsat: ms ? ms.value : '',
+  };
+}
+
+function restoreEditor(key, snap) {
+  ['graag_met', 'liever_niet_met'].forEach(soort => {
+    const area = document.getElementById(`chips-${soort}-${key}`);
+    if (!area) return;
+    area.innerHTML = '';
+    (snap[soort] || []).forEach(e =>
+      area.appendChild(makePreferenceChip(key, soort, e.name, e.weight, e.isGroup)));
+  });
+  const nietArea = document.getElementById(`chips-nieting-${key}`);
+  if (nietArea) {
+    nietArea.innerHTML = '';
+    (snap.niet_in || []).forEach(g => nietArea.appendChild(makeNietInChip(key, g)));
+  }
+  document.querySelectorAll(`#editor-${key} input[name="min_sat_${key}"]`)
+    .forEach(r => { r.checked = (r.value === snap.minsat); });
+}
+
+let _openKey = null;
+
+function openEditor(key) {
+  const editor = document.getElementById(`editor-${key}`);
+  if (!editor) return;
+  editor._snapshot = snapshotEditor(key);
+  _openKey = key;
+  editor.classList.add('is-editing');
+  document.getElementById('pref-scrim').classList.add('open');
+  setBackgroundInert(editor, true);
+  document.body.classList.add('modal-open');  // lock background scroll
+  editor._returnFocusTo = document.getElementById(`row-${key}`);
+  // Focus the title, not the first field: the first field is a combobox that opens its
+  // option list on focus, which would greet the teacher with a dropdown.
+  const title = editor.querySelector('.modal-title');
+  if (title) { title.setAttribute('tabindex', '-1'); title.focus(); }
+}
+
+// closeEditor reflects the current chips on the row and dismisses the modal. It does not
+// save; the caller decides: "Opslaan" persists first, a cancel reverts first.
+function closeEditor(key) {
+  const editor = document.getElementById(`editor-${key}`);
+  if (!editor) return;
+  renderRow(key);
+  editor.classList.remove('is-editing');
+  document.getElementById('pref-scrim').classList.remove('open');
+  setBackgroundInert(editor, false);
+  document.body.classList.remove('modal-open');
+  _openKey = null;
+  if (editor._returnFocusTo) editor._returnFocusTo.focus();
+}
+
+function saveEditor(key) {
+  if (window.saveDraft) window.saveDraft();
+  closeEditor(key);
+}
+
+// Cancel: discard the changes made since the modal opened, then close without saving.
+function cancelEditor(key) {
+  const editor = document.getElementById(`editor-${key}`);
+  if (!editor) return;
+  if (editor._snapshot) restoreEditor(key, editor._snapshot);
+  closeEditor(key);
+}
+
+document.querySelectorAll('.candidate-row').forEach(row => {
+  row.addEventListener('click', () => openEditor(row.dataset.key));
+});
+document.querySelectorAll('.modal-done').forEach(btn =>
+  btn.addEventListener('click', () => saveEditor(btn.dataset.key)));
+document.querySelectorAll('.modal-cancel').forEach(btn =>
+  btn.addEventListener('click', () => cancelEditor(btn.dataset.key)));
+document.getElementById('pref-scrim').addEventListener('click', () => {
+  if (_openKey) cancelEditor(_openKey);  // backdrop-click discards
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && _openKey) cancelEditor(_openKey);  // Esc discards
+});
+
 // Wire up every preference combobox rendered server-side.
 document.querySelectorAll('.combobox-input').forEach(initCombobox);
 
-// Initial preview ("nog geen voorkeur") + per-group counters for every candidate.
-document.querySelectorAll('.candidate-wish-preview').forEach(p =>
-  updatePreview(p.id.replace('preview-', '')));
+// Initial row projection (chips restored from the draft) + per-group counters.
+document.querySelectorAll('.candidate-row').forEach(row => renderRow(row.dataset.key));
 updateGroupCounters();
 
 // ── Click-popovers for the heavier ⓘ explanations (short ones stay hover-title) ──
@@ -491,34 +712,31 @@ document.addEventListener('click', e => {
   if (!e.target.closest('.info-popover')) { closeInfoPopover(); _openInfoBtn = null; }
 });
 
-// ── Autosave: a long entry session must never be lost ─────────────────────────
-// Every change is debounced and posted as a background "autosave" that writes only the
-// draft; a reload restores it via the normal prefill. beforeunload still warns while a
-// change has not yet been saved.
+// ── Draft save: closing a pupil's modal persists the work ─────────────────────
+// There is no automatic autosave any more: the modal's only exit ("Opslaan") posts a
+// background draft (never voorkeuren.json), which a reload restores via the normal
+// prefill. beforeunload still warns about the one remaining loss path: closing the tab
+// while a change has not yet been saved (e.g. mid-edit in an open modal).
 (function () {
   const form = document.getElementById('preferences-form');
-  let dirty = false, submitting = false, timer = null;
+  let dirty = false, submitting = false;
 
-  function autosave() {
+  window.saveDraft = function () {
     const data = new FormData(form);
     data.set('action', 'autosave');
     fetch(window.location.href, { method: 'POST', body: data })
       .then(r => { if (r.ok) dirty = false; })
       .catch(() => {});  // best effort; beforeunload keeps work safe if it fails
-  }
+  };
 
-  function scheduleAutosave() {
-    dirty = true;
-    clearTimeout(timer);
-    timer = setTimeout(autosave, 1000);
-  }
+  // Track unsaved changes so beforeunload can warn. Chip add/remove and other
+  // programmatic DOM changes don't fire input/change, so observe the tree too.
+  const markDirty = () => { dirty = true; };
+  form.addEventListener('input', markDirty);
+  form.addEventListener('change', markDirty);
+  new MutationObserver(markDirty).observe(form, { childList: true, subtree: true });
 
-  form.addEventListener('input', scheduleAutosave);
-  form.addEventListener('change', scheduleAutosave);
-  // Chip add/remove and other programmatic DOM changes don't fire input/change.
-  new MutationObserver(scheduleAutosave).observe(form, { childList: true, subtree: true });
-
-  form.addEventListener('submit', () => { submitting = true; clearTimeout(timer); });
+  form.addEventListener('submit', () => { submitting = true; });
   window.addEventListener('beforeunload', e => {
     if (dirty && !submitting) { e.preventDefault(); e.returnValue = ''; }
   });
