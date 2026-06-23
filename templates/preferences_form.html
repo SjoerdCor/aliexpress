@@ -69,8 +69,6 @@ Voer zoveel mogelijk positieve voorkeuren in. Dat geeft ALI Express meer flexibi
      stays inside the one form so its inputs keep posting and prefill keeps working. #}
   <div class="candidate-editor" id="editor-{{ key }}">
     <div class="modal-head">
-      <button type="button" class="modal-cancel" data-key="{{ key }}"
-              aria-label="Sluiten zonder opslaan" title="Sluiten zonder opslaan">×</button>
       <h2 class="modal-title">{{ display_name }}</h2>
       <div class="modal-sub">uit {{ candidate.groepsnaam }}</div>
     </div>
@@ -142,6 +140,9 @@ Voer zoveel mogelijk positieve voorkeuren in. Dat geeft ALI Express meer flexibi
     </div>{# .candidate-content #}
 
     <div class="modal-foot">
+      <button type="button" class="button button--cancel modal-cancel" data-key="{{ key }}">
+        Annuleren
+      </button>
       <button type="button" class="button button--primary modal-done" data-key="{{ key }}">
         Opslaan
       </button>
@@ -302,10 +303,8 @@ function intensityLabel(soort, weight) {
   return (intensityLevels(soort).find(x => x.w === weight) || {}).l || '';
 }
 
-// Caption shown above the pills (only while open): clarifies that the buttons set how
-// heavily the preference weighs, without adding clutter to the collapsed chip.
 function intensityCaption(soort) {
-  return soort === 'graag_met' ? 'Hoe graag?' : 'Hoe sterk?';
+  return soort === 'graag_met' ? 'Hoe graag?' : '';
 }
 
 function makePreferenceChip(key, soort, name, weight, isGroup) {
@@ -339,14 +338,15 @@ function makePreferenceChip(key, soort, name, weight, isGroup) {
   hiddenWeight.name = `preference_${key}_${soort}_gewicht`;
   hiddenWeight.value = weight;
 
-  // Intensity pills, hidden until the chip is clicked. Weight 1 stays unmarked.
   const pills = document.createElement('span');
   pills.className = 'chip-pills';
-  pills.hidden = true;
-  const caption = document.createElement('span');
-  caption.className = 'chip-pills-caption';
-  caption.textContent = intensityCaption(soort);
-  pills.appendChild(caption);
+  const captionText = intensityCaption(soort);
+  if (captionText) {
+    const caption = document.createElement('span');
+    caption.className = 'chip-pills-caption';
+    caption.textContent = captionText;
+    pills.appendChild(caption);
+  }
   intensityLevels(soort).forEach(lvl => {
     const pill = document.createElement('button');
     pill.type = 'button';
@@ -359,19 +359,11 @@ function makePreferenceChip(key, soort, name, weight, isGroup) {
 
   function render() {
     const w = parseFloat(hiddenWeight.value) || 1;
-    // While the pills are open the active pill already shows the choice, so the inline
-    // label is only shown when collapsed (and only for a non-default weight).
-    intensity.textContent = (pills.hidden && w !== 1)
-      ? ` · ${w === 5 ? '♥ ' : ''}${intensityLabel(soort, w)}`
-      : '';
+    intensity.textContent = '';
     pills.querySelectorAll('.intensity-pill').forEach(p =>
       p.classList.toggle('active', parseFloat(p.dataset.weight) === w));
   }
-  function setWeight(w) { hiddenWeight.value = w; pills.hidden = true; render(); }
-
-  lbl.style.cursor = 'pointer';
-  lbl.title = 'Klik om de intensiteit te wijzigen';
-  lbl.addEventListener('click', () => { pills.hidden = !pills.hidden; render(); });
+  function setWeight(w) { hiddenWeight.value = w; render(); }
 
   chip.append(lbl, pills, del, hiddenName, hiddenWeight);
   render();
@@ -671,12 +663,6 @@ document.querySelectorAll('.modal-done').forEach(btn =>
   btn.addEventListener('click', () => saveEditor(btn.dataset.key)));
 document.querySelectorAll('.modal-cancel').forEach(btn =>
   btn.addEventListener('click', () => cancelEditor(btn.dataset.key)));
-document.getElementById('pref-scrim').addEventListener('click', () => {
-  if (_openKey) cancelEditor(_openKey);  // backdrop-click discards
-});
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && _openKey) cancelEditor(_openKey);  // Esc discards
-});
 
 // Wire up every preference combobox rendered server-side.
 document.querySelectorAll('.combobox-input').forEach(initCombobox);
