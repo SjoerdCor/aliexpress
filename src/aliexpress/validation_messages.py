@@ -198,12 +198,10 @@ def schemaerror_to_validation_message(exc: pa.errors.SchemaError) -> str:
         if exc.check.name == "greater_than" and "Gewicht" in exc.column_name:
             return "Er zijn negatieve gewichten in het voorkeurenbestand."
         if exc.check.name == "duplicated_values_preferences":
-            students_with_duplicates = ", ".join(
-                set(exc.failure_cases["index"].get_level_values("Leerling"))
-            )
+            # The check function returns a single bool (not per-row), so pandera
+            # stores the bool as failure_cases — we cannot extract student names.
             return (
-                "In het voorkeuren-bestand is voor "
-                f"{students_with_duplicates} een leerling of groep gevonden die "
+                "In het voorkeuren-bestand is een leerling of groep gevonden die "
                 "dubbel voorkomt. Tel ze op of streep ze tegen elkaar weg om "
                 "dubbelingen te voorkomen."
             )
@@ -216,40 +214,6 @@ def schemaerror_to_validation_message(exc: pa.errors.SchemaError) -> str:
                 )
             )
             return f"Onbekende leerling of groep in categorie: {invalid_values}"
-        if exc.check.name == "isin" and exc.filetype == "niet_samen":
-            unknown_students = ", ".join(exc.failure_cases["failure_case"].astype(str))
-            return (
-                f"In het niet-samen-bestand komt {unknown_students} voor, "
-                "die niet in het voorkeurenbestand voorkomt"
-            )
-        if exc.check.name == "duplicated_students_not_together":
-            rows = ", ".join(set(exc.failure_cases["index"].add(1).astype(str)))
-            duplicated_students = ", ".join(
-                exc.failure_cases.groupby("index")["failure_case"].apply(
-                    lambda s: s[s.duplicated()]
-                )
-            )
-            return (
-                f"In het niet-samen-bestand wordt in de {rows}e "
-                f"groep dezelfde leerling meerdere keren genoemd: {duplicated_students}"
-            )
-        if exc.check.name == "too_strict_not_together":
-            rows = ", ".join(set(exc.failure_cases["index"].add(1).astype(str)))
-            max_samen = ", ".join(
-                exc.failure_cases.loc[
-                    lambda df: df["column"] == "Max aantal samen", "failure_case"
-                ].astype(str)
-            )
-            nr_students = ", ".join(
-                exc.failure_cases.groupby("index").size().sub(1).astype(str)
-            )
-
-            return (
-                f"In het niet-samen-bestand op de {rows}e rij is de maximale "
-                f"groepsgrootte te klein: met dit aantal groepen lukt het niet om {nr_students} "
-                f"leerlingen te verdelen met maximaal {max_samen} bij elkaar."
-            )
-
     return (
         f"Er is iets onverwachts misgegaan bij het lezen van {exc.filetype}. "
         "Controleer het bestand goed en of je het meest recente template hebt gebruikt. "
