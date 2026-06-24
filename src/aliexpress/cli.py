@@ -12,6 +12,7 @@ import string
 
 import click
 from flask import current_app
+from flask.cli import with_appcontext
 from werkzeug.security import generate_password_hash
 from zxcvbn import zxcvbn
 
@@ -35,6 +36,7 @@ def schools():
 @click.option(
     "--naam", prompt="Naam van de school", help="Volledige naam van de school"
 )
+@with_appcontext
 def add_school(schoolcode, naam):
     """Add a school with a temporary password the school must change on first login."""
     if db.session.get(School, schoolcode):
@@ -55,6 +57,7 @@ def add_school(schoolcode, naam):
 
 @schools.command("delete")
 @click.argument("schoolcode")
+@with_appcontext
 def delete_school(schoolcode):
     """Delete a school and all its data (including saved files)"""
     school = db.session.get(School, schoolcode)
@@ -67,7 +70,9 @@ def delete_school(schoolcode):
     )
     db.session.delete(school)
     db.session.commit()
-    storage_dir = os.path.join(current_app.instance_path, "storage", schoolcode)
+    # Resolve via STORAGE_DIR so that a custom storage location (e.g. in tests) is
+    # honoured consistently with storage.py, which derives all paths from this key.
+    storage_dir = os.path.join(current_app.config["STORAGE_DIR"], schoolcode)
     if os.path.isdir(storage_dir):
         shutil.rmtree(storage_dir)
         click.echo(f"Opgeslagen bestanden verwijderd: {storage_dir}")
@@ -81,6 +86,7 @@ def admins():
 
 @admins.command("add")
 @click.argument("username")
+@with_appcontext
 def add_admin(username):
     """Create an admin account"""
     if Admin.query.filter_by(username=username).first():
