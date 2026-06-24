@@ -324,15 +324,17 @@ def _reconcile_dangling(draft_state, participants, group_labels):
     may have removed them on the roster step). Group targets stay valid. Mutates
     ``draft_state`` in place and returns one Dutch message per removed preference.
     """
-    valid_names = {f"{p['roepnaam']} {p['achternaam']}" for p in participants}
-    valid_targets = valid_names | set(group_labels)
+    valid_keys = {
+        datareader.matching_key(f"{p['roepnaam']} {p['achternaam']}")
+        for p in participants
+    } | {datareader.matching_key(g) for g in group_labels}
     notices = []
     for student in draft_state["students"]:
-        owner = f"{student['roepnaam']} {student['achternaam']}"
+        owner = f"{student['roepnaam']} {student['achternaam']}".strip()
         for kind in ("graag_met", "liever_niet_met"):
             kept = []
             for wish in student.get(kind, []):
-                if wish["target"] in valid_targets:
+                if datareader.matching_key(wish["target"]) in valid_keys:
                     kept.append(wish)
                 else:
                     notices.append(
