@@ -18,13 +18,17 @@ import string
 
 import pandas as pd
 
+from aliexpress import create_app
 from aliexpress.datareader import matching_key
+from aliexpress.extensions import db
+from aliexpress.models import Process, School
 from aliexpress.preferences_form import (
     Preference,
     PreferenceKind,
     StudentEntry,
     build_preference_data,
 )
+from aliexpress.storage import get_process_path
 from tests.testedexmlgeneration import SAMPLE_GROUP_NAMES
 
 random.seed(42)
@@ -242,6 +246,42 @@ def _build_roster_participants(entries: list[StudentEntry]) -> list[dict]:
     ]
 
 
+def _build_pref_form_state(
+    entries: list[StudentEntry], participants: list[dict]
+) -> dict:
+    """Build preferences_form_state.json content from StudentEntry objects.
+
+    Mirrors the structure that ``_build_form_state`` in wizard.py produces after a
+    form POST, so the preferences form pre-fills correctly on the first GET.
+    Entries and participants must be in the same order (both come from the same
+    generated list).
+    """
+    state_students = []
+    for c, e in zip(participants, entries):
+        state_students.append(
+            {
+                "key": c["key"],
+                "roepnaam": c["roepnaam"],
+                "achternaam": c["achternaam"],
+                "groepsnaam": c["groepsnaam"],
+                "geslacht": c["geslacht"],
+                "min_satisfaction": e.min_satisfaction,
+                "graag_met": [
+                    {"target": p.target, "weight": p.weight}
+                    for p in e.preferences
+                    if p.kind == PreferenceKind.TOGETHER
+                ],
+                "liever_niet_met": [
+                    {"target": p.target, "weight": p.weight}
+                    for p in e.preferences
+                    if p.kind == PreferenceKind.APART
+                ],
+                "niet_in": e.excluded_groups,
+            }
+        )
+    return {"students": state_students}
+
+
 # ---------------------------------------------------------------------------
 # Public: write a complete process directory
 # ---------------------------------------------------------------------------
@@ -288,9 +328,65 @@ def main(n_groups: int = 4, n_students: int = 35, n_rules: int = 5, folder: str 
     with open(os.path.join(folder, "roster.json"), "w", encoding="utf-8") as fh:
         json.dump({"participants": participants}, fh, ensure_ascii=False)
 
+    # preferences_form_state.json — pre-fills the form on first GET
+    pref_state = _build_pref_form_state(entries, participants)
+    with open(
+        os.path.join(folder, "preferences_form_state.json"), "w", encoding="utf-8"
+    ) as fh:
+        json.dump(pref_state, fh, ensure_ascii=False)
+
     # input_method.json — marks this process as form-based
     with open(os.path.join(folder, "input_method.json"), "w", encoding="utf-8") as fh:
         json.dump({"method": "form"}, fh, ensure_ascii=False)
+
+
+# ---------------------------------------------------------------------------
+# Public: create a process in the running app instance
+# ---------------------------------------------------------------------------
+
+
+def setup_test_process(
+    school_id: str,
+    process_name: str,
+    n_groups: int = 4,
+    n_students: int = 35,
+    n_rules: int = 5,
+) -> str:
+    """Create a DB entry + full process directory for manual browser testing.
+
+    Parameters
+    ----------
+    school_id : str
+        The ``schoolcode`` of an existing school in the database.
+    process_name : str
+        Name of the process to create (inserted if it does not exist yet).
+    n_groups, n_students, n_rules : int
+        Passed to ``main()``; see its docstring.
+
+    Returns
+    -------
+    str
+        Absolute path to the process directory with all files written.
+
+    Raises
+    ------
+    ValueError
+        When ``school_id`` does not exist in the database.
+    """
+    app = create_app()
+    with app.app_context():
+        if db.session.get(School, school_id) is None:
+            raise ValueError(
+                f"School '{school_id}' bestaat niet. "
+                "Maak het eerst aan met: uv run flask schools add"
+            )
+        if Process.by_name(school_id, process_name) is None:
+            db.session.add(Process(school_id=school_id, name=process_name))
+            db.session.commit()
+        folder = get_process_path(school_id, process_name)
+    os.makedirs(folder, exist_ok=True)
+    main(n_groups=n_groups, n_students=n_students, n_rules=n_rules, folder=folder)
+    return folder
 
 
 # ---------------------------------------------------------------------------
@@ -340,4 +436,11 @@ def {function_name}():
 
 
 if __name__ == "__main__":
-    main(3, 8, 1)
+    import sys  # pylint: disable=import-outside-toplevel
+
+    if len(sys.argv) >= 3:
+        _school, _process = sys.argv[1], sys.argv[2]
+        _path = setup_test_process(_school, _process)
+        print(f"Testproces aangemaakt: {_path}")
+    else:
+        main(3, 8, 1)

@@ -198,3 +198,149 @@ class TestLoginRateLimit:
         finally:
             limiter.enabled = False
         assert all(status == 200 for status in statuses)
+
+
+class TestChangePassword:
+    """Security tests for the forced-password-change flow.
+
+    A school account flagged must_change_password=True is forced through
+    /wachtwoord-instellen before it can reach any other page.  These tests
+    guard the invariants that make the flow secure:
+
+    1. The forced redirect actually fires after login.
+    2. Accounts that do NOT need a change are kept out (no CSRF bypass).
+    3. Weak passwords are rejected and the flag stays True.
+    4. Mismatched confirmations are rejected and the flag stays True.
+    5. A genuinely strong password completes the flow correctly.
+    """
+
+    def _create_school_must_change(
+        self,
+        app,
+        schoolcode="obs-nieuw",
+        naam="Nieuwe School",
+        password="tijdelijk123",
+    ):
+        """Persist a school with must_change_password=True; return (schoolcode, password)."""
+        with app.app_context():
+            school = School(
+                schoolcode=schoolcode,
+                naam=naam,
+                password_hash=generate_password_hash(password),
+                must_change_password=True,
+            )
+            db.session.add(school)
+            db.session.commit()
+        return schoolcode, password
+
+    def test_login_with_must_change_password_redirects_to_change_password(
+        self, unauthed_client
+    ):
+        """A school flagged must_change_password=True must not reach /processes after
+        login — it must be redirected to /wachtwoord-instellen so the admin-set
+        temporary password cannot be used indefinitely."""
+        schoolcode, password = self._create_school_must_change(
+            unauthed_client.application
+        )
+        response = unauthed_client.post(
+            "/login", data={"schoolcode": schoolcode, "wachtwoord": password}
+        )
+        assert response.status_code == 302
+        assert "wachtwoord-instellen" in response.headers["Location"]
+
+    def test_change_password_get_blocked_when_flag_is_false(self, client):
+        """A school that does NOT have must_change_password=True hitting
+        /wachtwoord-instellen must be redirected away — the page must not be
+        accessible to already-configured accounts (prevents accidental re-use)."""
+        # The ``client`` fixture logs in as a school with must_change_password=False
+        # (the default), so a GET to the route should redirect to /processes.
+        response = client.get("/wachtwoord-instellen")
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/processes")
+
+    def test_weak_password_rejected_and_flag_stays_true(self, unauthed_client):
+        """A trivially weak password (zxcvbn score < 3) must be rejected with a Dutch
+        error message and must NOT flip must_change_password to False.  If the flag
+        could be cleared by an invalid submission, an attacker who somehow reaches the
+        form could lock out the school from ever being forced to change their password.
+        """
+        schoolcode, password = self._create_school_must_change(
+            unauthed_client.application
+        )
+        unauthed_client.post(
+            "/login", data={"schoolcode": schoolcode, "wachtwoord": password}
+        )
+        response = unauthed_client.post(
+            "/wachtwoord-instellen",
+            data={"wachtwoord": "abc", "wachtwoord_bevestig": "abc"},
+        )
+        assert response.status_code == 200
+        assert "te makkelijk" in response.data.decode("utf-8")
+        with unauthed_client.application.app_context():
+            school = db.session.get(School, schoolcode)
+            assert school.must_change_password is True
+
+    def test_mismatched_confirmation_rejected_and_flag_stays_true(
+        self, unauthed_client
+    ):
+        """Submitting mismatching wachtwoord / wachtwoord_bevestig fields must
+        re-render the form with an error and leave must_change_password True.
+        A bypass here would let an attacker set an unknown password."""
+        schoolcode, password = self._create_school_must_change(
+            unauthed_client.application
+        )
+        unauthed_client.post(
+            "/login", data={"schoolcode": schoolcode, "wachtwoord": password}
+        )
+        strong = "PaardenBloem!Fiets42Oost"
+        response = unauthed_client.post(
+            "/wachtwoord-instellen",
+            data={"wachtwoord": strong, "wachtwoord_bevestig": strong + "X"},
+        )
+        assert response.status_code == 200
+        assert "niet overeen" in response.data.decode("utf-8")
+        with unauthed_client.application.app_context():
+            school = db.session.get(School, schoolcode)
+            assert school.must_change_password is True
+
+    def test_strong_password_accepted_and_flag_cleared(self, unauthed_client):
+        """A strong passphrase (zxcvbn score >= 3, unrelated to schoolcode/naam)
+        must update the password hash, flip must_change_password to False, and
+        redirect to /processes.  This is the happy path that unlocks the account;
+        verifying the hash and the flag ensures no partial writes can leave the
+        account in a broken state."""
+        schoolcode, old_password = self._create_school_must_change(
+            unauthed_client.application
+        )
+        unauthed_client.post(
+            "/login", data={"schoolcode": schoolcode, "wachtwoord": old_password}
+        )
+        # Passphrase is deliberately unrelated to schoolcode/naam so zxcvbn scores >= 3.
+        new_password = "PaardenBloem!Fiets42Oost"
+        response = unauthed_client.post(
+            "/wachtwoord-instellen",
+            data={
+                "wachtwoord": new_password,
+                "wachtwoord_bevestig": new_password,
+            },
+        )
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/processes")
+        with unauthed_client.application.app_context():
+            school = db.session.get(School, schoolcode)
+            assert school.must_change_password is False
+            assert check_password_hash(school.password_hash, new_password)
+
+    def test_change_password_get_renders_form_for_fresh_account(self, unauthed_client):
+        """A fresh school (must_change_password=True) that follows the forced redirect
+        must actually be shown the password-setting form — this is the first page the
+        teacher sees, so a regression that fails to render it would lock them out."""
+        schoolcode, password = self._create_school_must_change(
+            unauthed_client.application
+        )
+        unauthed_client.post(
+            "/login", data={"schoolcode": schoolcode, "wachtwoord": password}
+        )
+        response = unauthed_client.get("/wachtwoord-instellen")
+        assert response.status_code == 200
+        assert "Wachtwoord instellen" in response.data.decode("utf-8")

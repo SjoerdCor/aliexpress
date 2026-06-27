@@ -4,11 +4,17 @@ These pin the Dutch strings shown to teachers when uploads fail; a refactor must
 silently change the UI text.
 """
 
+# pylint: disable=protected-access  # tests call _validate_input directly (same as test_datareader)
+
+from unittest.mock import patch
+
 import numpy as np
 import pandas as pd
 import pandera as pa
+import pytest
 from werkzeug.exceptions import RequestEntityTooLarge
 
+from aliexpress import datareader
 from aliexpress.errors import ValidationError
 from aliexpress.validation_messages import (
     readableerror_to_validation_message,
@@ -116,3 +122,312 @@ class TestErrorMessages:
         """Without attached students the message still renders (no KeyError/500)."""
         msg = schemaerror_to_validation_message(self._nulls_schema_error())
         assert "voorkeuren" in msg
+
+
+class TestSchemaErrorMessages:
+    """Tests for schemaerror_to_validation_message branches not covered by TestErrorMessages.
+
+    Each test triggers a REAL pandera SchemaError through the actual datareader validation
+    path (approach B), so the test verifies the real contract between datareader (which
+    raises) and validation_messages (which translates). Building synthetic SchemaErrors
+    would drift from reality and give false confidence.
+    """
+
+    @staticmethod
+    def _valid_voorkeuren_df():
+        """Minimal valid wide-format voorkeuren DataFrame, same structure as datareader expects."""
+        header = [
+            ("MinimaleTevredenheid", np.nan, np.nan),
+            ("Jongen/meisje", np.nan, np.nan),
+            ("Stamgroep", np.nan, np.nan),
+            ("Graag met", 1.0, "Waarde"),
+            ("Graag met", 1.0, "Gewicht"),
+            ("Graag met", 2.0, "Waarde"),
+            ("Graag met", 2.0, "Gewicht"),
+            ("Graag met", 3.0, "Waarde"),
+            ("Graag met", 3.0, "Gewicht"),
+            ("Graag met", 4.0, "Waarde"),
+            ("Graag met", 4.0, "Gewicht"),
+            ("Graag met", 5.0, "Waarde"),
+            ("Graag met", 5.0, "Gewicht"),
+            ("Liever niet met", 1.0, "Waarde"),
+            ("Liever niet met", 1.0, "Gewicht"),
+            ("Niet in", 1.0, "Waarde"),
+            ("Niet in", 2.0, "Waarde"),
+        ]
+        columns = pd.MultiIndex.from_tuples(
+            header, names=["TypeWens", "Nr", "TypeWaarde"]
+        )
+        data = [
+            [
+                np.nan,
+                "Jongen",
+                "a",
+                "jane",
+                1,
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
+            ],
+            [
+                np.nan,
+                "Meisje",
+                "a",
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
+            ],
+        ]
+        return pd.DataFrame(
+            data,
+            columns=columns,
+            index=pd.Index(["john", "jane"], name="Leerling"),
+        )
+
+    def test_column_not_in_schema_returns_wrong_columns_message(self):
+        """An extra column in the groepen file raises COLUMN_NOT_IN_SCHEMA; the message
+        names the filetype and says 'verkeerde kolommen'.
+
+        This is the first thing a teacher sees when they upload the wrong file (e.g. the
+        voorkeuren sheet instead of groepen). The message must be clear about which file
+        is wrong and what to check.
+        """
+        with patch("aliexpress.datareader.pd.read_excel") as mock_read:
+            mock_read.return_value = pd.DataFrame(
+                {"Groepen": ["Rood"], "Jongens": [5], "Meisjes": [6], "ExtraKolom": [0]}
+            )
+            try:
+                datareader.read_groups_excel("groepen.xlsx")
+            except pa.errors.SchemaError as exc:
+                msg = schemaerror_to_validation_message(exc)
+                assert "groepen" in msg
+                assert "verkeerde kolommen" in msg
+            else:
+                pytest.fail("expected a SchemaError for extra column")
+
+    def test_datatype_coercion_names_the_column_and_filetype(self):
+        """A non-coercible cell in a typed column raises DATATYPE_COERCION; the message
+        names the column and the filetype.
+
+        Happens when e.g. MinimaleTevredenheid contains text that cannot be parsed as a
+        float. The message tells the teacher which column to fix.
+        """
+        df = self._valid_voorkeuren_df().copy().astype(object)
+        df.loc["john", ("MinimaleTevredenheid", np.nan, np.nan)] = "tekst"
+        processor = datareader.VoorkeurenProcessor.__new__(
+            datareader.VoorkeurenProcessor
+        )
+        try:
+            processor._validate_input(df)
+        except pa.errors.SchemaError as exc:
+            msg = schemaerror_to_validation_message(exc)
+            assert "MinimaleTevredenheid" in msg
+            assert "voorkeuren" in msg
+        else:
+            pytest.fail("expected a SchemaError for wrong datatype")
+
+    def test_empty_voorkeuren_yields_empty_df_message(self):
+        """An empty voorkeuren sheet raises DATAFRAME_CHECK/empty_df; message names the filetype.
+
+        This branch matters because teachers sometimes upload an empty template; they must
+        get a clear Dutch message rather than a cryptic 500.
+        """
+        df = self._valid_voorkeuren_df().iloc[:0]  # empty, but valid columns
+        processor = datareader.VoorkeurenProcessor.__new__(
+            datareader.VoorkeurenProcessor
+        )
+        try:
+            processor._validate_input(df)
+        except pa.errors.SchemaError as exc:
+            msg = schemaerror_to_validation_message(exc)
+            assert "leeg" in msg
+            assert "voorkeuren" in msg
+        else:
+            pytest.fail("expected a SchemaError for empty df")
+
+    def test_empty_groepen_yields_empty_df_message(self):
+        """An empty groepen sheet raises DATAFRAME_CHECK/empty_df; message names the filetype.
+
+        Same check as voorkeuren but for the groepen file — verifies the branch works for
+        both filetypes, not just voorkeuren.
+        """
+        with patch("aliexpress.datareader.pd.read_excel") as mock_read:
+            mock_read.return_value = pd.DataFrame(
+                columns=["Groepen", "Jongens", "Meisjes"]
+            )
+            try:
+                datareader.read_groups_excel("groepen.xlsx")
+            except pa.errors.SchemaError as exc:
+                msg = schemaerror_to_validation_message(exc)
+                assert "leeg" in msg
+                assert "groepen" in msg
+            else:
+                pytest.fail("expected a SchemaError for empty groepen df")
+
+    def test_wrong_sex_value_names_the_student(self):
+        """A non-'Jongen'/'Meisje' sex value raises DATAFRAME_CHECK/isin on the Jongen/meisje
+        column; the message must name the offending student(s).
+
+        This is the most common upload mistake: teachers who fill in 'M'/'V' or 'man'/'vrouw'
+        instead of the expected Dutch labels get a clear hint.
+        """
+        df = self._valid_voorkeuren_df().copy()
+        df.loc["john", ("Jongen/meisje", np.nan, np.nan)] = "Alien"
+        processor = datareader.VoorkeurenProcessor.__new__(
+            datareader.VoorkeurenProcessor
+        )
+        try:
+            processor._validate_input(df)
+        except pa.errors.SchemaError as exc:
+            msg = schemaerror_to_validation_message(exc)
+            assert "john" in msg
+            assert "geslacht" in msg.lower()
+        else:
+            pytest.fail("expected a SchemaError for wrong sex value")
+
+    def test_duplicated_values_preferences_returns_friendly_message(self):
+        """Listing the same classmate twice for one student raises
+        DATAFRAME_CHECK/duplicated_values_preferences; the message must not crash and
+        must mention 'voorkeuren' and 'dubbel'.
+
+        The check function returns a single bool so pandera cannot expose the offending
+        student names via failure_cases — the message is therefore generic but still
+        actionable. This test guards against the 'bool is not subscriptable' crash that
+        would otherwise produce a 500 in the teacher's browser.
+        """
+        df = self._valid_voorkeuren_df().copy().astype(object)
+        # Make john list 'jane' twice: slot 1 and slot 2 both point to jane.
+        df.loc["john", ("Graag met", 2.0, "Waarde")] = "jane"
+        df.loc["john", ("Graag met", 2.0, "Gewicht")] = 1.0
+
+        processor = datareader.VoorkeurenProcessor.__new__(
+            datareader.VoorkeurenProcessor
+        )
+        processor.input = df
+        processor.df = df.copy()
+        processor.restructure()
+
+        try:
+            processor.validate_preferences(all_to_groups=["blauw"])
+        except pa.errors.SchemaError as exc:
+            msg = schemaerror_to_validation_message(exc)
+            assert "dubbel" in msg.lower()
+            assert "voorkeuren" in msg
+        else:
+            pytest.fail("expected a SchemaError for duplicated preference values")
+
+    def test_invalid_values_preferences_names_the_unknown_target(self):
+        """A wish aimed at an unknown student/group raises
+        DATAFRAME_CHECK/invalid_values_preferences; the message names the unknown value.
+
+        When a teacher types a wrong name (typo, old classmate) the message must show
+        which value failed so they know exactly what to fix.
+        """
+        df = self._valid_voorkeuren_df().copy()
+        # john wishes for 'onbekend' — not in the known students or groups list.
+        df.loc["john", ("Graag met", 1.0, "Waarde")] = "onbekend"
+
+        processor = datareader.VoorkeurenProcessor.__new__(
+            datareader.VoorkeurenProcessor
+        )
+        processor.input = df
+        processor.df = df.copy()
+        processor.restructure()
+
+        try:
+            # 'jane' is a known student; 'onbekend' is not a student or group.
+            processor.validate_preferences(all_to_groups=["blauw"])
+        except pa.errors.SchemaError as exc:
+            msg = schemaerror_to_validation_message(exc)
+            assert "onbekend" in msg
+        else:
+            pytest.fail("expected a SchemaError for invalid preference target")
+
+    def test_duplicate_index_voorkeuren_names_the_duplicate(self):
+        """Two rows with the same student name in voorkeuren raises
+        SERIES_CONTAINS_DUPLICATES (voorkeuren branch); the message names the duplicate.
+
+        Teachers who copy a row by accident get a message naming the repeated student so
+        they know which duplicate to remove.
+        """
+        df = self._valid_voorkeuren_df()
+        df_dup = pd.concat([df, df.iloc[:1]])  # john appears twice
+        processor = datareader.VoorkeurenProcessor.__new__(
+            datareader.VoorkeurenProcessor
+        )
+        try:
+            processor._validate_input(df_dup)
+        except pa.errors.SchemaError as exc:
+            msg = schemaerror_to_validation_message(exc)
+            assert "john" in msg
+            assert "uniek" in msg.lower() or "niet uniek" in msg.lower()
+        else:
+            pytest.fail("expected a SchemaError for duplicated student index")
+
+    def test_negative_gewicht_returns_friendly_message(self):
+        """A negative weight in a Gewicht column raises DATAFRAME_CHECK/greater_than;
+        the message must mention 'gewichten' and 'voorkeurenbestand'.
+
+        When a teacher types a negative weight (e.g. '-1') in the Gewicht column the
+        formatter must give a clear Dutch message rather than crashing.
+        """
+        df = self._valid_voorkeuren_df().copy()
+        df.loc["john", ("Graag met", 1.0, "Gewicht")] = -1
+
+        processor = datareader.VoorkeurenProcessor.__new__(
+            datareader.VoorkeurenProcessor
+        )
+        processor.input = df
+        processor.df = df.copy()
+        processor.student_display = {"john": "john", "jane": "jane"}
+        processor.restructure()
+
+        try:
+            processor.validate_preferences(all_to_groups=["blauw"])
+        except pa.errors.SchemaError as exc:
+            msg = schemaerror_to_validation_message(exc)
+            assert "gewichten" in msg.lower()
+            assert "voorkeurenbestand" in msg.lower()
+        else:
+            pytest.fail("expected a SchemaError for negative gewicht")
+
+    def test_duplicate_group_name_in_groepen_returns_non_voorkeuren_message(self):
+        """A duplicate group name in the groepen file raises SERIES_CONTAINS_DUPLICATES
+        (non-voorkeuren branch); the message names the filetype and the duplicate column.
+
+        The groepen file has unique=True on the Groepen column. If a teacher lists
+        the same class name twice the message must not say 'voorkeuren' (wrong file).
+        """
+        with patch("aliexpress.datareader.pd.read_excel") as mock_read:
+            mock_read.return_value = pd.DataFrame(
+                {"Groepen": ["Rood", "Rood"], "Jongens": [5, 6], "Meisjes": [6, 7]}
+            )
+            try:
+                datareader.read_groups_excel("groepen.xlsx")
+            except pa.errors.SchemaError as exc:
+                msg = schemaerror_to_validation_message(exc)
+                assert "groepen" in msg
+                assert "voorkeuren" not in msg
+                assert "dubbeling" in msg.lower() or "Groepen" in msg
+            else:
+                pytest.fail("expected a SchemaError for duplicate group names")
