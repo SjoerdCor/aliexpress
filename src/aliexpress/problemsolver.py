@@ -14,7 +14,7 @@ from dataclasses import dataclass
 import pandas as pd
 import pulp
 
-from . import optimizationstrategies, preferences_utils, pulp_logical
+from . import errors, optimizationstrategies, preferences_utils, pulp_logical
 
 logger = logging.getLogger(__name__)
 
@@ -513,6 +513,13 @@ class ProblemSolver:
         relaxation = self._weighted_relaxation(prob)
         prob.setObjective(relaxation + 1000 * pulp.lpSum(wish_slacks))
         status = prob.solve(self._get_solver())
+        if pulp.LpStatus[status] == "Infeasible":
+            # The hard preference constraints (Extra zekerheid / Niet-samen) contradict
+            # each other; main.py fills in which choices clash before surfacing this.
+            raise errors.FeasibilityError(
+                "infeasible_preferences",
+                technical_message="Hard preference constraints are mutually infeasible",
+            )
         if pulp.LpStatus[status] != "Optimal":
             raise ValueError("Could not determine the minimal class-balance relaxation")
         return relaxation.value()

@@ -38,6 +38,11 @@ def readableerror_to_validation_message(exc: Exception) -> str:
             "niet mogelijk. Overweeg de volgende versoepelingen om het probleem wel op te "
             "lossen:\n {possible_improvement}"
         ),
+        "infeasible_preferences": (
+            "Met deze voorkeuren lukt geen evenwichtige groepsindeling. Waarschijnlijk staat "
+            "de extra zekerheid voor te veel leerlingen te hoog, of zijn er te strenge "
+            "niet-samen-regels. Versoepel er een en probeer opnieuw."
+        ),
         "internal_error": (
             "Er is iets onverwachts misgegaan. Het probleem is gelogd. "
             "Laat de maker dit onderzoeken."
