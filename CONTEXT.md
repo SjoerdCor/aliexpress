@@ -32,6 +32,10 @@ _Avoid_: harde voorkeur, blacklist
 De mate waarin de voorkeuren van een leerling in de verdeling zijn ingewilligd, op een verzadigende schaal (iedereen krijgt voorkeur 1 voor wie dan ook voorkeur 2 krijgt). Een leerling zonder voorkeuren geldt als volledig tevreden. De optimalisatie maximaliseert de tevredenheid lexicografisch over de minst tevreden leerlingen.
 _Avoid_: score, geluk
 
+**Extra zekerheid**:
+Een ondergrens die de leerkracht per leerling kan eisen aan diens Tevredenheid, in drie betekenisvolle niveaus: *geen eis*, *minstens één voorkeur* (de belangrijkste of een willekeurige voorkeur wordt vervuld) of *belangrijkste voorkeur* (juist de zwaarst gewogen voorkeur wordt gegarandeerd). Anders dan Tevredenheid, die de verdeling maximaliseert maar mag schenden, is een gevraagde extra zekerheid een harde eis. Te veel of te hoge eisen kunnen de verdeling onmogelijk maken.
+_Avoid_: minimale tevredenheid, garantie
+
 **Niet-in-groep-uitsluiting**:
 Een harde eis dat een specifieke leerling niet in een bepaalde bestemmingsgroep geplaatst mag worden — bedoeld voor gevallen waarin het écht niet kan, met name als er al een familielid (bijv. een oudere broer of zus) in die groep zit. Hard, dus altijd gerespecteerd. Onderscheidt zich van een negatieve Voorkeur naar een groep ("liever niet naar Blauw"), die zacht is en mag wijken.
 _Avoid_: niet in, verbod
