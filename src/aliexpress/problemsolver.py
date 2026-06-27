@@ -399,9 +399,19 @@ class ProblemSolver:
             gr = row["Waarde"]
             prob += self.in_group[(student, gr)] == 0
 
-    def _constraint_not_together(self, prob):
-        """Enforces constraint of difficult students not being together"""
-        for dct in self.not_together:
+    def _constraint_not_together(self, prob, make_soft=False):
+        """Enforces constraint of difficult students not being together.
+
+        With ``make_soft`` each rule gets a slack variable (``sum <= max + slack``) so a
+        diagnosis can relax this family; returns the slack variables (empty list when hard).
+        """
+        slacks = []
+        for i, dct in enumerate(self.not_together):
+            if make_soft:
+                slack = pulp.LpVariable(f"SLACK_not_together_{i}", lowBound=0)
+                slacks.append(slack)
+            else:
+                slack = 0
             for group_to in self.groups_to:
                 prob += (
                     pulp.lpSum(
@@ -411,15 +421,30 @@ class ProblemSolver:
                             if student in dct["group"]
                         ]
                     )
-                    <= dct["Max_aantal_samen"]
+                    <= dct["Max_aantal_samen"] + slack
                 )
+        return slacks
 
-    def _constraint_minimal_satisfaction(self, prob):
+    def _constraint_minimal_satisfaction(self, prob, make_soft=False):
+        """Force each student's satisfaction to its minimum (UI: "Extra zekerheid").
+
+        With ``make_soft`` each floor gets a slack variable so a diagnosis can relax this
+        family; returns the slack variables (empty list when hard).
+        """
+        slacks = []
         for student, info in self.students.items():
-            if not math.isnan(info["MinimaleTevredenheid"]):
+            if math.isnan(info["MinimaleTevredenheid"]):
+                continue
+            floor = info["MinimaleTevredenheid"]
+            if make_soft:
+                slack = pulp.LpVariable(f"SLACK_min_satisfaction_{student}", lowBound=0)
+                slacks.append(slack)
+                prob += self.studentsatisfaction[student] + slack >= floor
+            else:
                 prob += (
-                    self.studentsatisfaction[student] >= info["MinimaleTevredenheid"]
+                    self.studentsatisfaction[student] >= floor
                 ), f"MinimalSatisfaction{student}"
+        return slacks
 
     def add_fundamental_constraints(self, prob):
         """Add constraints fundamental to a solution"""
@@ -523,6 +548,27 @@ class ProblemSolver:
         if pulp.LpStatus[status] != "Optimal":
             raise ValueError("Could not determine the minimal class-balance relaxation")
         return relaxation.value()
+
+    def feasible_when_relaxed(
+        self, *, min_satisfaction_soft: bool, not_together_soft: bool
+    ) -> bool:
+        """Whether a feasible assignment exists when the chosen families are made soft.
+
+        Class balance is kept soft throughout (as in the real solve), so infeasibility can
+        only stem from the preference families left hard. Used by
+        :mod:`aliexpress.infeasibility_diagnosis` to attribute infeasibility to a family.
+        """
+        prob = pulp.LpProblem("DiagnoseFeasibility", pulp.LpMinimize)
+        self.add_fundamental_constraints(prob)
+        self.add_class_balance_constraints(prob, incl_slack=True)
+        satisfied = self.add_variables_which_preferences_satisfied(prob=prob)
+        self._calculate_student_satisfaction(satisfied, prob=prob)
+        slacks = self._constraint_minimal_satisfaction(
+            prob, make_soft=min_satisfaction_soft
+        ) + self._constraint_not_together(prob, make_soft=not_together_soft)
+        prob.setObjective(pulp.lpSum(slacks))
+        status = prob.solve(self._get_solver())
+        return pulp.LpStatus[status] == "Optimal"
 
     def _weighted_relaxation(self, prob):
         """Weighted balance-relaxation expression: the weighted slack sum plus the single
