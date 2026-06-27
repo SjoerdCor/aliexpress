@@ -2,48 +2,63 @@
 status: accepted
 ---
 
-# Onoplosbare voorkeuren: per-familie isolatie-diagnose i.p.v. één geblende slack-solve
+# Onoplosbare voorkeuren: familie-niveau leave-one-out diagnose
 
 Bij het automatische pad (`groupbalance=None`) berekent `solve_within_minimal_relaxation` eerst
 het minimale-relaxatiebudget `R*`. Die LP heeft de balans al zacht, dus onoplosbaarheid komt puur
-voort uit de botsing van de harde constraints onderling: Niet-samen-regels en Extra zekerheid
-(en, indirect, Niet-in-groep-uitsluitingen). Voorheen gooide dat een rauwe
-`ValueError: Could not determine the minimal class-balance relaxation`. We vervangen dat door een
-diagnose die per constraint-familie *in isolatie* test of het versoepelen ervan alléén de
-verdeling weer mogelijk maakt, en dat vertaalt naar een vriendelijke Nederlandse `FeasibilityError`
-met concreet advies in de vocabulaire van de leerkracht.
+voort uit de botsing van de harde voorkeur-constraints onderling: Niet-samen-regels en Extra
+zekerheid (minimale tevredenheid), en indirect Niet-in-groep-uitsluitingen. Voorheen gooide dat een
+rauwe `ValueError: Could not determine the minimal class-balance relaxation`. We vervangen dat door
+een diagnose op **familie-niveau**: via leave-one-out (relax één familie, houd de andere hard) wordt
+bepaald welke familie *noodzakelijk/voldoende* is om de verdeling weer mogelijk te maken. Het
+resultaat is een `FeasibilityError` met een vriendelijke Nederlandse melding die de leerkracht
+vertelt wélke soort keuze te versoepelen — zonder een individuele leerling of regel aan te wijzen.
 
 ## Considered Options
 
 **Eén geblende slack-solve** — alle harde constraints tegelijk zacht maken, de totale slack
-minimaliseren en aflezen welke slack positief is. Verworpen: de onoplosbaarheid is inherent een
-eigenschap van de *combinatie* (een Extra-zekerheid-eis kan onhaalbaar zijn juist omdat een
-Niet-samen-regel de benodigde plaatsing blokkeert). Welke familie de "schuld" krijgt, is dan een
-artefact van de gekozen slack-gewichten — schijnzekerheid, en precies de degeneratie-val die
-`solve_within_minimal_relaxation` elders zorgvuldig vermijdt.
+minimaliseren en aflezen welke positief is. Verworpen: de onoplosbaarheid is een eigenschap van de
+*combinatie*; welke constraint de "schuld" krijgt hangt af van de slack-gewichten — schijnzekerheid,
+precies de degeneratie-val die `solve_within_minimal_relaxation` elders vermijdt.
 
-**Leave-one-out isolatie (gekozen)** — per familie één solve waarin die familie zacht-per-element
-is en de andere familie hard blijft. De oplosbaarheid van zo'n solve is *discriminerend* (de andere
-familie blijft immers hard), wat vier eerlijke gevallen geeft: alleen Extra zekerheid lost het op /
-alleen Niet-samen / beide afzonderlijk (óf/óf) / geen van beide alleen (dan een gecombineerde solve,
-of de terugval-melding voor het fundamentele/Niet-in-geval). De slack-waarden leveren meteen
-concreet advies. Kost ~2-3 solves, uitsluitend in het foutpad.
+**Familie-niveau leave-one-out (gekozen)** — twee feasibility-solves: "lost het versoepelen van
+alléén de Extra zekerheid het op?" en idem voor Niet-samen (de andere familie blijft hard, balans
+blijft zacht). De uitkomst is *robuust en niet-arbitrair*: ze gaat over de familie, niet over een
+willekeurig lid. Dat geeft vijf gevallen — `min_satisfaction` / `not_together` (die familie alleen
+volstaat), `either` (elk afzonderlijk volstaat), `both` (alleen samen), `fundamental` (ook samen niet
+→ ligt aan "Niet in"). Een derde solve is alleen nodig in het `both`/`fundamental`-onderscheid.
 
 ## Consequences
 
-- Het advies spreekt in discrete keuzes, niet in rauwe percentages: een onhaalbare Extra zekerheid
-  op *belangrijkste voorkeur* wordt geadviseerd terug te zetten naar *minstens één voorkeur* of
-  *geen eis* (zie [ADR-0003](0003-betekenisvolle-niveaus-ipv-vrije-getallen.md)); een te krappe
-  Niet-samen-regel naar een hoger max-aantal-samen of een leerling uit de regel. De toon is
-  beschrijvend ("deze keuzes botsen — versoepel er één"), niet voorschrijvend, omdat deze keuzes
-  bewust pedagogisch zijn; Niet-in-groep-uitsluitingen worden níét als afstembare knop voorgesteld
-  (het zijn feiten, geen keuzes).
-- De diagnose-machinerie moet dezelfde regie als `R*` houden — balans zacht — anders diagnosticeert
-  ze tegen een striktere balans dan de echte solve vereist.
-- Een nieuwe `FeasibilityError`-code bakt zich in het contract tussen de diagnose-methode in
-  `problemsolver.py` (bouwt en lost de isolatie-LP's op), de orkestratie in `main.py` en de
-  Nederlandse teksten in `validation_messages.py` — net als het bestaande `calculate_feasibility` /
-  `_check_feasibility`-paar voor de balans.
+- De melding spreekt op familie-niveau, **zonder leerling-/regelnamen**: bv. "De gevraagde extra
+  zekerheid is te streng: verlaag de extra zekerheid een stap bij de leerlingen waar je die hebt
+  ingesteld." Geen percentages, geen exacte max-getallen. Niet-in-groep-uitsluitingen worden níét als
+  afstembare knop voorgesteld (het zijn feiten, geen keuzes); ze komen alleen voor in het
+  `fundamental`-geval.
+- De diagnose-machinerie houdt dezelfde regie als `R*` — balans zacht — anders diagnosticeert ze
+  tegen een striktere balans dan de echte solve vereist.
+- De orkestratie (de vijf gevallen) leeft in een eigen module `infeasibility_diagnosis.py` en roept
+  alleen de publieke `ProblemSolver.feasible_when_relaxed` aan; zo blijft `problemsolver.py` onder de
+  module-lengtelimiet en is er geen protected-access nodig. De twee harde constraint-methoden kregen
+  een `make_soft`-optie (hard pad ongewijzigd) zodat de feasibility-check ze hergebruikt zonder
+  duplicatie. `main.py` vertaalt de case naar een `FeasibilityError("infeasible_preferences")`; de
+  Nederlandse teksten staan in `validation_messages.py` — net als het bestaande
+  `calculate_feasibility` / `_check_feasibility`-paar voor de balans.
 - Alleen solver-status *Infeasible* leidt tot deze diagnose; andere statussen (Unbounded/Undefined/
-  solverfout) vallen terug op de generieke `internal_error`-melding, zodat een technische fout niet
-  als voorkeuren-conflict wordt gepresenteerd.
+  solverfout) houden de bestaande `ValueError`, zodat een technische fout niet als
+  voorkeuren-conflict wordt gepresenteerd.
+
+## Toekomstige uitbreiding (geparkeerd, niet verworpen)
+
+Een rijkere variant — *per-element diagnose met namen* — is bewust uitgesteld, niet afgewezen. Die
+zou per familie zacht-per-element rekenen en de betrokken leerlingen/regels bij naam noemen met een
+concreet streefniveau (bv. "zet Anna terug naar 'minstens één voorkeur'" of "verhoog deze regel naar
+max. 3 samen"). Dat is specifieker en daarmee handelbaarder voor de leerkracht.
+
+Twee redenen om het nu níét te doen: (1) het voegt fors meer code en bug-gevoelige Nederlandse tekst
+toe (discrete-niveau-vertaling, getallen, naam-vertaling); (2) **degeneratie** — het minimum is
+meestal niet uniek, dus een specifieke leerling noemen suggereert een unieke boosdoener die er niet
+is. Een toekomstige implementatie moet die degeneratie eerlijk afhandelen: óf alleen *noodzakelijke*
+elementen noemen (die in élke oplossing moeten wijken), óf expliciet als "één manier — er zijn
+mogelijk andere oplossingen" formuleren. De huidige familie-niveau-diagnose is hiervoor de robuuste
+basis waarop dit later kan voortbouwen.
