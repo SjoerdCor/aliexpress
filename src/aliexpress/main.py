@@ -8,7 +8,7 @@ from io import BytesIO
 import pandas as pd
 import pandera as pa
 
-from . import datareader, errors, problemsolver, solutions
+from . import datareader, errors, infeasibility_diagnosis, problemsolver, solutions
 from .datareader import GroupCounts
 from .preferences_data import PreferenceData
 from .problemsolver import GroupBalance
@@ -232,7 +232,13 @@ def distribute_students_from_data(
     on_update("Aan de slag! Groepen indelen...")
     if groupbalance is None:
         logger.info("Solving within the minimal class-balance relaxation")
-        ps.solve_within_minimal_relaxation()
+        try:
+            ps.solve_within_minimal_relaxation()
+        except errors.FeasibilityError as exc:
+            if exc.code == "infeasible_preferences":
+                exc.context = {"case": infeasibility_diagnosis.diagnose(ps)}
+                logger.warning("Infeasible preferences: case=%s", exc.context["case"])
+            raise
     else:
         _check_feasibility(ps)
         on_update("Bepaald dat probleem oplosbaar is!")

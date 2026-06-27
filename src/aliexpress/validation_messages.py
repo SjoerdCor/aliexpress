@@ -25,8 +25,53 @@ def to_validation_message(exc: Exception) -> str:
     )
 
 
+def _format_infeasible_preferences(context: dict) -> str:
+    """Compose the Dutch message for infeasible preferences (ADR-0008).
+
+    ``context["case"]`` names the family that must give, found robustly at family level
+    (not a single arbitrary student/rule from a degenerate minimum). Each case states the
+    constraint family to relax — the extra zekerheid (minimal satisfaction) and/or the
+    niet-samen rules — without pointing at individual students.
+    """
+    case = context.get("case", "fundamental")
+    header = "Met deze voorkeuren lukt geen evenwichtige groepsindeling."
+
+    verlaag_zekerheid = (
+        "verlaag de extra zekerheid een stap "
+        "bij de leerlingen waar je die hebt ingesteld"
+    )
+    versoepel_regel = (
+        "versoepel een niet-samen-regel "
+        "(sta meer leerlingen samen toe, of haal er een uit)"
+    )
+
+    if case == "min_satisfaction":
+        return (
+            f"{header} De gevraagde extra zekerheid is te streng: {verlaag_zekerheid}."
+        )
+    if case == "not_together":
+        return f"{header} De niet-samen-regels zijn te streng: {versoepel_regel}."
+    if case == "either":
+        return (
+            f"{header} Je kunt het op twee manieren oplossen — één is genoeg: "
+            f"{verlaag_zekerheid}, óf {versoepel_regel}."
+        )
+    if case == "both":
+        return (
+            f"{header} De extra zekerheid en de niet-samen-regels botsen samen; versoepel "
+            f"ze allebei: {verlaag_zekerheid}, en {versoepel_regel}."
+        )
+    return (
+        f"{header} Het lukt ook niet door de extra zekerheid of de niet-samen-regels te "
+        "versoepelen. Waarschijnlijk botsen de 'Niet in'-uitsluitingen: controleer of "
+        "leerlingen niet uit te veel groepen geweigerd worden."
+    )
+
+
 def readableerror_to_validation_message(exc: Exception) -> str:
     """Convert a validation exception to a user-friendly message"""
+    if exc.code == "infeasible_preferences":
+        return _format_infeasible_preferences(exc.context)
     friendly_templates = {
         "wrong_columns_preferences": (
             "Het voorkeuren-bestand heeft de verkeerde kolommen. Controleer of je het goede"
