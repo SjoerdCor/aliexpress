@@ -5,16 +5,14 @@ implements different optimization targets (also known as satisfaction metrics).
 import itertools
 import logging
 import math
-import os
-import tempfile
 import warnings
-from collections import defaultdict
 from dataclasses import dataclass
 
 import pandas as pd
 import pulp
 
-from . import errors, optimizationstrategies, preferences_utils, pulp_logical
+from . import feasibility, optimizationstrategies, preferences_utils, pulp_logical
+from ._solver import get_solver
 
 logger = logging.getLogger(__name__)
 
@@ -171,21 +169,19 @@ class ProblemSolver:
         self.boys_to_group = None
         self.girls_to_group = None
 
-        self.calculate_feasibility()
-
     def _constraint_student_to_exactly_one_group(self, prob):
         for student in self.students:
             prob += (
                 pulp.lpSum([self.in_group[(student, gr)] for gr in self.groups_to]) == 1
             )
 
-    def _constraint_equal_new_students(self, prob, incl_slack=True):
+    def _constraint_equal_new_students(self, prob, make_soft=True):
         """Every group should have an approximately equal number of new students"""
 
         slack_var = pulp.LpVariable(
             "SLACK_diff_n_students_year",
             lowBound=0,
-            upBound=None if incl_slack else 0,
+            upBound=None if make_soft else 0,
             cat="Integer",
         )
         min_in_group_year = pulp.LpVariable("min_in_group_year", cat="Integer")
@@ -207,7 +203,7 @@ class ProblemSolver:
             <= self.groupbalance.max_diff_n_students_year + slack_var
         )
 
-    def _constraint_equal_total_students(self, prob, incl_slack=True):
+    def _constraint_equal_total_students(self, prob, make_soft=True):
         current_per_group = {
             gr: self.groups_to[gr]["Jongens"] + self.groups_to[gr]["Meisjes"]
             for gr in self.groups_to
@@ -216,7 +212,7 @@ class ProblemSolver:
         slack_var = pulp.LpVariable(
             "SLACK_diff_n_students_total",
             lowBound=0,
-            upBound=None if incl_slack else 0,
+            upBound=None if make_soft else 0,
             cat="Integer",
         )
         min_in_group_total = pulp.LpVariable("min_in_group_total", cat="Integer")
@@ -241,7 +237,7 @@ class ProblemSolver:
             <= self.groupbalance.max_diff_n_students_total + slack_var
         )
 
-    def _constraint_equal_students_from_previous_group(self, prob, incl_slack=False):
+    def _constraint_equal_students_from_previous_group(self, prob, make_soft=False):
         """Every group can have a max number of students from an earlier group (no cliques)"""
         groups_from = {self.students[student]["Stamgroep"] for student in self.students}
         from_group_to_group = pulp.LpVariable.dicts(
@@ -252,7 +248,7 @@ class ProblemSolver:
         slack_var = pulp.LpVariable(
             "SLACK_max_clique",
             lowBound=0,
-            upBound=None if incl_slack else 0,
+            upBound=None if make_soft else 0,
             cat="Integer",
         )
 
@@ -271,7 +267,7 @@ class ProblemSolver:
                     <= self.groupbalance.max_clique + slack_var
                 )
 
-    def _constraint_clique_sex_group(self, prob, incl_slack=False):
+    def _constraint_clique_sex_group(self, prob, make_soft=False):
         """Every group can have a max number of students of the samen sex
         from an earlier group (no cliques)"""
         groups_from = {self.students[student]["Stamgroep"] for student in self.students}
@@ -279,7 +275,7 @@ class ProblemSolver:
         slack_var = pulp.LpVariable(
             "SLACK_max_clique_sex",
             lowBound=0,
-            upBound=None if incl_slack else 0,
+            upBound=None if make_soft else 0,
             cat="Integer",
         )
 
@@ -298,7 +294,7 @@ class ProblemSolver:
                         <= self.groupbalance.max_clique_sex + slack_var
                     )
 
-    def _constraint_equal_boys_girls(self, prob, incl_slack=False):
+    def _constraint_equal_boys_girls(self, prob, make_soft=False):
         boys_to_group = pulp.LpVariable.dicts(
             "boys_to_group", self.groups_to.keys(), cat="Integer"
         )
@@ -309,7 +305,7 @@ class ProblemSolver:
         slack_var = pulp.LpVariable(
             "SLACK_balanced_boys_girls_year",
             lowBound=0,
-            upBound=None if incl_slack else 0,
+            upBound=None if make_soft else 0,
             cat="Integer",
         )
 
@@ -342,7 +338,7 @@ class ProblemSolver:
             self.boys_to_group = boys_to_group
             self.girls_to_group = girls_to_group
 
-    def _constraint_balanced_boys_girls_total(self, prob, incl_slack=False):
+    def _constraint_balanced_boys_girls_total(self, prob, make_soft=False):
         boys_in_group = pulp.LpVariable.dicts(
             "boys_in_group", self.groups_to.keys(), cat="Integer"
         )
@@ -353,7 +349,7 @@ class ProblemSolver:
         slack_var = pulp.LpVariable(
             "SLACK_balanced_boys_girls_total",
             lowBound=0,
-            upBound=None if incl_slack else 0,
+            upBound=None if make_soft else 0,
             cat="Integer",
         )
 
@@ -399,7 +395,7 @@ class ProblemSolver:
             gr = row["Waarde"]
             prob += self.in_group[(student, gr)] == 0
 
-    def _constraint_not_together(self, prob, make_soft=False):
+    def constraint_not_together(self, prob, make_soft=False):
         """Enforces constraint of difficult students not being together.
 
         With ``make_soft`` each rule gets a slack variable (``sum <= max + slack``) so a
@@ -425,7 +421,7 @@ class ProblemSolver:
                 )
         return slacks
 
-    def _constraint_minimal_satisfaction(self, prob, make_soft=False):
+    def constraint_minimal_satisfaction(self, prob, make_soft=False):
         """Force each student's satisfaction to its minimum (UI: "Extra zekerheid").
 
         With ``make_soft`` each floor gets a slack variable so a diagnosis can relax this
@@ -451,39 +447,27 @@ class ProblemSolver:
         self._constraint_student_to_exactly_one_group(prob)
         self._constraint_not_in_forbidden_group(prob)
 
-    def add_class_balance_constraints(self, prob, incl_slack=False):
+    def add_class_balance_constraints(self, prob, make_soft=False):
         """Add constraints to force good class balance in next groups"""
-        self._constraint_equal_new_students(prob, incl_slack)
-        self._constraint_equal_total_students(prob, incl_slack)
-        self._constraint_equal_boys_girls(prob, incl_slack)
-        self._constraint_balanced_boys_girls_total(prob, incl_slack)
-        self._constraint_equal_students_from_previous_group(prob, incl_slack)
-        self._constraint_clique_sex_group(prob, incl_slack)
+        self._constraint_equal_new_students(prob, make_soft)
+        self._constraint_equal_total_students(prob, make_soft)
+        self._constraint_equal_boys_girls(prob, make_soft)
+        self._constraint_balanced_boys_girls_total(prob, make_soft)
+        self._constraint_equal_students_from_previous_group(prob, make_soft)
+        self._constraint_clique_sex_group(prob, make_soft)
 
     def add_satisfaction_constraints(self, prob):
         """Add constraints about social dynamics"""
-        self._constraint_not_together(prob)
-        self._constraint_minimal_satisfaction(prob)
+        self.constraint_not_together(prob)
+        self.constraint_minimal_satisfaction(prob)
 
-    def add_constraints(self, prob=None, incl_slack=False):
+    def add_constraints(self, prob=None, make_soft=False):
         """Add all hard constraints via the functions per constraint"""
 
         prob = prob or self.prob
         self.add_fundamental_constraints(prob)
-        self.add_class_balance_constraints(prob, incl_slack)
+        self.add_class_balance_constraints(prob, make_soft)
         self.add_satisfaction_constraints(prob)
-
-    # Per balance slack: the GroupBalance field it relaxes and its relaxation weight.
-    # Whole-group ("_total") limits are cheaper to relax than per-year ones, because
-    # per-year balance matters more for the new cohort.
-    _RELAXATION = {
-        "SLACK_diff_n_students_year": ("max_diff_n_students_year", 1),
-        "SLACK_diff_n_students_total": ("max_diff_n_students_total", 0.49),
-        "SLACK_max_clique": ("max_clique", 1),
-        "SLACK_max_clique_sex": ("max_clique_sex", 1),
-        "SLACK_balanced_boys_girls_year": ("max_imbalance_boys_girls_year", 1),
-        "SLACK_balanced_boys_girls_total": ("max_imbalance_boys_girls_total", 0.49),
-    }
 
     def solve_within_minimal_relaxation(self):
         """Solve, maximizing satisfaction within the *minimal* class-balance relaxation that
@@ -506,135 +490,19 @@ class ProblemSolver:
         already gives every student a positive wish, so no explicit wish floor is needed in
         this stage - it belongs only to stage 1.
         """
-        self.groupbalance = GroupBalance(
-            1, 1, 1, 1, 1, 1
-        )  # strictest base; relax via slack
-        budget = self._minimal_relaxation_budget()
+        strict = GroupBalance(1, 1, 1, 1, 1, 1)
+        budget = feasibility.minimal_relaxation_budget(self, strict)
+        self.groupbalance = strict  # main solve also uses the strict base
 
         self.add_fundamental_constraints(self.prob)
-        self.add_class_balance_constraints(self.prob, incl_slack=True)
+        self.add_class_balance_constraints(self.prob, make_soft=True)
         self.add_satisfaction_constraints(self.prob)
         satisfied = self.add_variables_which_preferences_satisfied()
         self.satisfied = satisfied
-        studentsatisfaction = self._calculate_student_satisfaction(satisfied)
-        self.prob += self._weighted_relaxation(self.prob) <= budget + 1e-6
+        studentsatisfaction = self.calculate_student_satisfaction(satisfied)
+        self.prob += feasibility.weighted_relaxation(self.prob) <= budget + 1e-6
         self.set_optimization_target(studentsatisfaction)
         self.solve()
-
-    def _minimal_relaxation_budget(self) -> float:
-        """Return ``R*``: the smallest weighted class-balance relaxation under which every
-        student can still fulfil at least one positive wish.
-
-        Built on the strictest balance (all limits 1) with the limits made soft; the unmet
-        wish slack is penalized far heavier than any balance relaxation, so the budget is
-        spent first on letting everyone (where possible) reach a wish and only then, at the
-        minimum, on extra balance room.
-        """
-        prob = pulp.LpProblem("MinimalRelaxation", pulp.LpMinimize)
-        self.add_constraints(prob, incl_slack=True)
-        satisfied = self.add_variables_which_preferences_satisfied(prob=prob)
-        self._calculate_student_satisfaction(satisfied, prob=prob)
-        wish_slacks = self._require_one_positive_wish(prob, satisfied)
-        relaxation = self._weighted_relaxation(prob)
-        prob.setObjective(relaxation + 1000 * pulp.lpSum(wish_slacks))
-        status = prob.solve(self._get_solver())
-        if pulp.LpStatus[status] == "Infeasible":
-            # The hard preference constraints (Extra zekerheid / Niet-samen) contradict
-            # each other; main.py fills in which choices clash before surfacing this.
-            raise errors.FeasibilityError(
-                "infeasible_preferences",
-                technical_message="Hard preference constraints are mutually infeasible",
-            )
-        if pulp.LpStatus[status] != "Optimal":
-            raise ValueError("Could not determine the minimal class-balance relaxation")
-        return relaxation.value()
-
-    def feasible_when_relaxed(
-        self, *, min_satisfaction_soft: bool, not_together_soft: bool
-    ) -> bool:
-        """Whether a feasible assignment exists when the chosen families are made soft.
-
-        Class balance is kept soft throughout (as in the real solve), so infeasibility can
-        only stem from the preference families left hard. Used by
-        :mod:`aliexpress.infeasibility_diagnosis` to attribute infeasibility to a family.
-        """
-        prob = pulp.LpProblem("DiagnoseFeasibility", pulp.LpMinimize)
-        self.add_fundamental_constraints(prob)
-        self.add_class_balance_constraints(prob, incl_slack=True)
-        satisfied = self.add_variables_which_preferences_satisfied(prob=prob)
-        self._calculate_student_satisfaction(satisfied, prob=prob)
-        slacks = self._constraint_minimal_satisfaction(
-            prob, make_soft=min_satisfaction_soft
-        ) + self._constraint_not_together(prob, make_soft=not_together_soft)
-        prob.setObjective(pulp.lpSum(slacks))
-        status = prob.solve(self._get_solver())
-        return pulp.LpStatus[status] == "Optimal"
-
-    def _weighted_relaxation(self, prob):
-        """Weighted balance-relaxation expression: the weighted slack sum plus the single
-        largest slack (so the relaxation stays spread across limits, not piled onto one).
-        """
-        slacks = {v.name: v for v in prob.variables() if v.name in self._RELAXATION}
-        max_slack = pulp.LpVariable("MAX_RELAXATION", lowBound=0)
-        for slack in slacks.values():
-            prob += max_slack >= slack
-        weighted_sum = pulp.lpSum(
-            self._RELAXATION[name][1] * slack for name, slack in slacks.items()
-        )
-        return weighted_sum + max_slack
-
-    def _require_one_positive_wish(self, prob, satisfied):
-        """Softly require each student to fulfil at least one positive wish.
-
-        Returns a per-student slack variable, positive only for students who cannot
-        structurally reach any wish (e.g. only negative preferences). Penalizing these
-        slacks (see :meth:`_minimal_relaxation_budget`) keeps the requirement effective
-        wherever it is achievable, without making the problem infeasible where it is not.
-        """
-        positive_per_student = defaultdict(list)
-        graag_met = preferences_utils.get_graag_met(self.preferences)
-        for key, row in graag_met.iterrows():
-            if row["Gewicht"] > 0:
-                positive_per_student[key[0]].append(satisfied[key])
-
-        wish_slacks = []
-        for wishes in positive_per_student.values():
-            slack = pulp.LpVariable(f"WISH_SLACK_{len(wish_slacks)}", lowBound=0)
-            prob += pulp.lpSum(wishes) >= 1 - slack
-            wish_slacks.append(slack)
-        return wish_slacks
-
-    def calculate_feasibility(self) -> pulp.LpProblem:
-        """Calculates whether the constraints for class imbalance are feasible
-
-        Takes current groups and students into account, and suggests smallest possible
-        relaxation.
-
-        Returns
-        -------
-        pulp.LpProblem
-            The relaxation problem, for further inspection
-        """
-        feas_prob = pulp.LpProblem("MinimumRelaxationFeasibility", pulp.LpMinimize)
-        self.add_constraints(feas_prob, incl_slack=True)
-
-        slack_vars = [v for v in feas_prob.variables() if "SLACK" in v.name]
-        solver = self._get_solver()
-
-        feas_prob.setObjective(pulp.lpSum(slack_vars))
-        feas_prob.solve(solver=solver)
-
-        if feas_prob.objective.value() == 0:
-            logger.info("Problem feasible. Continue")
-        else:
-            msg = (
-                "Problem infeasible. Consider changing variables to make it possible:\n"
-            )
-            for v in slack_vars:
-                if v.value() > 0:
-                    msg += f'{v.name.lstrip("SLACK_")}: +{round(v.value())}\n'
-            logger.error(msg)
-        return feas_prob
 
     def _add_variable_in_same_group(
         self, student1: str, student2: str, prob: pulp.LpProblem = None
@@ -747,9 +615,10 @@ class ProblemSolver:
         weighted_satisfied = self._calculate_weighted_preferences(satisfied)
         return pulp.lpSum(weighted_satisfied)
 
-    def _calculate_student_satisfaction(
+    def calculate_student_satisfaction(
         self, satisfied: dict, prob: pulp.LpProblem = None
     ) -> pulp.LpVariable:
+        """Compute per-student satisfaction variables and add them to ``prob``."""
         prob = prob or self.prob
         added_satisfaction = preferences_utils.calculate_added_satisfaction(
             self.preferences
@@ -804,18 +673,6 @@ class ProblemSolver:
             prob += self.studentsatisfaction[student] == satisfaction_current_student
         return self.studentsatisfaction
 
-    def _get_solver(self):
-        # gapRel=0 so we always get the proven optimum, not an early cutoff.
-        # logPath goes to the OS temp dir so HiGHS never writes into the project root.
-        log_path = os.path.join(tempfile.gettempdir(), "aliexpress-solver.log")
-        kwargs = {"logPath": log_path, "msg": False, "gapRel": 0}
-        if pulp.HiGHS(msg=False).available():
-            return pulp.HiGHS(**kwargs)
-        if pulp.HiGHS_CMD(msg=False).available():
-            return pulp.HiGHS_CMD(**kwargs)
-        logger.warning("Falling back to CBC solver. Might be very slow!")
-        return pulp.PULP_CBC_CMD(**kwargs)
-
     def set_optimization_target(self, studentsatisfaction: dict) -> None:
         """Calculate the variables which can be directly optimized
 
@@ -847,7 +704,7 @@ class ProblemSolver:
                 studentsatisfaction,
                 self.prob,
                 satisfaction_max=0.8,
-                solver=self._get_solver(),
+                solver=get_solver(),
             )
         else:
             raise ValueError(f"Unknown optimization strategy {self.optimize!r}")
@@ -893,7 +750,7 @@ class ProblemSolver:
             for solution, dist in solutions_to_ignore:
                 self._constraint_not_solution(solution, distance=dist)
 
-        solver = self._get_solver()
+        solver = get_solver()
         self.prob.solve(solver)
         if pulp.LpStatus[self.prob.status] != "Optimal":
             raise RuntimeError(
@@ -926,7 +783,7 @@ class ProblemSolver:
             self.add_constraints()
             satisfied = self.add_variables_which_preferences_satisfied()
             self.satisfied = satisfied
-            studentsatisfaction = self._calculate_student_satisfaction(satisfied)
+            studentsatisfaction = self.calculate_student_satisfaction(satisfied)
             self.set_optimization_target(studentsatisfaction)
 
         for i in range(n_solutions):
