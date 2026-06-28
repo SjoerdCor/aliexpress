@@ -10,6 +10,7 @@ the analyses see the same model as the real solve.
 See ADR-0009 for the architectural rationale (substraat-object + analyses-als-functies).
 """
 
+import logging
 from collections import defaultdict
 
 import pulp
@@ -124,6 +125,38 @@ def minimal_relaxation_budget(solver, groupbalance) -> float:
         return relaxation.value()
     finally:
         solver.groupbalance = original_groupbalance
+
+
+def check_balance_feasibility(solver) -> "pulp.LpProblem":
+    """Return the solved balance-feasibility LP for ``solver``'s current groupbalance.
+
+    ``solver`` is a :class:`~aliexpress.problemsolver.ProblemSolver` instance.
+
+    Builds a disposable LP with all constraints made soft (balance slacks enabled),
+    minimises the total slack, solves it, and returns the LP so the caller can inspect
+    individual variable values.  An objective value of 0 means the fixed groupbalance is
+    exactly feasible; a positive value means at least one balance limit must give.
+
+    Used by ``main._check_feasibility`` on the manual path (``groupbalance`` supplied by
+    the caller); on the automatic path ``solve_within_minimal_relaxation`` handles balance
+    adaptation directly.
+    """
+    feas_prob = pulp.LpProblem("MinimumRelaxationFeasibility", pulp.LpMinimize)
+    solver.add_constraints(feas_prob, make_soft=True)
+    slack_vars = [v for v in feas_prob.variables() if "SLACK" in v.name]
+    feas_prob.setObjective(pulp.lpSum(slack_vars))
+    feas_prob.solve(get_solver())
+
+    _log = logging.getLogger(__name__)
+    if feas_prob.objective.value() == 0:
+        _log.info("Problem feasible. Continue")
+    else:
+        msg = "Problem infeasible. Consider changing variables to make it possible:\n"
+        for v in slack_vars:
+            if v.value() > 0:
+                msg += f'{v.name.lstrip("SLACK_")}: +{round(v.value())}\n'
+        _log.error(msg)
+    return feas_prob
 
 
 def feasible_when_relaxed(
