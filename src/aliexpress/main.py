@@ -8,7 +8,7 @@ from io import BytesIO
 import pandas as pd
 import pandera as pa
 
-from . import datareader, errors, infeasibility_diagnosis, problemsolver, solutions
+from . import datareader, errors, feasibility, problemsolver, solutions
 from .datareader import GroupCounts
 from .preferences_data import PreferenceData
 from .problemsolver import GroupBalance
@@ -236,7 +236,7 @@ def distribute_students_from_data(
             ps.solve_within_minimal_relaxation()
         except errors.FeasibilityError as exc:
             if exc.code == "infeasible_preferences":
-                exc.context = {"case": infeasibility_diagnosis.diagnose(ps)}
+                exc.context = {"case": feasibility.diagnose(ps)}
                 logger.warning("Infeasible preferences: case=%s", exc.context["case"])
             raise
     else:
