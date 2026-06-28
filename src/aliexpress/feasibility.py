@@ -10,19 +10,131 @@ the analyses see the same model as the real solve.
 See ADR-0009 for the architectural rationale (substraat-object + analyses-als-functies).
 """
 
+from collections import defaultdict
+
 import pulp
 
-from .problemsolver import get_solver
+from . import errors, preferences_utils
+from ._solver import get_solver
+
+# Per balance slack: the GroupBalance field it relaxes and its relaxation weight.
+# Whole-group ("_total") limits are cheaper to relax than per-year ones, because
+# per-year balance matters more for the new cohort.
+RELAXATION_WEIGHTS = {
+    "SLACK_diff_n_students_year": ("max_diff_n_students_year", 1),
+    "SLACK_diff_n_students_total": ("max_diff_n_students_total", 0.49),
+    "SLACK_max_clique": ("max_clique", 1),
+    "SLACK_max_clique_sex": ("max_clique_sex", 1),
+    "SLACK_balanced_boys_girls_year": ("max_imbalance_boys_girls_year", 1),
+    "SLACK_balanced_boys_girls_total": ("max_imbalance_boys_girls_total", 0.49),
+}
+
+
+def weighted_relaxation(prob) -> pulp.LpAffineExpression:
+    """Weighted balance-relaxation expression for ``prob``.
+
+    Returns the weighted slack sum plus the single largest slack so the relaxation
+    stays spread across limits rather than piled onto one.
+    """
+    slacks = {v.name: v for v in prob.variables() if v.name in RELAXATION_WEIGHTS}
+    max_slack = pulp.LpVariable("MAX_RELAXATION", lowBound=0)
+    for slack in slacks.values():
+        prob += max_slack >= slack
+    weighted_sum = pulp.lpSum(
+        RELAXATION_WEIGHTS[name][1] * slack for name, slack in slacks.items()
+    )
+    return weighted_sum + max_slack
+
+
+def require_one_positive_wish(solver, prob, satisfied) -> list:
+    """Softly require each student to fulfil at least one positive wish.
+
+    Returns a per-student slack variable list, positive only for students who cannot
+    structurally reach any wish (e.g. only negative preferences).  Penalizing these
+    slacks keeps the requirement effective wherever achievable without making the problem
+    infeasible where it is not.
+    """
+    positive_per_student = defaultdict(list)
+    graag_met = preferences_utils.get_graag_met(solver.preferences)
+    for key, row in graag_met.iterrows():
+        if row["Gewicht"] > 0:
+            positive_per_student[key[0]].append(satisfied[key])
+
+    wish_slacks = []
+    for wishes in positive_per_student.values():
+        slack = pulp.LpVariable(f"WISH_SLACK_{len(wish_slacks)}", lowBound=0)
+        prob += pulp.lpSum(wishes) >= 1 - slack
+        wish_slacks.append(slack)
+    return wish_slacks
+
+
+def minimal_relaxation_budget(solver, groupbalance) -> float:
+    """Return ``R*``: the smallest weighted class-balance relaxation under which every
+    student can still fulfil at least one positive wish.
+
+    Parameters
+    ----------
+    solver : :class:`~aliexpress.problemsolver.ProblemSolver`
+        The substrate object holding the shared LP variables (``in_group``,
+        ``studentsatisfaction``).  Not the pulp solver from :func:`get_solver`.
+    groupbalance : :class:`~aliexpress.problemsolver.GroupBalance`
+        The base balance limits to build the disposable LP around.  Pass
+        ``GroupBalance(1, 1, 1, 1, 1, 1)`` (the strictest acceptable base) for the
+        normal automatic path.  A looser base allows more balance room upfront and
+        produces a smaller ``R*``.  Sets ``solver.groupbalance`` as a side effect;
+        ``solve_within_minimal_relaxation`` relies on this for the subsequent main solve.
+
+    ``GroupBalance(1, 1, 1, 1, 1, 1)`` is the sensible default for this parameter; it
+    is not a Python default because ``GroupBalance`` is defined in the same package as
+    the caller and a module-level import would create a cycle.  Parked: when
+    ``GroupBalance`` is moved to a neutral module this can become a proper default.
+
+    The limits are made soft, so the unmet wish slack is penalized far heavier than any
+    balance relaxation: the budget is spent first on letting everyone reach a wish and
+    only then, at the minimum, on extra balance room.
+
+    This is a pure query: ``solver.groupbalance`` is temporarily set to ``groupbalance``
+    for the duration of the LP build and restored afterwards, so the caller's solver
+    state is unchanged.
+
+    Raises :exc:`~aliexpress.errors.FeasibilityError` with code
+    ``"infeasible_preferences"`` when the hard preference constraints are mutually
+    infeasible even with balance fully relaxed.
+    """
+    original_groupbalance = solver.groupbalance
+    solver.groupbalance = groupbalance
+    try:
+        prob = pulp.LpProblem("MinimalRelaxation", pulp.LpMinimize)
+        solver.add_constraints(prob, make_soft=True)
+        satisfied = solver.add_variables_which_preferences_satisfied(prob=prob)
+        solver.calculate_student_satisfaction(satisfied, prob=prob)
+        wish_slacks = require_one_positive_wish(solver, prob, satisfied)
+        relaxation = weighted_relaxation(prob)
+        prob.setObjective(relaxation + 1000 * pulp.lpSum(wish_slacks))
+        status = prob.solve(get_solver())
+        if pulp.LpStatus[status] == "Infeasible":
+            # The hard preference constraints (Extra zekerheid / Niet-samen) contradict
+            # each other; main.py fills in which choices clash before surfacing this.
+            raise errors.FeasibilityError(
+                "infeasible_preferences",
+                technical_message="Hard preference constraints are mutually infeasible",
+            )
+        if pulp.LpStatus[status] != "Optimal":
+            raise ValueError("Could not determine the minimal class-balance relaxation")
+        return relaxation.value()
+    finally:
+        solver.groupbalance = original_groupbalance
 
 
 def feasible_when_relaxed(
     solver, *, min_satisfaction_soft: bool, not_together_soft: bool
 ) -> bool:
-    """Whether a feasible assignment exists when the chosen families are made soft.
+    """Whether a feasible assignment exists when the chosen preference families are soft.
 
-    Class balance is kept soft throughout (as in the real solve), so infeasibility can
-    only stem from the preference families left hard.  Used by :func:`diagnose` to
-    attribute infeasibility to a family.
+    ``solver`` is a :class:`~aliexpress.problemsolver.ProblemSolver` instance (not the
+    pulp solver from :func:`get_solver`).  Class balance is kept soft throughout (as in
+    the real solve), so infeasibility can only stem from the preference families left
+    hard.  Used by :func:`diagnose` to attribute infeasibility to a family.
     """
     prob = pulp.LpProblem("DiagnoseFeasibility", pulp.LpMinimize)
     solver.add_fundamental_constraints(prob)
@@ -38,7 +150,9 @@ def feasible_when_relaxed(
 
 
 def diagnose(solver) -> str:
-    """Return which preference family must give for ``solver`` to become feasible.
+    """Return which preference family must give for the distribution to become feasible.
+
+    ``solver`` is a :class:`~aliexpress.problemsolver.ProblemSolver` instance.
 
     One of ``"min_satisfaction"`` / ``"not_together"`` (relaxing that family alone
     suffices), ``"either"`` (each alone suffices), ``"both"`` (only relaxing both helps)

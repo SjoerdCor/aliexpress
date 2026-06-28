@@ -2,17 +2,20 @@
 
 import pytest
 
-from aliexpress import errors, feasibility
+from aliexpress import datareader, errors, feasibility
 from aliexpress.datareader import GroupCounts, matching_key
 from aliexpress.main import distribute_students_from_data
+from aliexpress.preferences_data import PreferenceData
 from aliexpress.preferences_form import (
     Preference,
     PreferenceKind,
     StudentEntry,
     build_preference_data,
 )
-from aliexpress.problemsolver import ProblemSolver
+from aliexpress.problemsolver import GroupBalance, ProblemSolver
 from aliexpress.validation_messages import to_validation_message
+
+_FULL_INTEGRATION_DIR = "tests/integration"
 
 
 def _make_solver(preference_data, target_groups, not_together=None):
@@ -24,6 +27,16 @@ def _make_solver(preference_data, target_groups, not_together=None):
         not_together or [],
         optimize="lexmaxmin",
     )
+
+
+def _load_full_scenario():
+    """Load the full integration scenario (44 students, 4 target groups)."""
+    with open(f"{_FULL_INTEGRATION_DIR}/voorkeuren_full.json", encoding="utf-8") as fh:
+        preference_data = PreferenceData.from_json(fh.read())
+    target_groups = datareader.read_groups_excel(
+        f"{_FULL_INTEGRATION_DIR}/groepen.xlsx"
+    )
+    return preference_data, target_groups
 
 
 def _infeasible_by_min_satisfaction():
@@ -143,6 +156,72 @@ class TestDiagnose:
         preference_data, target_groups, not_together = _infeasible_by_not_together()
         solver = _make_solver(preference_data, target_groups, not_together)
         assert feasibility.diagnose(solver) == "not_together"
+
+
+def _balanced_feasible():
+    """Fixture: 6 students spread evenly across 3 origin groups, no preferences.
+
+    With GroupBalance(1,1,1,1,1,1) (the strictest base used during the automatic solve)
+    every balance constraint is exactly satisfiable without any relaxation, so R* = 0.0.
+    Two students per origin group (1 boy + 1 girl) fill 3 equally-sized target groups
+    with one from each origin group — all limits stay at or below 1.
+    """
+    groups_to_keys = [matching_key(g) for g in ["Blauw", "Geel", "Rood"]]
+    students = [
+        StudentEntry("Anna", "Meisje", "A", None),
+        StudentEntry("Bo", "Jongen", "A", None),
+        StudentEntry("Cas", "Meisje", "B", None),
+        StudentEntry("Daan", "Jongen", "B", None),
+        StudentEntry("Eva", "Meisje", "C", None),
+        StudentEntry("Finn", "Jongen", "C", None),
+    ]
+    preference_data = build_preference_data(students, groups_to_keys)
+    target_groups = GroupCounts(
+        counts={
+            "blauw": {"Jongens": 0, "Meisjes": 0},
+            "geel": {"Jongens": 0, "Meisjes": 0},
+            "rood": {"Jongens": 0, "Meisjes": 0},
+        },
+        display={"blauw": "Blauw", "geel": "Geel", "rood": "Rood"},
+    )
+    return preference_data, target_groups
+
+
+class TestMinimalRelaxationBudget:
+    """feasibility.minimal_relaxation_budget: R* computation."""
+
+    def test_budget_is_zero_for_perfectly_balanced_input(self):
+        """Perfectly balanced input needs no relaxation: R* = 0.0."""
+        preference_data, target_groups = _balanced_feasible()
+        solver = _make_solver(preference_data, target_groups)
+        strict = GroupBalance(1, 1, 1, 1, 1, 1)
+        assert feasibility.minimal_relaxation_budget(solver, strict) == pytest.approx(
+            0.0
+        )
+
+    def test_budget_is_nonzero_for_full_scenario(self):
+        """Full integration scenario (44 students, 4 groups) yields R* = 8.98.
+
+        Pinned empirically: this value is the unique, solver-independent minimum
+        balance relaxation under which every student can still reach a positive wish.
+        A regression here means the budget logic changed behaviour.
+        """
+        preference_data, target_groups = _load_full_scenario()
+        solver = _make_solver(preference_data, target_groups)
+        strict = GroupBalance(1, 1, 1, 1, 1, 1)
+        assert feasibility.minimal_relaxation_budget(solver, strict) == pytest.approx(
+            8.98
+        )
+
+    def test_budget_raises_feasibility_error_for_infeasible_preferences(self):
+        """Hard preference clash raises FeasibilityError('infeasible_preferences')."""
+        preference_data, target_groups = _infeasible_by_min_satisfaction()
+        solver = _make_solver(preference_data, target_groups)
+        with pytest.raises(errors.FeasibilityError) as exc_info:
+            feasibility.minimal_relaxation_budget(
+                solver, GroupBalance(1, 1, 1, 1, 1, 1)
+            )
+        assert exc_info.value.code == "infeasible_preferences"
 
 
 class TestAutoPathIntegration:
