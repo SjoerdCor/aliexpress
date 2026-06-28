@@ -8,10 +8,11 @@ from io import BytesIO
 import pandas as pd
 import pandera as pa
 
-from . import datareader, errors, feasibility, problemsolver, solutions
+from . import datareader, errors
 from .datareader import GroupCounts
 from .preferences_data import PreferenceData
-from .problemsolver import GroupBalance
+from .solver import feasibility, problemsolver, solutions
+from .solver.problemsolver import GroupBalance
 
 FILE_PREFERENCES = "voorkeuren.xlsx"
 FILE_GROUPS_TO = "groepen.xlsx"
