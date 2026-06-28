@@ -12,45 +12,9 @@ import pandas as pd
 import pulp
 
 from . import feasibility, optimizationstrategies, preferences_utils, pulp_logical
-from ._solver import get_solver
+from ._balance import STRICTEST_BALANCE, GroupBalance, get_solver
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class GroupBalance:
-    """
-    Constraints controlling how students are distributed across groups.
-
-    All values must be non-negative integers.
-    """
-
-    max_clique: int = 5
-    """The number of students that can go to the same group"""
-
-    max_clique_sex: int = 3
-    """Maximum number of students of the same sex from the same original group in a group."""
-
-    max_diff_n_students_year: int = 2
-    """Max difference between largest and smallest group per year."""
-
-    max_diff_n_students_total: int = 3
-    """Max difference between largest and smallest group overall."""
-
-    max_imbalance_boys_girls_year: int = 2
-    """Max difference between boys and girls per year in a group."""
-
-    max_imbalance_boys_girls_total: int = 3
-    """Max difference between boys and girls in total per group."""
-
-    def __post_init__(self):
-        for name, value in vars(self).items():
-            if not isinstance(value, int):
-                raise TypeError(
-                    f"{name} must be an integer, got {type(value).__name__}"
-                )
-            if value < 0:
-                raise ValueError(f"{name} must be non-negative, got {value}")
 
 
 @dataclass(frozen=True)
@@ -490,9 +454,8 @@ class ProblemSolver:
         already gives every student a positive wish, so no explicit wish floor is needed in
         this stage - it belongs only to stage 1.
         """
-        strict = GroupBalance(1, 1, 1, 1, 1, 1)
-        budget = feasibility.minimal_relaxation_budget(self, strict)
-        self.groupbalance = strict  # main solve also uses the strict base
+        budget = feasibility.minimal_relaxation_budget(self)
+        self.groupbalance = STRICTEST_BALANCE  # main solve also uses the strict base
 
         self.add_fundamental_constraints(self.prob)
         self.add_class_balance_constraints(self.prob, make_soft=True)

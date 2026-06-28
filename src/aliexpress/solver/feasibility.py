@@ -17,7 +17,7 @@ import pulp
 
 from .. import errors
 from . import preferences_utils
-from ._solver import get_solver
+from ._balance import STRICTEST_BALANCE, GroupBalance, get_solver
 
 # Per balance slack: the GroupBalance field it relaxes and its relaxation weight.
 # Whole-group ("_total") limits are cheaper to relax than per-year ones, because
@@ -70,7 +70,9 @@ def require_one_positive_wish(solver, prob, satisfied) -> list:
     return wish_slacks
 
 
-def minimal_relaxation_budget(solver, groupbalance) -> float:
+def minimal_relaxation_budget(
+    solver, groupbalance: GroupBalance = STRICTEST_BALANCE
+) -> float:
     """Return ``R*``: the smallest weighted class-balance relaxation under which every
     student can still fulfil at least one positive wish.
 
@@ -79,17 +81,12 @@ def minimal_relaxation_budget(solver, groupbalance) -> float:
     solver : :class:`~aliexpress.problemsolver.ProblemSolver`
         The substrate object holding the shared LP variables (``in_group``,
         ``studentsatisfaction``).  Not the pulp solver from :func:`get_solver`.
-    groupbalance : :class:`~aliexpress.problemsolver.GroupBalance`
-        The base balance limits to build the disposable LP around.  Pass
-        ``GroupBalance(1, 1, 1, 1, 1, 1)`` (the strictest acceptable base) for the
-        normal automatic path.  A looser base allows more balance room upfront and
+    groupbalance : :class:`~aliexpress.solver._balance.GroupBalance`
+        The base balance limits to build the disposable LP around.  Defaults to
+        :data:`STRICTEST_BALANCE` (all limits = 1), the tightest acceptable base for
+        the normal automatic path.  A looser base allows more balance room upfront and
         produces a smaller ``R*``.  Sets ``solver.groupbalance`` as a side effect;
         ``solve_within_minimal_relaxation`` relies on this for the subsequent main solve.
-
-    ``GroupBalance(1, 1, 1, 1, 1, 1)`` is the sensible default for this parameter; it
-    is not a Python default because ``GroupBalance`` is defined in the same package as
-    the caller and a module-level import would create a cycle.  Parked: when
-    ``GroupBalance`` is moved to a neutral module this can become a proper default.
 
     The limits are made soft, so the unmet wish slack is penalized far heavier than any
     balance relaxation: the budget is spent first on letting everyone reach a wish and
