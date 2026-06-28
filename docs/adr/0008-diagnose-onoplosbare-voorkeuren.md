@@ -37,13 +37,14 @@ volstaat), `either` (elk afzonderlijk volstaat), `both` (alleen samen), `fundame
   `fundamental`-geval.
 - De diagnose-machinerie houdt dezelfde regie als `R*` — balans zacht — anders diagnosticeert ze
   tegen een striktere balans dan de echte solve vereist.
-- De orkestratie (de vijf gevallen) leeft in een eigen module `infeasibility_diagnosis.py` en roept
-  alleen de publieke `ProblemSolver.feasible_when_relaxed` aan; zo blijft `problemsolver.py` onder de
-  module-lengtelimiet en is er geen protected-access nodig. De twee harde constraint-methoden kregen
-  een `make_soft`-optie (hard pad ongewijzigd) zodat de feasibility-check ze hergebruikt zonder
-  duplicatie. `main.py` vertaalt de case naar een `FeasibilityError("infeasible_preferences")`; de
-  Nederlandse teksten staan in `validation_messages.py` — net als het bestaande
-  `calculate_feasibility` / `_check_feasibility`-paar voor de balans.
+- De orkestratie (de vijf gevallen) en `feasible_when_relaxed` leven in `feasibility.py`,
+  naast de overige feasibility-redenering (relaxatiebudget, balans-check). Dat is het
+  coherente huis voor analyses-op-het-model; zie ADR-0009 voor de architectuurkeuze.
+  De twee harde constraint-methoden kregen een `make_soft`-optie (hard pad ongewijzigd)
+  zodat de feasibility-check ze hergebruikt zonder duplicatie. `main.py` vertaalt de case
+  naar een `FeasibilityError("infeasible_preferences")`; de Nederlandse teksten staan in
+  `validation_messages.py` — net als het bestaande `calculate_feasibility` /
+  `_check_feasibility`-paar voor de balans.
 - Alleen solver-status *Infeasible* leidt tot deze diagnose; andere statussen (Unbounded/Undefined/
   solverfout) houden de bestaande `ValueError`, zodat een technische fout niet als
   voorkeuren-conflict wordt gepresenteerd.
