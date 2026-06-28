@@ -2,7 +2,7 @@
 
 import pytest
 
-from aliexpress import datareader, errors, feasibility
+from aliexpress import datareader, errors
 from aliexpress.datareader import GroupCounts, matching_key
 from aliexpress.main import distribute_students_from_data
 from aliexpress.preferences_data import PreferenceData
@@ -12,7 +12,8 @@ from aliexpress.preferences_form import (
     StudentEntry,
     build_preference_data,
 )
-from aliexpress.problemsolver import GroupBalance, ProblemSolver
+from aliexpress.solver import feasibility
+from aliexpress.solver.problemsolver import GroupBalance, ProblemSolver
 from aliexpress.validation_messages import to_validation_message
 
 _FULL_INTEGRATION_DIR = "tests/integration"

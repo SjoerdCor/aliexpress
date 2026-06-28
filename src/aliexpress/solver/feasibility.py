@@ -15,7 +15,8 @@ from collections import defaultdict
 
 import pulp
 
-from . import errors, preferences_utils
+from .. import errors
+from . import preferences_utils
 from ._solver import get_solver
 
 # Per balance slack: the GroupBalance field it relaxes and its relaxation weight.
