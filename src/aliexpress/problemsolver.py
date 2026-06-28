@@ -19,6 +19,20 @@ from . import errors, optimizationstrategies, preferences_utils, pulp_logical
 logger = logging.getLogger(__name__)
 
 
+def get_solver():
+    """Return the best available PuLP solver with proven-optimum settings."""
+    # gapRel=0 so we always get the proven optimum, not an early cutoff.
+    # logPath goes to the OS temp dir so HiGHS never writes into the project root.
+    log_path = os.path.join(tempfile.gettempdir(), "aliexpress-solver.log")
+    kwargs = {"logPath": log_path, "msg": False, "gapRel": 0}
+    if pulp.HiGHS(msg=False).available():
+        return pulp.HiGHS(**kwargs)
+    if pulp.HiGHS_CMD(msg=False).available():
+        return pulp.HiGHS_CMD(**kwargs)
+    logger.warning("Falling back to CBC solver. Might be very slow!")
+    return pulp.PULP_CBC_CMD(**kwargs)
+
+
 @dataclass
 class GroupBalance:
     """
@@ -399,7 +413,7 @@ class ProblemSolver:
             gr = row["Waarde"]
             prob += self.in_group[(student, gr)] == 0
 
-    def _constraint_not_together(self, prob, make_soft=False):
+    def constraint_not_together(self, prob, make_soft=False):
         """Enforces constraint of difficult students not being together.
 
         With ``make_soft`` each rule gets a slack variable (``sum <= max + slack``) so a
@@ -425,7 +439,7 @@ class ProblemSolver:
                 )
         return slacks
 
-    def _constraint_minimal_satisfaction(self, prob, make_soft=False):
+    def constraint_minimal_satisfaction(self, prob, make_soft=False):
         """Force each student's satisfaction to its minimum (UI: "Extra zekerheid").
 
         With ``make_soft`` each floor gets a slack variable so a diagnosis can relax this
@@ -462,8 +476,8 @@ class ProblemSolver:
 
     def add_satisfaction_constraints(self, prob):
         """Add constraints about social dynamics"""
-        self._constraint_not_together(prob)
-        self._constraint_minimal_satisfaction(prob)
+        self.constraint_not_together(prob)
+        self.constraint_minimal_satisfaction(prob)
 
     def add_constraints(self, prob=None, incl_slack=False):
         """Add all hard constraints via the functions per constraint"""
@@ -516,7 +530,7 @@ class ProblemSolver:
         self.add_satisfaction_constraints(self.prob)
         satisfied = self.add_variables_which_preferences_satisfied()
         self.satisfied = satisfied
-        studentsatisfaction = self._calculate_student_satisfaction(satisfied)
+        studentsatisfaction = self.calculate_student_satisfaction(satisfied)
         self.prob += self._weighted_relaxation(self.prob) <= budget + 1e-6
         self.set_optimization_target(studentsatisfaction)
         self.solve()
@@ -533,11 +547,11 @@ class ProblemSolver:
         prob = pulp.LpProblem("MinimalRelaxation", pulp.LpMinimize)
         self.add_constraints(prob, incl_slack=True)
         satisfied = self.add_variables_which_preferences_satisfied(prob=prob)
-        self._calculate_student_satisfaction(satisfied, prob=prob)
+        self.calculate_student_satisfaction(satisfied, prob=prob)
         wish_slacks = self._require_one_positive_wish(prob, satisfied)
         relaxation = self._weighted_relaxation(prob)
         prob.setObjective(relaxation + 1000 * pulp.lpSum(wish_slacks))
-        status = prob.solve(self._get_solver())
+        status = prob.solve(get_solver())
         if pulp.LpStatus[status] == "Infeasible":
             # The hard preference constraints (Extra zekerheid / Niet-samen) contradict
             # each other; main.py fills in which choices clash before surfacing this.
@@ -562,12 +576,12 @@ class ProblemSolver:
         self.add_fundamental_constraints(prob)
         self.add_class_balance_constraints(prob, incl_slack=True)
         satisfied = self.add_variables_which_preferences_satisfied(prob=prob)
-        self._calculate_student_satisfaction(satisfied, prob=prob)
-        slacks = self._constraint_minimal_satisfaction(
+        self.calculate_student_satisfaction(satisfied, prob=prob)
+        slacks = self.constraint_minimal_satisfaction(
             prob, make_soft=min_satisfaction_soft
-        ) + self._constraint_not_together(prob, make_soft=not_together_soft)
+        ) + self.constraint_not_together(prob, make_soft=not_together_soft)
         prob.setObjective(pulp.lpSum(slacks))
-        status = prob.solve(self._get_solver())
+        status = prob.solve(get_solver())
         return pulp.LpStatus[status] == "Optimal"
 
     def _weighted_relaxation(self, prob):
@@ -619,7 +633,7 @@ class ProblemSolver:
         self.add_constraints(feas_prob, incl_slack=True)
 
         slack_vars = [v for v in feas_prob.variables() if "SLACK" in v.name]
-        solver = self._get_solver()
+        solver = get_solver()
 
         feas_prob.setObjective(pulp.lpSum(slack_vars))
         feas_prob.solve(solver=solver)
@@ -747,9 +761,10 @@ class ProblemSolver:
         weighted_satisfied = self._calculate_weighted_preferences(satisfied)
         return pulp.lpSum(weighted_satisfied)
 
-    def _calculate_student_satisfaction(
+    def calculate_student_satisfaction(
         self, satisfied: dict, prob: pulp.LpProblem = None
     ) -> pulp.LpVariable:
+        """Compute per-student satisfaction variables and add them to ``prob``."""
         prob = prob or self.prob
         added_satisfaction = preferences_utils.calculate_added_satisfaction(
             self.preferences
@@ -804,18 +819,6 @@ class ProblemSolver:
             prob += self.studentsatisfaction[student] == satisfaction_current_student
         return self.studentsatisfaction
 
-    def _get_solver(self):
-        # gapRel=0 so we always get the proven optimum, not an early cutoff.
-        # logPath goes to the OS temp dir so HiGHS never writes into the project root.
-        log_path = os.path.join(tempfile.gettempdir(), "aliexpress-solver.log")
-        kwargs = {"logPath": log_path, "msg": False, "gapRel": 0}
-        if pulp.HiGHS(msg=False).available():
-            return pulp.HiGHS(**kwargs)
-        if pulp.HiGHS_CMD(msg=False).available():
-            return pulp.HiGHS_CMD(**kwargs)
-        logger.warning("Falling back to CBC solver. Might be very slow!")
-        return pulp.PULP_CBC_CMD(**kwargs)
-
     def set_optimization_target(self, studentsatisfaction: dict) -> None:
         """Calculate the variables which can be directly optimized
 
@@ -847,7 +850,7 @@ class ProblemSolver:
                 studentsatisfaction,
                 self.prob,
                 satisfaction_max=0.8,
-                solver=self._get_solver(),
+                solver=get_solver(),
             )
         else:
             raise ValueError(f"Unknown optimization strategy {self.optimize!r}")
@@ -893,7 +896,7 @@ class ProblemSolver:
             for solution, dist in solutions_to_ignore:
                 self._constraint_not_solution(solution, distance=dist)
 
-        solver = self._get_solver()
+        solver = get_solver()
         self.prob.solve(solver)
         if pulp.LpStatus[self.prob.status] != "Optimal":
             raise RuntimeError(
@@ -926,7 +929,7 @@ class ProblemSolver:
             self.add_constraints()
             satisfied = self.add_variables_which_preferences_satisfied()
             self.satisfied = satisfied
-            studentsatisfaction = self._calculate_student_satisfaction(satisfied)
+            studentsatisfaction = self.calculate_student_satisfaction(satisfied)
             self.set_optimization_target(studentsatisfaction)
 
         for i in range(n_solutions):
