@@ -32,10 +32,11 @@ De functies in `feasibility.py`:
 | `feasible_when_relaxed(solver, …)` | Wordt het haalbaar als één voorkeursfamilie wordt verzacht? (voor diagnose) |
 | `diagnose(solver)` | Welke voorkeursfamilie veroorzaakt onoplosbaarheid? |
 
-`_solver.py` is een neutrale tijdelijke woning voor `get_solver()` om een circulaire import
-te vermijden (`feasibility.py` → `problemsolver.py` → `feasibility.py`). Zodra de
-CBC/HiGHS\_CMD-fallback niet meer nodig is, verdwijnt dat bestand en gebruiken beide
-aanroepplaatsen `pulp.HiGHS(...)` rechtstreeks.
+`_solver.py` is de config-helper voor `get_solver()`, geplaatst buiten `problemsolver.py`
+en `feasibility.py` om een circulaire import te vermijden. De CBC/HiGHS\_CMD-fallback is
+verwijderd nadat empirisch bevestigd is dat `pulp.HiGHS().available()` betrouwbaar `True`
+teruggeeft in de target-venv; `get_solver()` retourneert nu rechtstreeks `pulp.HiGHS(...)`.
+`_solver.py` blijft als lichtgewicht config-helper (`gapRel`/`logPath` op één plek).
 
 ## Overwogen alternatieven
 
