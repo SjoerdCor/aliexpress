@@ -84,7 +84,7 @@ def _log_initial_state(groups_to, students_info, on_update, stamgroep_display=No
 
 
 def _check_feasibility(ps):
-    feas_prob = ps.calculate_feasibility()
+    feas_prob = feasibility.check_balance_feasibility(ps)
     if feas_prob.objective.value() <= 0:
         return
 

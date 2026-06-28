@@ -169,8 +169,6 @@ class ProblemSolver:
         self.boys_to_group = None
         self.girls_to_group = None
 
-        self.calculate_feasibility()
-
     def _constraint_student_to_exactly_one_group(self, prob):
         for student in self.students:
             prob += (
@@ -505,38 +503,6 @@ class ProblemSolver:
         self.prob += feasibility.weighted_relaxation(self.prob) <= budget + 1e-6
         self.set_optimization_target(studentsatisfaction)
         self.solve()
-
-    def calculate_feasibility(self) -> pulp.LpProblem:
-        """Calculates whether the constraints for class imbalance are feasible
-
-        Takes current groups and students into account, and suggests smallest possible
-        relaxation.
-
-        Returns
-        -------
-        pulp.LpProblem
-            The relaxation problem, for further inspection
-        """
-        feas_prob = pulp.LpProblem("MinimumRelaxationFeasibility", pulp.LpMinimize)
-        self.add_constraints(feas_prob, make_soft=True)
-
-        slack_vars = [v for v in feas_prob.variables() if "SLACK" in v.name]
-        solver = get_solver()
-
-        feas_prob.setObjective(pulp.lpSum(slack_vars))
-        feas_prob.solve(solver=solver)
-
-        if feas_prob.objective.value() == 0:
-            logger.info("Problem feasible. Continue")
-        else:
-            msg = (
-                "Problem infeasible. Consider changing variables to make it possible:\n"
-            )
-            for v in slack_vars:
-                if v.value() > 0:
-                    msg += f'{v.name.lstrip("SLACK_")}: +{round(v.value())}\n'
-            logger.error(msg)
-        return feas_prob
 
     def _add_variable_in_same_group(
         self, student1: str, student2: str, prob: pulp.LpProblem = None
