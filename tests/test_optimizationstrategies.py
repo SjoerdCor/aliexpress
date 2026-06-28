@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pulp
 import pytest
 
-from aliexpress import optimizationstrategies
+from aliexpress.solver import optimizationstrategies
 
 
 @pytest.fixture
@@ -148,7 +148,7 @@ def test_lexmaxmin_three_variables_equal_distribution():
     prob += c >= 3
 
     with patch(
-        "aliexpress.preferences_utils.apply_threshold_constraints"
+        "aliexpress.solver.preferences_utils.apply_threshold_constraints"
     ) as mock_apply:
         mock_apply.side_effect = lambda *a_, **k: None
 

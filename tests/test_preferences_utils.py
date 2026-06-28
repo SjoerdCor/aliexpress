@@ -6,7 +6,7 @@ import pandas as pd
 import pulp
 import pytest
 
-from aliexpress import preferences_utils
+from aliexpress.solver import preferences_utils
 
 
 def test_get_satisfaction_integral_basic():

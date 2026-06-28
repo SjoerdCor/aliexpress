@@ -2,8 +2,8 @@
 
 import pandas as pd
 
-from aliexpress.problemsolver import GroupComposition, SolutionResult
-from aliexpress.solutions import DisplayNames, SolutionAnalyzer, to_display_names
+from aliexpress.solver.problemsolver import GroupComposition, SolutionResult
+from aliexpress.solver.solutions import DisplayNames, SolutionAnalyzer, to_display_names
 
 
 def _analyzer() -> SolutionAnalyzer:

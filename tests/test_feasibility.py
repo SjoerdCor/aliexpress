@@ -2,7 +2,7 @@
 
 import pytest
 
-from aliexpress import datareader, errors, feasibility
+from aliexpress import datareader, errors
 from aliexpress.datareader import GroupCounts, matching_key
 from aliexpress.main import distribute_students_from_data
 from aliexpress.preferences_data import PreferenceData
@@ -12,7 +12,8 @@ from aliexpress.preferences_form import (
     StudentEntry,
     build_preference_data,
 )
-from aliexpress.problemsolver import GroupBalance, ProblemSolver
+from aliexpress.solver import feasibility
+from aliexpress.solver.problemsolver import ProblemSolver
 from aliexpress.validation_messages import to_validation_message
 
 _FULL_INTEGRATION_DIR = "tests/integration"
@@ -194,10 +195,7 @@ class TestMinimalRelaxationBudget:
         """Perfectly balanced input needs no relaxation: R* = 0.0."""
         preference_data, target_groups = _balanced_feasible()
         solver = _make_solver(preference_data, target_groups)
-        strict = GroupBalance(1, 1, 1, 1, 1, 1)
-        assert feasibility.minimal_relaxation_budget(solver, strict) == pytest.approx(
-            0.0
-        )
+        assert feasibility.minimal_relaxation_budget(solver) == pytest.approx(0.0)
 
     def test_budget_is_nonzero_for_full_scenario(self):
         """Full integration scenario (44 students, 4 groups) yields R* = 8.98.
@@ -208,19 +206,14 @@ class TestMinimalRelaxationBudget:
         """
         preference_data, target_groups = _load_full_scenario()
         solver = _make_solver(preference_data, target_groups)
-        strict = GroupBalance(1, 1, 1, 1, 1, 1)
-        assert feasibility.minimal_relaxation_budget(solver, strict) == pytest.approx(
-            8.98
-        )
+        assert feasibility.minimal_relaxation_budget(solver) == pytest.approx(8.98)
 
     def test_budget_raises_feasibility_error_for_infeasible_preferences(self):
         """Hard preference clash raises FeasibilityError('infeasible_preferences')."""
         preference_data, target_groups = _infeasible_by_min_satisfaction()
         solver = _make_solver(preference_data, target_groups)
         with pytest.raises(errors.FeasibilityError) as exc_info:
-            feasibility.minimal_relaxation_budget(
-                solver, GroupBalance(1, 1, 1, 1, 1, 1)
-            )
+            feasibility.minimal_relaxation_budget(solver)
         assert exc_info.value.code == "infeasible_preferences"
 
 
