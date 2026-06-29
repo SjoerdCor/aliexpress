@@ -11,6 +11,7 @@ from dataclasses import dataclass
 import pandas as pd
 import pulp
 
+from .. import preferences_data
 from . import (
     feasibility,
     optimizationstrategies,
@@ -520,7 +521,7 @@ class ProblemSolver:
             Contains for each preference wether it is satisfied or not
         """
         prob = prob or self.prob
-        graag_met = preferences_utils.get_graag_met(self.preferences)
+        graag_met = preferences_data.get_graag_met(self.preferences)
         satisfied = pulp.LpVariable.dicts(
             "Satisfied", graag_met.index.to_list(), cat="Binary"
         )
@@ -546,7 +547,7 @@ class ProblemSolver:
     ) -> pulp.LpVariable:
         """Calculate the weighted sum of satisfied preferences."""
         prob = prob or self.prob
-        graag_met = preferences_utils.get_graag_met(self.preferences)
+        graag_met = preferences_data.get_graag_met(self.preferences)
         weights = graag_met["Gewicht"].to_dict()
         weights_pulp = pulp.LpVariable.dicts(
             "Weights_preferences", graag_met.index.to_list(), cat="Continuous"
@@ -767,7 +768,7 @@ class ProblemSolver:
             for (student, group), var in self.in_group.items()
             if round(var.value()) == 1
         }
-        graag_met = preferences_utils.get_graag_met(self.preferences)
+        graag_met = preferences_data.get_graag_met(self.preferences)
         weights = dict(graag_met["Gewicht"])
         satisfied = {
             key: bool(round(var.value())) for key, var in self.satisfied.items()

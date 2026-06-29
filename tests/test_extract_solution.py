@@ -6,14 +6,13 @@ It runs on the current code and must stay green after the write-back is removed 
 """
 
 from aliexpress.datareader import GroupCounts, matching_key
-from aliexpress.preferences_data import PreferenceData
+from aliexpress.preferences_data import PreferenceData, get_graag_met
 from aliexpress.preferences_form import (
     Preference,
     PreferenceKind,
     StudentEntry,
     build_preference_data,
 )
-from aliexpress.solver import preferences_utils
 from aliexpress.solver.problemsolver import ProblemSolver
 
 
@@ -77,7 +76,7 @@ def test_weighted_satisfied_matches_formula():
     solver.run()
     result = solver.extract_solution()
 
-    graag_met = preferences_utils.get_graag_met(preference_data.preferences)
+    graag_met = get_graag_met(preference_data.preferences)
     expected_weights = dict(graag_met["Gewicht"])
 
     # weights must equal the Gewicht column

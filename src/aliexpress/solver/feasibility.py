@@ -15,8 +15,7 @@ from collections import defaultdict
 
 import pulp
 
-from .. import errors
-from . import preferences_utils
+from .. import errors, preferences_data
 from ._balance import STRICTEST_BALANCE, GroupBalance, get_solver
 
 # Per balance slack: the GroupBalance field it relaxes and its relaxation weight.
@@ -57,7 +56,7 @@ def require_one_positive_wish(solver, prob, satisfied) -> list:
     infeasible where it is not.
     """
     positive_per_student = defaultdict(list)
-    graag_met = preferences_utils.get_graag_met(solver.preferences)
+    graag_met = preferences_data.get_graag_met(solver.preferences)
     for key, row in graag_met.iterrows():
         if row["Gewicht"] > 0:
             positive_per_student[key[0]].append(satisfied[key])
