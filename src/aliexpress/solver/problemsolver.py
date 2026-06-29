@@ -537,10 +537,6 @@ class ProblemSolver:
                 prob += satisfied[key] == 1 - in_same_group
         return satisfied
 
-    def _calculate_n_satisfied_optimization(self, satisfied: dict) -> pulp.LpVariable:
-        """Calculate the total number of satisfied preferences."""
-        return pulp.lpSum(satisfied)
-
     def _calculate_weighted_preferences(
         self, satisfied: dict, prob: pulp.LpProblem = None
     ) -> pulp.LpVariable:
@@ -571,12 +567,6 @@ class ProblemSolver:
             self.weights = weights
 
         return weighted_satisfied
-
-    def _calculate_weighted_preference_optimization(
-        self, satisfied: dict
-    ) -> pulp.LpVariable:
-        weighted_satisfied = self._calculate_weighted_preferences(satisfied)
-        return pulp.lpSum(weighted_satisfied)
 
     def calculate_student_satisfaction(
         self, satisfied: dict, prob: pulp.LpProblem = None
