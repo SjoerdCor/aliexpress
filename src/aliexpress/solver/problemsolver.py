@@ -126,8 +126,6 @@ class ProblemSolver:
         # Solver outputs captured during the main solve, read back by extract_solution.
         # They stay None until a main solve runs (the subproblems do not set them).
         self.satisfied = None
-        self.weighted_satisfied = None
-        self.weights = None
         self.boys_in_group = None
         self.girls_in_group = None
         self.boys_to_group = None
@@ -560,12 +558,6 @@ class ProblemSolver:
                 # Weight is negative: you get deduction if you do it wrong
                 prob += weighted_satisfied[key] == ((1 - satisfied[key]) * weight)
 
-        # Keep the main problem's weighted preferences and their (signed) weights for
-        # the solution report.
-        if prob is self.prob:
-            self.weighted_satisfied = weighted_satisfied
-            self.weights = weights
-
         return weighted_satisfied
 
     def calculate_student_satisfaction(
@@ -769,19 +761,24 @@ class ProblemSolver:
             for (student, group), var in self.in_group.items()
             if round(var.value()) == 1
         }
+        graag_met = preferences_utils.get_graag_met(self.preferences)
+        weights = dict(graag_met["Gewicht"])
+        satisfied = {
+            key: bool(round(var.value())) for key, var in self.satisfied.items()
+        }
+        weighted_satisfied = {
+            key: (s * weights[key] if weights[key] > 0 else (1 - s) * weights[key])
+            for key, s in satisfied.items()
+        }
         return SolutionResult(
             assignment=assignment,
             student_satisfaction={
                 student: var.value()
                 for student, var in self.studentsatisfaction.items()
             },
-            satisfied={
-                key: bool(round(var.value())) for key, var in self.satisfied.items()
-            },
-            weighted_satisfied={
-                key: var.value() for key, var in self.weighted_satisfied.items()
-            },
-            weights=dict(self.weights),
+            satisfied=satisfied,
+            weighted_satisfied=weighted_satisfied,
+            weights=weights,
             group_composition=self._group_composition(),
         )
 
