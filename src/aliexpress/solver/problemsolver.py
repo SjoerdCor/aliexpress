@@ -11,7 +11,13 @@ from dataclasses import dataclass
 import pandas as pd
 import pulp
 
-from . import feasibility, optimizationstrategies, preferences_utils, pulp_logical
+from . import (
+    feasibility,
+    optimizationstrategies,
+    preferences_utils,
+    pulp_logical,
+    pulp_thresholds,
+)
 from ._balance import STRICTEST_BALANCE, GroupBalance, get_solver
 
 logger = logging.getLogger(__name__)
@@ -583,7 +589,7 @@ class ProblemSolver:
                 cat="Binary",
             )
 
-            preferences_utils.apply_threshold_constraints(
+            pulp_thresholds.apply_threshold_constraints(
                 prob,
                 wp_satisfied,
                 added_satisfaction.keys(),
