@@ -4,7 +4,7 @@ import logging
 
 import pulp
 
-from . import preferences_utils
+from . import pulp_thresholds
 
 logger = logging.getLogger(__name__)
 
@@ -163,7 +163,7 @@ class _PlateaudLexMaxMin:
             f"HasThisLevel_{level}", self.scores.keys(), cat="Binary"
         )
         for key, value in self.scores.items():
-            preferences_utils.apply_threshold_constraint(
+            pulp_thresholds.apply_threshold_constraint(
                 self.prob,
                 value,
                 self.m_val + self.DELTA,

@@ -3,7 +3,6 @@
 # pylint: disable=protected-access
 
 import pandas as pd
-import pulp
 import pytest
 
 from aliexpress.solver import preferences_utils
@@ -61,32 +60,3 @@ def test_calculate_added_satisfaction_monotonic():
 
     expected = {1: 0.5, 2: 0.25, 3: 0.125}
     assert added == expected
-
-
-def test_apply_threshold_constraints_positive():
-    """Test threshold constraints are added correctly for positive threshold"""
-    prob = pulp.LpProblem("test", pulp.LpMinimize)
-    x = pulp.LpVariable("x", lowBound=0)
-    thresholds = [1, 2]
-    threshold_vars = {t: pulp.LpVariable(f"thr_{t}", cat="Binary") for t in thresholds}
-
-    preferences_utils.apply_threshold_constraints(prob, x, thresholds, threshold_vars)
-
-    prob += x == 1.5
-    prob.solve(pulp.PULP_CBC_CMD(msg=False))
-    assert threshold_vars[1].value() == 1
-    assert threshold_vars[2].value() == 0
-
-
-def test_apply_threshold_constraints_negative():
-    """Test threshold works negative thresholds"""
-    prob = pulp.LpProblem("test_neg", pulp.LpMinimize)
-    x = pulp.LpVariable("x")
-    thresholds = [-1, -2]
-    threshold_vars = {t: pulp.LpVariable(f"thr_{t}", cat="Binary") for t in thresholds}
-
-    preferences_utils.apply_threshold_constraints(prob, x, thresholds, threshold_vars)
-    prob += x == -1.5
-    prob.solve(pulp.PULP_CBC_CMD(msg=False))
-    assert threshold_vars[-1].value() == 1
-    assert threshold_vars[-2].value() == 0

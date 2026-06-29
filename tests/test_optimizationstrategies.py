@@ -148,7 +148,7 @@ def test_lexmaxmin_three_variables_equal_distribution():
     prob += c >= 3
 
     with patch(
-        "aliexpress.solver.preferences_utils.apply_threshold_constraints"
+        "aliexpress.solver.pulp_thresholds.apply_threshold_constraints"
     ) as mock_apply:
         mock_apply.side_effect = lambda *a_, **k: None
 
