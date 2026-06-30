@@ -15,8 +15,8 @@ a temporary filesystem, so no real data is touched.
 import pytest
 from werkzeug.security import generate_password_hash
 
-from aliexpress.extensions import db, limiter
-from aliexpress.models import Admin, School
+from aliexpress.web.extensions import db, limiter
+from aliexpress.web.models import Admin, School
 from app import app as flask_app
 
 

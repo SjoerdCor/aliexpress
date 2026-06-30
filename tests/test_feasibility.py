@@ -2,19 +2,20 @@
 
 import pytest
 
-from aliexpress import datareader, errors
-from aliexpress.datareader import GroupCounts, matching_key
-from aliexpress.main import distribute_students_from_data
-from aliexpress.preferences_data import PreferenceData
-from aliexpress.preferences_form import (
+from aliexpress import errors
+from aliexpress.data import datareader
+from aliexpress.data.datareader import GroupCounts, matching_key
+from aliexpress.data.preferences_data import PreferenceData
+from aliexpress.data.preferences_form import (
     Preference,
     PreferenceKind,
     StudentEntry,
     build_preference_data,
 )
+from aliexpress.main import distribute_students_from_data
 from aliexpress.solver import feasibility
 from aliexpress.solver.problemsolver import ProblemSolver
-from aliexpress.validation_messages import to_validation_message
+from aliexpress.web.validation_messages import to_validation_message
 
 _FULL_INTEGRATION_DIR = "tests/integration"
 

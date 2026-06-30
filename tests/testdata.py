@@ -19,16 +19,16 @@ import string
 import pandas as pd
 
 from aliexpress import create_app
-from aliexpress.datareader import matching_key
-from aliexpress.extensions import db
-from aliexpress.models import Process, School
-from aliexpress.preferences_form import (
+from aliexpress.data.datareader import matching_key
+from aliexpress.data.preferences_form import (
     Preference,
     PreferenceKind,
     StudentEntry,
     build_preference_data,
 )
-from aliexpress.storage import get_process_path
+from aliexpress.web.extensions import db
+from aliexpress.web.models import Process, School
+from aliexpress.web.storage import get_process_path
 from tests.testedexmlgeneration import SAMPLE_GROUP_NAMES
 
 random.seed(42)

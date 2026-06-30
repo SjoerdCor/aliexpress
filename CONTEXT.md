@@ -44,6 +44,10 @@ _Avoid_: niet in, verbod
 Het resultaat van de optimalisatie: de toewijzing van alle leerlingen aan groepen.
 _Avoid_: indeling, uitkomst
 
+**Sociogram**:
+Een visualisatie van de relaties tussen leerlingen, afgeleid uit hun voorkeuren. Het is een tweede analyse over dezelfde invoer als de Verdeling en staat daar los van: de optimalisatie maakt een Verdeling, het sociogram maakt een relatiegrafiek. Beide zijn "wat je met de ingelezen voorkeuren doet" — peers, geen onderdeel van elkaar.
+_Avoid_: grafiek, netwerk, plaatje
+
 **Proces**:
 Één verdelingsrun voor een school, geïdentificeerd door naam. Bevat de invoerbestanden, status en resultaten van die run.
 _Avoid_: run, sessie, taak

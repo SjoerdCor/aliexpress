@@ -5,8 +5,8 @@ import warnings
 
 import pandas as pd
 
-from aliexpress import input_writer
-from aliexpress.datareader import VOORKEUREN_SCHEMA
+from aliexpress.data import input_writer
+from aliexpress.data.datareader import VOORKEUREN_SCHEMA
 
 
 def test_dropdown_columns_geslacht():

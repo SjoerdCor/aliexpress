@@ -15,7 +15,8 @@ from collections import defaultdict
 
 import pulp
 
-from .. import errors, preferences_data
+from .. import errors
+from ..data import preferences_data
 from . import satisfaction
 from ._balance import STRICTEST_BALANCE, GroupBalance, get_solver
 

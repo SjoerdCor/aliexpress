@@ -22,8 +22,8 @@ from flask import (
 from flask_login import current_user, login_user
 from werkzeug.security import check_password_hash
 
-from aliexpress.extensions import db, limiter
-from aliexpress.models import Admin, Process, School
+from ..extensions import db, limiter
+from ..models import Admin, Process, School
 
 logger = logging.getLogger("aliexpress.admin")
 

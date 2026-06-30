@@ -10,10 +10,10 @@ from pathlib import Path
 
 import pytest
 
-from aliexpress import datareader
-from aliexpress.extensions import db as flask_db
-from aliexpress.models import Process
-from aliexpress.routes.wizard import _write_voorkeuren_json
+from aliexpress.data import datareader
+from aliexpress.web.extensions import db as flask_db
+from aliexpress.web.models import Process
+from aliexpress.web.routes.wizard import _write_voorkeuren_json
 from app import app
 from tests.browser.conftest import TEST_SCHOOLCODE
 
