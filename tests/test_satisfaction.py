@@ -1,29 +1,29 @@
-"""Test preferences_utils.py"""
+"""Test satisfaction.py"""
 
 # pylint: disable=protected-access
 
 import pandas as pd
 import pytest
 
-from aliexpress.solver import preferences_utils
+from aliexpress.solver import satisfaction
 
 
 def test_get_satisfaction_integral_basic():
     """Test satisfaction integral"""
-    assert preferences_utils.get_satisfaction_integral(0, 1) == pytest.approx(0.5)
+    assert satisfaction.get_satisfaction_integral(0, 1) == pytest.approx(0.5)
 
 
 def test_get_satisfaction_integral_decreasing_importance():
     """Test satisfaction gives more weight to first preferences"""
-    val1 = preferences_utils.get_satisfaction_integral(0, 1)
-    val2 = preferences_utils.get_satisfaction_integral(1, 2)
+    val1 = satisfaction.get_satisfaction_integral(0, 1)
+    val2 = satisfaction.get_satisfaction_integral(1, 2)
     assert val1 > val2
 
 
 def test_powerset_and_unique_sums_hidden_helpers():
     """Test finding all unique sums"""
     iterable = [1, 1, 0.5, 4]
-    sums = preferences_utils._all_unique_sums(iterable)
+    sums = satisfaction._all_unique_sums(iterable)
     assert sums == {0, 0.5, 1, 1.5, 2, 2.5, 4, 4.5, 5, 5.5, 6, 6.5}
 
 
@@ -38,7 +38,7 @@ def test_get_possible_weighted_preferences_simple():
             [["s1", "s1"], ["Graag met"]], names=["Leerling", "TypeWens"]
         ),
     )
-    result = preferences_utils.get_possible_weighted_preferences(df)
+    result = satisfaction.get_possible_weighted_preferences(df)
     assert result == {0, 1, 2, 3}
 
 
@@ -53,7 +53,7 @@ def test_calculate_added_satisfaction_monotonic():
             [["s1", "s1"], ["Graag met"]], names=["Leerling", "TypeWens"]
         ),
     )
-    added = preferences_utils.calculate_added_satisfaction(df)
+    added = satisfaction.calculate_added_satisfaction(df)
     print(added)
     assert all(isinstance(v, float) for v in added.values())
     assert all(v > 0 for v in added.values())

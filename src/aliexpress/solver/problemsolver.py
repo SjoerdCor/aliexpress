@@ -15,9 +15,9 @@ from .. import preferences_data
 from . import (
     feasibility,
     optimizationstrategies,
-    preferences_utils,
     pulp_logical,
     pulp_thresholds,
+    satisfaction,
 )
 from ._balance import STRICTEST_BALANCE, GroupBalance, get_solver
 
@@ -572,9 +572,7 @@ class ProblemSolver:
     ) -> pulp.LpVariable:
         """Compute per-student satisfaction variables and add them to ``prob``."""
         prob = prob or self.prob
-        added_satisfaction = preferences_utils.calculate_added_satisfaction(
-            self.preferences
-        )
+        added_satisfaction = satisfaction.calculate_added_satisfaction(self.preferences)
         weighted_satisfied = self._calculate_weighted_preferences(satisfied, prob=prob)
 
         for student in self.students:
@@ -618,7 +616,7 @@ class ProblemSolver:
                         satisfaction_current_student += 1
                     else:
                         max_wishes = positive_preferences["Gewicht"].sum()
-                        max_satisfaction = preferences_utils.get_satisfaction_integral(
+                        max_satisfaction = satisfaction.get_satisfaction_integral(
                             0, max_wishes
                         )
                         satisfaction_current_student /= max_satisfaction
