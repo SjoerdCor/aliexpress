@@ -1,4 +1,28 @@
-"""Helper functions from problemsolver, to determine preferences"""
+"""From honored preferences to satisfaction per student.
+
+Boundaries
+----------
+- ``problemsolver`` owns the LP model: which preferences are honored given an assignment.
+  It calls ``calculate_student_satisfaction`` to add the per-student satisfaction
+  variables to the model.
+- ``optimizationstrategies`` aggregates: given a satisfaction per student, what is the
+  single objective value? That is a different question from the metric per student.
+
+What this module does
+---------------------
+It defines the *metric* that maps honored preferences to a satisfaction score per student.
+Conceptually this is one pluggable choice — two concrete metrics are provided:
+
+- ``get_satisfaction_integral``: concave, diminishing-returns scoring. The marginal value
+  of each additional honored preference decreases. The lexmaxmin objective in
+  ``optimizationstrategies`` then drives the "everyone gets preference 1 first" property,
+  not this function alone.
+- ``get_satisfaction_percentage``: linear scoring. Treats all preferences as equally
+  important regardless of order.
+
+Narrative through the file:
+  honored preferences → achievable weighted levels → satisfaction function → score per student
+"""
 
 import itertools
 import warnings
@@ -9,9 +33,63 @@ import pulp
 from .. import preferences_data
 from . import pulp_thresholds
 
+# ---------------------------------------------------------------------------
+# 1. Satisfaction functions (the pluggable metric)
+# ---------------------------------------------------------------------------
 
-def powerset(iterable):
-    "powerset([1,2,3]) --> () (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)"
+
+def get_satisfaction_integral(x_a: float, x_b: float) -> float:
+    """Extra satisfaction gained from x_a to x_b honored (weighted) preferences.
+
+    Concave, diminishing-returns: the marginal gain of the n-th preference is less than
+    that of the (n-1)-th. Computed as the integral of 0.5^x between x_a and x_b.
+
+    Parameters
+    ----------
+    x_a:
+        Current weighted level (lower bound of the integral).
+    x_b:
+        Target weighted level (upper bound).
+
+    Returns
+    -------
+        The added satisfaction score between x_a and x_b.
+    """
+    # Closed-form integral of 0.5^x; more flexible numerical integration would change
+    # nothing since the integrand is unlikely to change.
+    return (-(0.5**x_b)) - (-(0.5**x_a))
+
+
+def get_satisfaction_percentage(honored_weight: float, max_weight: float) -> float:
+    """Fraction of the maximum weighted preferences that is honored (0.0 to 1.0).
+
+    Linear alternative to ``get_satisfaction_integral``: treats all preferences as
+    equally important regardless of order. A student with 2 of 4 weighted preferences
+    honored scores 0.5, regardless of which two they got.
+
+    Parameters
+    ----------
+    honored_weight:
+        Sum of weights of the preferences that are honored.
+    max_weight:
+        Sum of all positive preference weights (the maximum achievable).
+
+    Returns
+    -------
+        ``honored_weight / max_weight``, or 1.0 when max_weight is 0.
+    """
+    if max_weight == 0:
+        return 1.0
+    return honored_weight / max_weight
+
+
+# ---------------------------------------------------------------------------
+# 2. The achievable range (specific to the integral metric)
+# ---------------------------------------------------------------------------
+
+
+def _powerset(iterable):
+    """All subsets of ``iterable`` as a generator of tuples."""
     s = list(iterable)
     return itertools.chain.from_iterable(
         itertools.combinations(s, r) for r in range(len(s) + 1)
@@ -19,72 +97,47 @@ def powerset(iterable):
 
 
 def _all_unique_sums(iterable):
-    """Calculate all possible sums from sublists from the iterable"""
-    return {sum(l) for l in powerset(iterable)}
+    """All possible sums of subsets of ``iterable``."""
+    return {sum(subset) for subset in _powerset(iterable)}
 
 
-def get_possible_weighted_preferences(preferences) -> set:
-    """
-    Get all the possible number of weighted preferences
+def _achievable_weighted_levels(preferences) -> set:
+    """All weighted preference levels reachable by at least one student.
 
-    This will be used to know for which values a satisfaction score must be calculated
-    and which dictionary values must be calculated per student. By minimizing this number,
-    we make the problem calculation as fast as possible, while allowing for arbitrary precision
+    Determines which levels need a satisfaction score for the integral metric. Keeping
+    this set minimal keeps the LP compact across arbitrary weight distributions.
 
     Parameters
     ----------
-    preferences: pd.DataFrame
-        The DataFrame containing the preferences of the students, must have a MultiIndex
-        with levels ("Leerling", "TypeWens") with columns ("Waarde" & "Gewicht")
+    preferences:
+        Long-format DataFrame with MultiIndex ``(Leerling, TypeWens, Nr)`` and
+        columns ``Waarde`` and ``Gewicht``.
     """
-    unique_weighted_preferences_per_student = (
+    unique_per_student = (
         preferences_data.get_graag_met(preferences)
         .groupby("Leerling")["Gewicht"]
         .apply(_all_unique_sums)
     )
 
-    unique_weighted_preferences = set()
-    for wp in unique_weighted_preferences_per_student:
-        unique_weighted_preferences.update(wp)
-    return unique_weighted_preferences
-
-
-def get_satisfaction_integral(x_a: float, x_b: float) -> float:
-    """
-    Calculate the extra satisfaction from granting x_b preferences instead of x_a
-
-    This is the (scaled) integral of 0.5**x. This satisfaction function ensures everybody
-    first gets their first preference, then everybody their second preference, etc.
-
-    Parameters
-    ----------
-    x_a: float
-        The number of (weighted) preferences as the basic satisfaction of the student
-    x_b: float
-        The number of (weighted) preferences as the goal satisfaction of the student
-
-    Returns
-    -------
-        The added satisfaction score of the student
-    """
-    # In principle, we should probably only specify the satisfaction function and
-    # then have this just be a numerical integration for optimal flexibility, but since
-    # this flexibility isn't required yet, we're using a analytical integration.
-    return (-(0.5**x_b)) - (-(0.5**x_a))
+    unique_levels: set = set()
+    for wp in unique_per_student:
+        unique_levels.update(wp)
+    return unique_levels
 
 
 def calculate_added_satisfaction(preferences) -> dict:
-    """
-    Calculate the score of getting all possible weighted preferences values accounted for
-    """
+    """Marginal satisfaction score per achievable weighted level (integral metric).
 
-    possible_weighted_preferences = get_possible_weighted_preferences(preferences)
+    Returns ``{level: score}`` where ``score`` is the added satisfaction from the
+    previous achievable level to ``level``, using ``get_satisfaction_integral``. Used as
+    LP objective coefficients per student. Specific to the integral metric: the percentage
+    metric does not need level-by-level coefficients.
+    """
+    possible_levels = _achievable_weighted_levels(preferences)
 
     # Sorting is important since we're going to difference!
-    positive_values = sorted(v for v in possible_weighted_preferences if v >= 0)
-    negative_values = sorted(
-        (v for v in possible_weighted_preferences if v <= 0), reverse=True
-    )
+    positive_values = sorted(v for v in possible_levels if v >= 0)
+    negative_values = sorted((v for v in possible_levels if v <= 0), reverse=True)
 
     preference_value = {}
     for values in (negative_values, positive_values):
@@ -95,10 +148,20 @@ def calculate_added_satisfaction(preferences) -> dict:
     return preference_value
 
 
+# ---------------------------------------------------------------------------
+# 3. Application to the LP
+# ---------------------------------------------------------------------------
+
+
 def calculate_weighted_preferences(
-    solver, satisfied: dict, prob: pulp.LpProblem
+    solver, in_same_group: dict, prob: pulp.LpProblem
 ) -> dict:
-    """Calculate the weighted sum of satisfied preferences and add LP variables to ``prob``."""
+    """Add LP variables for weighted honored preferences to ``prob`` and return them.
+
+    ``in_same_group[key]`` is 1 when the two students in a preference are placed in the
+    same group, and 0 otherwise. For negative weights ("Liever niet met") unwanted
+    co-placement is penalised via ``(1 - in_same_group[key]) * weight``.
+    """
     graag_met = preferences_data.get_graag_met(solver.preferences)
     weights = graag_met["Gewicht"].to_dict()
     weights_pulp = pulp.LpVariable.dicts(
@@ -111,21 +174,24 @@ def calculate_weighted_preferences(
     for key, weight in weights.items():
         prob += weights_pulp[key] == weight
         if weight > 0:
-            # Weight is positive: you get points for getting it right
-            prob += weighted_satisfied[key] == (satisfied[key] * weight)
+            prob += weighted_satisfied[key] == (in_same_group[key] * weight)
         else:
-            # Weight is negative: you get deduction if you do it wrong
-            prob += weighted_satisfied[key] == ((1 - satisfied[key]) * weight)
+            prob += weighted_satisfied[key] == ((1 - in_same_group[key]) * weight)
 
     return weighted_satisfied
 
 
 def calculate_student_satisfaction(
-    solver, satisfied: dict, prob: pulp.LpProblem
+    solver, in_same_group: dict, prob: pulp.LpProblem
 ) -> dict:
-    """Compute per-student satisfaction variables and add them to ``prob``."""
+    """Add per-student satisfaction LP variables to ``prob`` and return them.
+
+    Applies the integral satisfaction metric to map each student's honored preferences
+    to a single satisfaction variable. Students without positive preferences receive a
+    baseline score so they do not drive the lexmaxmin objective.
+    """
     added_satisfaction = calculate_added_satisfaction(solver.preferences)
-    weighted_satisfied = calculate_weighted_preferences(solver, satisfied, prob)
+    weighted_satisfied = calculate_weighted_preferences(solver, in_same_group, prob)
 
     for student in solver.students:
         student_weighted = [
@@ -157,7 +223,7 @@ def calculate_student_satisfaction(
             action="ignore", category=pd.errors.PerformanceWarning
         ):
             # Add base satisfaction if no (positive) preferences, so maxmin optimizes
-            # for student with actual preferences
+            # for students with actual preferences
             try:
                 preferences = solver.preferences.loc[(student, "Graag met")]
             except KeyError:
@@ -167,8 +233,8 @@ def calculate_student_satisfaction(
                 if positive_preferences.empty:
                     satisfaction_current_student += 1
                 else:
-                    max_wishes = positive_preferences["Gewicht"].sum()
-                    max_satisfaction = get_satisfaction_integral(0, max_wishes)
+                    max_preferences = positive_preferences["Gewicht"].sum()
+                    max_satisfaction = get_satisfaction_integral(0, max_preferences)
                     satisfaction_current_student /= max_satisfaction
         prob += solver.studentsatisfaction[student] == satisfaction_current_student
     return solver.studentsatisfaction
