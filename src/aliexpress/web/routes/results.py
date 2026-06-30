@@ -18,10 +18,10 @@ from flask import (
 )
 from flask_login import login_required
 
-from aliexpress.models import Process
-from aliexpress.routes.auth import effective_school_id
-from aliexpress.routes.processes import require_process
-from aliexpress.storage import get_file_path
+from ..models import Process
+from ..storage import get_file_path
+from .auth import effective_school_id
+from .processes import require_process
 
 logger = logging.getLogger(__name__)
 

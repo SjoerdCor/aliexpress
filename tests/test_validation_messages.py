@@ -14,9 +14,9 @@ import pandera as pa
 import pytest
 from werkzeug.exceptions import RequestEntityTooLarge
 
-from aliexpress import datareader
+from aliexpress.data import datareader
 from aliexpress.errors import ValidationError
-from aliexpress.validation_messages import (
+from aliexpress.web.validation_messages import (
     readableerror_to_validation_message,
     schemaerror_to_validation_message,
     to_validation_message,
@@ -212,7 +212,7 @@ class TestSchemaErrorMessages:
         voorkeuren sheet instead of groepen). The message must be clear about which file
         is wrong and what to check.
         """
-        with patch("aliexpress.datareader.pd.read_excel") as mock_read:
+        with patch("aliexpress.data.datareader.pd.read_excel") as mock_read:
             mock_read.return_value = pd.DataFrame(
                 {"Groepen": ["Rood"], "Jongens": [5], "Meisjes": [6], "ExtraKolom": [0]}
             )
@@ -271,7 +271,7 @@ class TestSchemaErrorMessages:
         Same check as voorkeuren but for the groepen file — verifies the branch works for
         both filetypes, not just voorkeuren.
         """
-        with patch("aliexpress.datareader.pd.read_excel") as mock_read:
+        with patch("aliexpress.data.datareader.pd.read_excel") as mock_read:
             mock_read.return_value = pd.DataFrame(
                 columns=["Groepen", "Jongens", "Meisjes"]
             )
@@ -418,7 +418,7 @@ class TestSchemaErrorMessages:
         The groepen file has unique=True on the Groepen column. If a teacher lists
         the same class name twice the message must not say 'voorkeuren' (wrong file).
         """
-        with patch("aliexpress.datareader.pd.read_excel") as mock_read:
+        with patch("aliexpress.data.datareader.pd.read_excel") as mock_read:
             mock_read.return_value = pd.DataFrame(
                 {"Groepen": ["Rood", "Rood"], "Jongens": [5, 6], "Meisjes": [6, 7]}
             )

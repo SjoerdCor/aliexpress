@@ -4,7 +4,7 @@ import logging
 
 from flask import flash, redirect, request, url_for
 
-from aliexpress.validation_messages import to_validation_message
+from .validation_messages import to_validation_message
 
 logger = logging.getLogger(__name__)
 

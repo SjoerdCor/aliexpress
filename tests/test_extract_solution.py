@@ -5,9 +5,9 @@ self.weighted_satisfied and self.weights from _calculate_weighted_preferences.
 It runs on the current code and must stay green after the write-back is removed (commit 3).
 """
 
-from aliexpress.datareader import GroupCounts, matching_key
-from aliexpress.preferences_data import PreferenceData, get_graag_met
-from aliexpress.preferences_form import (
+from aliexpress.data.datareader import GroupCounts, matching_key
+from aliexpress.data.preferences_data import PreferenceData, get_graag_met
+from aliexpress.data.preferences_form import (
     Preference,
     PreferenceKind,
     StudentEntry,

@@ -18,7 +18,7 @@ from dataclasses import dataclass
 import pandas as pd
 import pulp
 
-from .. import preferences_data
+from ..data import preferences_data
 from . import feasibility, optimizationstrategies, pulp_logical, satisfaction
 from ._balance import STRICTEST_BALANCE, GroupBalance, get_solver
 

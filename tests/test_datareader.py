@@ -10,32 +10,17 @@ import pandas as pd
 import pandera as pa
 import pytest
 
-from aliexpress import datareader, errors
+from aliexpress import errors
+from aliexpress.data import datareader
 
 
 @pytest.fixture
 def valid_voorkeuren_df():
     """Fixture for a valid preferences DataFrame with the expected structure."""
-    header = [
-        ("MinimaleTevredenheid", np.nan, np.nan),
-        ("Jongen/meisje", np.nan, np.nan),
-        ("Stamgroep", np.nan, np.nan),
-        ("Graag met", 1.0, "Waarde"),
-        ("Graag met", 1.0, "Gewicht"),
-        ("Graag met", 2.0, "Waarde"),
-        ("Graag met", 2.0, "Gewicht"),
-        ("Graag met", 3.0, "Waarde"),
-        ("Graag met", 3.0, "Gewicht"),
-        ("Graag met", 4.0, "Waarde"),
-        ("Graag met", 4.0, "Gewicht"),
-        ("Graag met", 5.0, "Waarde"),
-        ("Graag met", 5.0, "Gewicht"),
-        ("Liever niet met", 1.0, "Waarde"),
-        ("Liever niet met", 1.0, "Gewicht"),
-        ("Niet in", 1.0, "Waarde"),
-        ("Niet in", 2.0, "Waarde"),
-    ]
-    columns = pd.MultiIndex.from_tuples(header, names=["TypeWens", "Nr", "TypeWaarde"])
+    columns = pd.MultiIndex.from_tuples(
+        datareader.VOORKEUREN_SCHEMA.columns.keys(),
+        names=["TypeWens", "Nr", "TypeWaarde"],
+    )
     data = [
         [
             0.5,
@@ -208,7 +193,7 @@ def test_matching_key_collapses_case_and_space():
     )
 
 
-@patch("aliexpress.datareader.pd.read_excel")
+@patch("aliexpress.data.datareader.pd.read_excel")
 def test_voorkeuren_processor_init(mock_read_excel, valid_voorkeuren_df):
     """Test that VoorkeurenProcessor initializes correctly with a valid DataFrame."""
     index = pd.Index(
@@ -734,7 +719,7 @@ def test_validate_not_together_wrong_type_max_samen():
     assert exc.value.code == "invalid_max_samen_type_not_together"
 
 
-@patch("aliexpress.datareader.pd.read_excel")
+@patch("aliexpress.data.datareader.pd.read_excel")
 def test_read_groups_excel_success(mock_read_excel):
     """Test that read_groups_excel reads a DataFrame with groups correctly."""
     df = pd.DataFrame(
@@ -750,7 +735,7 @@ def test_read_groups_excel_success(mock_read_excel):
     assert group_display == {"deflamingos": "De Flamingo's"}
 
 
-@patch("aliexpress.datareader.pd.read_excel")
+@patch("aliexpress.data.datareader.pd.read_excel")
 def test_read_groups_excel_empty(mock_read_excel):
     """Test that read_groups_excel raises an error for an empty DataFrame."""
     mock_read_excel.return_value = pd.DataFrame(
@@ -762,7 +747,7 @@ def test_read_groups_excel_empty(mock_read_excel):
     assert exc.value.check.name == "empty_df" and exc.value.filetype == "groepen"
 
 
-@patch("aliexpress.datareader.pd.read_excel")
+@patch("aliexpress.data.datareader.pd.read_excel")
 def test_read_groups_excel_wrong_datatype(mock_read_excel):
     """Test that read_groups_excel raises SchemaError for a non-coercible value in Jongens."""
     mock_read_excel.return_value = pd.DataFrame(
@@ -776,7 +761,7 @@ def test_read_groups_excel_wrong_datatype(mock_read_excel):
     assert err.filetype == "groepen"
 
 
-@patch("aliexpress.datareader.pd.read_excel")
+@patch("aliexpress.data.datareader.pd.read_excel")
 def test_read_groups_excel_missing_col(mock_read_excel):
     """Test that read_groups_excel raises an error for missing mandatory columns."""
     df = pd.DataFrame(

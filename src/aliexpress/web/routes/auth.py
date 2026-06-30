@@ -15,8 +15,8 @@ from flask_login import current_user, login_required, login_user, logout_user
 from werkzeug.security import check_password_hash, generate_password_hash
 from zxcvbn import zxcvbn
 
-from aliexpress.extensions import db, limiter
-from aliexpress.models import Admin, School
+from ..extensions import db, limiter
+from ..models import Admin, School
 
 logger = logging.getLogger(__name__)
 

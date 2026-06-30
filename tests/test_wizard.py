@@ -11,10 +11,10 @@ import openpyxl
 import pandas as pd
 from werkzeug.datastructures import MultiDict
 
-import aliexpress.routes.wizard as wizard_module
+import aliexpress.web.routes.wizard as wizard_module
 from aliexpress.errors import ValidationError
-from aliexpress.extensions import db
-from aliexpress.models import LogLine, Process, Run
+from aliexpress.web.extensions import db
+from aliexpress.web.models import LogLine, Process, Run
 from app import app as flask_app
 from tests.helpers import (
     SCHOOL_ID,

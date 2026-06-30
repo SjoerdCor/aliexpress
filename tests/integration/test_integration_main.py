@@ -13,16 +13,17 @@ import re
 import pandas as pd
 import pytest
 
-from aliexpress import datareader, errors
-from aliexpress.datareader import GroupCounts
-from aliexpress.main import distribute_students_from_data, distribute_students_once
-from aliexpress.preferences_data import PreferenceData
-from aliexpress.preferences_form import (
+from aliexpress import errors
+from aliexpress.data import datareader
+from aliexpress.data.datareader import GroupCounts
+from aliexpress.data.preferences_data import PreferenceData
+from aliexpress.data.preferences_form import (
     Preference,
     PreferenceKind,
     StudentEntry,
     build_preference_data,
 )
+from aliexpress.main import distribute_students_from_data, distribute_students_once
 from aliexpress.solver.problemsolver import GroupBalance
 
 _NOT_TOGETHER_SMALL = [

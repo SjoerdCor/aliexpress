@@ -13,9 +13,9 @@ another school's data.
 import pytest
 from werkzeug.security import generate_password_hash
 
-from aliexpress.extensions import db
-from aliexpress.models import Admin, Process, School
-from aliexpress.routes.auth import load_user
+from aliexpress.web.extensions import db
+from aliexpress.web.models import Admin, Process, School
+from aliexpress.web.routes.auth import load_user
 
 ADMIN_USERNAME = "beheerder"
 ADMIN_PASSWORD = "AdminGeheim!42xyz"

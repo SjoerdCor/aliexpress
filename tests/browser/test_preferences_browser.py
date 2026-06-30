@@ -6,8 +6,8 @@ import json
 
 import pytest
 
-from aliexpress.extensions import db as flask_db
-from aliexpress.models import Process
+from aliexpress.web.extensions import db as flask_db
+from aliexpress.web.models import Process
 from app import app
 from tests.browser.conftest import TEST_SCHOOLCODE
 

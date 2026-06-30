@@ -6,9 +6,9 @@ import pytest
 from flask import Flask
 
 from aliexpress import create_app
-from aliexpress.extensions import db as _db
-from aliexpress.models import School
-from aliexpress.storage import get_file_path, get_process_path
+from aliexpress.web.extensions import db as _db
+from aliexpress.web.models import School
+from aliexpress.web.storage import get_file_path, get_process_path
 
 
 @pytest.fixture()
