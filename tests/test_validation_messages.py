@@ -16,7 +16,7 @@ from werkzeug.exceptions import RequestEntityTooLarge
 
 from aliexpress.data import datareader
 from aliexpress.errors import ValidationError
-from aliexpress.validation_messages import (
+from aliexpress.web.validation_messages import (
     readableerror_to_validation_message,
     schemaerror_to_validation_message,
     to_validation_message,

@@ -6,9 +6,9 @@ import json
 
 from werkzeug.security import generate_password_hash
 
-import aliexpress.routes.processes as proc_module
-from aliexpress.extensions import db
-from aliexpress.models import Process, Run, School
+import aliexpress.web.routes.processes as proc_module
+from aliexpress.web.extensions import db
+from aliexpress.web.models import Process, Run, School
 from app import app as flask_app
 from tests.helpers import SCHOOL_ID, flashes, make_process_row
 

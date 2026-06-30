@@ -6,8 +6,8 @@ import pytest
 from werkzeug.security import generate_password_hash
 
 from aliexpress import create_app
-from aliexpress.extensions import db as _db
-from aliexpress.models import Process, Run, School
+from aliexpress.web.extensions import db as _db
+from aliexpress.web.models import Process, Run, School
 
 
 @pytest.fixture()

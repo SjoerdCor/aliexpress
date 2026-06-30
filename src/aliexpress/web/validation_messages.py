@@ -8,7 +8,7 @@ import numpy as np
 import pandera as pa
 from werkzeug.exceptions import RequestEntityTooLarge
 
-from aliexpress.errors import CouldNotReadFileError, FeasibilityError, ValidationError
+from ..errors import CouldNotReadFileError, FeasibilityError, ValidationError
 
 
 def to_validation_message(exc: Exception) -> str:

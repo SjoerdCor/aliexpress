@@ -24,30 +24,30 @@ from flask import (
 )
 from flask_login import login_required
 
-from aliexpress import sociogram
-from aliexpress.data import candidatedetermination, datareader, input_writer
-from aliexpress.data.form_parsers import parse_groups_to_form
-from aliexpress.data.preferences_data import PreferenceData
-from aliexpress.data.preferences_form import (
+from ... import sociogram
+from ...data import candidatedetermination, datareader, input_writer
+from ...data.form_parsers import parse_groups_to_form
+from ...data.preferences_data import PreferenceData
+from ...data.preferences_form import (
     Preference,
     PreferenceKind,
     StudentEntry,
     build_preference_data,
 )
-from aliexpress.errors import (
+from ...errors import (
     CouldNotReadFileError,
     DuplicateNameError,
     FeasibilityError,
     ValidationError,
 )
-from aliexpress.extensions import db
-from aliexpress.main import distribute_students_from_data
-from aliexpress.models import LogLine, Process, Run
-from aliexpress.routes.auth import effective_school_id
-from aliexpress.routes.processes import require_process
-from aliexpress.routes.roster import load_roster, sorted_for_display
-from aliexpress.storage import get_file_path
-from aliexpress.validation_messages import to_validation_message
+from ...main import distribute_students_from_data
+from ..extensions import db
+from ..models import LogLine, Process, Run
+from ..storage import get_file_path
+from ..validation_messages import to_validation_message
+from .auth import effective_school_id
+from .processes import require_process
+from .roster import load_roster, sorted_for_display
 
 logger = logging.getLogger(__name__)
 
