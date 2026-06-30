@@ -154,13 +154,11 @@ def calculate_added_satisfaction(preferences) -> dict:
 
 
 def calculate_weighted_preferences(
-    solver, in_same_group: dict, prob: pulp.LpProblem
+    solver, satisfied: dict, prob: pulp.LpProblem
 ) -> dict:
     """Add LP variables for weighted honored preferences to ``prob`` and return them.
 
-    ``in_same_group[key]`` is 1 when the two students in a preference are placed in the
-    same group, and 0 otherwise. For negative weights ("Liever niet met") unwanted
-    co-placement is penalised via ``(1 - in_same_group[key]) * weight``.
+    ``satisfied[key]`` is 1 when the preference is honored, 0 otherwise.
     """
     graag_met = preferences_data.get_graag_met(solver.preferences)
     weights = graag_met["Gewicht"].to_dict()
@@ -174,15 +172,17 @@ def calculate_weighted_preferences(
     for key, weight in weights.items():
         prob += weights_pulp[key] == weight
         if weight > 0:
-            prob += weighted_satisfied[key] == (in_same_group[key] * weight)
+            prob += weighted_satisfied[key] == (satisfied[key] * weight)
         else:
-            prob += weighted_satisfied[key] == ((1 - in_same_group[key]) * weight)
+            # Negative weight → lower satisfaction when not satisfied (satisfied==0),
+            # so (1 - satisfied) selects that case.
+            prob += weighted_satisfied[key] == ((1 - satisfied[key]) * weight)
 
     return weighted_satisfied
 
 
 def calculate_student_satisfaction(
-    solver, in_same_group: dict, prob: pulp.LpProblem
+    solver, satisfied: dict, prob: pulp.LpProblem
 ) -> dict:
     """Add per-student satisfaction LP variables to ``prob`` and return them.
 
@@ -191,7 +191,7 @@ def calculate_student_satisfaction(
     baseline score so they do not drive the lexmaxmin objective.
     """
     added_satisfaction = calculate_added_satisfaction(solver.preferences)
-    weighted_satisfied = calculate_weighted_preferences(solver, in_same_group, prob)
+    weighted_satisfied = calculate_weighted_preferences(solver, satisfied, prob)
 
     for student in solver.students:
         student_weighted = [
