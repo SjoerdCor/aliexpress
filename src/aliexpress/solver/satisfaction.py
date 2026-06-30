@@ -1,8 +1,13 @@
 """Helper functions from problemsolver, to determine preferences"""
 
 import itertools
+import warnings
+
+import pandas as pd
+import pulp
 
 from .. import preferences_data
+from . import pulp_thresholds
 
 
 def powerset(iterable):
@@ -88,3 +93,82 @@ def calculate_added_satisfaction(preferences) -> dict:
         for last_wp, wp in zip(values[:-1], values[1:]):
             preference_value[wp] = get_satisfaction_integral(last_wp, wp)
     return preference_value
+
+
+def calculate_weighted_preferences(
+    solver, satisfied: dict, prob: pulp.LpProblem
+) -> dict:
+    """Calculate the weighted sum of satisfied preferences and add LP variables to ``prob``."""
+    graag_met = preferences_data.get_graag_met(solver.preferences)
+    weights = graag_met["Gewicht"].to_dict()
+    weights_pulp = pulp.LpVariable.dicts(
+        "Weights_preferences", graag_met.index.to_list(), cat="Continuous"
+    )
+    weighted_satisfied = pulp.LpVariable.dicts(
+        "WeightedSatisfied", graag_met.index.to_list(), cat="Continuous"
+    )
+
+    for key, weight in weights.items():
+        prob += weights_pulp[key] == weight
+        if weight > 0:
+            # Weight is positive: you get points for getting it right
+            prob += weighted_satisfied[key] == (satisfied[key] * weight)
+        else:
+            # Weight is negative: you get deduction if you do it wrong
+            prob += weighted_satisfied[key] == ((1 - satisfied[key]) * weight)
+
+    return weighted_satisfied
+
+
+def calculate_student_satisfaction(
+    solver, satisfied: dict, prob: pulp.LpProblem
+) -> dict:
+    """Compute per-student satisfaction variables and add them to ``prob``."""
+    added_satisfaction = calculate_added_satisfaction(solver.preferences)
+    weighted_satisfied = calculate_weighted_preferences(solver, satisfied, prob)
+
+    for student in solver.students:
+        student_weighted = [
+            weighted_satisfied.get((student, i), 0)
+            for i in range(1, len(added_satisfaction) + 1)
+        ]
+        wp_satisfied = pulp.lpSum(student_weighted)
+
+        wp_satisfied_per_student = pulp.LpVariable.dicts(
+            f"{student}_weighted_preferences_accountend",
+            added_satisfaction.keys(),
+            cat="Binary",
+        )
+
+        pulp_thresholds.apply_threshold_constraints(
+            prob,
+            wp_satisfied,
+            added_satisfaction.keys(),
+            wp_satisfied_per_student,
+            eps=1e-3,  # Necessary to run lexmaxmin without errors; I dont know why
+        )
+
+        satisfaction_current_student = pulp.lpSum(
+            val * wp_satisfied_per_student[n_wp]
+            for n_wp, val in added_satisfaction.items()
+        )
+
+        with warnings.catch_warnings(
+            action="ignore", category=pd.errors.PerformanceWarning
+        ):
+            # Add base satisfaction if no (positive) preferences, so maxmin optimizes
+            # for student with actual preferences
+            try:
+                preferences = solver.preferences.loc[(student, "Graag met")]
+            except KeyError:
+                satisfaction_current_student = 1
+            else:
+                positive_preferences = preferences.query("Gewicht > 0")
+                if positive_preferences.empty:
+                    satisfaction_current_student += 1
+                else:
+                    max_wishes = positive_preferences["Gewicht"].sum()
+                    max_satisfaction = get_satisfaction_integral(0, max_wishes)
+                    satisfaction_current_student /= max_satisfaction
+        prob += solver.studentsatisfaction[student] == satisfaction_current_student
+    return solver.studentsatisfaction

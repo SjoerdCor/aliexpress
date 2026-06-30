@@ -5,20 +5,13 @@ implements different optimization targets (also known as satisfaction metrics).
 import itertools
 import logging
 import math
-import warnings
 from dataclasses import dataclass
 
 import pandas as pd
 import pulp
 
 from .. import preferences_data
-from . import (
-    feasibility,
-    optimizationstrategies,
-    pulp_logical,
-    pulp_thresholds,
-    satisfaction,
-)
+from . import feasibility, optimizationstrategies, pulp_logical, satisfaction
 from ._balance import STRICTEST_BALANCE, GroupBalance, get_solver
 
 logger = logging.getLogger(__name__)
@@ -467,7 +460,9 @@ class ProblemSolver:
         self.add_satisfaction_constraints(self.prob)
         satisfied = self.add_variables_which_preferences_satisfied()
         self.satisfied = satisfied
-        studentsatisfaction = self.calculate_student_satisfaction(satisfied)
+        studentsatisfaction = satisfaction.calculate_student_satisfaction(
+            self, satisfied, self.prob
+        )
         self.prob += feasibility.weighted_relaxation(self.prob) <= budget + 1e-6
         self.set_optimization_target(studentsatisfaction)
         self.solve()
@@ -541,87 +536,6 @@ class ProblemSolver:
             else:
                 prob += satisfied[key] == 1 - in_same_group
         return satisfied
-
-    def _calculate_weighted_preferences(
-        self, satisfied: dict, prob: pulp.LpProblem = None
-    ) -> pulp.LpVariable:
-        """Calculate the weighted sum of satisfied preferences."""
-        prob = prob or self.prob
-        graag_met = preferences_data.get_graag_met(self.preferences)
-        weights = graag_met["Gewicht"].to_dict()
-        weights_pulp = pulp.LpVariable.dicts(
-            "Weights_preferences", graag_met.index.to_list(), cat="Continuous"
-        )
-        weighted_satisfied = pulp.LpVariable.dicts(
-            "WeightedSatisfied", graag_met.index.to_list(), cat="Continuous"
-        )
-
-        for key, weight in weights.items():
-            prob += weights_pulp[key] == weight
-            if weight > 0:
-                # Weight is positive: you get points for getting it right
-                prob += weighted_satisfied[key] == (satisfied[key] * weight)
-            else:
-                # Weight is negative: you get deduction if you do it wrong
-                prob += weighted_satisfied[key] == ((1 - satisfied[key]) * weight)
-
-        return weighted_satisfied
-
-    def calculate_student_satisfaction(
-        self, satisfied: dict, prob: pulp.LpProblem = None
-    ) -> pulp.LpVariable:
-        """Compute per-student satisfaction variables and add them to ``prob``."""
-        prob = prob or self.prob
-        added_satisfaction = satisfaction.calculate_added_satisfaction(self.preferences)
-        weighted_satisfied = self._calculate_weighted_preferences(satisfied, prob=prob)
-
-        for student in self.students:
-            student_weighted = [
-                weighted_satisfied.get((student, i), 0)
-                for i in range(1, len(added_satisfaction) + 1)
-            ]
-            wp_satisfied = pulp.lpSum(student_weighted)
-
-            wp_satisfied_per_student = pulp.LpVariable.dicts(
-                f"{student}_weighted_preferences_accountend",
-                added_satisfaction.keys(),
-                cat="Binary",
-            )
-
-            pulp_thresholds.apply_threshold_constraints(
-                prob,
-                wp_satisfied,
-                added_satisfaction.keys(),
-                wp_satisfied_per_student,
-                eps=1e-3,  # Necessary to run lexmaxmin without errors; I dont know why
-            )
-
-            satisfaction_current_student = pulp.lpSum(
-                val * wp_satisfied_per_student[n_wp]
-                for n_wp, val in added_satisfaction.items()
-            )
-
-            with warnings.catch_warnings(
-                action="ignore", category=pd.errors.PerformanceWarning
-            ):
-                # Add base satisfaction if no (positive) preferences, so maxmin optimizes
-                # for student with actual preferences
-                try:
-                    preferences = self.preferences.loc[(student, "Graag met")]
-                except KeyError:
-                    satisfaction_current_student = 1
-                else:
-                    positive_preferences = preferences.query("Gewicht > 0")
-                    if positive_preferences.empty:
-                        satisfaction_current_student += 1
-                    else:
-                        max_wishes = positive_preferences["Gewicht"].sum()
-                        max_satisfaction = satisfaction.get_satisfaction_integral(
-                            0, max_wishes
-                        )
-                        satisfaction_current_student /= max_satisfaction
-            prob += self.studentsatisfaction[student] == satisfaction_current_student
-        return self.studentsatisfaction
 
     def set_optimization_target(self, studentsatisfaction: dict) -> None:
         """Calculate the variables which can be directly optimized
@@ -733,7 +647,9 @@ class ProblemSolver:
             self.add_constraints()
             satisfied = self.add_variables_which_preferences_satisfied()
             self.satisfied = satisfied
-            studentsatisfaction = self.calculate_student_satisfaction(satisfied)
+            studentsatisfaction = satisfaction.calculate_student_satisfaction(
+                self, satisfied, self.prob
+            )
             self.set_optimization_target(studentsatisfaction)
 
         for i in range(n_solutions):
