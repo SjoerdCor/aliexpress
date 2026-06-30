@@ -15,7 +15,7 @@ from aliexpress.data.preferences_form import (
 from aliexpress.main import distribute_students_from_data
 from aliexpress.solver import feasibility
 from aliexpress.solver.problemsolver import ProblemSolver
-from aliexpress.validation_messages import to_validation_message
+from aliexpress.web.validation_messages import to_validation_message
 
 _FULL_INTEGRATION_DIR = "tests/integration"
 

@@ -7,8 +7,8 @@ imports here can be at the top without ordering constraints.
 import pytest
 from werkzeug.security import generate_password_hash
 
-from aliexpress.extensions import db, limiter
-from aliexpress.models import School
+from aliexpress.web.extensions import db, limiter
+from aliexpress.web.models import School
 from app import app as flask_app
 
 

@@ -2,9 +2,9 @@
 
 # pylint: disable=redefined-outer-name  # standard pytest fixture pattern
 
-import aliexpress.routes.results as results_module
-from aliexpress.extensions import db
-from aliexpress.models import Process
+import aliexpress.web.routes.results as results_module
+from aliexpress.web.extensions import db
+from aliexpress.web.models import Process
 from app import app as flask_app
 
 SCHOOL_ID = "test-school"

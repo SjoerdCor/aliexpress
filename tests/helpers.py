@@ -12,8 +12,8 @@ from aliexpress.data.preferences_form import (
     StudentEntry,
     build_preference_data,
 )
-from aliexpress.extensions import db
-from aliexpress.models import Process
+from aliexpress.web.extensions import db
+from aliexpress.web.models import Process
 from app import app as flask_app
 
 # Must match the schoolcode created in tests/conftest.py's ``client`` fixture.

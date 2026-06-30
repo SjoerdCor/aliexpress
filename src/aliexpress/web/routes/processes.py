@@ -20,10 +20,10 @@ from flask import (
 )
 from flask_login import login_required
 
-from aliexpress.extensions import db
-from aliexpress.models import Process
-from aliexpress.routes.auth import effective_school_id
-from aliexpress.storage import get_process_path
+from ..extensions import db
+from ..models import Process
+from ..storage import get_process_path
+from .auth import effective_school_id
 
 logger = logging.getLogger(__name__)
 

@@ -30,8 +30,6 @@ by no-ops so the test is fast and deterministic — we only want to know the kic
 accepted, not that the LP terminates).
 """
 
-# pylint: disable=redefined-outer-name  # standard pytest fixture injection pattern
-
 import json
 import pathlib
 import xml.etree.ElementTree as ET
@@ -39,16 +37,8 @@ from io import BytesIO
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
-import pytest
-from werkzeug.security import generate_password_hash
 
-from aliexpress.data.preferences_form import (
-    StudentEntry,
-    build_preference_data,
-)
-from aliexpress.extensions import db, limiter
-from aliexpress.models import School
-from app import app as flask_app
+from aliexpress.data.preferences_form import StudentEntry, build_preference_data
 from tests.helpers import SCHOOL_ID
 
 # ---------------------------------------------------------------------------
@@ -177,32 +167,6 @@ def _proc_dir(tmp_path: pathlib.Path, process_name: str) -> pathlib.Path:
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
-
-
-@pytest.fixture()
-def full_flow_client(tmp_path):
-    """Logged-in Flask test client with a fresh DB and STORAGE_DIR=tmp_path.
-
-    Mirrors the conftest ``client`` fixture but is defined here to avoid an
-    import-cycle with conftest and to make the fixture's purpose explicit.
-    """
-    flask_app.config["TESTING"] = True
-    flask_app.config["SECRET_KEY"] = "test-secret-key"
-    flask_app.config["STORAGE_DIR"] = str(tmp_path)
-    limiter.enabled = False
-    with flask_app.app_context():
-        db.drop_all()
-        db.create_all()
-        school = School(
-            schoolcode=SCHOOL_ID,
-            naam="Testschool",
-            password_hash=generate_password_hash("testpass"),
-        )
-        db.session.add(school)
-        db.session.commit()
-    with flask_app.test_client() as c:
-        c.post("/login", data={"schoolcode": SCHOOL_ID, "wachtwoord": "testpass"})
-        yield c, tmp_path
 
 
 # ---------------------------------------------------------------------------
@@ -424,7 +388,7 @@ class TestFullWizardFormFlow:  # pylint: disable=too-few-public-methods  # one t
         noop_thread = MagicMock()
         noop_thread.start.return_value = None
 
-        with patch("aliexpress.routes.wizard.Thread", return_value=noop_thread):
+        with patch("aliexpress.web.routes.wizard.Thread", return_value=noop_thread):
             resp = client.get("/start_distribution", follow_redirects=False)
 
         assert (
@@ -438,14 +402,13 @@ class TestFullWizardFormFlow:  # pylint: disable=too-few-public-methods  # one t
     # The test
     # ------------------------------------------------------------------
 
-    def test_form_path_handoff_chain(self, full_flow_client):
+    def test_form_path_handoff_chain(self, client, tmp_path):
         """Walk every wizard step end-to-end; assert each handoff in sequence.
 
         The solver is not run.  The test stops after start_distribution returns
         its redirect — the back-half (poll /status → /result → /download) is
         already covered by tests/browser/test_distribution_browser.py.
         """
-        client, tmp_path = full_flow_client
 
         # Step 1: create process
         pdir = self._step_create_process(client, tmp_path)

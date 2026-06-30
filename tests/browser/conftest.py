@@ -16,9 +16,9 @@ import pytest
 from werkzeug.security import generate_password_hash
 from werkzeug.serving import make_server
 
-from aliexpress.extensions import db as flask_db
-from aliexpress.extensions import limiter
-from aliexpress.models import Process, School
+from aliexpress.web.extensions import db as flask_db
+from aliexpress.web.extensions import limiter
+from aliexpress.web.models import Process, School
 from app import app
 
 TEST_SCHOOLCODE = "browser-school"

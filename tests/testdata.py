@@ -26,9 +26,9 @@ from aliexpress.data.preferences_form import (
     StudentEntry,
     build_preference_data,
 )
-from aliexpress.extensions import db
-from aliexpress.models import Process, School
-from aliexpress.storage import get_process_path
+from aliexpress.web.extensions import db
+from aliexpress.web.models import Process, School
+from aliexpress.web.storage import get_process_path
 from tests.testedexmlgeneration import SAMPLE_GROUP_NAMES
 
 random.seed(42)

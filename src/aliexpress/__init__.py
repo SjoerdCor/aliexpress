@@ -11,18 +11,18 @@ import os
 from dotenv import load_dotenv
 from flask import Flask, render_template
 
-from aliexpress.appconfig import DevelopmentConfig, ProductionConfig
-from aliexpress.cli import admins as admins_cli
-from aliexpress.cli import schools as schools_cli
-from aliexpress.extensions import db, limiter, login_manager
-from aliexpress.http_errors import register_error_handlers
 from aliexpress.logging_config import add_file_handler, configure_logging
-from aliexpress.routes.admin import admin_bp
-from aliexpress.routes.auth import auth_bp, load_user
-from aliexpress.routes.processes import processes_bp
-from aliexpress.routes.results import results_bp
-from aliexpress.routes.roster import roster_bp
-from aliexpress.routes.wizard import wizard_bp
+from aliexpress.web.appconfig import DevelopmentConfig, ProductionConfig
+from aliexpress.web.cli import admins as admins_cli
+from aliexpress.web.cli import schools as schools_cli
+from aliexpress.web.extensions import db, limiter, login_manager
+from aliexpress.web.http_errors import register_error_handlers
+from aliexpress.web.routes.admin import admin_bp
+from aliexpress.web.routes.auth import auth_bp, load_user
+from aliexpress.web.routes.processes import processes_bp
+from aliexpress.web.routes.results import results_bp
+from aliexpress.web.routes.roster import roster_bp
+from aliexpress.web.routes.wizard import wizard_bp
 
 configure_logging()
 _logger = logging.getLogger(__name__)
