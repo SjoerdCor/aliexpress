@@ -5,7 +5,7 @@ from io import BytesIO
 
 import pytest
 
-from aliexpress import datareader
+from aliexpress.data import datareader
 
 
 @pytest.fixture

@@ -42,12 +42,12 @@ import pandas as pd
 import pytest
 from werkzeug.security import generate_password_hash
 
-from aliexpress.extensions import db, limiter
-from aliexpress.models import School
-from aliexpress.preferences_form import (
+from aliexpress.data.preferences_form import (
     StudentEntry,
     build_preference_data,
 )
+from aliexpress.extensions import db, limiter
+from aliexpress.models import School
 from app import app as flask_app
 from tests.helpers import SCHOOL_ID
 

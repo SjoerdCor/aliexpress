@@ -10,7 +10,7 @@ import networkx as nx
 import plotly.graph_objects as go
 from matplotlib import pyplot as plt
 
-from . import datareader
+from .data import datareader
 
 
 class SociogramMaker:

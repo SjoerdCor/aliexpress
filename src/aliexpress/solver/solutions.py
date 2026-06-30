@@ -7,7 +7,7 @@ from IPython.display import display
 from openpyxl.styles import Alignment, numbers
 from openpyxl.utils import get_column_letter
 
-from .. import datareader
+from ..data import datareader
 
 TABLE_STYLES = styles = [
     {

@@ -3,7 +3,7 @@
 import pandas as pd
 import pytest
 
-from aliexpress.candidatedetermination import (
+from aliexpress.data.candidatedetermination import (
     create_unique_name,
     get_candidates,
     get_groups_from,

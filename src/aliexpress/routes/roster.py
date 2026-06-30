@@ -18,7 +18,7 @@ from itertools import zip_longest
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 from flask_login import login_required
 
-from aliexpress import datareader
+from aliexpress.data import datareader
 from aliexpress.errors import ValidationError
 from aliexpress.routes.processes import require_process, require_school
 from aliexpress.storage import get_file_path

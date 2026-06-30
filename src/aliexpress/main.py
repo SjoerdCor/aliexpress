@@ -8,9 +8,10 @@ from io import BytesIO
 import pandas as pd
 import pandera as pa
 
-from . import datareader, errors
-from .datareader import GroupCounts
-from .preferences_data import PreferenceData
+from . import errors
+from .data import datareader
+from .data.datareader import GroupCounts
+from .data.preferences_data import PreferenceData
 from .solver import feasibility, problemsolver, solutions
 from .solver.problemsolver import GroupBalance
 

@@ -24,7 +24,16 @@ from flask import (
 )
 from flask_login import login_required
 
-from aliexpress import candidatedetermination, datareader, input_writer, sociogram
+from aliexpress import sociogram
+from aliexpress.data import candidatedetermination, datareader, input_writer
+from aliexpress.data.form_parsers import parse_groups_to_form
+from aliexpress.data.preferences_data import PreferenceData
+from aliexpress.data.preferences_form import (
+    Preference,
+    PreferenceKind,
+    StudentEntry,
+    build_preference_data,
+)
 from aliexpress.errors import (
     CouldNotReadFileError,
     DuplicateNameError,
@@ -32,16 +41,8 @@ from aliexpress.errors import (
     ValidationError,
 )
 from aliexpress.extensions import db
-from aliexpress.form_parsers import parse_groups_to_form
 from aliexpress.main import distribute_students_from_data
 from aliexpress.models import LogLine, Process, Run
-from aliexpress.preferences_data import PreferenceData
-from aliexpress.preferences_form import (
-    Preference,
-    PreferenceKind,
-    StudentEntry,
-    build_preference_data,
-)
 from aliexpress.routes.auth import effective_school_id
 from aliexpress.routes.processes import require_process
 from aliexpress.routes.roster import load_roster, sorted_for_display

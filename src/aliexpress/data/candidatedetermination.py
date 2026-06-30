@@ -2,8 +2,8 @@
 
 import pandas as pd
 
+from ..errors import DuplicateNameError
 from .datareader import display_name, matching_key
-from .errors import DuplicateNameError
 
 
 def get_candidates(df: pd.DataFrame, jaargroep: int) -> list:
