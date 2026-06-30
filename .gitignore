@@ -184,3 +184,5 @@ kill-server.bat
 # Scratch notebooks and solver result directories
 notebooks/Untitled*.ipynb
 notebooks/*/
+
+docs/plan-*.md
