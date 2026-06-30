@@ -1,5 +1,13 @@
-"""Module which implements the problem as a Linear Programming problem in pulp and
-implements different optimization targets (also known as satisfaction metrics).
+"""The LP model for student distribution.
+
+:class:`ProblemSolver` owns the LP substrate: it builds the assignment variables
+(``in_group``), enforces the hard constraints (fundamental, class-balance, preference),
+and exposes the public lifecycle: ``run`` / ``solve_within_minimal_relaxation`` /
+``extract_solution``.
+
+The satisfaction metric (honored preferences → score per student) lives in
+``satisfaction.py``; aggregation over students into a single objective lives in
+``optimizationstrategies.py``. Reasoning about feasibility lives in ``feasibility.py``.
 """
 
 import itertools
@@ -418,7 +426,7 @@ class ProblemSolver:
         self._constraint_equal_students_from_previous_group(prob, make_soft)
         self._constraint_clique_sex_group(prob, make_soft)
 
-    def add_satisfaction_constraints(self, prob):
+    def add_individual_student_constraints(self, prob):
         """Add constraints about social dynamics"""
         self.constraint_not_together(prob)
         self.constraint_minimal_satisfaction(prob)
@@ -429,7 +437,7 @@ class ProblemSolver:
         prob = prob or self.prob
         self.add_fundamental_constraints(prob)
         self.add_class_balance_constraints(prob, make_soft)
-        self.add_satisfaction_constraints(prob)
+        self.add_individual_student_constraints(prob)
 
     def solve_within_minimal_relaxation(self):
         """Solve, maximizing satisfaction within the *minimal* class-balance relaxation that
@@ -457,7 +465,7 @@ class ProblemSolver:
 
         self.add_fundamental_constraints(self.prob)
         self.add_class_balance_constraints(self.prob, make_soft=True)
-        self.add_satisfaction_constraints(self.prob)
+        self.add_individual_student_constraints(self.prob)
         satisfied = self.add_variables_which_preferences_satisfied()
         self.satisfied = satisfied
         studentsatisfaction = satisfaction.calculate_student_satisfaction(
