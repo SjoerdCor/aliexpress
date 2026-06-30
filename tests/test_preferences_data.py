@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from pandas.testing import assert_frame_equal
 
-from aliexpress.preferences_data import PreferenceData
+from aliexpress.data.preferences_data import PreferenceData
 
 
 def _sample_preferences() -> pd.DataFrame:

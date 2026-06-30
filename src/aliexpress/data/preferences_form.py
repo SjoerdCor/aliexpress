@@ -21,13 +21,13 @@ from enum import Enum
 import numpy as np
 import pandas as pd
 
+from ..errors import ValidationError
 from .datareader import (
     display_name,
     matching_key,
     toggle_negative_weights,
     validate_long_preferences,
 )
-from .errors import ValidationError
 from .preferences_data import PreferenceData
 
 

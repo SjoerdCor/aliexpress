@@ -6,14 +6,14 @@
 import json
 from unittest.mock import MagicMock
 
-from aliexpress.extensions import db
-from aliexpress.models import Process
-from aliexpress.preferences_form import (
+from aliexpress.data.preferences_form import (
     Preference,
     PreferenceKind,
     StudentEntry,
     build_preference_data,
 )
+from aliexpress.extensions import db
+from aliexpress.models import Process
 from app import app as flask_app
 
 # Must match the schoolcode created in tests/conftest.py's ``client`` fixture.

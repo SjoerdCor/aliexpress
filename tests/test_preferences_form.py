@@ -13,14 +13,14 @@ import pandas as pd
 import pandera.pandas as pa
 import pytest
 
-from aliexpress.errors import ValidationError
-from aliexpress.preferences_data import PreferenceData
-from aliexpress.preferences_form import (
+from aliexpress.data.preferences_data import PreferenceData
+from aliexpress.data.preferences_form import (
     Preference,
     PreferenceKind,
     StudentEntry,
     build_preference_data,
 )
+from aliexpress.errors import ValidationError
 
 
 def _student(**overrides) -> StudentEntry:

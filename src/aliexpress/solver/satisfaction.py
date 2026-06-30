@@ -30,7 +30,7 @@ import warnings
 import pandas as pd
 import pulp
 
-from .. import preferences_data
+from ..data import preferences_data
 from . import pulp_thresholds
 
 # ---------------------------------------------------------------------------

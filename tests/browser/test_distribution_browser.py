@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from aliexpress import datareader
+from aliexpress.data import datareader
 from aliexpress.extensions import db as flask_db
 from aliexpress.models import Process
 from aliexpress.routes.wizard import _write_voorkeuren_json

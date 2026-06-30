@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import pandera.pandas as pa
 
-from .errors import ValidationError
+from ..errors import ValidationError
 from .preferences_data import PreferenceData
 
 

@@ -7,7 +7,8 @@ import math
 import pytest
 from pandas.testing import assert_frame_equal
 
-from aliexpress import datareader, sociogram
+from aliexpress import sociogram
+from aliexpress.data import datareader
 
 GROUPS = ["blauw", "groen", "geel", "oranje"]
 PREFS_PATH = "testdata/voorkeuren_klein.xlsx"
