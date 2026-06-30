@@ -1,10 +1,23 @@
-"""Implement different strategies to optimize a set of scores into one number"""
+"""From per-student satisfaction to a single objective value.
+
+Given a satisfaction score per student, this module answers one question: what aggregate
+value does the optimizer maximize? Three strategies are implemented:
+
+- ``total``: sum of all satisfaction scores.
+- ``lowest_score``: the minimum satisfaction, with total as tie-breaker.
+- ``plateaud_lexmaxmin``: approximate lexicographic max-min, level by level.
+
+Boundary with ``satisfaction.py``: that module maps honored preferences to a satisfaction
+score per student (the *metric*). This module aggregates those scores across students into
+a single objective (the *strategy*).
+"""
 
 import logging
 
 import pulp
 
 from . import pulp_thresholds
+from ._balance import get_solver
 
 logger = logging.getLogger(__name__)
 
@@ -193,3 +206,34 @@ def plateaud_lexmaxmin(
     return _PlateaudLexMaxMin(scores, prob, solver).solve(
         n_levels_max=n_levels_max, satisfaction_max=satisfaction_max
     )
+
+
+def set_optimization_target(solver, studentsatisfaction: dict) -> None:
+    """Set the objective of ``solver.prob`` according to ``solver.optimize``.
+
+    Dispatches to the appropriate aggregation strategy and adds the resulting expression as
+    the LP objective. Valid values for ``solver.optimize``: ``"studentsatisfaction"``
+    (total), ``"least_satisfied"`` (min with total tie-breaker), ``"lexmaxmin"``
+    (plateaud lexicographic max-min).
+
+    Parameters
+    ----------
+    solver:
+        A :class:`~aliexpress.solver.problemsolver.ProblemSolver` instance.
+    studentsatisfaction:
+        Dict of ``{student: pulp.LpVariable}`` for per-student satisfaction.
+    """
+    if solver.optimize == "studentsatisfaction":
+        optimization_target = total(studentsatisfaction)
+    elif solver.optimize == "least_satisfied":
+        optimization_target = lowest_score(studentsatisfaction, solver.prob)
+    elif solver.optimize == "lexmaxmin":
+        optimization_target = plateaud_lexmaxmin(
+            studentsatisfaction,
+            solver.prob,
+            satisfaction_max=0.8,
+            solver=get_solver(),
+        )
+    else:
+        raise ValueError(f"Unknown optimization strategy {solver.optimize!r}")
+    solver.prob += optimization_target
