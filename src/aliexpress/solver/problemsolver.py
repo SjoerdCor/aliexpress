@@ -464,7 +464,7 @@ class ProblemSolver:
             self, satisfied, self.prob
         )
         self.prob += feasibility.weighted_relaxation(self.prob) <= budget + 1e-6
-        self.set_optimization_target(studentsatisfaction)
+        optimizationstrategies.set_optimization_target(self, studentsatisfaction)
         self.solve()
 
     def _add_variable_in_same_group(
@@ -536,43 +536,6 @@ class ProblemSolver:
             else:
                 prob += satisfied[key] == 1 - in_same_group
         return satisfied
-
-    def set_optimization_target(self, studentsatisfaction: dict) -> None:
-        """Calculate the variables which can be directly optimized
-
-        For each option of the class, this calculates the variable from the underlying
-        (possibly weighted) preferences or satisfaction
-
-        Parameters
-        ----------
-        studentsatisfaction : dict
-            Dictionary of type pulp.LpVariable.dicts
-            Contains satisfaction for each student
-
-        Returns
-        -------
-        dict
-            Keys the possible optimization strategies of the class
-            Values the LpVariables which sum the underlying (satisfied) preferences
-
-        """
-
-        if self.optimize == "studentsatisfaction":
-            optimization_target = optimizationstrategies.total(studentsatisfaction)
-        elif self.optimize == "least_satisfied":
-            optimization_target = optimizationstrategies.lowest_score(
-                studentsatisfaction, self.prob
-            )
-        elif self.optimize == "lexmaxmin":
-            optimization_target = optimizationstrategies.plateaud_lexmaxmin(
-                studentsatisfaction,
-                self.prob,
-                satisfaction_max=0.8,
-                solver=get_solver(),
-            )
-        else:
-            raise ValueError(f"Unknown optimization strategy {self.optimize!r}")
-        self.prob += optimization_target
 
     def _constraint_not_solution(self, solution, distance=1):
         """Add constraint that solution is not allowed
@@ -650,7 +613,7 @@ class ProblemSolver:
             studentsatisfaction = satisfaction.calculate_student_satisfaction(
                 self, satisfied, self.prob
             )
-            self.set_optimization_target(studentsatisfaction)
+            optimizationstrategies.set_optimization_target(self, studentsatisfaction)
 
         for i in range(n_solutions):
             solutions_to_ignore = [(sol, distance) for sol in self.known_solutions]
