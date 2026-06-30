@@ -86,6 +86,16 @@ class PreferenceData:
         )
 
 
+def get_graag_met(preferences: pd.DataFrame) -> pd.DataFrame:
+    """Return the 'Graag met' slice of preferences; empty DataFrame when none present.
+
+    Equivalent to preferences.xs("Graag met", level="TypeWens") but safe when
+    no positive preferences exist.
+    """
+    mask = preferences.index.get_level_values("TypeWens") == "Graag met"
+    return preferences.loc[mask].droplevel("TypeWens")
+
+
 def _wide_sheet_to_payload(sheet: pd.DataFrame) -> dict:
     """Serialise the wide input sheet (MultiIndex columns) to a JSON-safe dict.
 

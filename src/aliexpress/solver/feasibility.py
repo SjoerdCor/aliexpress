@@ -15,8 +15,8 @@ from collections import defaultdict
 
 import pulp
 
-from .. import errors
-from . import preferences_utils
+from .. import errors, preferences_data
+from . import satisfaction
 from ._balance import STRICTEST_BALANCE, GroupBalance, get_solver
 
 # Per balance slack: the GroupBalance field it relaxes and its relaxation weight.
@@ -57,7 +57,7 @@ def require_one_positive_wish(solver, prob, satisfied) -> list:
     infeasible where it is not.
     """
     positive_per_student = defaultdict(list)
-    graag_met = preferences_utils.get_graag_met(solver.preferences)
+    graag_met = preferences_data.get_graag_met(solver.preferences)
     for key, row in graag_met.iterrows():
         if row["Gewicht"] > 0:
             positive_per_student[key[0]].append(satisfied[key])
@@ -106,7 +106,7 @@ def minimal_relaxation_budget(
         prob = pulp.LpProblem("MinimalRelaxation", pulp.LpMinimize)
         solver.add_constraints(prob, make_soft=True)
         satisfied = solver.add_variables_which_preferences_satisfied(prob=prob)
-        solver.calculate_student_satisfaction(satisfied, prob=prob)
+        satisfaction.calculate_student_satisfaction(solver, satisfied, prob=prob)
         wish_slacks = require_one_positive_wish(solver, prob, satisfied)
         relaxation = weighted_relaxation(prob)
         prob.setObjective(relaxation + 1000 * pulp.lpSum(wish_slacks))
@@ -171,7 +171,7 @@ def feasible_when_relaxed(
     solver.add_fundamental_constraints(prob)
     solver.add_class_balance_constraints(prob, make_soft=True)
     satisfied = solver.add_variables_which_preferences_satisfied(prob=prob)
-    solver.calculate_student_satisfaction(satisfied, prob=prob)
+    satisfaction.calculate_student_satisfaction(solver, satisfied, prob=prob)
     slacks = solver.constraint_minimal_satisfaction(
         prob, make_soft=min_satisfaction_soft
     ) + solver.constraint_not_together(prob, make_soft=not_together_soft)
