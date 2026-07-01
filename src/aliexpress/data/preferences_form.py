@@ -64,6 +64,7 @@ class StudentEntry:
     sex: str  # "Jongen" | "Meisje" (data values stay Dutch)
     origin_group: str  # the student's current group
     min_satisfaction: float | None
+    year_group: int | None = None
     preferences: list[Preference] = field(default_factory=list)
     excluded_groups: list[str] = field(default_factory=list)
 
@@ -283,8 +284,9 @@ def _cell_lookup(cells: dict, col: tuple):
 
 def _build_students_info(students: list[StudentEntry]) -> dict:
     """Per matching-key meta info in ``get_students_meta_info``'s shape."""
-    return {
-        matching_key(student.student): {
+    result = {}
+    for student in students:
+        info = {
             "MinimaleTevredenheid": (
                 np.nan
                 if student.min_satisfaction is None
@@ -293,5 +295,7 @@ def _build_students_info(students: list[StudentEntry]) -> dict:
             "Jongen/meisje": student.sex,
             "Stamgroep": matching_key(student.origin_group),
         }
-        for student in students
-    }
+        if student.year_group is not None:
+            info["Jaarlaag"] = student.year_group
+        result[matching_key(student.student)] = info
+    return result

@@ -221,6 +221,25 @@ def test_student_without_preferences_is_allowed():
     assert data.student_display["john"] == "John"
 
 
+def test_year_group_in_students_info_and_json_round_trip():
+    """year_group on StudentEntry appears as Jaarlaag in students_info and survives JSON."""
+    students = [
+        _student(student="John", year_group=6),
+        _student(student="Jane", sex="Meisje", origin_group="Blauw", year_group=7),
+        _student(student="Kim", sex="Meisje", origin_group="Blauw"),  # no year_group
+    ]
+    data = build_preference_data(students, all_to_groups=["rood", "blauw"])
+
+    assert data.students_info["john"]["Jaarlaag"] == 6
+    assert data.students_info["jane"]["Jaarlaag"] == 7
+    assert "Jaarlaag" not in data.students_info["kim"]
+
+    restored = PreferenceData.from_json(data.to_json())
+    assert restored.students_info["john"]["Jaarlaag"] == 6
+    assert restored.students_info["jane"]["Jaarlaag"] == 7
+    assert "Jaarlaag" not in restored.students_info["kim"]
+
+
 def test_unlimited_together_is_accepted_and_round_trips():
     """Eight together preferences are accepted (no fixed column cap) and survive JSON."""
     targets = [f"Mate{i}" for i in range(8)]

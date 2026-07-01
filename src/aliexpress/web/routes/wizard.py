@@ -287,6 +287,7 @@ def _parse_student_entry(candidate: dict, form) -> StudentEntry:
         sex=candidate["geslacht"],
         origin_group=candidate["groepsnaam"],
         min_satisfaction=min_satisfaction,
+        year_group=candidate.get("jaargroep"),
         preferences=preferences,
         excluded_groups=excluded,
     )

@@ -5,13 +5,22 @@ import pandas as pd
 from ..errors import DuplicateNameError
 from .datareader import display_name, matching_key
 
+CANDIDATE_FIELDS = [
+    "key",
+    "roepnaam",
+    "achternaam",
+    "groepsnaam",
+    "geslacht",
+    "jaargroep",
+]
+
 
 def get_candidates(df: pd.DataFrame, jaargroep: int) -> list:
     """Return list of candidates for the given jaargroep."""
     df_current = df[df["jaargroep"] == jaargroep]
     if df_current.empty:
         return []
-    relevant_columns = ["key", "roepnaam", "achternaam", "groepsnaam", "geslacht"]
+    relevant_columns = CANDIDATE_FIELDS
 
     return (
         df_current.reset_index()
