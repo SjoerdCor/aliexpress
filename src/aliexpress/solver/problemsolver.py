@@ -140,6 +140,21 @@ class ProblemSolver:
         self.boys_to_group = None
         self.girls_to_group = None
 
+    def cohorts(self) -> dict:
+        """Group the moving students by Jaarlaag.
+
+        Returns a dict mapping each distinct ``Jaarlaag`` value to a list of student keys.
+        Students whose info dict lacks ``Jaarlaag`` fall under the ``None`` key.
+        When every student lacks ``Jaarlaag`` the result is ``{None: [all students]}``,
+        which is the single-cohort (doorzetten) degenerate case — constraints that iterate
+        over cohorts then behave identically to the current single-cohort code.
+        """
+        cohorts: dict = {}
+        for student, info in self.students.items():
+            jaarlaag = info.get("Jaarlaag")
+            cohorts.setdefault(jaarlaag, []).append(student)
+        return cohorts
+
     def _constraint_student_to_exactly_one_group(self, prob):
         for student in self.students:
             prob += (
