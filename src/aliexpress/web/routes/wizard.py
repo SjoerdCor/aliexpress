@@ -43,6 +43,7 @@ from ...errors import (
 from ...logging_config import bind_log_context
 from ...main import distribute_students_from_data
 from ..extensions import db
+from ..flashing import warn_and_flash
 from ..models import LogLine, Process, Run
 from ..storage import get_file_path
 from ..validation_messages import to_validation_message
@@ -533,13 +534,15 @@ def groups_to_page():
         exc = ValidationError(
             "duplicate_group_names", {"duplicates": ", ".join(duplicates)}
         )
-        flash(to_validation_message(exc), "error")
+        warn_and_flash(to_validation_message(exc), log_detail=exc.code)
         return redirect(url_for("wizard.groups_to_page"))
 
     submission = parse_groups_to_form(request.form, groups_to)
     if len(submission.distribution) < 2:
-        error = "Er moeten minsten twee groepen zijn om de leerlingen over te verdelen"
-        flash(error, "error")
+        warn_and_flash(
+            "Er moeten minsten twee groepen zijn om de leerlingen over te verdelen",
+            log_detail="too_few_groups",
+        )
         return redirect(url_for("wizard.groups_to_page"))
 
     path = get_file_path(school_id, process_id, "groups.xlsx")
@@ -601,7 +604,9 @@ def preferences_excel():
         )
 
     if not participants:
-        flash("Er moet minsten één leerling aanwezig zijn", "error")
+        warn_and_flash(
+            "Er moet minsten één leerling aanwezig zijn", log_detail="no_participants"
+        )
         return redirect(url_for("roster.roster_page"))
     try:
         df_total = candidatedetermination.students_df_from_records(participants)
@@ -644,7 +649,10 @@ def upload_preferences():
                 process_id,
             )
             return redirect(url_for("wizard.not_together_page"))
-        flash("Upload eerst het ingevulde bestand om verder te gaan.", "error")
+        warn_and_flash(
+            "Upload eerst het ingevulde bestand om verder te gaan.",
+            log_detail="no_file_uploaded",
+        )
         return redirect(url_for("wizard.preferences_excel"))
     try:
         raw = upload.read()
@@ -803,7 +811,7 @@ def not_together_page():
         except ValidationError as exc:
             error = to_validation_message(exc)
     if error:
-        flash(error, "error")
+        warn_and_flash(error, log_detail="not_together_invalid")
         return redirect(url_for("wizard.not_together_page"))
 
     _save_not_together(school_id, process_id, rules)
