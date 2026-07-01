@@ -4,6 +4,7 @@ import pandas as pd
 import pytest
 
 from aliexpress.data.candidatedetermination import (
+    CANDIDATE_FIELDS,
     create_unique_name,
     get_candidates,
     get_groups_from,
@@ -94,13 +95,8 @@ def test_get_candidates_sorted(sample_df):
     names = [r["roepnaam"] for r in result]
     assert names == ["Anna", "Carl", "Ben"]
     # bevat juiste kolommen
-    assert set(result[0].keys()) == {
-        "key",
-        "roepnaam",
-        "achternaam",
-        "groepsnaam",
-        "geslacht",
-    }
+    assert set(result[0].keys()) == set(CANDIDATE_FIELDS)
+    assert result[0]["jaargroep"] == 3
 
 
 def test_get_candidates_empty(sample_df):
