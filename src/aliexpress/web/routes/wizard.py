@@ -47,10 +47,10 @@ from ...solver._balance import solver_log_path
 from ..extensions import db
 from ..flashing import warn_and_flash
 from ..models import LogLine, Process, Run
-from ..storage import get_file_path
+from ..storage import get_file_path, get_process_path
 from ..validation_messages import to_validation_message
 from .auth import effective_school_id
-from .processes import require_process
+from .processes import get_process_mode, require_process
 from .roster import load_roster, sorted_for_display
 
 logger = logging.getLogger(__name__)
@@ -487,19 +487,38 @@ def download_template(filename):
 @login_required
 def upload_edexml():
     """Route to upload edexml"""
-    if request.method == "GET":
-        return render_template("upload_edexml.html")
     school_id = effective_school_id()
     if school_id is None:
         return redirect(url_for("admin.dashboard"))
-    process_id = session["process_id"]
+    process_id = session.get("process_id")
+    if request.method == "GET":
+        mode = "forward"
+        if process_id:
+            try:
+                mode = get_process_mode(get_process_path(school_id, process_id))
+            except PermissionError:
+                pass
+        return render_template("upload_edexml.html", mode=mode)
+    # POST
+    if not process_id:
+        flash("Geen actief proces geselecteerd.", "error")
+        return redirect(url_for("processes.index"))
+    mode = get_process_mode(get_process_path(school_id, process_id))
     try:
         edex_file = request.files["edexml"]
         edex_path = get_file_path(school_id, process_id, "edex.xml")
         edex_file.save(edex_path)
         edex_file.stream.seek(0)
-
         edexml = file_to_io(edex_file)
+
+        if mode == "redistribute":
+            datareader.EdexReader(edexml).get_full_df()
+            logger.info(
+                "EDEXML accepted for redistribute mode in %s: redirecting to group selection",
+                process_id,
+            )
+            return redirect(url_for("wizard.select_groups"))
+
         jaargroep = int(request.form["jaargroep"])
         df = datareader.EdexReader(edexml).get_full_df()
         candidates, groups_from, groups_to = (
@@ -511,7 +530,6 @@ def upload_edexml():
             "groups_to": groups_to,
         }
         path = get_file_path(school_id, process_id, "relevant_students_and_groups.json")
-
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
         logger.info(
@@ -521,6 +539,70 @@ def upload_edexml():
         _flash_upload_error(exc)
         return redirect(url_for("wizard.upload_edexml"))
     return redirect(url_for("roster.roster_page"))
+
+
+def _select_groups_post(df, school_id, process_id):
+    """Process a POST to /select_groups: validate, save candidates JSON, redirect."""
+    selected = request.form.getlist("groups")
+    if len(selected) < 2:
+        warn_and_flash(
+            "Selecteer minimaal twee groepen om te herindelen.",
+            log_detail="too_few_groups_redistribute",
+        )
+        return redirect(url_for("wizard.select_groups"))
+    candidates, groups_from, groups_to = (
+        candidatedetermination.handle_edexml_upload_herindelen(df, selected)
+    )
+    if not candidates:
+        warn_and_flash(
+            "Geen leerlingen gevonden in de geselecteerde groepen.",
+            log_detail="no_candidates_in_selected_groups",
+        )
+        return redirect(url_for("wizard.select_groups"))
+    data = {
+        "candidates": candidates,
+        "groups_from": groups_from,
+        "groups_to": groups_to,
+    }
+    path = get_file_path(school_id, process_id, "relevant_students_and_groups.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+    logger.info(
+        "Groups selected for redistribution in %s: %s (%d candidates)",
+        process_id,
+        ", ".join(selected),
+        len(candidates),
+    )
+    return redirect(url_for("roster.roster_page"))
+
+
+@wizard_bp.route("/select_groups", methods=["GET", "POST"])
+@login_required
+@require_process
+def select_groups():
+    """Select groups to redistribute (redistribute mode only)."""
+    school_id = effective_school_id()
+    if school_id is None:
+        return redirect(url_for("admin.dashboard"))
+    process_id = session["process_id"]
+    edex_path = get_file_path(school_id, process_id, "edex.xml")
+    if not os.path.exists(edex_path):
+        warn_and_flash(
+            "Upload eerst het EDEXML-bestand.",
+            log_detail="missing_edex_for_select_groups",
+        )
+        return redirect(url_for("wizard.upload_edexml"))
+    try:
+        with open(edex_path, "rb") as fh:
+            edexml = BytesIO(fh.read())
+        df = datareader.EdexReader(edexml).get_full_df()
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        _flash_upload_error(exc)
+        return redirect(url_for("wizard.upload_edexml"))
+    if request.method == "GET":
+        groups = sorted(df["groepsnaam"].unique().tolist())
+        return render_template("select_groups.html", groups=groups)
+    return _select_groups_post(df, school_id, process_id)
 
 
 @wizard_bp.route("/groups_to", methods=["GET", "POST"])
