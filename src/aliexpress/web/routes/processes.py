@@ -60,6 +60,19 @@ def require_school(f):
     return wrapper
 
 
+def get_process_mode(path: str) -> str:
+    """Return the distribution mode for a process: 'forward' or 'redistribute'.
+
+    Defaults to 'forward' when mode.json is absent (processes created before the mode
+    field was introduced).
+    """
+    mode_path = os.path.join(path, "mode.json")
+    if not os.path.exists(mode_path):
+        return "forward"
+    with open(mode_path, encoding="utf-8") as fh:
+        return json.load(fh).get("mode", "forward")
+
+
 def _is_valid_process_name(name):
     """True when the name is a safe single path segment (no separators, no traversal)."""
     return bool(re.match(r"^[\w\- ]+$", name))
@@ -106,14 +119,20 @@ def create():
     if error := _validate_process_name(school_id, process_name, must_exist=False):
         flash(error, "error")
         return redirect(url_for("processes.index"))
+    mode = request.form.get("mode", "forward")
+    if mode not in ("forward", "redistribute"):
+        mode = "forward"
     proc = Process(school_id=school_id, name=process_name)
     db.session.add(proc)
     db.session.commit()
     try:
-        os.makedirs(get_process_path(school_id, process_name))
+        proc_path = get_process_path(school_id, process_name)
+        os.makedirs(proc_path)
     except PermissionError:
         flash("Ongeldige procesinformatie.", "error")
         return redirect(url_for("processes.index"))
+    with open(os.path.join(proc_path, "mode.json"), "w", encoding="utf-8") as fh:
+        json.dump({"mode": mode}, fh)
     session["process_id"] = process_name
     return redirect(url_for("wizard.upload_edexml"))
 
