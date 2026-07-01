@@ -1,6 +1,7 @@
 """Shared logging configuration for the aliexpress package."""
 
 import logging
+import logging.handlers
 from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any
@@ -74,13 +75,17 @@ def configure_logging() -> None:
 
 
 def add_file_handler(logfile: str) -> None:
-    """Attach a file handler to the aliexpress package logger.
+    """Attach a rotating file handler to the aliexpress package logger.
 
+    Rotates at midnight, keeps 90 days of backups. Level is INFO so the file
+    stays readable without the DEBUG noise that aids interactive development.
     Called after the Flask instance path is known so the log file lands in
     ``instance/logs/`` rather than the project root.
     """
-    file_handler = logging.FileHandler(logfile)
-    file_handler.setLevel(logging.DEBUG)
+    file_handler = logging.handlers.TimedRotatingFileHandler(
+        logfile, when="midnight", backupCount=90, encoding="utf-8"
+    )
+    file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(_FORMATTER)
     file_handler.addFilter(LogContextEnricher())
     logging.getLogger("aliexpress").addHandler(file_handler)

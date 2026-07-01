@@ -1,8 +1,15 @@
 """Unit tests for logging_config: LogContextEnricher and bind_log_context."""
 
 import logging
+import logging.handlers
+import os
+import tempfile
 
-from aliexpress.logging_config import LogContextEnricher, bind_log_context
+from aliexpress.logging_config import (
+    LogContextEnricher,
+    add_file_handler,
+    bind_log_context,
+)
 
 
 def _make_record(msg="test") -> logging.LogRecord:
@@ -45,3 +52,24 @@ def test_enricher_resets_after_bind_log_context():
     record = _make_record()
     LogContextEnricher().filter(record)
     assert record.school == "-"  # pylint: disable=no-member
+
+
+def test_add_file_handler_uses_timed_rotating_at_info():
+    """add_file_handler attaches a TimedRotatingFileHandler at INFO, backupCount=90."""
+    log = logging.getLogger("aliexpress")
+    before = list(log.handlers)
+    with tempfile.NamedTemporaryFile(suffix=".log", delete=False) as tmp:
+        logfile = tmp.name
+    try:
+        add_file_handler(logfile)
+        new_handlers = [h for h in log.handlers if h not in before]
+        assert len(new_handlers) == 1
+        h = new_handlers[0]
+        assert isinstance(h, logging.handlers.TimedRotatingFileHandler)
+        assert h.backupCount == 90
+        assert h.level == logging.INFO
+    finally:
+        for h in new_handlers:
+            h.close()
+            log.removeHandler(h)
+        os.unlink(logfile)
