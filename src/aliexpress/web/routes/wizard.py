@@ -388,9 +388,7 @@ def _load_student_names(groups_to, voorkeuren_path, preferences_path) -> list[st
     else:
         processor = datareader.VoorkeurenProcessor(preferences_path)
         processor.process(all_to_groups=list(groups_to.keys()))
-        logger.debug(processor.student_display)
         names = sorted(processor.student_display.values())
-    logger.debug(", ".join(names))
     return names
 
 
