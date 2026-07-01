@@ -38,6 +38,7 @@ from ...errors import (
     CouldNotReadFileError,
     DuplicateNameError,
     FeasibilityError,
+    SolverError,
     ValidationError,
 )
 from ...logging_config import bind_log_context
@@ -126,6 +127,8 @@ def _handle_failure(exc, school_id, process_name):
         log_msg = "Files are incorrect"
     elif isinstance(exc, FeasibilityError):
         log_msg = "Problem is infeasible"
+    elif isinstance(exc, SolverError):
+        log_msg = "Solver could not solve the problem"
     else:
         log_msg = "Uncaught exception"
     logger.exception(log_msg)
