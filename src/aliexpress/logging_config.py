@@ -1,8 +1,58 @@
 """Shared logging configuration for the aliexpress package."""
 
 import logging
+from contextlib import contextmanager
+from contextvars import ContextVar
+from typing import Any
 
-_FORMATTER = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+_LOG_CONTEXT: ContextVar[dict[str, Any]] = ContextVar("_LOG_CONTEXT", default={})
+
+_FORMAT = (
+    "%(asctime)s %(levelname)s "
+    "[%(school)s/%(process)s/%(run)s %(phase)s] "
+    "%(name)s %(threadName)s: %(message)s"
+)
+_FORMATTER = logging.Formatter(_FORMAT)
+
+
+# pylint: disable=too-few-public-methods  # single-method interface imposed by logging.Filter
+class LogContextEnricher(logging.Filter):
+    """Enrich each LogRecord with correlation fields from the active ContextVar.
+
+    Named a Filter because that is Python logging's hook for pre-format record
+    mutation, but it never discards records — it only adds school/process/run/phase
+    from the per-thread ContextVar and always returns True.
+    """
+
+    _FIELDS = ("school", "process", "run", "phase")
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        ctx = _LOG_CONTEXT.get()
+        for field in self._FIELDS:
+            setattr(record, field, ctx.get(field, "-"))
+        return True
+
+
+def push_log_context(**fields):
+    """Merge non-None fields into the current log context; return the reset token."""
+    current = dict(_LOG_CONTEXT.get())
+    current.update({k: v for k, v in fields.items() if v is not None})
+    return _LOG_CONTEXT.set(current)
+
+
+def pop_log_context(token) -> None:
+    """Reset the log context to the state captured in *token*."""
+    _LOG_CONTEXT.reset(token)
+
+
+@contextmanager
+def bind_log_context(**fields):
+    """Context manager that sets log context fields and restores them on exit."""
+    token = push_log_context(**fields)
+    try:
+        yield
+    finally:
+        pop_log_context(token)
 
 
 def configure_logging() -> None:
@@ -19,6 +69,7 @@ def configure_logging() -> None:
         handler = logging.StreamHandler()
         handler.setLevel(logging.DEBUG)
         handler.setFormatter(_FORMATTER)
+        handler.addFilter(LogContextEnricher())
         log.addHandler(handler)
 
 
@@ -31,4 +82,5 @@ def add_file_handler(logfile: str) -> None:
     file_handler = logging.FileHandler(logfile)
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(_FORMATTER)
+    file_handler.addFilter(LogContextEnricher())
     logging.getLogger("aliexpress").addHandler(file_handler)
