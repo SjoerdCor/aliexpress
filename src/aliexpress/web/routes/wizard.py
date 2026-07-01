@@ -513,6 +513,9 @@ def upload_edexml():
 
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
+        logger.info(
+            "EDEXML accepted: %d candidates, %d groups", len(candidates), jaargroep
+        )
     except Exception as exc:  # pylint: disable=broad-exception-caught
         _flash_upload_error(exc)
         return redirect(url_for("wizard.upload_edexml"))
@@ -720,6 +723,7 @@ def _handle_pref_form_post(participants, all_groups_to, state_path, voorkeuren_p
         _flash_upload_error(exc)
         return redirect(url_for("wizard.preferences_form"))
     _write_voorkeuren_json(voorkeuren_path, preference_data, source="form")
+    logger.info("Preferences form accepted: %d participants", len(participants))
     return redirect(url_for("wizard.not_together_page"))
 
 
@@ -828,6 +832,7 @@ def not_together_page():
         return redirect(url_for("wizard.not_together_page"))
 
     _save_not_together(school_id, process_id, rules)
+    logger.info("Not-together rules accepted: %d rules", len(rules))
     return redirect(url_for("wizard.start_distribution"))
 
 

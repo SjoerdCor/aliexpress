@@ -188,4 +188,5 @@ def _handle_roster_post(school_id, process_id, orig_candidates, groups_from):
         get_file_path(school_id, process_id, "roster.json"), "w", encoding="utf-8"
     ) as fh:
         json.dump({"participants": participants}, fh, ensure_ascii=False)
+    logger.info("Roster accepted: %d participants", len(participants))
     return redirect(url_for("wizard.groups_to_page"))
