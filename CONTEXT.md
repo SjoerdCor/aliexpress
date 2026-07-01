@@ -12,6 +12,22 @@ _Avoid_: student, kind, pupil
 Een leerling die niet meegaat in deze verdeling maar nog een jaar in dezelfde (kleuter)groep blijft. Op de stap "Wie gaat mee" staat elke leerling standaard aangevinkt; een verlenger wordt uitgevinkt en doet dan niet mee aan de verdeling. Geen apart soort leerling — een eigenschap van deze ene verdeling.
 _Avoid_: blijver, zittenblijver
 
+**Jaarlaag**:
+Het leerjaar van een leerling (bijv. 6, 7 of 8), los van de Groep waarin die zit: één gecombineerde groep bevat meerdere jaarlagen. Bij Herindelen wordt de balans per jaarlaag over de groepen bewaakt, zodat niet de ene groep vooral jaarlaag 6 krijgt en de andere vooral 7.
+_Avoid_: jaargroep, leerjaar, cohort
+
+**Verdeelmodus**:
+Waarvoor een Proces dient: Doorzetten of Herindelen. Gekozen bij het aanmaken van het proces en bepaalt de wizard-stappen en welke balans-eisen gelden.
+_Avoid_: modus, type, soort
+
+**Doorzetten**:
+De verdeelmodus waarin één instromende Jaarlaag over de gecombineerde groepen van de volgende bouw wordt verdeeld; de blijvende oudere leerlingen vormen de vaste bezetting van die Bestemmingsgroepen. Eén bewegende jaarlaag.
+_Avoid_: promoveren, overgang
+
+**Herindelen**:
+De verdeelmodus waarin alle nog-aanwezige leerlingen van een aantal bestaande groepen (één of meer jaarlagen, welke bouw dan ook) opnieuw over diezelfde groepen worden verdeeld, met balans per Jaarlaag. Bestemmingsgroepen starten leeg; wie vertrekt doet niet mee.
+_Avoid_: herverdelen, herschikken, mengen
+
 **Groep**:
 Een klas leerlingen. In een verdeling worden leerlingen vanuit hun huidige groep over bestemmingsgroepen verdeeld; "groep" is op zichzelf rolneutraal — of een groep herkomst of bestemming is, volgt uit de context, niet uit het woord.
 _Avoid_: klas (ambigu tussen oud en nieuw)
