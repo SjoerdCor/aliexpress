@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% set current_step = 1 %}
+{% block content %}
+<h2>Welke groepen wil je herindelen?</h2>
+<div class="instructions-box">
+  <p>
+    Selecteer de groepen waarvan de leerlingen opnieuw worden ingedeeld. Alle leerlingen uit
+    de geselecteerde groepen worden herverdeeld over diezelfde groepen — niemand gaat naar
+    een andere groep.
+  </p>
+  <p>Selecteer minimaal twee groepen.</p>
+</div>
+
+<form method="post">
+  <fieldset>
+    <legend>Beschikbare groepen</legend>
+    {% for group in groups %}
+    <label>
+      <input type="checkbox" name="groups" value="{{ group }}">
+      {{ group }}
+    </label><br>
+    {% endfor %}
+  </fieldset>
+  <br>
+  <div class="button-row">
+    <a href="{{ url_for('wizard.upload_edexml') }}" class="button previous-step">← Terug naar upload</a>
+    <button type="submit" class="button next-step">Bevestig groepskeuze →</button>
+  </div>
+</form>
+{% endblock %}
