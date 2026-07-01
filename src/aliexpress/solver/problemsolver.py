@@ -141,7 +141,7 @@ class ProblemSolver:
         self.girls_to_group = None
 
     def cohorts(self) -> dict:
-        """Group the moving students by Jaarlaag.
+        """Group the moving students by year (Jaarlaag).
 
         Returns a dict mapping each distinct ``Jaarlaag`` value to a list of student keys.
         Students whose info dict lacks ``Jaarlaag`` fall under the ``None`` key.
@@ -149,11 +149,11 @@ class ProblemSolver:
         which is the single-cohort (doorzetten) degenerate case — constraints that iterate
         over cohorts then behave identically to the current single-cohort code.
         """
-        cohorts: dict = {}
+        result: dict = {}
         for student, info in self.students.items():
-            jaarlaag = info.get("Jaarlaag")
-            cohorts.setdefault(jaarlaag, []).append(student)
-        return cohorts
+            year = info.get("Jaarlaag")
+            result.setdefault(year, []).append(student)
+        return result
 
     def _constraint_student_to_exactly_one_group(self, prob):
         for student in self.students:
@@ -162,32 +162,39 @@ class ProblemSolver:
             )
 
     def _constraint_equal_new_students(self, prob, make_soft=True):
-        """Every group should have an approximately equal number of new students"""
+        """Every group should have approximately equal students per Jaarlaag.
 
+        One shared slack balances across all cohorts so the slack name stays stable
+        (``feasibility.py`` matches on it by name). Each cohort's per-group spread must
+        fit within ``limit + shared_slack``; the slack relaxes to the worst cohort.
+        Internal per-cohort helper variables carry a jaarlaag suffix so PuLP names are
+        unique; the slack has no suffix so ``feasibility.py`` requires no changes.
+        With a single cohort (no Jaarlaag in data) the suffix is empty → variable names
+        are identical to the previous single-cohort code, preserving doorzetten behaviour.
+        """
         slack_var = pulp.LpVariable(
             "SLACK_diff_n_students_year",
             lowBound=0,
             upBound=None if make_soft else 0,
             cat="Integer",
         )
-        min_in_group_year = pulp.LpVariable("min_in_group_year", cat="Integer")
-        max_in_group_year = pulp.LpVariable("max_in_group_year", cat="Integer")
-
-        new_students_in_group = pulp.LpVariable.dict(
-            "new_students_in_group", self.groups_to.keys(), cat="Integer"
-        )
-
-        for group_to in self.groups_to:
-            prob += new_students_in_group[group_to] == pulp.lpSum(
-                [self.in_group[(student, group_to)] for student in self.students]
+        for year, cohort in self.cohorts().items():
+            s = f"_{year}" if year is not None else ""
+            min_in_group_year = pulp.LpVariable(f"min_in_group_year{s}", cat="Integer")
+            max_in_group_year = pulp.LpVariable(f"max_in_group_year{s}", cat="Integer")
+            new_students_in_group = pulp.LpVariable.dict(
+                f"new_students_in_group{s}", self.groups_to.keys(), cat="Integer"
             )
-
-            prob += new_students_in_group[group_to] <= max_in_group_year
-            prob += new_students_in_group[group_to] >= min_in_group_year
-        prob += (
-            max_in_group_year - min_in_group_year
-            <= self.groupbalance.max_diff_n_students_year + slack_var
-        )
+            for group_to in self.groups_to:
+                prob += new_students_in_group[group_to] == pulp.lpSum(
+                    self.in_group[(student, group_to)] for student in cohort
+                )
+                prob += new_students_in_group[group_to] <= max_in_group_year
+                prob += new_students_in_group[group_to] >= min_in_group_year
+            prob += (
+                max_in_group_year - min_in_group_year
+                <= self.groupbalance.max_diff_n_students_year + slack_var
+            )
 
     def _constraint_equal_total_students(self, prob, make_soft=True):
         current_per_group = {
