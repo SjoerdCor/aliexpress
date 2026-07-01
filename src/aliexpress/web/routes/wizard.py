@@ -40,6 +40,7 @@ from ...errors import (
     FeasibilityError,
     ValidationError,
 )
+from ...logging_config import bind_log_context
 from ...main import distribute_students_from_data
 from ..extensions import db
 from ..models import LogLine, Process, Run
@@ -146,23 +147,31 @@ def _run_solve_thread(ctx: _ThreadContext, groups_to_path, not_together):
         db.session.commit()
 
     with ctx.app_obj.app_context():
-        try:  # pylint: disable=broad-exception-caught
-            voorkeuren_path = get_file_path(
-                ctx.school_id, ctx.process_name, "voorkeuren.json"
-            )
-            Process.by_name(ctx.school_id, ctx.process_name).run.set_status("running")
-            preference_data, _ = _read_voorkeuren_json(voorkeuren_path)
-            target_groups = datareader.read_groups_excel(groups_to_path)
-            result = distribute_students_from_data(
-                preference_data, target_groups, not_together, on_update=on_update
-            )
-            logger.info("Distributing students finished successfully")
-            # Write artifacts before flipping to "done" so the result page never
-            # races ahead of the files it needs.
-            _write_result_files(ctx.school_id, ctx.process_name, result)
-            Process.by_name(ctx.school_id, ctx.process_name).run.set_status("done")
-        except Exception as exc:  # pylint: disable=broad-exception-caught
-            _handle_failure(exc, ctx.school_id, ctx.process_name)
+        with bind_log_context(
+            school=ctx.school_id,
+            process=ctx.process_name,
+            run=str(ctx.run_id),
+            phase="solve",
+        ):
+            try:  # pylint: disable=broad-exception-caught
+                voorkeuren_path = get_file_path(
+                    ctx.school_id, ctx.process_name, "voorkeuren.json"
+                )
+                Process.by_name(ctx.school_id, ctx.process_name).run.set_status(
+                    "running"
+                )
+                preference_data, _ = _read_voorkeuren_json(voorkeuren_path)
+                target_groups = datareader.read_groups_excel(groups_to_path)
+                result = distribute_students_from_data(
+                    preference_data, target_groups, not_together, on_update=on_update
+                )
+                logger.info("Distributing students finished successfully")
+                # Write artifacts before flipping to "done" so the result page never
+                # races ahead of the files it needs.
+                _write_result_files(ctx.school_id, ctx.process_name, result)
+                Process.by_name(ctx.school_id, ctx.process_name).run.set_status("done")
+            except Exception as exc:  # pylint: disable=broad-exception-caught
+                _handle_failure(exc, ctx.school_id, ctx.process_name)
 
 
 def _create_sociogram_thread(ctx: _ThreadContext):
@@ -179,30 +188,36 @@ def _create_sociogram_thread(ctx: _ThreadContext):
         db.session.commit()
 
     with ctx.app_obj.app_context():
-        try:  # pylint: disable=broad-exception-caught
-            on_update("Sociogram tekenen...")
-            voorkeuren_path = get_file_path(
-                ctx.school_id, ctx.process_name, "voorkeuren.json"
-            )
-            preference_data, _ = _read_voorkeuren_json(voorkeuren_path)
-            sg = sociogram.SociogramMaker.from_preference_data(preference_data)
-            fig, g, pos = sg.plot_sociogram()
-            logger.info("Sociogram created")
-            fig = sociogram.networkx_to_plotly(g, pos)
-            html = fig.to_html(full_html=False, include_plotlyjs="cdn")
-            logger.info("HTML created")
-            with open(
-                get_file_path(ctx.school_id, ctx.process_name, "sociogram.html"),
-                "w",
-                encoding="utf-8",
-            ) as fh:
-                fh.write(html)
-            on_update(
-                '<a href=/sociogram target="_blank" class="button">'
-                "Bekijk het sociogram nu!</a>"
-            )
-        except Exception:  # pylint: disable=broad-exception-caught
-            logger.exception("Could not create sociogram")
+        with bind_log_context(
+            school=ctx.school_id,
+            process=ctx.process_name,
+            run=str(ctx.run_id),
+            phase="sociogram",
+        ):
+            try:  # pylint: disable=broad-exception-caught
+                on_update("Sociogram tekenen...")
+                voorkeuren_path = get_file_path(
+                    ctx.school_id, ctx.process_name, "voorkeuren.json"
+                )
+                preference_data, _ = _read_voorkeuren_json(voorkeuren_path)
+                sg = sociogram.SociogramMaker.from_preference_data(preference_data)
+                fig, g, pos = sg.plot_sociogram()
+                logger.info("Sociogram created")
+                fig = sociogram.networkx_to_plotly(g, pos)
+                html = fig.to_html(full_html=False, include_plotlyjs="cdn")
+                logger.info("HTML created")
+                with open(
+                    get_file_path(ctx.school_id, ctx.process_name, "sociogram.html"),
+                    "w",
+                    encoding="utf-8",
+                ) as fh:
+                    fh.write(html)
+                on_update(
+                    '<a href=/sociogram target="_blank" class="button">'
+                    "Bekijk het sociogram nu!</a>"
+                )
+            except Exception:  # pylint: disable=broad-exception-caught
+                logger.exception("Could not create sociogram")
 
 
 def _parse_preference_list(form, key, soort_field_value) -> list[Preference]:

@@ -9,9 +9,14 @@ import logging
 import os
 
 from dotenv import load_dotenv
-from flask import Flask, render_template
+from flask import Flask, g, render_template, request, session
 
-from aliexpress.logging_config import add_file_handler, configure_logging
+from aliexpress.logging_config import (
+    add_file_handler,
+    configure_logging,
+    pop_log_context,
+    push_log_context,
+)
 from aliexpress.web.appconfig import DevelopmentConfig, ProductionConfig
 from aliexpress.web.cli import admins as admins_cli
 from aliexpress.web.cli import schools as schools_cli
@@ -110,6 +115,35 @@ def create_app(test_config=None):
     app.register_blueprint(wizard_bp)
 
     register_error_handlers(app)
+
+    @app.before_request
+    def _push_log_ctx():
+        """Bind school/process/endpoint to the log context for this request."""
+        # pylint: disable=import-outside-toplevel
+        from flask_login import current_user
+
+        from aliexpress.web.routes.auth import effective_school_id
+
+        school = effective_school_id() if current_user.is_authenticated else None
+        token = push_log_context(
+            school=school,
+            process=session.get("process_id"),
+            phase=request.endpoint,
+        )
+        g.log_ctx_token = token
+
+    @app.teardown_request
+    def _pop_log_ctx(exc):  # pylint: disable=unused-argument
+        """Restore the log context after each request (Werkzeug reuses threads).
+
+        Guard against double-reset: Flask's test client preserves the last request
+        context across requests and pops it at __exit__, which calls teardown_request
+        a second time with the same (already-used) token.
+        """
+        token = getattr(g, "log_ctx_token", None)
+        if token is not None:
+            g.log_ctx_token = None
+            pop_log_context(token)
 
     @app.route("/")
     def home():
