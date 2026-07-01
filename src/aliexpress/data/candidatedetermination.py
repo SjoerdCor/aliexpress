@@ -71,6 +71,31 @@ def handle_edexml_upload(df: pd.DataFrame, jaargroep: int):
     return candidates, groups_from, groups_to
 
 
+def get_candidates_herindelen(df: pd.DataFrame, group_names: list[str]) -> list:
+    """Return candidates for herindelen: all students in the selected groups."""
+    df_selected = df[df["groepsnaam"].isin(group_names)]
+    if df_selected.empty:
+        return []
+    return (
+        df_selected.reset_index()
+        .sort_values(["groepsnaam", "roepnaam", "achternaam"])[CANDIDATE_FIELDS]
+        .to_dict(orient="records")
+    )
+
+
+def handle_edexml_upload_herindelen(df: pd.DataFrame, group_names: list[str]):
+    """Process uploaded EDEXML for herindelen: redistribute students within selected groups.
+
+    All students in the selected groups become candidates; the destination groups are the
+    same groups with zero occupancy (no fixed students, so the solver controls placement
+    entirely).
+    """
+    candidates = get_candidates_herindelen(df, group_names)
+    groups_from = list(group_names) + ["Anders"]
+    groups_to = {g: [] for g in group_names}
+    return candidates, groups_from, groups_to
+
+
 def students_df(students: pd.DataFrame) -> pd.DataFrame:
     """Assign a unique display name per leerling and sort for the prefilled Excel template."""
     return students.assign(uniekenaam=create_unique_name).sort_values(
