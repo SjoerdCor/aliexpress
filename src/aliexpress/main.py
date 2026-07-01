@@ -164,6 +164,32 @@ def _export(ps, preference_data, target_groups):
     return output, dfs
 
 
+def _log_solve_summary(ps: problemsolver.ProblemSolver) -> None:
+    """Log anonymous headline metrics after a completed solve — no student names."""
+    gb = ps.groupbalance
+    logger.info(
+        "Balance used: clique=%d clique_sex=%d diff_year=%d diff_total=%d "
+        "imbalance_year=%d imbalance_total=%d",
+        gb.max_clique,
+        gb.max_clique_sex,
+        gb.max_diff_n_students_year,
+        gb.max_diff_n_students_total,
+        gb.max_imbalance_boys_girls_year,
+        gb.max_imbalance_boys_girls_total,
+    )
+    sat = ps.extract_solution().student_satisfaction
+    values = list(sat.values())
+    n = len(values)
+    n_full = sum(1 for v in values if v >= 1.0)
+    logger.info(
+        "Satisfaction: n=%d min=%.3f fully_satisfied=%d unfulfilled=%d",
+        n,
+        min(values) if values else 0.0,
+        n_full,
+        n - n_full,
+    )
+
+
 def distribute_students_from_data(
     preference_data: PreferenceData,
     target_groups: GroupCounts,
@@ -247,6 +273,7 @@ def distribute_students_from_data(
         logger.info("Finding first solution... lexmaxmin")
         ps.run()
 
+    _log_solve_summary(ps)
     output, dfs = _export(ps, preference_data, target_groups)
     logger.info("Done!")
     on_update("Klaar!")

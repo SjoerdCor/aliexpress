@@ -7,9 +7,25 @@ from here; this file imports neither.
 
 import os
 import tempfile
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 
 import pulp
+
+# Per-thread solver log path: set by _run_solve_thread before each solve so that
+# concurrent processes write to separate files rather than the shared OS temp log.
+_SOLVER_LOG_PATH: ContextVar[str | None] = ContextVar("_SOLVER_LOG_PATH", default=None)
+
+
+@contextmanager
+def solver_log_path(path: str):
+    """Context manager that routes the HiGHS solver log to *path* for this thread."""
+    token = _SOLVER_LOG_PATH.set(path)
+    try:
+        yield
+    finally:
+        _SOLVER_LOG_PATH.reset(token)
 
 
 @dataclass
@@ -56,6 +72,9 @@ STRICTEST_BALANCE = GroupBalance(1, 1, 1, 1, 1, 1)
 def get_solver() -> pulp.HiGHS:
     """Return the HiGHS PuLP solver with proven-optimum settings."""
     # gapRel=0 so we always get the proven optimum, not an early cutoff.
-    # logPath goes to the OS temp dir so HiGHS never writes into the project root.
-    log_path = os.path.join(tempfile.gettempdir(), "aliexpress-solver.log")
+    # logPath: use the per-thread path when set (isolates concurrent processes),
+    # else fall back to the shared OS temp path.
+    log_path = _SOLVER_LOG_PATH.get() or os.path.join(
+        tempfile.gettempdir(), "aliexpress-solver.log"
+    )
     return pulp.HiGHS(logPath=log_path, msg=False, gapRel=0)

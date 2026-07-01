@@ -20,6 +20,7 @@ from flask_login import login_required
 
 from ...data import datareader
 from ...errors import ValidationError
+from ..flashing import warn_and_flash
 from ..storage import get_file_path
 from ..validation_messages import to_validation_message
 from .processes import require_process, require_school
@@ -179,7 +180,7 @@ def _handle_roster_post(school_id, process_id, orig_candidates, groups_from):
     try:
         validate_new_students(request.form, orig_candidates)
     except ValidationError as exc:
-        flash(to_validation_message(exc), "error")
+        warn_and_flash(to_validation_message(exc), log_detail=exc.code)
         return redirect(url_for("roster.roster_page"))
 
     participants = build_participants(request.form, orig_candidates, groups_from)
@@ -187,4 +188,5 @@ def _handle_roster_post(school_id, process_id, orig_candidates, groups_from):
         get_file_path(school_id, process_id, "roster.json"), "w", encoding="utf-8"
     ) as fh:
         json.dump({"participants": participants}, fh, ensure_ascii=False)
+    logger.info("Roster accepted: %d participants", len(participants))
     return redirect(url_for("wizard.groups_to_page"))

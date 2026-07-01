@@ -87,8 +87,6 @@ def fill_in_known_values(groups_to, groep_die_doorgaat, wb):
         ws1[f"C{i}"].value = row["geslacht"]
         ws1[f"D{i}"].value = row["groepsnaam"]
 
-    logger.debug("Data ingevuld")
-
     all_leerlingen = groep_die_doorgaat["uniekenaam"].tolist()
     ws2 = wb["Sheet2"]
     for i, gr in enumerate(groups_to, start=1):

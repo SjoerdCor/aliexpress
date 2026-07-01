@@ -29,3 +29,7 @@ class FeasibilityError(ReadableError):
 
 class CouldNotReadFileError(ReadableError):
     """Generic error, raised when a file cannot be read for unknown reason."""
+
+
+class SolverError(Exception):
+    """Raised when the LP solver does not reach optimality."""

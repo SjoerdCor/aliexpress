@@ -13,9 +13,11 @@ a single objective (the *strategy*).
 """
 
 import logging
+import time
 
 import pulp
 
+from ..errors import SolverError
 from . import pulp_thresholds
 from ._balance import get_solver
 
@@ -102,6 +104,7 @@ class _PlateaudLexMaxMin:
         while True:
             if n_levels_max is not None and level >= n_levels_max:
                 break
+            t0 = time.perf_counter()
             self.m_val = self._raise_minimal_score(level)
             logger.debug("Level %s, step 1 done, %s", level, self.m_val)
             if self.m_val > satisfaction_max:
@@ -110,8 +113,15 @@ class _PlateaudLexMaxMin:
             self._fix_plateau_as_lower_bound(level)
 
             count_at_level = self._count_on_plateau(level)
+            elapsed = time.perf_counter() - t0
             logger.debug(
                 "Level %s, step 2 done, %s at this level", level, count_at_level
+            )
+            logger.info(
+                "lexmaxmin level %d: Optimal in %.2fs, plateau=%d",
+                level,
+                elapsed,
+                count_at_level,
             )
             if count_at_level == 0:
                 logger.debug("Stopped at level %s: no more students left", level)
@@ -122,11 +132,11 @@ class _PlateaudLexMaxMin:
         return pulp.lpSum(self.scores.values())
 
     def _solve_and_check(self, level: int) -> None:
-        """Solve the sub-problem and raise RuntimeError if the result is not Optimal.
+        """Solve the sub-problem and raise SolverError if the result is not Optimal.
 
         Raises
         ------
-        RuntimeError
+        SolverError
             If the solve does not reach optimality, naming the level and actual status.
             Without this check a non-optimal solve leaves variable values as ``None``,
             which causes a cryptic ``TypeError`` downstream.
@@ -134,7 +144,7 @@ class _PlateaudLexMaxMin:
         self.prob.solve(self.solver)
         status = pulp.LpStatus[self.prob.status]
         if status != "Optimal":
-            raise RuntimeError(
+            raise SolverError(
                 f"Lexmaxmin sub-solve at level {level} did not reach optimality "
                 f"(status: {status!r})"
             )
