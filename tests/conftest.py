@@ -4,6 +4,8 @@ DATABASE_URL is set in the root conftest.py before this file is loaded, so all
 imports here can be at the top without ordering constraints.
 """
 
+import logging
+
 import pytest
 from werkzeug.security import generate_password_hash
 
@@ -39,6 +41,28 @@ def client(tmp_path):
     with flask_app.test_client() as c:
         c.post("/login", data={"schoolcode": "test-school", "wachtwoord": "testpass"})
         yield c
+
+
+@pytest.fixture()
+def captured_aliexpress_logs():
+    """Capture all records emitted by the aliexpress package logger.
+
+    caplog cannot see this logger because it has propagate=False; this fixture
+    attaches a handler directly to the package logger instead.
+    """
+    pkg_logger = logging.getLogger("aliexpress")
+    messages = []
+
+    class _Collector(logging.Handler):
+        def emit(self, record):
+            messages.append(record.getMessage())
+
+    handler = _Collector()
+    pkg_logger.addHandler(handler)
+    try:
+        yield messages
+    finally:
+        pkg_logger.removeHandler(handler)
 
 
 @pytest.fixture()

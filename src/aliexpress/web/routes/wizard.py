@@ -38,10 +38,14 @@ from ...errors import (
     CouldNotReadFileError,
     DuplicateNameError,
     FeasibilityError,
+    SolverError,
     ValidationError,
 )
+from ...logging_config import bind_log_context
 from ...main import distribute_students_from_data
+from ...solver._balance import solver_log_path
 from ..extensions import db
+from ..flashing import warn_and_flash
 from ..models import LogLine, Process, Run
 from ..storage import get_file_path
 from ..validation_messages import to_validation_message
@@ -124,6 +128,8 @@ def _handle_failure(exc, school_id, process_name):
         log_msg = "Files are incorrect"
     elif isinstance(exc, FeasibilityError):
         log_msg = "Problem is infeasible"
+    elif isinstance(exc, SolverError):
+        log_msg = "Solver could not solve the problem"
     else:
         log_msg = "Uncaught exception"
     logger.exception(log_msg)
@@ -146,23 +152,40 @@ def _run_solve_thread(ctx: _ThreadContext, groups_to_path, not_together):
         db.session.commit()
 
     with ctx.app_obj.app_context():
-        try:  # pylint: disable=broad-exception-caught
-            voorkeuren_path = get_file_path(
-                ctx.school_id, ctx.process_name, "voorkeuren.json"
-            )
-            Process.by_name(ctx.school_id, ctx.process_name).run.set_status("running")
-            preference_data, _ = _read_voorkeuren_json(voorkeuren_path)
-            target_groups = datareader.read_groups_excel(groups_to_path)
-            result = distribute_students_from_data(
-                preference_data, target_groups, not_together, on_update=on_update
-            )
-            logger.info("Distributing students finished successfully")
-            # Write artifacts before flipping to "done" so the result page never
-            # races ahead of the files it needs.
-            _write_result_files(ctx.school_id, ctx.process_name, result)
-            Process.by_name(ctx.school_id, ctx.process_name).run.set_status("done")
-        except Exception as exc:  # pylint: disable=broad-exception-caught
-            _handle_failure(exc, ctx.school_id, ctx.process_name)
+        with bind_log_context(
+            school=ctx.school_id,
+            process=ctx.process_name,
+            run=str(ctx.run_id),
+            phase="solve",
+        ):
+            try:  # pylint: disable=broad-exception-caught
+                voorkeuren_path = get_file_path(
+                    ctx.school_id, ctx.process_name, "voorkeuren.json"
+                )
+                Process.by_name(ctx.school_id, ctx.process_name).run.set_status(
+                    "running"
+                )
+                preference_data, _ = _read_voorkeuren_json(voorkeuren_path)
+                target_groups = datareader.read_groups_excel(groups_to_path)
+                highs_log = os.path.join(
+                    current_app.instance_path,
+                    "logs",
+                    f"highs-{ctx.school_id}-{ctx.process_name}.log",
+                )
+                with solver_log_path(highs_log):
+                    result = distribute_students_from_data(
+                        preference_data,
+                        target_groups,
+                        not_together,
+                        on_update=on_update,
+                    )
+                logger.info("Distributing students finished successfully")
+                # Write artifacts before flipping to "done" so the result page never
+                # races ahead of the files it needs.
+                _write_result_files(ctx.school_id, ctx.process_name, result)
+                Process.by_name(ctx.school_id, ctx.process_name).run.set_status("done")
+            except Exception as exc:  # pylint: disable=broad-exception-caught
+                _handle_failure(exc, ctx.school_id, ctx.process_name)
 
 
 def _create_sociogram_thread(ctx: _ThreadContext):
@@ -179,30 +202,36 @@ def _create_sociogram_thread(ctx: _ThreadContext):
         db.session.commit()
 
     with ctx.app_obj.app_context():
-        try:  # pylint: disable=broad-exception-caught
-            on_update("Sociogram tekenen...")
-            voorkeuren_path = get_file_path(
-                ctx.school_id, ctx.process_name, "voorkeuren.json"
-            )
-            preference_data, _ = _read_voorkeuren_json(voorkeuren_path)
-            sg = sociogram.SociogramMaker.from_preference_data(preference_data)
-            fig, g, pos = sg.plot_sociogram()
-            logger.info("Sociogram created")
-            fig = sociogram.networkx_to_plotly(g, pos)
-            html = fig.to_html(full_html=False, include_plotlyjs="cdn")
-            logger.info("HTML created")
-            with open(
-                get_file_path(ctx.school_id, ctx.process_name, "sociogram.html"),
-                "w",
-                encoding="utf-8",
-            ) as fh:
-                fh.write(html)
-            on_update(
-                '<a href=/sociogram target="_blank" class="button">'
-                "Bekijk het sociogram nu!</a>"
-            )
-        except Exception:  # pylint: disable=broad-exception-caught
-            logger.exception("Could not create sociogram")
+        with bind_log_context(
+            school=ctx.school_id,
+            process=ctx.process_name,
+            run=str(ctx.run_id),
+            phase="sociogram",
+        ):
+            try:  # pylint: disable=broad-exception-caught
+                on_update("Sociogram tekenen...")
+                voorkeuren_path = get_file_path(
+                    ctx.school_id, ctx.process_name, "voorkeuren.json"
+                )
+                preference_data, _ = _read_voorkeuren_json(voorkeuren_path)
+                sg = sociogram.SociogramMaker.from_preference_data(preference_data)
+                fig, g, pos = sg.plot_sociogram()
+                logger.info("Sociogram created")
+                fig = sociogram.networkx_to_plotly(g, pos)
+                html = fig.to_html(full_html=False, include_plotlyjs="cdn")
+                logger.info("HTML created")
+                with open(
+                    get_file_path(ctx.school_id, ctx.process_name, "sociogram.html"),
+                    "w",
+                    encoding="utf-8",
+                ) as fh:
+                    fh.write(html)
+                on_update(
+                    '<a href=/sociogram target="_blank" class="button">'
+                    "Bekijk het sociogram nu!</a>"
+                )
+            except Exception:  # pylint: disable=broad-exception-caught
+                logger.exception("Could not create sociogram")
 
 
 def _parse_preference_list(form, key, soort_field_value) -> list[Preference]:
@@ -388,9 +417,7 @@ def _load_student_names(groups_to, voorkeuren_path, preferences_path) -> list[st
     else:
         processor = datareader.VoorkeurenProcessor(preferences_path)
         processor.process(all_to_groups=list(groups_to.keys()))
-        logger.debug(processor.student_display)
         names = sorted(processor.student_display.values())
-    logger.debug(", ".join(names))
     return names
 
 
@@ -486,6 +513,9 @@ def upload_edexml():
 
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
+        logger.info(
+            "EDEXML accepted: %d candidates, %d groups", len(candidates), jaargroep
+        )
     except Exception as exc:  # pylint: disable=broad-exception-caught
         _flash_upload_error(exc)
         return redirect(url_for("wizard.upload_edexml"))
@@ -520,13 +550,15 @@ def groups_to_page():
         exc = ValidationError(
             "duplicate_group_names", {"duplicates": ", ".join(duplicates)}
         )
-        flash(to_validation_message(exc), "error")
+        warn_and_flash(to_validation_message(exc), log_detail=exc.code)
         return redirect(url_for("wizard.groups_to_page"))
 
     submission = parse_groups_to_form(request.form, groups_to)
     if len(submission.distribution) < 2:
-        error = "Er moeten minsten twee groepen zijn om de leerlingen over te verdelen"
-        flash(error, "error")
+        warn_and_flash(
+            "Er moeten minsten twee groepen zijn om de leerlingen over te verdelen",
+            log_detail="too_few_groups",
+        )
         return redirect(url_for("wizard.groups_to_page"))
 
     path = get_file_path(school_id, process_id, "groups.xlsx")
@@ -588,7 +620,9 @@ def preferences_excel():
         )
 
     if not participants:
-        flash("Er moet minsten één leerling aanwezig zijn", "error")
+        warn_and_flash(
+            "Er moet minsten één leerling aanwezig zijn", log_detail="no_participants"
+        )
         return redirect(url_for("roster.roster_page"))
     try:
         df_total = candidatedetermination.students_df_from_records(participants)
@@ -631,7 +665,10 @@ def upload_preferences():
                 process_id,
             )
             return redirect(url_for("wizard.not_together_page"))
-        flash("Upload eerst het ingevulde bestand om verder te gaan.", "error")
+        warn_and_flash(
+            "Upload eerst het ingevulde bestand om verder te gaan.",
+            log_detail="no_file_uploaded",
+        )
         return redirect(url_for("wizard.preferences_excel"))
     try:
         raw = upload.read()
@@ -686,6 +723,7 @@ def _handle_pref_form_post(participants, all_groups_to, state_path, voorkeuren_p
         _flash_upload_error(exc)
         return redirect(url_for("wizard.preferences_form"))
     _write_voorkeuren_json(voorkeuren_path, preference_data, source="form")
+    logger.info("Preferences form accepted: %d participants", len(participants))
     return redirect(url_for("wizard.not_together_page"))
 
 
@@ -790,10 +828,11 @@ def not_together_page():
         except ValidationError as exc:
             error = to_validation_message(exc)
     if error:
-        flash(error, "error")
+        warn_and_flash(error, log_detail="not_together_invalid")
         return redirect(url_for("wizard.not_together_page"))
 
     _save_not_together(school_id, process_id, rules)
+    logger.info("Not-together rules accepted: %d rules", len(rules))
     return redirect(url_for("wizard.start_distribution"))
 
 

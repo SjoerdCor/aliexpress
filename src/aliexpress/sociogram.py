@@ -6,11 +6,17 @@ import base64
 import io
 import math
 
+import matplotlib
 import networkx as nx
 import plotly.graph_objects as go
+
+matplotlib.use("Agg")  # headless backend — must precede pyplot import
+# pylint: disable=wrong-import-position  # matplotlib.use() must come first
 from matplotlib import pyplot as plt
 
 from .data import datareader
+
+# pylint: enable=wrong-import-position
 
 
 class SociogramMaker:

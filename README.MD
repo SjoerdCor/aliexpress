@@ -43,6 +43,24 @@ SECRET_KEY=<your-secret-key-here>
 `SECRET_KEY` signs the login session cookie. In production the app refuses to start
 without one; in development a fallback key is used so you can run it without a `.env`.
 
+## Logging
+
+In production the app writes to `instance/logs/aliexpress.log`. The file rotates at
+midnight and keeps 90 days of backups. Each line carries correlation fields so you can
+filter on a single run or school:
+
+```
+2025-01-15 09:31:04,123 INFO [schoolX/Groep4/7 solve] aliexpress.main MainThread: All files read
+2025-01-15 09:31:04,456 INFO [schoolX/Groep4/7 solve] aliexpress.solver.optimizationstrategies MainThread: lexmaxmin level 0: Optimal in 1.23s, plateau=18
+```
+
+Fields in brackets: `school / process / run phase`. A dash (`-`) means no active context
+(e.g. an unauthenticated request).
+
+The HiGHS solver log is written separately to
+`instance/logs/highs-<school>-<process>.log` so concurrent solving jobs do not interleave.
+No student names appear in any log file.
+
 ## Schools and login
 
 Every data route requires logging in as a school, so student data is never reachable without

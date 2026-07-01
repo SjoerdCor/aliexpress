@@ -6,6 +6,7 @@ from unittest.mock import patch
 import pulp
 import pytest
 
+from aliexpress.errors import SolverError
 from aliexpress.solver import optimizationstrategies
 
 
@@ -166,7 +167,7 @@ def test_lexmaxmin_three_variables_equal_distribution():
 
 
 def test_lexmaxmin_raises_clear_error_on_first_non_optimal_solve():
-    """Non-optimal first sub-solve raises RuntimeError (not TypeError) via plateaud_lexmaxmin."""
+    """Non-optimal first sub-solve raises SolverError (not TypeError) via plateaud_lexmaxmin."""
     prob = pulp.LpProblem("TestNonOptimal", pulp.LpMaximize)
     scores = {
         "a": pulp.LpVariable("a", lowBound=0, upBound=10),
@@ -179,12 +180,12 @@ def test_lexmaxmin_raises_clear_error_on_first_non_optimal_solve():
         return -1
 
     with patch.object(prob, "solve", infeasible_solve):
-        with pytest.raises(RuntimeError, match="level 0.*Infeasible"):
+        with pytest.raises(SolverError, match="level 0.*Infeasible"):
             optimizationstrategies.plateaud_lexmaxmin(scores, prob)
 
 
 def test_lexmaxmin_raises_clear_error_on_second_non_optimal_solve():
-    """Non-optimal second sub-solve (count phase) raises RuntimeError via plateaud_lexmaxmin."""
+    """Non-optimal second sub-solve (count phase) raises SolverError via plateaud_lexmaxmin."""
     prob = pulp.LpProblem("TestNonOptimal2", pulp.LpMaximize)
     scores = {
         "a": pulp.LpVariable("a", lowBound=0, upBound=10),
@@ -205,7 +206,7 @@ def test_lexmaxmin_raises_clear_error_on_second_non_optimal_solve():
         return -1
 
     with patch.object(prob, "solve", mock_solve):
-        with pytest.raises(RuntimeError, match="Infeasible"):
+        with pytest.raises(SolverError, match="Infeasible"):
             optimizationstrategies.plateaud_lexmaxmin(scores, prob)
 
 
