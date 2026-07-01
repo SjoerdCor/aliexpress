@@ -50,9 +50,7 @@
   </button>
 
   <div class="step-navigation">
-    <a href="{{ url_for('wizard.upload_edexml') }}" class="button previous-step">
-      ← Naar Schoolinformatie uploaden
-    </a>
+    <a href="{{ prev_url }}" class="button previous-step">{{ prev_label }}</a>
     <button type="submit" class="button next-step">Naar Groepen naartoe →</button>
   </div>
 </form>

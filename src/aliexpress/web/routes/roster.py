@@ -21,9 +21,9 @@ from flask_login import login_required
 from ...data import datareader
 from ...errors import ValidationError
 from ..flashing import warn_and_flash
-from ..storage import get_file_path
+from ..storage import get_file_path, get_process_path
 from ..validation_messages import to_validation_message
-from .processes import require_process, require_school
+from .processes import get_process_mode, require_process, require_school
 
 logger = logging.getLogger(__name__)
 
@@ -166,12 +166,22 @@ def roster_page(school_id):
         checked_keys = {p["key"] for p in participants if p["key"] in orig_keys}
         new_students = [p for p in participants if p["key"] not in orig_keys]
 
+    mode = get_process_mode(get_process_path(school_id, process_id))
+    if mode == "redistribute":
+        prev_url = url_for("wizard.select_groups")
+        prev_label = "← Naar Groepskeuze"
+    else:
+        prev_url = url_for("wizard.upload_edexml")
+        prev_label = "← Naar Schoolinformatie uploaden"
+
     return render_template(
         "roster.html",
         candidates=sorted_for_display(orig_candidates),
         checked_keys=checked_keys,
         new_students=new_students,
         groups_from=groups_from,
+        prev_url=prev_url,
+        prev_label=prev_label,
     )
 
 
