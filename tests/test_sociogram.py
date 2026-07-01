@@ -45,3 +45,10 @@ def test_from_preference_data_matches_constructor(preference_data):
 
     assert_frame_equal(via_data.preferences, via_file.preferences)
     assert _students_info_equal(via_data.students_info, via_file.students_info)
+
+
+def test_matplotlib_backend_is_agg():
+    """sociogram.py must set the Agg backend to avoid Tk/display errors on headless servers."""
+    import matplotlib  # pylint: disable=import-outside-toplevel
+
+    assert matplotlib.get_backend().lower() == "agg"
