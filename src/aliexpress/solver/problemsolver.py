@@ -19,6 +19,7 @@ import pandas as pd
 import pulp
 
 from ..data import preferences_data
+from ..errors import SolverError
 from . import feasibility, optimizationstrategies, pulp_logical, satisfaction
 from ._balance import STRICTEST_BALANCE, GroupBalance, get_solver
 
@@ -578,7 +579,7 @@ class ProblemSolver:
 
         Raises
         ------
-        RuntimeError
+        SolverError
             If the problem is infeasible
         """
         if solutions_to_ignore is not None:
@@ -588,7 +589,7 @@ class ProblemSolver:
         solver = get_solver()
         self.prob.solve(solver)
         if pulp.LpStatus[self.prob.status] != "Optimal":
-            raise RuntimeError(
+            raise SolverError(
                 f"Could not solve LP-problem, status {pulp.LpStatus[self.prob.status]!r}"
             )
         self.known_solutions.append(
@@ -627,8 +628,8 @@ class ProblemSolver:
             solutions_to_ignore = [(sol, distance) for sol in self.known_solutions]
             try:
                 self.solve(solutions_to_ignore=solutions_to_ignore)
-            except RuntimeError as e:
-                raise RuntimeError(f"Failed to find {i + 1} solution(s)") from e
+            except SolverError as e:
+                raise SolverError(f"Failed to find {i + 1} solution(s)") from e
         return self.prob
 
     def extract_solution(self) -> SolutionResult:
@@ -640,11 +641,11 @@ class ProblemSolver:
 
         Raises
         ------
-        RuntimeError
+        SolverError
             If the problem has not been solved to optimality.
         """
         if pulp.LpStatus[self.prob.status] != "Optimal":
-            raise RuntimeError(
+            raise SolverError(
                 f"Can not extract a solution, status {pulp.LpStatus[self.prob.status]!r}"
             )
 
