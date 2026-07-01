@@ -1,6 +1,7 @@
 """Generate test data for the app in the native process-directory format.
 
 Produces the files a process needs to run the solver and navigate the wizard UI:
+  relevant_students_and_groups.json — candidates + achterblijvers per doelgroep
   voorkeuren.json     — preferences (StudentEntry path, source="testdata")
   groups.xlsx         — target groups with current boy/girl counts (for the solver)
   not_together.json   — separation rules
@@ -34,6 +35,61 @@ from tests.testedexmlgeneration import SAMPLE_GROUP_NAMES
 random.seed(42)
 
 FOLDER = "testdata"
+
+# Names for the "achterblijvers" (staying students) shown on the Groepen page.
+# Kept separate from NativePreferenceGenerator.possible_students to avoid name collisions.
+_STAYING_BOYS = [
+    "Arjan",
+    "Ben",
+    "Cas",
+    "Dirk",
+    "Erik",
+    "Frans",
+    "Gerben",
+    "Henk",
+    "Ivo",
+    "Jan",
+    "Kees",
+    "Leo",
+    "Mart",
+    "Niels",
+    "Otto",
+    "Pieter",
+    "Rick",
+    "Stef",
+    "Thijs",
+    "Ulrich",
+    "Victor",
+    "Wim",
+    "Xander",
+    "Yorick",
+]
+_STAYING_GIRLS = [
+    "Alie",
+    "Bea",
+    "Cora",
+    "Demi",
+    "Els",
+    "Fleur",
+    "Griet",
+    "Henny",
+    "Ineke",
+    "Joke",
+    "Karen",
+    "Lena",
+    "Mies",
+    "Nel",
+    "Olga",
+    "Petra",
+    "Rianne",
+    "Sandra",
+    "Truus",
+    "Ursula",
+    "Vera",
+    "Wendy",
+    "Xandra",
+    "Yvonne",
+]
 
 
 def generate_groups(n_groups=4, sample_group_names=None) -> pd.DataFrame:
@@ -224,6 +280,56 @@ def generate_not_together(
 # ---------------------------------------------------------------------------
 
 
+def _generate_groups_to_students(groups_df: pd.DataFrame) -> dict:
+    """Build the achterblijver lists per doelgroep from the groups DataFrame.
+
+    Mirrors the format produced by ``candidatedetermination.get_groups_to()``.
+    All generated students have ``blijft_in_groep=True`` so their checkboxes are
+    pre-ticked on the Groepen page, matching a freshly-uploaded EDEXML.
+    """
+    boy_names = iter(_STAYING_BOYS * 5)
+    girl_names = iter(_STAYING_GIRLS * 5)
+    result = {}
+    for _, row in groups_df.iterrows():
+        students = []
+        for _ in range(int(row["Jongens"])):
+            students.append(
+                {
+                    "roepnaam": next(boy_names),
+                    "achternaam": "",
+                    "geslacht": "Jongen",
+                    "jaargroep": 5,
+                    "blijft_in_groep": True,
+                }
+            )
+        for _ in range(int(row["Meisjes"])):
+            students.append(
+                {
+                    "roepnaam": next(girl_names),
+                    "achternaam": "",
+                    "geslacht": "Meisje",
+                    "jaargroep": 5,
+                    "blijft_in_groep": True,
+                }
+            )
+        result[row["Groepen"]] = students
+    return result
+
+
+def _generate_candidates(entries: list) -> list[dict]:
+    """Convert StudentEntry objects to candidate dicts (matching ``get_candidates()`` format)."""
+    return [
+        {
+            "key": matching_key(e.student),
+            "roepnaam": e.student,
+            "achternaam": "",
+            "groepsnaam": e.origin_group,
+            "geslacht": e.sex,
+        }
+        for e in entries
+    ]
+
+
 def _write_voorkeuren_json(path: str, preference_data) -> None:
     """Persist a PreferenceData as voorkeuren.json with source tag "testdata"."""
     payload = json.loads(preference_data.to_json())
@@ -316,6 +422,18 @@ def main(n_groups: int = 4, n_students: int = 35, n_rules: int = 5, folder: str 
 
     # groups.xlsx — same format read_groups_excel() expects
     groups_df.to_excel(os.path.join(folder, "groups.xlsx"), index=False)
+
+    # relevant_students_and_groups.json — mirrors what upload_edexml writes;
+    # needed so the Groepen wizard step can load and display achterblijvers.
+    relevant = {
+        "candidates": _generate_candidates(entries),
+        "groups_from": generator.groups_from + ["Anders"],
+        "groups_to": _generate_groups_to_students(groups_df),
+    }
+    with open(
+        os.path.join(folder, "relevant_students_and_groups.json"), "w", encoding="utf-8"
+    ) as fh:
+        json.dump(relevant, fh, ensure_ascii=False)
 
     # not_together.json
     leerlingen = [e.student for e in entries]
