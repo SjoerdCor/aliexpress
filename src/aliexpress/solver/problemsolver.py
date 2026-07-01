@@ -288,6 +288,14 @@ class ProblemSolver:
                     )
 
     def _constraint_equal_boys_girls(self, prob, make_soft=False):
+        """Gender balance per year cohort with one shared slack across all cohorts.
+
+        Aggregate ``boys_to_group`` / ``girls_to_group`` variables (for the solution
+        report) are defined as the sum of the per-year helpers so ``_group_composition``
+        remains correct after the per-year split. With a single cohort the aggregate
+        equals the single per-year variable — mathematically identical to the old code.
+        """
+        # Aggregate gender counts per group (for the solution report).
         boys_to_group = pulp.LpVariable.dicts(
             "boys_to_group", self.groups_to.keys(), cat="Integer"
         )
@@ -295,6 +303,7 @@ class ProblemSolver:
             "girls_to_group", self.groups_to.keys(), cat="Integer"
         )
 
+        # One shared slack across all cohorts (name must stay stable for feasibility.py).
         slack_var = pulp.LpVariable(
             "SLACK_balanced_boys_girls_year",
             lowBound=0,
@@ -302,31 +311,51 @@ class ProblemSolver:
             cat="Integer",
         )
 
-        for group_to in self.groups_to:
-            prob += boys_to_group[group_to] == pulp.lpSum(
-                [
-                    self.in_group[(student, group_to)]
-                    for student in self.students
-                    if self.students[student]["Jongen/meisje"] == "Jongen"
-                ]
+        # Accumulate per-year boy/girl counts so we can sum them into the aggregates.
+        boys_per_group_per_year: dict[str, list] = {g: [] for g in self.groups_to}
+        girls_per_group_per_year: dict[str, list] = {g: [] for g in self.groups_to}
+
+        for year, cohort in self.cohorts().items():
+            s = f"_{year}" if year is not None else "_all"
+            boys_in_year = pulp.LpVariable.dicts(
+                f"boys_in_year{s}", self.groups_to.keys(), cat="Integer"
             )
-            prob += girls_to_group[group_to] == pulp.lpSum(
-                [
-                    self.in_group[(student, group_to)]
-                    for student in self.students
-                    if self.students[student]["Jongen/meisje"] == "Meisje"
-                ]
-            )
-            prob += (
-                girls_to_group[group_to] - boys_to_group[group_to]
-                <= self.groupbalance.max_imbalance_boys_girls_year + slack_var
-            )
-            prob += (
-                boys_to_group[group_to] - girls_to_group[group_to]
-                <= self.groupbalance.max_imbalance_boys_girls_year + slack_var
+            girls_in_year = pulp.LpVariable.dicts(
+                f"girls_in_year{s}", self.groups_to.keys(), cat="Integer"
             )
 
-        # Keep the new-cohort (year) counts of the main problem for the solution report.
+            for group_to in self.groups_to:
+                prob += boys_in_year[group_to] == pulp.lpSum(
+                    self.in_group[(student, group_to)]
+                    for student in cohort
+                    if self.students[student]["Jongen/meisje"] == "Jongen"
+                )
+                prob += girls_in_year[group_to] == pulp.lpSum(
+                    self.in_group[(student, group_to)]
+                    for student in cohort
+                    if self.students[student]["Jongen/meisje"] == "Meisje"
+                )
+                prob += (
+                    girls_in_year[group_to] - boys_in_year[group_to]
+                    <= self.groupbalance.max_imbalance_boys_girls_year + slack_var
+                )
+                prob += (
+                    boys_in_year[group_to] - girls_in_year[group_to]
+                    <= self.groupbalance.max_imbalance_boys_girls_year + slack_var
+                )
+                boys_per_group_per_year[group_to].append(boys_in_year[group_to])
+                girls_per_group_per_year[group_to].append(girls_in_year[group_to])
+
+        # Aggregates = sum of all per-year counts (one per-year term in single-cohort case).
+        for group_to in self.groups_to:
+            prob += boys_to_group[group_to] == pulp.lpSum(
+                boys_per_group_per_year[group_to]
+            )
+            prob += girls_to_group[group_to] == pulp.lpSum(
+                girls_per_group_per_year[group_to]
+            )
+
+        # Keep the aggregate counts of the main problem for the solution report.
         if prob is self.prob:
             self.boys_to_group = boys_to_group
             self.girls_to_group = girls_to_group

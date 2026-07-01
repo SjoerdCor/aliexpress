@@ -238,3 +238,88 @@ def test_equal_new_students_per_year_enforced():
         }
         diff = max(counts.values()) - min(counts.values())
         assert diff == 0, f"year {year}: counts={counts}, diff={diff}"
+
+
+# ---------------------------------------------------------------------------
+# _constraint_equal_boys_girls per year (Jaarlaag)
+# ---------------------------------------------------------------------------
+
+
+def test_boys_girls_balanced_per_year_and_aggregate_correct():
+    """Per-year gender balance is enforced; GroupComposition aggregates stay correct.
+
+    Scenario: year-6 (3B 1G) + year-7 (1B 3G) → 2 groups, max_imbalance_year=0.
+    Without per-year constraints the solver can cluster year-6 boys in one group
+    and year-7 girls in the other while keeping the total balance within 4.  With
+    per-year constraints each year must land balanced per group.
+
+    Also checks that GroupComposition.boys_year + girls_year equals the total number
+    of new students per group, keeping the existing reporting layer correct.
+    """
+
+    def _s(grp, sex, year):
+        return {
+            "Stamgroep": grp,
+            "Jongen/meisje": sex,
+            "MinimaleTevredenheid": math.nan,
+            "Jaarlaag": year,
+        }
+
+    # year-6: 2B+2G, year-7: 2B+2G → 2 groups of 4.
+    # With max_imbalance_boys_girls_year=0 each year must land 1B+1G per group.
+    # Without the per-year constraint the solver can put all 4 year-6 boys in blauw.
+    students = {
+        "a6": _s("A", "Jongen", 6),
+        "b6": _s("A", "Meisje", 6),
+        "c6": _s("B", "Jongen", 6),
+        "d6": _s("B", "Meisje", 6),
+        "a7": _s("C", "Jongen", 7),
+        "b7": _s("C", "Meisje", 7),
+        "c7": _s("D", "Jongen", 7),
+        "d7": _s("D", "Meisje", 7),
+    }
+    # Strong preferences: all year-6 boys want to be together → cluster pressure.
+    prefs = _make_graag_met_prefs([("a6", "c6"), ("c6", "a6")], weight=3.0)
+    groups_to = {
+        "blauw": {"Jongens": 0, "Meisjes": 0},
+        "rood": {"Jongens": 0, "Meisjes": 0},
+    }
+    balance = GroupBalance(
+        max_diff_n_students_year=0,
+        max_diff_n_students_total=0,
+        max_clique=4,
+        max_clique_sex=4,
+        max_imbalance_boys_girls_year=0,
+        max_imbalance_boys_girls_total=4,
+    )
+    solver = ProblemSolver(prefs, students, groups_to, [], groupbalance=balance)
+    solver.run()
+    result = solver.extract_solution()
+
+    # Per-year gender balance check.
+    for year in (6, 7):
+        cohort = [s for s, info in students.items() if info.get("Jaarlaag") == year]
+        for grp in groups_to:
+            boys = sum(
+                1
+                for s in cohort
+                if result.assignment[s] == grp
+                and students[s]["Jongen/meisje"] == "Jongen"
+            )
+            girls = sum(
+                1
+                for s in cohort
+                if result.assignment[s] == grp
+                and students[s]["Jongen/meisje"] == "Meisje"
+            )
+            assert (
+                abs(boys - girls) <= balance.max_imbalance_boys_girls_year
+            ), f"year {year}, group {grp}: boys={boys}, girls={girls}"
+
+    # GroupComposition aggregate: boys_year + girls_year = total new students in group.
+    for grp, comp in result.group_composition.items():
+        total_new = sum(1 for s in students if result.assignment[s] == grp)
+        assert comp.boys_year + comp.girls_year == total_new, (
+            f"group {grp}: boys_year={comp.boys_year}, girls_year={comp.girls_year}, "
+            f"total_new={total_new}"
+        )
