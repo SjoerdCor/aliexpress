@@ -114,6 +114,13 @@ def minimal_relaxation_budget(
         wish_slacks = require_one_positive_wish(solver, prob, satisfied)
         relaxation = weighted_relaxation(prob)
 
+        # Stage 0 (seed): find *any* feasible assignment.  With a constant objective
+        # the solver stops at the first integer-feasible point, which is far cheaper
+        # than finding one inside an optimizing solve.  This populates every variable
+        # with a value, so both stages below start from a warm start (WarmStartHiGHS).
+        prob.setObjective(pulp.lpSum([]))
+        _solve_stage_or_raise(prob)
+
         # Stage 1: minimize unmet wishes (lexicographically dominant, normally 0).
         prob.setObjective(pulp.lpSum(wish_slacks))
         _solve_stage_or_raise(prob)
