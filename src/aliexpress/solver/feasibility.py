@@ -89,9 +89,12 @@ def minimal_relaxation_budget(
         produces a smaller ``R*``.  Sets ``solver.groupbalance`` as a side effect;
         ``solve_within_minimal_relaxation`` relies on this for the subsequent main solve.
 
-    The limits are made soft, so the unmet wish slack is penalized far heavier than any
-    balance relaxation: the budget is spent first on letting everyone reach a wish and
-    only then, at the minimum, on extra balance room.
+    The limits are made soft and the two goals are solved lexicographically: first the
+    number of unmet wishes is minimized (normally 0), then — with that number locked in —
+    the weighted balance relaxation.  Two single-scale objectives keep the LP bounds
+    meaningful; a combined objective with a large penalty factor (the previous 1000x)
+    makes the relaxation nearly invisible next to the penalty term, which ruins the
+    branch-and-bound bound and slows the solve dramatically.
 
     This is a pure query: ``solver.groupbalance`` is temporarily set to ``groupbalance``
     for the duration of the LP build and restored afterwards, so the caller's solver
@@ -110,20 +113,39 @@ def minimal_relaxation_budget(
         satisfaction.calculate_student_satisfaction(solver, satisfied, prob=prob)
         wish_slacks = require_one_positive_wish(solver, prob, satisfied)
         relaxation = weighted_relaxation(prob)
-        prob.setObjective(relaxation + 1000 * pulp.lpSum(wish_slacks))
-        status = prob.solve(get_solver())
-        if pulp.LpStatus[status] == "Infeasible":
-            # The hard preference constraints (Extra zekerheid / Niet-samen) contradict
-            # each other; main.py fills in which choices clash before surfacing this.
-            raise errors.FeasibilityError(
-                "infeasible_preferences",
-                technical_message="Hard preference constraints are mutually infeasible",
-            )
-        if pulp.LpStatus[status] != "Optimal":
-            raise ValueError("Could not determine the minimal class-balance relaxation")
+
+        # Stage 1: minimize unmet wishes (lexicographically dominant, normally 0).
+        prob.setObjective(pulp.lpSum(wish_slacks))
+        _solve_stage_or_raise(prob)
+        unmet_wishes = pulp.value(prob.objective)
+        prob += pulp.lpSum(wish_slacks) <= unmet_wishes + 1e-6
+
+        # Stage 2: minimize the balance relaxation given minimal unmet wishes.
+        prob.setObjective(relaxation)
+        _solve_stage_or_raise(prob)
         return relaxation.value()
     finally:
         solver.groupbalance = original_groupbalance
+
+
+def _solve_stage_or_raise(prob) -> None:
+    """Solve one lexicographic stage of the budget LP; raise if it fails.
+
+    Raises :exc:`~aliexpress.errors.FeasibilityError` (``infeasible_preferences``) on
+    infeasibility: the hard preference constraints (Extra zekerheid / Niet-samen)
+    contradict each other; main.py fills in which choices clash before surfacing this.
+    Infeasibility can only occur in stage 1 — stage 2 merely re-solves the same
+    feasible problem with the stage-1 optimum locked in — but checking both stages
+    identically is free and keeps the helper honest.
+    """
+    status = prob.solve(get_solver())
+    if pulp.LpStatus[status] == "Infeasible":
+        raise errors.FeasibilityError(
+            "infeasible_preferences",
+            technical_message="Hard preference constraints are mutually infeasible",
+        )
+    if pulp.LpStatus[status] != "Optimal":
+        raise ValueError("Could not determine the minimal class-balance relaxation")
 
 
 def check_balance_feasibility(solver) -> "pulp.LpProblem":
