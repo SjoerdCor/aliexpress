@@ -153,6 +153,24 @@ def calculate_added_satisfaction(preferences) -> dict:
 # ---------------------------------------------------------------------------
 
 
+def _threshold_big_m(graag_met: pd.DataFrame) -> float:
+    """Smallest safe big-M for the weighted-level threshold constraints.
+
+    The thresholded value is a student's weighted honored-preference sum, which lives
+    in ``[min negative weight sum, max positive weight sum]`` over all students; every
+    threshold is a subset sum and lies in that same interval.  A big-M spanning that
+    range (plus 1 as slack for the strict-inequality epsilon) is therefore sufficient,
+    and keeps the LP relaxation tight — an oversized M (the previous 1e6 default) makes
+    the relaxation nearly vacuous and branch-and-bound dramatically slower.
+    """
+    if graag_met.empty:
+        return 1.0
+    per_student = graag_met.groupby("Leerling")["Gewicht"]
+    pos_max = per_student.apply(lambda w: w[w > 0].sum()).max()
+    neg_min = per_student.apply(lambda w: w[w < 0].sum()).min()
+    return float(pos_max - neg_min) + 1.0
+
+
 def calculate_weighted_preferences(
     solver, satisfied: dict, prob: pulp.LpProblem
 ) -> dict:
@@ -189,9 +207,17 @@ def calculate_student_satisfaction(
     Applies the integral satisfaction metric to map each student's honored preferences
     to a single satisfaction variable. Students without positive preferences receive a
     baseline score so they do not drive the lexmaxmin objective.
+
+    Each satisfaction variable also gets tight per-student bounds (worst case: all
+    negative wishes violated; best case: everything honored, i.e. 1).  Integer solutions
+    always lie within these bounds, so the optimum is unchanged; the bounds only cut
+    fractional solutions, strengthening the LP relaxation.
     """
     added_satisfaction = calculate_added_satisfaction(solver.preferences)
     weighted_satisfied = calculate_weighted_preferences(solver, satisfied, prob)
+    threshold_big_m = _threshold_big_m(
+        preferences_data.get_graag_met(solver.preferences)
+    )
 
     for student in solver.students:
         student_weighted = [
@@ -211,6 +237,7 @@ def calculate_student_satisfaction(
             wp_satisfied,
             added_satisfaction.keys(),
             wp_satisfied_per_student,
+            M=threshold_big_m,
             eps=1e-3,  # Necessary to run lexmaxmin without errors; I dont know why
         )
 
@@ -219,22 +246,39 @@ def calculate_student_satisfaction(
             for n_wp, val in added_satisfaction.items()
         )
 
-        with warnings.catch_warnings(
-            action="ignore", category=pd.errors.PerformanceWarning
-        ):
-            # Add base satisfaction if no (positive) preferences, so maxmin optimizes
-            # for students with actual preferences
-            try:
-                preferences = solver.preferences.loc[(student, "Graag met")]
-            except KeyError:
-                satisfaction_current_student = 1
-            else:
-                positive_preferences = preferences.query("Gewicht > 0")
-                if positive_preferences.empty:
-                    satisfaction_current_student += 1
-                else:
-                    max_preferences = positive_preferences["Gewicht"].sum()
-                    max_satisfaction = get_satisfaction_integral(0, max_preferences)
-                    satisfaction_current_student /= max_satisfaction
+        satisfaction_current_student, low_bound, up_bound = _normalize_and_bound(
+            solver.preferences, student, satisfaction_current_student
+        )
+        solver.studentsatisfaction[student].bounds(low_bound, up_bound)
         prob += solver.studentsatisfaction[student] == satisfaction_current_student
     return solver.studentsatisfaction
+
+
+def _normalize_and_bound(all_preferences, student, raw_satisfaction):
+    """Normalize one student's raw satisfaction expression and derive its bounds.
+
+    Returns ``(expression, low_bound, up_bound)``.  Students without positive
+    preferences get a baseline of 1 so they do not drive the maxmin objective.
+    The bounds are the student's achievable extremes: worst case every negative
+    wish violated, best case everything honored (1).
+    """
+    with warnings.catch_warnings(
+        action="ignore", category=pd.errors.PerformanceWarning
+    ):
+        try:
+            preferences = all_preferences.loc[(student, "Graag met")]
+        except KeyError:
+            return 1, 1.0, 1.0
+        # Worst case: every negative wish is violated (<= 0, 0 without them).
+        negative_sum = preferences.query("Gewicht < 0")["Gewicht"].sum()
+        worst_case = get_satisfaction_integral(0, negative_sum)
+        positive_preferences = preferences.query("Gewicht > 0")
+        if positive_preferences.empty:
+            return raw_satisfaction + 1, 1 + worst_case, 1.0
+        max_preferences = positive_preferences["Gewicht"].sum()
+        max_satisfaction = get_satisfaction_integral(0, max_preferences)
+        return (
+            raw_satisfaction / max_satisfaction,
+            worst_case / max_satisfaction,
+            1.0,
+        )
