@@ -1,5 +1,7 @@
 """Characterisation tests for feasibility.py — diagnose and feasible_when_relaxed."""
 
+from unittest.mock import patch
+
 import pytest
 
 from aliexpress import errors
@@ -208,6 +210,22 @@ class TestMinimalRelaxationBudget:
         preference_data, target_groups = _load_full_scenario()
         solver = _make_solver(preference_data, target_groups)
         assert feasibility.minimal_relaxation_budget(solver) == pytest.approx(8.98)
+
+    def test_budget_seeds_then_solves_two_stages(self):
+        """The budget runs three solves: a cheap feasibility seed (populating every
+        variable for the warm start), then the two lexicographic stages."""
+        preference_data, target_groups = _balanced_feasible()
+        solver = _make_solver(preference_data, target_groups)
+        calls = []
+        original = feasibility.get_solver
+
+        def counting_get_solver():
+            calls.append(1)
+            return original()
+
+        with patch.object(feasibility, "get_solver", counting_get_solver):
+            feasibility.minimal_relaxation_budget(solver)
+        assert len(calls) == 3
 
     def test_budget_raises_feasibility_error_for_infeasible_preferences(self):
         """Hard preference clash raises FeasibilityError('infeasible_preferences')."""
