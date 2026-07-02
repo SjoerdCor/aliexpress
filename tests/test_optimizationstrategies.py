@@ -1,6 +1,6 @@
 """Test for optimization strategies"""
 
-# pylint: disable=redefined-outer-name
+# pylint: disable=redefined-outer-name, protected-access
 from unittest.mock import patch
 
 import pulp
@@ -208,6 +208,26 @@ def test_lexmaxmin_raises_clear_error_on_second_non_optimal_solve():
     with patch.object(prob, "solve", mock_solve):
         with pytest.raises(SolverError, match="Infeasible"):
             optimizationstrategies.plateaud_lexmaxmin(scores, prob)
+
+
+def test_lexmaxmin_big_m_derived_from_score_bounds():
+    """The big-M spans the scores' bound range instead of a fixed constant."""
+    prob = pulp.LpProblem("BigM", pulp.LpMaximize)
+    scores = {
+        "a": pulp.LpVariable("a", lowBound=-2, upBound=1),
+        "b": pulp.LpVariable("b", lowBound=0, upBound=1),
+    }
+    solver = optimizationstrategies._PlateaudLexMaxMin(scores, prob, None)
+    # Range [-2, 1] -> spread 3, plus 1 margin.
+    assert solver.big_m == pytest.approx(4.0)
+
+
+def test_lexmaxmin_big_m_falls_back_when_unbounded():
+    """Scores without bounds fall back to the conservative class constant."""
+    prob = pulp.LpProblem("BigMFallback", pulp.LpMaximize)
+    scores = {"a": pulp.LpVariable("a")}
+    solver = optimizationstrategies._PlateaudLexMaxMin(scores, prob, None)
+    assert solver.big_m == optimizationstrategies._PlateaudLexMaxMin.BIG_M_FALLBACK
 
 
 def test_lexmaxmin_multiple_plateaus():
