@@ -170,9 +170,11 @@ def roster_page(school_id):
     if mode == "redistribute":
         prev_url = url_for("wizard.select_groups")
         prev_label = "← Naar Groepskeuze"
+        next_label = "Naar Voorkeuren →"
     else:
         prev_url = url_for("wizard.upload_edexml")
         prev_label = "← Naar Schoolinformatie uploaden"
+        next_label = "Naar Groepen naartoe →"
 
     return render_template(
         "roster.html",
@@ -182,6 +184,7 @@ def roster_page(school_id):
         groups_from=groups_from,
         prev_url=prev_url,
         prev_label=prev_label,
+        next_label=next_label,
     )
 
 

@@ -267,6 +267,34 @@ class TestGroupsToPage:
         assert "Nieuwe groep 1" in html  # restored new group is rendered
 
 
+class TestGroupsToRedistribute:
+    """Tests for /groups_to in redistribute mode (auto-passthrough, no page shown)."""
+
+    def _setup(self, client, tmp_path, groups=("3A", "3B")):
+        proc_dir = setup_process(client, tmp_path)
+        (proc_dir / "mode.json").write_text('{"mode":"redistribute"}', encoding="utf-8")
+        write_groups_to_json(proc_dir, {g: [] for g in groups})
+        return proc_dir
+
+    def test_get_auto_redirects_and_writes_groups_xlsx(self, client, tmp_path):
+        """GET /groups_to in redistribute mode auto-writes groups.xlsx and redirects."""
+        proc_dir = self._setup(client, tmp_path)
+        resp = client.get("/groups_to")
+        assert resp.status_code == 302
+        assert resp.headers["Location"].endswith("/preferences_form")
+        df = pd.read_excel(proc_dir / "groups.xlsx", index_col=0)
+        assert (df.loc[["3A", "3B"]] == 0).all().all()
+        method = json.loads((proc_dir / "input_method.json").read_text("utf-8"))
+        assert method["method"] == "form"
+
+    def test_post_also_auto_redirects_to_preferences_form(self, client, tmp_path):
+        """POST /groups_to in redistribute mode is the same: transparent passthrough."""
+        self._setup(client, tmp_path)
+        resp = client.post("/groups_to")
+        assert resp.status_code == 302
+        assert resp.headers["Location"].endswith("/preferences_form")
+
+
 class TestParseGroupsToForm:
     """Tests for the form-parsing helper parse_groups_to_form."""
 

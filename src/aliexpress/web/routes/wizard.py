@@ -605,6 +605,23 @@ def select_groups():
     return _select_groups_post(df, school_id, process_id)
 
 
+def _groups_to_auto_redistribute(school_id, process_id, groups_to):
+    """Write groups.xlsx (zero occupancy per group) and redirect straight to preferences_form."""
+    distribution = {g: {"Jongens": 0, "Meisjes": 0} for g in groups_to}
+    path = get_file_path(school_id, process_id, "groups.xlsx")
+    pd.DataFrame(distribution).transpose().to_excel(path, index_label="Groepen")
+    with open(
+        get_file_path(school_id, process_id, "input_method.json"), "w", encoding="utf-8"
+    ) as f:
+        json.dump({"method": "form"}, f)
+    logger.info(
+        "Groups-to auto-written for redistribute process %s: %d groups, zero occupancy",
+        process_id,
+        len(distribution),
+    )
+    return redirect(url_for("wizard.preferences_form"))
+
+
 @wizard_bp.route("/groups_to", methods=["GET", "POST"])
 @login_required
 @require_process
@@ -615,6 +632,10 @@ def groups_to_page():
         return redirect(url_for("admin.dashboard"))
     process_id = session["process_id"]
     groups_to = _load_groups_to(school_id, process_id)
+    mode = get_process_mode(get_process_path(school_id, process_id))
+
+    if mode == "redistribute":
+        return _groups_to_auto_redistribute(school_id, process_id, groups_to)
 
     if request.method == "GET":
         return render_template(
@@ -784,6 +805,19 @@ def upload_preferences():
     return redirect(url_for("wizard.not_together_page"))
 
 
+def _apply_draft_preferences(
+    draft_state, participants, display_candidates, all_groups_to, group_display
+):
+    """Mutate display_candidates in-place with saved min_satisfaction; return notices to flash."""
+    if not draft_state:
+        return []
+    group_labels = [group_display[g] for g in all_groups_to]
+    ms_by_key = {s["key"]: s.get("min_satisfaction") for s in draft_state["students"]}
+    for candidate in display_candidates:
+        candidate["min_satisfaction"] = ms_by_key.get(candidate["key"])
+    return list(_reconcile_dangling(draft_state, participants, group_labels))
+
+
 def _handle_pref_form_post(participants, all_groups_to, state_path, voorkeuren_path):
     """Process a POST to /preferences_form and return the response to send.
 
@@ -848,17 +882,17 @@ def preferences_form():
     # target was removed from the roster, with a friendly notice about what was removed.
     draft_state = _load_pref_form_state(state_path)
     display_candidates = sorted_for_display(participants)
-    if draft_state:
-        group_labels = [group_display[g] for g in all_groups_to]
-        for notice in _reconcile_dangling(draft_state, participants, group_labels):
-            flash(notice, "info")
-        # The preference chips are restored client-side from the draft; carry over the
-        # one server-rendered field (min. satisfaction) so its radio reflects the draft.
-        ms_by_key = {
-            s["key"]: s.get("min_satisfaction") for s in draft_state["students"]
-        }
-        for candidate in display_candidates:
-            candidate["min_satisfaction"] = ms_by_key.get(candidate["key"])
+    for notice in _apply_draft_preferences(
+        draft_state, participants, display_candidates, all_groups_to, group_display
+    ):
+        flash(notice, "info")
+
+    if get_process_mode(get_process_path(school_id, process_id)) == "redistribute":
+        prev_url = url_for("roster.roster_page")
+        prev_label = "← Naar Wie gaat mee"
+    else:
+        prev_url = url_for("wizard.groups_to_page")
+        prev_label = "← Naar Groepen naartoe"
 
     return render_template(
         "preferences_form.html",
@@ -867,6 +901,8 @@ def preferences_form():
         group_display=group_display,
         draft_state=draft_state,
         short_names=candidatedetermination.unique_display_names(participants),
+        prev_url=prev_url,
+        prev_label=prev_label,
     )
 
 
