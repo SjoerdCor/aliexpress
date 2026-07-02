@@ -210,6 +210,52 @@ def test_lexmaxmin_raises_clear_error_on_second_non_optimal_solve():
             optimizationstrategies.plateaud_lexmaxmin(scores, prob)
 
 
+def test_lexmaxmin_level0_warm_started_from_seeded_scores():
+    """When the scores already carry values (a seed solve ran), level 0's
+    MinimalScore variable starts at the lowest score instead of unvalued."""
+    prob = pulp.LpProblem("Level0Warm", pulp.LpMaximize)
+    a = pulp.LpVariable("a", lowBound=0, upBound=10)
+    b = pulp.LpVariable("b", lowBound=0, upBound=10)
+    a.setInitialValue(3)
+    b.setInitialValue(7)
+    lex = optimizationstrategies._PlateaudLexMaxMin({"a": a, "b": b}, prob, None)
+
+    seen = {}
+
+    def capture_and_stop(level):
+        minimal_score = next(
+            v for v in prob.variables() if v.name == f"MinimalScore_{level}"
+        )
+        seen["initial"] = minimal_score.varValue
+        raise SolverError("stop after capture")
+
+    with patch.object(lex, "_solve_and_check", capture_and_stop):
+        with pytest.raises(SolverError, match="stop after capture"):
+            lex.solve()
+    assert seen["initial"] == pytest.approx(3)
+
+
+def test_lexmaxmin_level0_no_warm_start_without_values():
+    """Without prior values the MinimalScore variable stays unvalued."""
+    prob = pulp.LpProblem("Level0Cold", pulp.LpMaximize)
+    scores = {"a": pulp.LpVariable("a", lowBound=0, upBound=10)}
+    lex = optimizationstrategies._PlateaudLexMaxMin(scores, prob, None)
+
+    seen = {}
+
+    def capture_and_stop(level):
+        minimal_score = next(
+            v for v in prob.variables() if v.name == f"MinimalScore_{level}"
+        )
+        seen["initial"] = minimal_score.varValue
+        raise SolverError("stop after capture")
+
+    with patch.object(lex, "_solve_and_check", capture_and_stop):
+        with pytest.raises(SolverError, match="stop after capture"):
+            lex.solve()
+    assert seen["initial"] is None
+
+
 def test_lexmaxmin_big_m_derived_from_score_bounds():
     """The big-M spans the scores' bound range instead of a fixed constant."""
     prob = pulp.LpProblem("BigM", pulp.LpMaximize)

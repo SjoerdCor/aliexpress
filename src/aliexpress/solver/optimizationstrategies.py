@@ -171,6 +171,12 @@ class _PlateaudLexMaxMin:
         """Maximize the minimal score to find the next plateau ``level``; return its value."""
         minimal_score = pulp.LpVariable(f"MinimalScore_{level}")
         if level == 0:
+            # When a seed solve already valued the scores, the lowest of them is a
+            # feasible start for the new variable, completing the warm start (see
+            # WarmStartHiGHS).  Without values the solve simply starts cold.
+            score_values = [pulp.value(score) for score in self.scores.values()]
+            if None not in score_values:
+                minimal_score.setInitialValue(min(score_values))
             for satisfaction in self.scores.values():
                 self.prob += minimal_score <= satisfaction
         else:
