@@ -11,6 +11,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 
+import highspy
 import pulp
 
 # Per-thread solver log path: set by _run_solve_thread before each solve so that
@@ -69,6 +70,40 @@ class GroupBalance:
 STRICTEST_BALANCE = GroupBalance(1, 1, 1, 1, 1, 1)
 
 
+def _initial_solution(lp: pulp.LpProblem) -> list | None:
+    """Current variable values as a HiGHS start vector, or None when incomplete.
+
+    The vector follows ``lp.variables()`` order, which is the column order used by
+    pulp's HiGHS ``buildSolverModel``.  Returns None when any variable has no value
+    yet (nothing to warm-start from, e.g. the very first solve).
+    """
+    values = [v.varValue for v in lp.variables()]
+    if any(value is None for value in values):
+        return None
+    return values
+
+
+class WarmStartHiGHS(pulp.HiGHS):
+    """HiGHS solver that passes the variables' current values as a MIP start.
+
+    The sequential solves (lexmaxmin levels, the lexicographic budget stages) each
+    re-solve a grown version of the same problem, and the previous optimum — plus
+    initial values the algorithm sets for its new level variables — is a feasible
+    start.  Handing it to HiGHS gives branch-and-bound an immediate incumbent to
+    prune with, instead of spending most of its time finding a first good solution.
+    An infeasible or incomplete start is simply ignored by HiGHS, so this is safe
+    for every solve.
+    """
+
+    def callSolver(self, lp):
+        start = _initial_solution(lp)
+        if start is not None:
+            solution = highspy.HighsSolution()
+            solution.col_value = start
+            lp.solverModel.setSolution(solution)
+        super().callSolver(lp)
+
+
 def get_solver() -> pulp.HiGHS:
     """Return the HiGHS PuLP solver with proven-optimum settings."""
     # gapRel=0 so we always get the proven optimum, not an early cutoff.
@@ -77,4 +112,4 @@ def get_solver() -> pulp.HiGHS:
     log_path = _SOLVER_LOG_PATH.get() or os.path.join(
         tempfile.gettempdir(), "aliexpress-solver.log"
     )
-    return pulp.HiGHS(logPath=log_path, msg=False, gapRel=0)
+    return WarmStartHiGHS(logPath=log_path, msg=False, gapRel=0)

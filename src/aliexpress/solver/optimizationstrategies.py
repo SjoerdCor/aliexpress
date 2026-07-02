@@ -174,6 +174,9 @@ class _PlateaudLexMaxMin:
             for satisfaction in self.scores.values():
                 self.prob += minimal_score <= satisfaction
         else:
+            # Feasible start for the new variable: together with the previous solve's
+            # values this gives the solver a complete warm start (see WarmStartHiGHS).
+            minimal_score.setInitialValue(self.m_val + self.EPS)
             self.prob += minimal_score >= self.m_val + self.EPS
             for student, satisfaction in self.scores.items():
                 self.prob += (
@@ -203,6 +206,11 @@ class _PlateaudLexMaxMin:
         self.has_this_level = pulp.LpVariable.dicts(
             f"HasThisLevel_{level}", self.scores.keys(), cat="Binary"
         )
+        # Feasible start for the new binaries, read off the previous solve: a score
+        # already above the plateau threshold means "on this level" (see WarmStartHiGHS).
+        for key, score in self.scores.items():
+            on_level = pulp.value(score) >= self.m_val + self.DELTA
+            self.has_this_level[key].setInitialValue(1 if on_level else 0)
         for key, value in self.scores.items():
             pulp_thresholds.apply_threshold_constraint(
                 self.prob,
