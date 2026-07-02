@@ -2,10 +2,14 @@
 
 # pylint: disable=protected-access
 
+import math
+
 import pandas as pd
+import pulp
 import pytest
 
 from aliexpress.solver import satisfaction
+from aliexpress.solver.problemsolver import ProblemSolver
 
 
 def test_get_satisfaction_integral_basic():
@@ -74,3 +78,81 @@ def test_calculate_added_satisfaction_monotonic():
 
     expected = {1: 0.5, 2: 0.25, 3: 0.125}
     assert added == expected
+
+
+# ---------------------------------------------------------------------------
+# Variable bounds and big-M sizing (LP strength)
+# ---------------------------------------------------------------------------
+
+
+def _student() -> dict:
+    return {
+        "Stamgroep": "A",
+        "Jongen/meisje": "Jongen",
+        "MinimaleTevredenheid": math.nan,
+        "Jaarlaag": 6,
+    }
+
+
+def _bounds_solver() -> ProblemSolver:
+    """anna: one positive (w=1) and one negative (w=-1) wish; bram: one positive;
+    carla: no preferences at all."""
+    records = [
+        ("anna", 1, "bram", 1.0),
+        ("anna", 2, "carla", -1.0),
+        ("bram", 1, "anna", 1.0),
+    ]
+    df = pd.DataFrame(
+        [
+            {
+                "Leerling": s,
+                "TypeWens": "Graag met",
+                "Nr": nr,
+                "Waarde": target,
+                "Gewicht": w,
+            }
+            for s, nr, target, w in records
+        ]
+    ).set_index(["Leerling", "TypeWens", "Nr"])
+    df.columns.name = "TypeWaarde"
+    students = {name: _student() for name in ("anna", "bram", "carla")}
+    groups = {
+        "blauw": {"Jongens": 0, "Meisjes": 0},
+        "rood": {"Jongens": 0, "Meisjes": 0},
+    }
+    return ProblemSolver(df, students, groups, [])
+
+
+def test_student_satisfaction_variables_get_tight_bounds():
+    """calculate_student_satisfaction bounds each satisfaction variable by the
+    student's own achievable range, strengthening the LP relaxation."""
+    solver = _bounds_solver()
+    prob = pulp.LpProblem("bounds", pulp.LpMaximize)
+    satisfied = solver.add_variables_which_preferences_satisfied(prob=prob)
+    satisfaction.calculate_student_satisfaction(solver, satisfied, prob)
+
+    # anna: max_satisfaction = integral(0,1) = 0.5.  Worst case: negative wish
+    # violated -> integral(0,-1) = -1, normalized -1/0.5 = -2.  Best case: 1.
+    anna = solver.studentsatisfaction["anna"]
+    assert anna.lowBound == pytest.approx(-2.0)
+    assert anna.upBound == pytest.approx(1.0)
+
+    # bram: only a positive wish -> [0, 1].
+    bram = solver.studentsatisfaction["bram"]
+    assert bram.lowBound == pytest.approx(0.0)
+    assert bram.upBound == pytest.approx(1.0)
+
+    # carla: no preferences -> constant baseline 1.
+    carla = solver.studentsatisfaction["carla"]
+    assert carla.lowBound == pytest.approx(1.0)
+    assert carla.upBound == pytest.approx(1.0)
+
+
+def test_threshold_big_m_sized_from_weights():
+    """The big-M for the level thresholds spans the achievable weighted range
+    (max positive sum to min negative sum) instead of a fixed huge constant."""
+    solver = _bounds_solver()
+    graag_met = solver.preferences.droplevel("TypeWens")
+    # anna: pos_sum=1, neg_sum=-1; bram: pos_sum=1 -> range [-1, 1], M = 2 + margin.
+    big_m = satisfaction._threshold_big_m(graag_met)
+    assert big_m == pytest.approx(3.0)
