@@ -21,23 +21,30 @@ def _small_problem() -> tuple[pulp.LpProblem, dict]:
     return prob, {"x": x, "y": y}
 
 
-def test_initial_solution_none_when_values_missing():
+def test_partial_start_none_without_any_values():
     """Without previous values there is nothing to warm-start from."""
     prob, _ = _small_problem()
-    assert _balance._initial_solution(prob) is None
+    for i, var in enumerate(prob.variables()):
+        var.index = i
+    assert _balance._partial_start(prob) is None
 
 
-def test_initial_solution_follows_variable_order():
-    """A complete value set is returned in lp.variables() (column) order."""
+def test_partial_start_covers_only_valued_variables():
+    """Only variables carrying a value appear, as (column index, value) pairs."""
     prob, variables = _small_problem()
-    variables["x"].setInitialValue(0)
+    y_column = None
+    for i, var in enumerate(prob.variables()):
+        var.index = i
+        if var.name == "y":
+            y_column = i
     variables["y"].setInitialValue(1)
-    expected = [v.varValue for v in prob.variables()]
-    assert _balance._initial_solution(prob) == expected
+    indices, values = _balance._partial_start(prob)
+    assert list(indices) == [y_column]
+    assert list(values) == [1.0]
 
 
 def test_warm_start_solver_passes_solution_to_highs():
-    """WarmStartHiGHS hands the current values to HiGHS as a MIP start."""
+    """WarmStartHiGHS hands the current values to HiGHS as a partial MIP start."""
     prob, variables = _small_problem()
     variables["x"].setInitialValue(0)
     variables["y"].setInitialValue(1)
@@ -46,8 +53,10 @@ def test_warm_start_solver_passes_solution_to_highs():
         prob.solve(_balance.WarmStartHiGHS(msg=False, gapRel=0))
 
     set_solution.assert_called_once()
-    passed = set_solution.call_args.args[-1]
-    assert list(passed.col_value) == [0, 1]
+    n_entries, indices, values = set_solution.call_args.args[-3:]
+    assert n_entries == 2
+    assert len(indices) == 2
+    assert sorted(values) == [0.0, 1.0]
     # The warm start must not change the optimum.
     assert prob.status == pulp.LpStatusOptimal
     assert pulp.value(prob.objective) == pytest.approx(2.0)

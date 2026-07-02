@@ -11,7 +11,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 
-import highspy
+import numpy as np
 import pulp
 
 # Per-thread solver log path: set by _run_solve_thread before each solve so that
@@ -70,29 +70,31 @@ class GroupBalance:
 STRICTEST_BALANCE = GroupBalance(1, 1, 1, 1, 1, 1)
 
 
-def _initial_solution(lp: pulp.LpProblem) -> list | None:
-    """Current variable values as a HiGHS start vector, or None when incomplete.
+def _partial_start(lp: pulp.LpProblem) -> tuple | None:
+    """Indices and values of the variables that already carry a value.
 
-    The vector follows ``lp.variables()`` order, which is the column order used by
-    pulp's HiGHS ``buildSolverModel``.  Returns None when any variable has no value
-    yet (nothing to warm-start from, e.g. the very first solve).
+    Returns ``(indices, values)`` numpy arrays over ``var.index`` (the column
+    numbers assigned by pulp's HiGHS ``buildSolverModel``), or None when no
+    variable has a value yet (nothing to warm-start from: the very first solve).
     """
-    values = [v.varValue for v in lp.variables()]
-    if any(value is None for value in values):
+    valued = [(v.index, v.varValue) for v in lp.variables() if v.varValue is not None]
+    if not valued:
         return None
-    return values
+    indices, values = zip(*valued)
+    return np.array(indices, dtype=np.int32), np.array(values, dtype=np.float64)
 
 
 class WarmStartHiGHS(pulp.HiGHS):
     """HiGHS solver that passes the variables' current values as a MIP start.
 
     The sequential solves (lexmaxmin levels, the lexicographic budget stages) each
-    re-solve a grown version of the same problem, and the previous optimum — plus
-    initial values the algorithm sets for its new level variables — is a feasible
-    start.  Handing it to HiGHS gives branch-and-bound an immediate incumbent to
-    prune with, instead of spending most of its time finding a first good solution.
-    An infeasible or incomplete start is simply ignored by HiGHS, so this is safe
-    for every solve.
+    re-solve a grown or derived version of the same problem, and the previous
+    solution over the *shared* variables is a high-quality start.  The values are
+    handed to HiGHS as a partial MIP start: HiGHS completes the unvalued variables
+    itself by solving a small restricted MIP.  This gives branch-and-bound an
+    immediate incumbent to prune with, instead of spending most of its time finding
+    a first good solution.  An infeasible start is simply discarded by HiGHS, so
+    this is safe for every solve.
 
     ``threads`` defaults to every logical core here, in the class itself, because
     HiGHS initializes its global scheduler at the first parallel solve in the
@@ -106,11 +108,10 @@ class WarmStartHiGHS(pulp.HiGHS):
         super().__init__(*args, **kwargs)
 
     def callSolver(self, lp):
-        start = _initial_solution(lp)
+        start = _partial_start(lp)
         if start is not None:
-            solution = highspy.HighsSolution()
-            solution.col_value = start
-            lp.solverModel.setSolution(solution)
+            indices, values = start
+            lp.solverModel.setSolution(len(indices), indices, values)
         super().callSolver(lp)
 
 

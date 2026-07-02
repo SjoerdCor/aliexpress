@@ -524,6 +524,9 @@ class ProblemSolver:
             self, satisfied, self.prob
         )
         self.prob += feasibility.weighted_relaxation(self.prob) <= budget + 1e-6
+        # No seed solve needed here: the shared assignment variables still carry the
+        # budget stage's solution, which WarmStartHiGHS hands to HiGHS as a partial
+        # start for the first lexmaxmin level (HiGHS completes the derived variables).
         optimizationstrategies.set_optimization_target(self, studentsatisfaction)
         self.solve()
 
