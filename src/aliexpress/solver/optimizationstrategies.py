@@ -70,15 +70,33 @@ class _PlateaudLexMaxMin:
 
     EPS = 1e-5  # numerical precision
     DELTA = 1e-4  # step size between plateaus
-    BIG_M = 100  # big-M for the threshold constraints
+    # Conservative big-M fallback for scores without variable bounds.  Only used when a
+    # caller passes unbounded scores; calculate_student_satisfaction always sets bounds.
+    BIG_M_FALLBACK = 100
 
     def __init__(self, scores, prob, solver):
         self.scores = scores
         self.prob = prob
         self.solver = solver or pulp.PULP_CBC_CMD()
+        self.big_m = self._derive_big_m(scores)
         # Carried from the previous level into the next.
         self.m_val = None
         self.has_this_level = None
+
+    @classmethod
+    def _derive_big_m(cls, scores) -> float:
+        """Smallest safe big-M for the plateau threshold constraints.
+
+        Every constraint couples one score with one plateau value, and plateau values
+        are themselves scores; the largest gap big-M must bridge is therefore the width
+        of the scores' bound range (plus 1 as slack for the epsilons).  A tight big-M
+        keeps the LP relaxation strong; see satisfaction._threshold_big_m for the same
+        argument.
+        """
+        bounds = [(v.lowBound, v.upBound) for v in scores.values()]
+        if any(b is None for pair in bounds for b in pair):
+            return cls.BIG_M_FALLBACK
+        return max(ub for _, ub in bounds) - min(lb for lb, _ in bounds) + 1.0
 
     def solve(self, n_levels_max=None, satisfaction_max=None) -> pulp.LpVariable:
         """Run the level-by-level optimization, adding constraints to the problem.
@@ -161,7 +179,7 @@ class _PlateaudLexMaxMin:
                 self.prob += (
                     minimal_score
                     <= satisfaction
-                    + (1 - self.has_this_level[student]) * self.BIG_M
+                    + (1 - self.has_this_level[student]) * self.big_m
                     + self.EPS
                 ), f"MinimalSatisfactionLT{student}_{level}"
         self.prob.sense = pulp.LpMaximize
@@ -191,7 +209,7 @@ class _PlateaudLexMaxMin:
                 value,
                 self.m_val + self.DELTA,
                 self.has_this_level[key],
-                M=self.BIG_M,
+                M=self.big_m,
             )
         self.prob.sense = pulp.LpMaximize
         self.prob.setObjective(pulp.lpSum(self.has_this_level.values()))
