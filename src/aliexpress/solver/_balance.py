@@ -93,7 +93,17 @@ class WarmStartHiGHS(pulp.HiGHS):
     prune with, instead of spending most of its time finding a first good solution.
     An infeasible or incomplete start is simply ignored by HiGHS, so this is safe
     for every solve.
+
+    ``threads`` defaults to every logical core here, in the class itself, because
+    HiGHS initializes its global scheduler at the first parallel solve in the
+    process: a later solve asking for *more* threads than that first one fails with
+    'Not Solved'.  A class-level default makes the first solve the largest ask, so
+    the order of solves can never break (verified empirically).
     """
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("threads", os.cpu_count())
+        super().__init__(*args, **kwargs)
 
     def callSolver(self, lp):
         start = _initial_solution(lp)
@@ -112,4 +122,17 @@ def get_solver() -> pulp.HiGHS:
     log_path = _SOLVER_LOG_PATH.get() or os.path.join(
         tempfile.gettempdir(), "aliexpress-solver.log"
     )
-    return WarmStartHiGHS(logPath=log_path, msg=False, gapRel=0)
+    return WarmStartHiGHS(
+        logPath=log_path,
+        msg=False,
+        gapRel=0,
+        # Parallel tree search comes from the WarmStartHiGHS class default (all
+        # logical cores; measured: 8 threads closed a stage-1 gap from 99.9% to 4.7%
+        # within the same time budget).
+        #
+        # Spend more of the search on finding incumbents (HiGHS default: 0.05).  Since
+        # the big-M tightening the bound side is strong; the measured bottleneck is the
+        # primal side (improving warm-start incumbents), which heuristics accelerate.
+        # The optimum is unaffected - only the order of exploration changes.
+        mip_heuristic_effort=0.25,
+    )
