@@ -462,11 +462,11 @@ def test_solver_stacks_duplicate_group_preferences():
             "Jongen",
             "A",
             None,
-            [together("Blauw", 2.0), together("Blauw", 0.5)],
+            preferences=[together("Blauw", 2.0), together("Blauw", 0.5)],
         ),
-        StudentEntry("Jane", "Meisje", "B", None, [together("Blauw", 2.0)]),
-        StudentEntry("Tom", "Jongen", "C", None, []),
-        StudentEntry("Sara", "Meisje", "D", None, []),
+        StudentEntry("Jane", "Meisje", "B", None, preferences=[together("Blauw", 2.0)]),
+        StudentEntry("Tom", "Jongen", "C", None),
+        StudentEntry("Sara", "Meisje", "D", None),
     ]
     target_groups = GroupCounts(
         counts={

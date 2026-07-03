@@ -15,7 +15,8 @@ non-positive weight is rejected at construction time by :class:`Preference`.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import numbers
+from dataclasses import KW_ONLY, dataclass, field
 from enum import Enum
 
 import numpy as np
@@ -57,7 +58,8 @@ class StudentEntry:
 
     ``student``, ``origin_group`` and each preference ``target`` hold the names exactly as
     entered; the builder normalises them to matching keys. ``excluded_groups`` holds group
-    names only.
+    names only. ``year_group`` is ``None`` in doorzetten mode, where students have no
+    year cohort.
     """
 
     student: str
@@ -65,8 +67,18 @@ class StudentEntry:
     origin_group: str  # the student's current group
     min_satisfaction: float | None
     year_group: int | None = None
+    _: KW_ONLY
     preferences: list[Preference] = field(default_factory=list)
     excluded_groups: list[str] = field(default_factory=list)
+
+    def __post_init__(self):
+        # Integral (not int) so pandas/numpy integers from the wizard pass too.
+        if self.year_group is not None and not isinstance(
+            self.year_group, numbers.Integral
+        ):
+            raise TypeError(
+                f"year_group must be a whole number or None, got {self.year_group!r}"
+            )
 
 
 def build_preference_data(
