@@ -124,6 +124,18 @@ def test_duplicate_target_within_one_student_is_rejected():
     assert exc.value.check.name == "duplicated_values_preferences"
 
 
+def test_student_entry_rejects_non_integer_year_group():
+    """``year_group`` accepts only a whole number or None; anything else fails loudly."""
+    with pytest.raises(TypeError):
+        StudentEntry("John", "Jongen", "A", None, [_together("Jane", 1.0)])
+
+
+def test_student_entry_preferences_are_keyword_only():
+    """``preferences`` and ``excluded_groups`` can only be passed by name."""
+    with pytest.raises(TypeError):
+        StudentEntry("John", "Jongen", "A", None, 5, [_together("Jane", 1.0)])
+
+
 def test_duplicate_group_target_is_allowed():
     """The same group twice for one student is allowed: group preferences stack (ADR 0004)."""
     students = [
