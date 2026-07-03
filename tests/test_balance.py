@@ -62,23 +62,26 @@ def test_warm_start_solver_passes_solution_to_highs():
     assert pulp.value(prob.objective) == pytest.approx(2.0)
 
 
-def test_get_solver_uses_warm_start_all_cores_and_heuristics():
-    """get_solver returns the warm-start solver, uses every core and raised
-    heuristic effort: the primal (incumbent) side is the measured bottleneck."""
+def test_get_solver_uses_warm_start_capped_threads_and_heuristics():
+    """get_solver returns the warm-start solver with threads capped at 8 (HiGHS is
+    memory-bound beyond that) and raised heuristic effort: the primal (incumbent)
+    side is the measured bottleneck."""
     solver = _balance.get_solver()
     assert isinstance(solver, _balance.WarmStartHiGHS)
-    assert solver.threads == os.cpu_count()
+    assert solver.threads == min(os.cpu_count(), 8)
     assert solver.optionsDict["mip_heuristic_effort"] == pytest.approx(0.25)
 
 
-def test_warm_start_solver_defaults_to_all_cores():
-    """Every WarmStartHiGHS asks for all cores, whatever the construction site.
+def test_warm_start_solver_defaults_to_capped_threads():
+    """Every WarmStartHiGHS asks for the same capped thread count, whatever the
+    construction site.
 
     HiGHS initializes its global scheduler at the first parallel solve in the
     process; a later solve asking for more threads than that first one returns
     'Not Solved'.  The class-level default makes the first ask the largest, so
-    solve order cannot break (regression for the mixed-thread-count failure)."""
-    assert _balance.WarmStartHiGHS(msg=False).threads == os.cpu_count()
+    solve order cannot break (regression for the mixed-thread-count failure).
+    The cap of 8 follows the HiGHS docs (memory-bound beyond ~8) and measurement."""
+    assert _balance.WarmStartHiGHS(msg=False).threads == min(os.cpu_count(), 8)
     prob, variables = _small_problem()
     variables["x"].setInitialValue(0)
     variables["y"].setInitialValue(1)

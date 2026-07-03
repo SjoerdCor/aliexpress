@@ -96,15 +96,20 @@ class WarmStartHiGHS(pulp.HiGHS):
     a first good solution.  An infeasible start is simply discarded by HiGHS, so
     this is safe for every solve.
 
-    ``threads`` defaults to every logical core here, in the class itself, because
-    HiGHS initializes its global scheduler at the first parallel solve in the
-    process: a later solve asking for *more* threads than that first one fails with
-    'Not Solved'.  A class-level default makes the first solve the largest ask, so
-    the order of solves can never break (verified empirically).
+    ``threads`` defaults to at most 8 cores: per the HiGHS documentation most of its
+    computation is memory-bound, so more threads rarely help — and measured on the
+    herindelen benchmark, 8 threads beat 20 by ~1.5x.  The default lives here, in
+    the class itself, because HiGHS initializes its global scheduler at the first
+    parallel solve in the process: a later solve asking for *more* threads than
+    that first one fails with 'Not Solved'.  A class-level default makes the first
+    solve the largest ask, so the order of solves can never break (verified
+    empirically).
     """
 
+    MAX_USEFUL_THREADS = 8  # per HiGHS docs: memory-bound beyond ~8 threads
+
     def __init__(self, *args, **kwargs):
-        kwargs.setdefault("threads", os.cpu_count())
+        kwargs.setdefault("threads", min(os.cpu_count(), self.MAX_USEFUL_THREADS))
         super().__init__(*args, **kwargs)
 
     def callSolver(self, lp):
@@ -127,9 +132,10 @@ def get_solver() -> pulp.HiGHS:
         logPath=log_path,
         msg=False,
         gapRel=0,
-        # Parallel tree search comes from the WarmStartHiGHS class default (all
-        # logical cores; measured: 8 threads closed a stage-1 gap from 99.9% to 4.7%
-        # within the same time budget).
+        # Parallel tree search comes from the WarmStartHiGHS class default (at most
+        # 8 threads; measured: 8 threads closed a stage-1 gap from 99.9% to 4.7%
+        # within the same time budget, and beat 20 threads by ~1.5x on the
+        # herindelen benchmark).
         #
         # Spend more of the search on finding incumbents (HiGHS default: 0.05).  Since
         # the big-M tightening the bound side is strong; the measured bottleneck is the
