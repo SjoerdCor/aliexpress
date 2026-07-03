@@ -148,11 +148,71 @@ def test_student_satisfaction_variables_get_tight_bounds():
     assert carla.upBound == pytest.approx(1.0)
 
 
-def test_threshold_big_m_sized_from_weights():
-    """The big-M for the level thresholds spans the achievable weighted range
-    (max positive sum to min negative sum) instead of a fixed huge constant."""
+def _maximized_satisfaction(fixed_satisfied: dict[tuple, int]) -> dict[str, float]:
+    """Solve for max total satisfaction with the wish outcomes pinned to
+    ``fixed_satisfied``; return the satisfaction value per student."""
     solver = _bounds_solver()
-    graag_met = solver.preferences.droplevel("TypeWens")
-    # anna: pos_sum=1, neg_sum=-1; bram: pos_sum=1 -> range [-1, 1], M = 2 + margin.
-    big_m = satisfaction._threshold_big_m(graag_met)
-    assert big_m == pytest.approx(3.0)
+    prob = pulp.LpProblem("envelope", pulp.LpMaximize)
+    satisfied = solver.add_variables_which_preferences_satisfied(prob=prob)
+    satisfaction.calculate_student_satisfaction(solver, satisfied, prob)
+    for key, value in fixed_satisfied.items():
+        prob += satisfied[key] == value
+    prob += pulp.lpSum(solver.studentsatisfaction.values())
+    prob.solve(pulp.PULP_CBC_CMD(msg=False))
+    assert pulp.LpStatus[prob.status] == "Optimal"
+    return {s: pulp.value(v) for s, v in solver.studentsatisfaction.items()}
+
+
+def test_satisfaction_equals_staircase_when_all_honored():
+    """Everything honored: every satisfaction lands exactly on 1."""
+    values = _maximized_satisfaction({("anna", 1): 1, ("anna", 2): 1, ("bram", 1): 1})
+    assert values["anna"] == pytest.approx(1.0, abs=1e-4)
+    assert values["bram"] == pytest.approx(1.0, abs=1e-4)
+    assert values["carla"] == pytest.approx(1.0, abs=1e-4)  # no wishes: baseline
+
+
+def test_satisfaction_envelope_exact_at_negative_weighted_sum():
+    """Nothing honored and the negative wish violated: anna's weighted sum is -1,
+    so her satisfaction is integral(0,-1)/integral(0,1) = -1/0.5 = -2 exactly."""
+    values = _maximized_satisfaction({("anna", 1): 0, ("anna", 2): 0, ("bram", 1): 0})
+    assert values["anna"] == pytest.approx(-2.0, abs=1e-4)
+    assert values["bram"] == pytest.approx(0.0, abs=1e-4)
+
+
+def test_satisfaction_concave_midpoint_not_overestimated():
+    """One of two equal wishes honored gives integral(0,1)/integral(0,2) = 2/3:
+    the concave envelope may not hand out the linear 0.5 of the max, nor 1."""
+    students = {name: _student() for name in ("dana", "eef", "fien")}
+    records = [
+        ("dana", 1, "eef", 1.0),
+        ("dana", 2, "fien", 1.0),
+    ]
+    df = pd.DataFrame(
+        [
+            {
+                "Leerling": s,
+                "TypeWens": "Graag met",
+                "Nr": nr,
+                "Waarde": target,
+                "Gewicht": w,
+            }
+            for s, nr, target, w in records
+        ]
+    ).set_index(["Leerling", "TypeWens", "Nr"])
+    df.columns.name = "TypeWaarde"
+    groups = {
+        "blauw": {"Jongens": 0, "Meisjes": 0},
+        "rood": {"Jongens": 0, "Meisjes": 0},
+    }
+    solver = ProblemSolver(df, students, groups, [])
+    prob = pulp.LpProblem("midpoint", pulp.LpMaximize)
+    satisfied = solver.add_variables_which_preferences_satisfied(prob=prob)
+    satisfaction.calculate_student_satisfaction(solver, satisfied, prob)
+    prob += satisfied[("dana", 1)] == 1
+    prob += satisfied[("dana", 2)] == 0
+    prob += pulp.lpSum(solver.studentsatisfaction.values())
+    prob.solve(pulp.PULP_CBC_CMD(msg=False))
+    assert pulp.LpStatus[prob.status] == "Optimal"
+    assert pulp.value(solver.studentsatisfaction["dana"]) == pytest.approx(
+        2 / 3, abs=1e-4
+    )
