@@ -1,15 +1,18 @@
 """The six class-balance constraint families, in CP-SAT form.
 
-Mirrors the pulp families in :mod:`..problemsolver` one for one:
+All six are counting constraints over the boolean assignment variables:
 
-- equal new students per year cohort (spread over groups);
-- equal total students (current occupancy + new);
-- gender balance per year cohort and in total (total includes occupancy);
-- clique limits per previous group, overall and per sex.
+- equal new students per year cohort: per-group count variables, their max and
+  min (``AddMaxEquality``/``AddMinEquality``), and ``max - min <= limit``;
+- equal total students: the same spread, now over current occupancy + new;
+- gender balance per year cohort and in total: ``|boys - girls| <= limit`` per
+  group as two linear inequalities (total includes occupancy, per-cohort not);
+- clique limits: students from one previous group per target group, overall
+  and per sex, as plain sums with an upper bound.
 
-Cohorts follow ``Jaarlaag`` exactly like ``ProblemSolver.cohorts``: students
-without it fall into one ``None`` cohort, which is the doorzetten degenerate
-case where per-year and whole-group constraints coincide.
+Cohorts follow ``Jaarlaag``; students without it fall into one ``None``
+cohort, which is the doorzetten case where per-year and whole-group
+constraints coincide.
 """
 
 
@@ -20,7 +23,7 @@ def add_balance_constraints(model, in_group, students, groups_to, groupbalance):
 
 # A stateful builder with a single entry point (add_all); the families share the
 # model context (model, assignment vars, students) as instance attributes, which
-# is exactly what a class is for here — same pattern as _PlateaudLexMaxMin.
+# is exactly what a class is for here.
 # pylint: disable=too-few-public-methods
 class _BalanceFamilies:
     """Builder for the balance families; holds the shared model context."""

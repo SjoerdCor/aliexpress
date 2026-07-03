@@ -1,14 +1,19 @@
 """The CP-SAT solve pipeline: plateaud lexmaxmin over student satisfaction.
 
-Runs the same optimization strategy as the pulp pipeline
-(:mod:`..optimizationstrategies`), but on integers: the DELTA/EPS/big-M
-machinery of the LP version disappears because "strictly above the plateau"
-is simply ``>= plateau + 1`` on the scaled satisfaction integers.
+Plateaud lexmaxmin raises the *lowest* satisfaction level by level: first lift
+the minimum as high as it can go (that value is the plateau), then let as many
+students as possible escape above it, pin that count, and repeat one level up
+for the escapees only. This is what makes "everyone gets wish 1 before anyone
+gets wish 2" the dominant behaviour. On the scaled satisfaction integers the
+plateau logic is exact: "strictly above" is simply ``>= plateau + 1``.
+
+Every stage re-solves the whole (grown) model from scratch to proven
+optimality; CP-SAT needs no warm starts at this problem size.
 
 The reported per-student satisfaction is *recomputed in float* from the honored
-wishes — not read back as ``integer / SATISFACTION_SCALE`` — so the reported
-values are bit-identical to the pulp reporting whenever the optimum assignment
-is the same.
+wishes — not read back as ``integer / SATISFACTION_SCALE`` — so the ×10^6
+rounding can never leak into the report and the pinned integration values stay
+exact.
 """
 
 import logging
@@ -24,9 +29,9 @@ from . import model as cpsat_model
 
 logger = logging.getLogger(__name__)
 
-#: Stop raising plateaus once the minimum exceeds this satisfaction level, as in
-#: the production lexmaxmin (satisfaction_max=0.8): beyond it every student has
-#: their dominant wishes and the total-satisfaction tie-break settles the rest.
+#: Stop raising plateaus once the minimum exceeds this satisfaction level:
+#: beyond it every student has their dominant wishes honored and the
+#: total-satisfaction tie-break settles the rest.
 SATISFACTION_MAX = 0.8
 
 #: At most 8 workers: measured on the herindelen benchmark (see memory of
@@ -175,9 +180,9 @@ def _extract(problem, solver, preferences) -> CpSatSolution:
 def _float_satisfaction(preferences, satisfied, students) -> dict:
     """Per-student float satisfaction from the honored wishes.
 
-    The float twin of the model's integer element table, and the same metric as
-    the pulp reporting: F(weighted honored sum), normalized by F(best case) when
-    the student has positive wishes, or added to the baseline 1 when not.
+    The float twin of the model's integer element table: F(weighted honored
+    sum), normalized by F(best case) when the student has positive wishes, or
+    added to the baseline 1 when not.
     """
     graag_met = preferences_data.get_graag_met(preferences)
     honored_sum: dict[str, float] = {}

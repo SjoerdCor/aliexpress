@@ -1,15 +1,21 @@
 """The CP-SAT model of the student distribution problem.
 
-Mirrors the constraint families of :mod:`..problemsolver`, translated to integer
-form. The satisfaction metric stays the one defined in :mod:`..satisfaction`
-(the integral of 0.5^x over the weighted honored-preference sum); here it is
-tabulated per student as scaled integers, because CP-SAT reasons over integers
-only. Preference weights are scaled by the smallest exact factor (see
-:mod:`.scaling`); satisfaction values by :data:`SATISFACTION_SCALE`.
+The model is built from boolean assignment variables ``in_group[student, group]``
+(exactly one true per student) plus the hard constraints: forbidden groups,
+not-together rules, satisfaction floors and the class-balance families
+(:mod:`._balance_families`).
 
-Unlike the pulp substrate, CP-SAT variables belong to exactly one
-:class:`~ortools.sat.python.cp_model.CpModel`, so every analysis builds a fresh
-model via :func:`build_problem` instead of sharing variables.
+The satisfaction metric is the one defined in :mod:`..satisfaction` (the
+integral of 0.5^x over the weighted honored-preference sum). CP-SAT reasons
+over integers only, and the metric is non-linear — so per student it enters
+the model as a lookup table (``AddElement``): every reachable weighted sum is
+evaluated in Python floats and stored as a scaled integer. Weights are scaled
+by the smallest exact factor (:mod:`.scaling`); satisfaction values by
+:data:`SATISFACTION_SCALE`.
+
+CP-SAT variables belong to exactly one
+:class:`~ortools.sat.python.cp_model.CpModel`, so every analysis builds a
+fresh model via :func:`build_problem` instead of sharing variables.
 """
 
 import math
@@ -127,10 +133,10 @@ def _add_satisfaction(model, in_group, preferences, students, groups_to):
     """Add per-preference honored-literals and per-student satisfaction integers.
 
     The weighted honored sum of a student is ``sum(weight * together)`` over all
-    their preference rows: an honored negative wish contributes 0 (apart), a
-    violated one its (negative) weight — identical to the pulp formulation. The
+    their preference rows: an honored positive wish contributes its weight, a
+    violated negative wish its (negative) weight, anything else 0. The
     satisfaction integer follows from that sum through an element lookup over
-    the staircase of F values (F = integral of 0.5^x), normalized exactly as in
+    the staircase of F values (F = integral of 0.5^x), normalized as in
     :func:`..satisfaction._normalize_and_bound`.
     """
     graag_met = preferences_data.get_graag_met(preferences)
