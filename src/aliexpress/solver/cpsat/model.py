@@ -163,6 +163,66 @@ def build_soft_problem(
     )
 
 
+# Lives here, not in feasibility.py: it is model assembly, composing the same
+# private constraint helpers as build_problem/build_soft_problem. feasibility.py
+# owns the reasoning on top and keeps those helpers private to this module.
+def build_feasibility_problem(  # pylint: disable=too-many-arguments
+    # Each argument is a distinct input to the model (raw data, rules, which
+    # relaxable families stay hard); grouping them would obscure the
+    # function's public interface rather than simplify it.
+    preferences,
+    students: dict,
+    groups_to: dict,
+    not_together: list,
+    *,
+    min_satisfaction_hard: bool,
+    not_together_hard: bool,
+) -> cp_model.CpModel:
+    """Build a bare feasibility model: does any valid assignment exist at all?
+
+    No objective is set — this is a pure SAT question, not an optimization.
+    "Niet in" stays hard (it is fundamental) and class balance stays soft (the
+    real solve always relaxes it, so it can never be the infeasibility cause).
+    The two relaxable preference families — minimal satisfaction and
+    not-together — are each hard or omitted per the caller's flags, so
+    :mod:`.feasibility` can test whether leaving one (or both) soft turns an
+    infeasible instance feasible again.
+
+    Parameters
+    ----------
+    preferences : pandas.DataFrame
+        Long-format preference rows, indexed by ``(student, TypeWens, Nr)``.
+    students : dict
+        Per-student info (``Jaarlaag``, ``Jongen/meisje``, ``Stamgroep``,
+        ``MinimaleTevredenheid``).
+    groups_to : dict
+        Target groups, keyed by group name, with current ``Jongens``/``Meisjes``
+        occupancy.
+    not_together : list
+        Rules of the form ``{"group": {student, ...}, "Max_aantal_samen": int}``.
+    min_satisfaction_hard : bool
+        Whether the per-student satisfaction floors are enforced.
+    not_together_hard : bool
+        Whether the not-together rules are enforced.
+
+    Returns
+    -------
+    cp_model.CpModel
+        The built model, with no objective set.
+    """
+    model, in_group = _build_assignment(students, groups_to)
+    _constrain_forbidden_groups(model, in_group, preferences)
+    add_soft_balance_constraints(model, in_group, students, groups_to)
+    if min_satisfaction_hard:
+        _, satisfaction = _add_satisfaction(
+            model, in_group, preferences, students, groups_to
+        )
+        _constrain_minimal_satisfaction(model, satisfaction, students)
+    if not_together_hard:
+        _constrain_not_together(model, in_group, not_together, groups_to)
+    return model
+
+
 def _build_assignment(
     students: dict, groups_to: dict
 ) -> tuple[cp_model.CpModel, dict[tuple[str, str], cp_model.IntVar]]:

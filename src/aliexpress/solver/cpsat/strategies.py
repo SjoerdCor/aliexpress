@@ -31,7 +31,7 @@ import time
 
 from ortools.sat.python import cp_model
 
-from ...errors import SolverError
+from ...errors import SolverError, StageInfeasible
 from . import model as cpsat_model
 
 logger = logging.getLogger(__name__)
@@ -165,6 +165,12 @@ def solve_stage(
     both strategies here and by the caller's own lexicographic stages (fixing
     the minimal-relaxation balance before the strategy runs).
 
+    A proven-infeasible stage raises :class:`StageInfeasible`, distinct from the
+    ``SolverError`` any other non-optimal status raises. Most callers let both
+    propagate; a caller for whom infeasibility means something concrete (the
+    automatic path's first stage: the hard preferences contradict each other)
+    catches :class:`StageInfeasible` specifically.
+
     Parameters
     ----------
     model : cp_model.CpModel
@@ -185,8 +191,10 @@ def solve_stage(
     ------
     ValueError
         If not exactly one of ``maximize``/``minimize`` is given.
+    StageInfeasible
+        If the stage is proven ``INFEASIBLE``.
     SolverError
-        If the stage does not reach proven optimality; a non-optimal stage
+        If the stage reaches any other non-optimal status; a non-optimal stage
         would silently corrupt every later stage.
     """
     if (maximize is None) == (minimize is None):
@@ -201,6 +209,8 @@ def solve_stage(
     solver.parameters.num_workers = NUM_WORKERS
     solver.parameters.random_seed = 1
     status = solver.Solve(model)
+    if status == cp_model.INFEASIBLE:
+        raise StageInfeasible(label)
     if status != cp_model.OPTIMAL:
         raise SolverError(
             f"CP-SAT stage {label!r} ended with status "

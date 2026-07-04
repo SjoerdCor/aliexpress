@@ -16,8 +16,10 @@ from dataclasses import dataclass
 
 from ortools.sat.python import cp_model
 
+from ... import errors
 from ...data import preferences_data
 from ..satisfaction import get_satisfaction_integral
+from . import feasibility
 from . import model as cpsat_model
 from . import strategies
 from ._balance_families import SLACK_WEIGHTS
@@ -137,17 +139,37 @@ def solve_within_minimal_relaxation(
 
     Raises
     ------
+    FeasibilityError
+        If the hard preference constraints (minimal satisfaction, not-together,
+        "Niet in") are mutually infeasible even with class balance fully soft —
+        detected by the first stage below coming back ``INFEASIBLE``. The
+        ``context["case"]`` names the diagnosed cause (see
+        :func:`.feasibility.diagnose`).
     SolverError
-        If any stage cannot be solved to proven optimality.
+        If any other stage cannot be solved to proven optimality.
     """
     problem = cpsat_model.build_soft_problem(
         preferences, students, groups_to, not_together
     )
     model = problem.model
 
-    solver = strategies.solve_stage(
-        model, "unmet wishes", minimize=sum(problem.unmet.values())
-    )
+    try:
+        solver = strategies.solve_stage(
+            model, "unmet wishes", minimize=sum(problem.unmet.values())
+        )
+    except errors.StageInfeasible as exc:
+        raise errors.FeasibilityError(
+            "infeasible_preferences",
+            context={
+                "case": feasibility.diagnose(
+                    preferences=preferences,
+                    students=students,
+                    groups_to=groups_to,
+                    not_together=not_together,
+                )
+            },
+            technical_message="Hard preference constraints are mutually infeasible",
+        ) from exc
     unmet_optimum = round(solver.ObjectiveValue())
     model.Add(sum(problem.unmet.values()) <= unmet_optimum)
 
