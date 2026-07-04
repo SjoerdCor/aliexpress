@@ -132,8 +132,8 @@ def _check_feasibility(ps):
     )
 
 
-def _export(ps, preference_data, target_groups):
-    """Build the download workbook and result tables from the already-solved problem."""
+def _export(result, preference_data, target_groups):
+    """Build the download workbook and result tables from the already-solved result."""
     display_names = solutions.DisplayNames(
         student=preference_data.student_display,
         group=target_groups.display,
@@ -141,7 +141,7 @@ def _export(ps, preference_data, target_groups):
     )
     # The solver works on matching keys; translate to names as entered before reporting.
     result, preferences, input_sheet, students_info = solutions.to_display_names(
-        ps.extract_solution(),
+        result,
         preference_data.preferences,
         preference_data.input_sheet,
         preference_data.students_info,
@@ -164,20 +164,27 @@ def _export(ps, preference_data, target_groups):
     return output, dfs
 
 
-def _log_solve_summary(ps: problemsolver.ProblemSolver) -> None:
-    """Log anonymous headline metrics after a completed solve — no student names."""
-    gb = ps.groupbalance
-    logger.info(
-        "Balance used: clique=%d clique_sex=%d diff_year=%d diff_total=%d "
-        "imbalance_year=%d imbalance_total=%d",
-        gb.max_clique,
-        gb.max_clique_sex,
-        gb.max_diff_n_students_year,
-        gb.max_diff_n_students_total,
-        gb.max_imbalance_boys_girls_year,
-        gb.max_imbalance_boys_girls_total,
-    )
-    sat = ps.extract_solution().student_satisfaction
+def _log_solve_summary(
+    result: problemsolver.SolutionResult, groupbalance: GroupBalance | None = None
+) -> None:
+    """Log anonymous headline metrics after a completed solve — no student names.
+
+    ``groupbalance`` logs the class-balance limits that were actually used, when
+    known to the caller (the manual path always knows them; the automatic path
+    does not report the balance it settled on, so it is omitted there).
+    """
+    if groupbalance is not None:
+        logger.info(
+            "Balance used: clique=%d clique_sex=%d diff_year=%d diff_total=%d "
+            "imbalance_year=%d imbalance_total=%d",
+            groupbalance.max_clique,
+            groupbalance.max_clique_sex,
+            groupbalance.max_diff_n_students_year,
+            groupbalance.max_diff_n_students_total,
+            groupbalance.max_imbalance_boys_girls_year,
+            groupbalance.max_imbalance_boys_girls_total,
+        )
+    sat = result.student_satisfaction
     values = list(sat.values())
     n = len(values)
     n_full = sum(1 for v in values if v >= 1.0)
@@ -267,14 +274,17 @@ def distribute_students_from_data(
                 exc.context = {"case": feasibility.diagnose(ps)}
                 logger.warning("Infeasible preferences: case=%s", exc.context["case"])
             raise
+        result = ps.extract_solution()
+        _log_solve_summary(result, ps.groupbalance)
     else:
         _check_feasibility(ps)
         on_update("Bepaald dat probleem oplosbaar is!")
         logger.info("Finding first solution... lexmaxmin")
         ps.run()
+        result = ps.extract_solution()
+        _log_solve_summary(result, groupbalance)
 
-    _log_solve_summary(ps)
-    output, dfs = _export(ps, preference_data, target_groups)
+    output, dfs = _export(result, preference_data, target_groups)
     logger.info("Done!")
     on_update("Klaar!")
     return {"download": output, "dataframes": dfs}
