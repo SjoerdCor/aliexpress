@@ -22,7 +22,7 @@ from ..satisfaction import get_satisfaction_integral
 from . import feasibility
 from . import model as cpsat_model
 from . import strategies
-from ._balance_families import SLACK_WEIGHTS
+from ._balance_families import SLACK_WEIGHTS, max_slack_bound
 
 
 @dataclass
@@ -173,7 +173,7 @@ def solve_within_minimal_relaxation(
     unmet_optimum = round(solver.ObjectiveValue())
     model.Add(sum(problem.unmet.values()) <= unmet_optimum)
 
-    max_slack = model.NewIntVar(0, len(students), "max_slack")
+    max_slack = model.NewIntVar(0, max_slack_bound(students, groups_to), "max_slack")
     model.AddMaxEquality(max_slack, list(problem.slacks.values()))
     weighted = (
         sum(SLACK_WEIGHTS[name] * slack for name, slack in problem.slacks.items())

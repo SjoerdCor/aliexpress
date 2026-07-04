@@ -44,6 +44,38 @@ SLACK_WEIGHTS: dict[str, int] = {
 FAMILY_NAMES: tuple[str, ...] = tuple(SLACK_WEIGHTS)
 
 
+def max_slack_bound(students: dict, groups_to: dict) -> int:
+    """A safe upper bound for any balance slack, shared by every soft family.
+
+    The whole-group families (``diff_total``, ``gender_total``) measure counts
+    and imbalances that include current occupancy, not just the new students —
+    so bounding the slack by the new-student count alone can cut off the
+    minimal relaxation an instance actually needs (e.g. a handful of new
+    students distributed over groups whose *existing* occupancy is already
+    lopsided). Every family's count or imbalance is a sub-quantity of
+    "everyone who will ever be in a group": current occupancy across all
+    groups, plus every new student.
+
+    Parameters
+    ----------
+    students : dict
+        Per-student info; only the count of students is used here.
+    groups_to : dict
+        Target groups, keyed by group name, with current ``Jongens``/``Meisjes``
+        occupancy.
+
+    Returns
+    -------
+    int
+        The shared upper bound for every soft-family slack, and for a caller's
+        own max-of-slacks variable (e.g. the automatic path's ``max_slack``).
+    """
+    total_occupancy = sum(
+        counts["Jongens"] + counts["Meisjes"] for counts in groups_to.values()
+    )
+    return len(students) + total_occupancy
+
+
 def add_balance_constraints(
     model: cp_model.CpModel,
     in_group: dict[tuple[str, str], cp_model.IntVar],
@@ -145,8 +177,9 @@ class _BalanceFamilies:
         dict[str, cp_model.IntVar]
             The six shared slacks, keyed by :data:`FAMILY_NAMES`.
         """
+        upper = max_slack_bound(self.students, self.groups_to)
         slacks = {
-            name: self.model.NewIntVar(0, len(self.students), f"slack_{name}")
+            name: self.model.NewIntVar(0, upper, f"slack_{name}")
             for name in FAMILY_NAMES
         }
         self._add_families(
