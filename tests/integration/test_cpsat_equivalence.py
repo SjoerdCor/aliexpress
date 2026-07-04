@@ -59,6 +59,44 @@ def test_small_instance_reproduces_pinned_satisfaction():
     assert actual == expected
 
 
+def test_total_strategy_maximizes_sum_over_lexmaxmin():
+    """`optimize="total"` never scores a lower satisfaction sum than `"lexmaxmin"`.
+
+    `"total"` maximizes the satisfaction sum directly, with no plateau
+    constraints; `"lexmaxmin"` raises the same sum as a tie-break only after
+    fixing the fairness plateaus, which can trade sum for a higher minimum. So
+    the sum under `"total"` is always at least the sum under `"lexmaxmin"`.
+    """
+    preference_data, target_groups, not_together = _small_instance()
+    balance = GroupBalance(max_imbalance_boys_girls_total=7)
+
+    total_solution = engine.solve_with_fixed_balance(
+        preferences=preference_data.preferences,
+        students=preference_data.students_info,
+        groups_to=target_groups.counts,
+        not_together=not_together,
+        groupbalance=balance,
+        optimize="total",
+    )
+    lexmaxmin_solution = engine.solve_with_fixed_balance(
+        preferences=preference_data.preferences,
+        students=preference_data.students_info,
+        groups_to=target_groups.counts,
+        not_together=not_together,
+        groupbalance=balance,
+        optimize="lexmaxmin",
+    )
+
+    total_sum = round(sum(total_solution.student_satisfaction.values()), 6)
+    lexmaxmin_sum = round(sum(lexmaxmin_solution.student_satisfaction.values()), 6)
+    assert total_sum >= lexmaxmin_sum
+
+    assert set(total_solution.assignment) == set(preference_data.students_info)
+    assert all(
+        group in target_groups.counts for group in total_solution.assignment.values()
+    )
+
+
 def test_solution_result_matches_cpsat_solution():
     """`to_solution_result` derives a consistent `SolutionResult` from a solved instance."""
     preference_data, target_groups, not_together = _small_instance()
