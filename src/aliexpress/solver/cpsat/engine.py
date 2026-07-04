@@ -1,14 +1,10 @@
-"""The CP-SAT solve pipeline: plateaud lexmaxmin over student satisfaction.
+"""The CP-SAT solve pipeline: build the model, run it, extract the solution.
 
-Plateaud lexmaxmin raises the *lowest* satisfaction level by level: first lift
-the minimum as high as it can go (that value is the plateau), then let as many
-students as possible escape above it, pin that count, and repeat one level up
-for the escapees only. This is what makes "everyone gets wish 1 before anyone
-gets wish 2" the dominant behaviour. On the scaled satisfaction integers the
-plateau logic is exact: "strictly above" is simply ``>= plateau + 1``.
-
-Every stage re-solves the whole (grown) model from scratch to proven
-optimality; CP-SAT needs no warm starts at this problem size.
+Orchestrates the two entry points below: build the constraints via
+:mod:`.model`, fix any lexicographic pre-stages a path needs (the automatic
+path's minimal-relaxation search), hand off to :mod:`.strategies` for the
+chosen aggregate objective, and extract the proven-optimal solution into a
+plain :class:`CpSatSolution`.
 
 The reported per-student satisfaction is *recomputed in float* from the honored
 wishes — not read back as ``integer / SATISFACTION_SCALE`` — so the ×10^6
@@ -16,28 +12,15 @@ rounding can never leak into the report and the pinned integration values stay
 exact.
 """
 
-import logging
-import time
 from dataclasses import dataclass
 
 from ortools.sat.python import cp_model
 
 from ...data import preferences_data
-from ...errors import SolverError
 from ..satisfaction import get_satisfaction_integral
 from . import model as cpsat_model
+from . import strategies
 from ._balance_families import SLACK_WEIGHTS
-
-logger = logging.getLogger(__name__)
-
-#: Stop raising plateaus once the minimum exceeds this satisfaction level:
-#: beyond it every student has their dominant wishes honored and the
-#: total-satisfaction tie-break settles the rest.
-SATISFACTION_MAX = 0.8
-
-#: At most 8 workers: measured on the herindelen benchmark (see memory of
-#: 2026-07-02) more workers did not help; a fixed count keeps runs reproducible.
-NUM_WORKERS = 8
 
 
 @dataclass
@@ -49,18 +32,22 @@ class CpSatSolution:
     student_satisfaction: dict  # student -> float, recomputed from honored wishes
 
 
-def solve_with_fixed_balance(
+def solve_with_fixed_balance(  # pylint: disable=too-many-arguments
+    # Each keyword-only argument is a distinct input to the model (raw data,
+    # rules, balance limits, strategy choice); grouping them would obscure the
+    # entry point's public interface rather than simplify it.
     *,
     preferences,
     students: dict,
     groups_to: dict,
     not_together: list,
     groupbalance,
+    optimize: str = "lexmaxmin",
 ) -> CpSatSolution:
     """Solve the distribution with hard balance limits (the manual path).
 
-    Builds the model via :func:`.model.build_problem`, runs plateaud lexmaxmin
-    plus the total-satisfaction tie-break, and returns the solved values.
+    Builds the model via :func:`.model.build_problem`, runs the chosen
+    optimization strategy, and returns the solved values.
 
     Parameters
     ----------
@@ -76,6 +63,11 @@ def solve_with_fixed_balance(
         Rules of the form ``{"group": {student, ...}, "Max_aantal_samen": int}``.
     groupbalance : aliexpress.solver._balance.GroupBalance
         The hard limit for each of the six class-balance families.
+    optimize : str, optional
+        Which aggregate objective to optimize: ``"lexmaxmin"`` (default,
+        plateaud lexicographic max-min with a total-satisfaction tie-break) or
+        ``"total"`` (maximize the total satisfaction directly). See
+        :mod:`.strategies` for the trade-off between the two.
 
     Returns
     -------
@@ -90,10 +82,7 @@ def solve_with_fixed_balance(
     problem = cpsat_model.build_problem(
         preferences, students, groups_to, not_together, groupbalance
     )
-    _lexmaxmin(problem)
-    solver = _solve_stage(
-        problem.model, "tie-break", maximize=sum(problem.satisfaction.values())
-    )
+    solver = strategies.optimize(problem, optimize)
     return _extract(problem, solver, preferences)
 
 
@@ -103,6 +92,7 @@ def solve_within_minimal_relaxation(
     students: dict,
     groups_to: dict,
     not_together: list,
+    optimize: str = "lexmaxmin",
 ) -> CpSatSolution:
     """Solve the distribution with the class balance relaxed only as far as needed.
 
@@ -119,8 +109,8 @@ def solve_within_minimal_relaxation(
        max-slack term keeps the relaxation spread across limits rather than
        piled onto one.
 
-    Plateaud lexmaxmin plus the total-satisfaction tie-break then run on the
-    same model, now that the class balance is fixed at its minimal relaxation.
+    The chosen strategy then runs on the same model, now that the class
+    balance is fixed at its minimal relaxation.
 
     Parameters
     ----------
@@ -134,6 +124,11 @@ def solve_within_minimal_relaxation(
         occupancy.
     not_together : list
         Rules of the form ``{"group": {student, ...}, "Max_aantal_samen": int}``.
+    optimize : str, optional
+        Which aggregate objective to optimize: ``"lexmaxmin"`` (default,
+        plateaud lexicographic max-min with a total-satisfaction tie-break) or
+        ``"total"`` (maximize the total satisfaction directly). See
+        :mod:`.strategies` for the trade-off between the two.
 
     Returns
     -------
@@ -150,7 +145,9 @@ def solve_within_minimal_relaxation(
     )
     model = problem.model
 
-    solver = _solve_stage(model, "unmet wishes", minimize=sum(problem.unmet.values()))
+    solver = strategies.solve_stage(
+        model, "unmet wishes", minimize=sum(problem.unmet.values())
+    )
     unmet_optimum = round(solver.ObjectiveValue())
     model.Add(sum(problem.unmet.values()) <= unmet_optimum)
 
@@ -160,143 +157,12 @@ def solve_within_minimal_relaxation(
         sum(SLACK_WEIGHTS[name] * slack for name, slack in problem.slacks.items())
         + 100 * max_slack
     )
-    solver = _solve_stage(model, "balance relaxation", minimize=weighted)
+    solver = strategies.solve_stage(model, "balance relaxation", minimize=weighted)
     budget = round(solver.ObjectiveValue())
     model.Add(weighted <= budget)
 
-    _lexmaxmin(problem)
-    solver = _solve_stage(
-        model, "tie-break", maximize=sum(problem.satisfaction.values())
-    )
+    solver = strategies.optimize(problem, optimize)
     return _extract(problem, solver, preferences)
-
-
-def _lexmaxmin(problem) -> None:
-    """Raise the minimal satisfaction level by level, pinning each plateau.
-
-    Per level: (1) maximize the minimal satisfaction over the students above the
-    previous plateau, (2) maximize how many students escape the new plateau, and
-    pin that count. Stops at :data:`SATISFACTION_MAX` or when nobody escapes.
-    Integer satisfaction makes both steps exact.
-
-    Parameters
-    ----------
-    problem : model.CpSatProblem | model.CpSatSoftProblem
-        The built model; mutated in place with the plateau constraints.
-    """
-    model = problem.model
-    scale = cpsat_model.SATISFACTION_SCALE
-    students = list(problem.satisfaction)
-    above_plateau = {}  # students that escaped the previous plateau (empty at level 0)
-    plateau = None
-    level = 0
-    while True:
-        t_start = time.perf_counter()
-        minimum = model.NewIntVar(-10 * scale, 2 * scale, f"minimum_{level}")
-        if level == 0:
-            for student in students:
-                model.Add(minimum <= problem.satisfaction[student])
-        else:
-            model.Add(minimum >= plateau + 1)
-            for student in students:
-                model.Add(minimum <= problem.satisfaction[student]).OnlyEnforceIf(
-                    above_plateau[student]
-                )
-        solver = _solve_stage(model, f"level {level} minimum", maximize=minimum)
-        plateau = round(solver.Value(minimum))
-        if plateau > SATISFACTION_MAX * scale:
-            logger.debug("lexmaxmin stopped: minimum above %s", SATISFACTION_MAX)
-            return
-        if level == 0:
-            for student in students:
-                model.Add(problem.satisfaction[student] >= plateau)
-        else:
-            for student in students:
-                model.Add(problem.satisfaction[student] >= plateau).OnlyEnforceIf(
-                    above_plateau[student]
-                )
-
-        above_plateau = {
-            student: model.NewBoolVar(f"above_{level}_{student}")
-            for student in students
-        }
-        for student in students:
-            model.Add(problem.satisfaction[student] >= plateau + 1).OnlyEnforceIf(
-                above_plateau[student]
-            )
-            model.Add(problem.satisfaction[student] <= plateau).OnlyEnforceIf(
-                above_plateau[student].Not()
-            )
-        solver = _solve_stage(
-            model, f"level {level} count", maximize=sum(above_plateau.values())
-        )
-        count = round(solver.ObjectiveValue())
-        logger.info(
-            "lexmaxmin level %d: plateau=%.6f, %d above, %.2fs",
-            level,
-            plateau / scale,
-            count,
-            time.perf_counter() - t_start,
-        )
-        if count == 0:
-            return
-        model.Add(sum(above_plateau.values()) == count)
-        level += 1
-
-
-def _solve_stage(
-    model: cp_model.CpModel,
-    label: str,
-    *,
-    maximize: cp_model.LinearExprT | None = None,
-    minimize: cp_model.LinearExprT | None = None,
-) -> cp_model.CpSolver:
-    """Optimize the given expression to proven optimality.
-
-    Exactly one of ``maximize``/``minimize`` is given by the caller.
-
-    Parameters
-    ----------
-    model : cp_model.CpModel
-        The model to solve; its objective is set as a side effect.
-    label : str
-        Identifies the stage in the raised error message.
-    maximize : cp_model.LinearExprT | None
-        The expression to maximize, or ``None`` when ``minimize`` is given.
-    minimize : cp_model.LinearExprT | None
-        The expression to minimize, or ``None`` when ``maximize`` is given.
-
-    Returns
-    -------
-    cp_model.CpSolver
-        The solver holding the proven-optimal solution.
-
-    Raises
-    ------
-    ValueError
-        If not exactly one of ``maximize``/``minimize`` is given.
-    SolverError
-        If the stage does not reach proven optimality; a non-optimal stage
-        would silently corrupt every later stage.
-    """
-    if (maximize is None) == (minimize is None):
-        raise ValueError(
-            f"CP-SAT stage {label!r}: pass exactly one of maximize/minimize"
-        )
-    if minimize is not None:
-        model.Minimize(minimize)
-    else:
-        model.Maximize(maximize)
-    solver = cp_model.CpSolver()
-    solver.parameters.num_workers = NUM_WORKERS
-    solver.parameters.random_seed = 1
-    status = solver.Solve(model)
-    if status != cp_model.OPTIMAL:
-        raise SolverError(
-            f"CP-SAT stage {label!r} ended with status "
-            f"{solver.StatusName(status)!r}, not proven optimal"
-        )
-    return solver
 
 
 def _extract(problem, solver: cp_model.CpSolver, preferences) -> CpSatSolution:
