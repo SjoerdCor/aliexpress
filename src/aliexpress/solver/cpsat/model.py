@@ -25,7 +25,7 @@ from ortools.sat.python import cp_model
 
 from ...data import preferences_data
 from ..satisfaction import get_satisfaction_integral
-from ._balance_families import add_balance_constraints
+from ._balance_families import add_balance_constraints, add_soft_balance_constraints
 from .scaling import weight_scale
 
 SATISFACTION_SCALE = 10**6
@@ -48,27 +48,60 @@ class CpSatProblem:
     satisfaction: dict  # student -> IntVar, scaled by SATISFACTION_SCALE
 
 
-def build_problem(preferences, students, groups_to, not_together, groupbalance):
+@dataclass
+class CpSatSoftProblem:
+    """A built CP-SAT model with class balance left relaxable, plus the extra
+    variables that shape how far it may relax.
+
+    ``slacks`` holds the six shared class-balance slacks (see
+    :func:`._balance_families.add_soft_balance_constraints`). ``unmet`` maps
+    each student with at least one positive wish to a literal that is true only
+    when none of their positive wishes is honored, so a caller can require
+    every such student to reach at least one.
+    """
+
+    model: cp_model.CpModel
+    in_group: dict  # (student, group) -> BoolVar
+    satisfied: dict  # (student, Nr) -> boolean literal (honored)
+    satisfaction: dict  # student -> IntVar, scaled by SATISFACTION_SCALE
+    slacks: dict  # family name -> IntVar
+    unmet: dict  # student -> BoolVar
+
+
+def build_problem(
+    preferences,
+    students: dict,
+    groups_to: dict,
+    not_together: list,
+    groupbalance,
+) -> CpSatProblem:
     """Build the full CP-SAT model with hard class-balance limits.
 
-    Parameters mirror :class:`~aliexpress.solver.problemsolver.ProblemSolver`:
-    the long-format ``preferences`` frame, the ``students`` info dict, the target
-    ``groups_to`` with current occupancy, the ``not_together`` rules and a
-    :class:`~aliexpress.solver._balance.GroupBalance`.
-    """
-    model = cp_model.CpModel()
-    in_group = {
-        (student, group): model.NewBoolVar(f"in_{student}_{group}")
-        for student in students
-        for group in groups_to
-    }
-    for student in students:
-        model.AddExactlyOne(in_group[student, group] for group in groups_to)
+    Parameters
+    ----------
+    preferences : pandas.DataFrame
+        Long-format preference rows, indexed by ``(student, TypeWens, Nr)``.
+    students : dict
+        Per-student info (``Jaarlaag``, ``Jongen/meisje``, ``Stamgroep``,
+        ``MinimaleTevredenheid``).
+    groups_to : dict
+        Target groups, keyed by group name, with current ``Jongens``/``Meisjes``
+        occupancy.
+    not_together : list
+        Rules of the form ``{"group": {student, ...}, "Max_aantal_samen": int}``.
+    groupbalance : aliexpress.solver._balance.GroupBalance
+        The hard limit for each of the six class-balance families.
 
-    _constrain_forbidden_groups(model, in_group, preferences)
+    Returns
+    -------
+    CpSatProblem
+        The built model plus the variables the pipeline reads back.
+    """
+    model, in_group = _build_assignment(students, groups_to)
     satisfied, satisfaction = _add_satisfaction(
         model, in_group, preferences, students, groups_to
     )
+    _constrain_forbidden_groups(model, in_group, preferences)
     _constrain_not_together(model, in_group, not_together, groups_to)
     _constrain_minimal_satisfaction(model, satisfaction, students)
     add_balance_constraints(model, in_group, students, groups_to, groupbalance)
@@ -78,6 +111,122 @@ def build_problem(preferences, students, groups_to, not_together, groupbalance):
         satisfied=satisfied,
         satisfaction=satisfaction,
     )
+
+
+def build_soft_problem(
+    preferences, students: dict, groups_to: dict, not_together: list
+) -> CpSatSoftProblem:
+    """Build the CP-SAT model with class balance left relaxable.
+
+    Forbidden groups, not-together rules and satisfaction floors stay hard —
+    only the class-balance limits become soft, each as ``STRICTEST_LIMIT +
+    slack`` (see :func:`._balance_families.add_soft_balance_constraints`). Each
+    student with a positive wish also gets an ``unmet`` literal
+    (:func:`_constrain_wish_requirement`), so a caller can look for the
+    smallest balance relaxation under which every such student can still be
+    given at least one positive wish.
+
+    Parameters
+    ----------
+    preferences : pandas.DataFrame
+        Long-format preference rows, indexed by ``(student, TypeWens, Nr)``.
+    students : dict
+        Per-student info (``Jaarlaag``, ``Jongen/meisje``, ``Stamgroep``,
+        ``MinimaleTevredenheid``).
+    groups_to : dict
+        Target groups, keyed by group name, with current ``Jongens``/``Meisjes``
+        occupancy.
+    not_together : list
+        Rules of the form ``{"group": {student, ...}, "Max_aantal_samen": int}``.
+
+    Returns
+    -------
+    CpSatSoftProblem
+        The built model plus the variables the pipeline reads back.
+    """
+    model, in_group = _build_assignment(students, groups_to)
+    satisfied, satisfaction = _add_satisfaction(
+        model, in_group, preferences, students, groups_to
+    )
+    _constrain_forbidden_groups(model, in_group, preferences)
+    _constrain_not_together(model, in_group, not_together, groups_to)
+    _constrain_minimal_satisfaction(model, satisfaction, students)
+    slacks = add_soft_balance_constraints(model, in_group, students, groups_to)
+    unmet = _constrain_wish_requirement(model, satisfied, preferences)
+    return CpSatSoftProblem(
+        model=model,
+        in_group=in_group,
+        satisfied=satisfied,
+        satisfaction=satisfaction,
+        slacks=slacks,
+        unmet=unmet,
+    )
+
+
+def _build_assignment(
+    students: dict, groups_to: dict
+) -> tuple[cp_model.CpModel, dict[tuple[str, str], cp_model.IntVar]]:
+    """A fresh model plus its assignment booleans (exactly one group per student).
+
+    Parameters
+    ----------
+    students : dict
+        Per-student info; only the keys (student names) are used here.
+    groups_to : dict
+        Target groups; only the keys (group names) are used here.
+
+    Returns
+    -------
+    tuple[cp_model.CpModel, dict[tuple[str, str], cp_model.IntVar]]
+        The fresh model and its ``in_group[student, group]`` booleans.
+    """
+    model = cp_model.CpModel()
+    in_group = {
+        (student, group): model.NewBoolVar(f"in_{student}_{group}")
+        for student in students
+        for group in groups_to
+    }
+    for student in students:
+        model.AddExactlyOne(in_group[student, group] for group in groups_to)
+    return model, in_group
+
+
+def _constrain_wish_requirement(
+    model: cp_model.CpModel, satisfied: dict, preferences
+) -> dict:
+    """Per-student ``unmet`` literal: true only if no positive wish is honored.
+
+    Only students with at least one positive wish get a literal: a student with
+    none cannot structurally satisfy the requirement, so including them would
+    force ``unmet`` to always be true and add nothing to reason about.
+
+    Parameters
+    ----------
+    model : cp_model.CpModel
+        The model the literals are added to.
+    satisfied : dict
+        Honored-literal per ``(student, Nr)`` preference row (from
+        :func:`_add_satisfaction`).
+    preferences : pandas.DataFrame
+        Long-format preference rows, indexed by ``(student, TypeWens, Nr)``.
+
+    Returns
+    -------
+    dict[str, cp_model.IntVar]
+        The ``unmet`` literal per student with at least one positive wish.
+    """
+    graag_met = preferences_data.get_graag_met(preferences)
+    positive_per_student: dict[str, list] = {}
+    for key, row in graag_met.iterrows():
+        if row["Gewicht"] > 0:
+            positive_per_student.setdefault(key[0], []).append(satisfied[key])
+
+    unmet = {}
+    for student, honored in positive_per_student.items():
+        literal = model.NewBoolVar(f"unmet_{student}")
+        model.AddBoolOr(honored + [literal])
+        unmet[student] = literal
+    return unmet
 
 
 def _constrain_forbidden_groups(model, in_group, preferences):
