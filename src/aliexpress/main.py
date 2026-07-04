@@ -13,6 +13,8 @@ from .data import datareader
 from .data.datareader import GroupCounts
 from .data.preferences_data import PreferenceData
 from .solver import feasibility, problemsolver, solutions
+from .solver.cpsat import engine as cpsat_engine
+from .solver.cpsat import results as cpsat_results
 from .solver.problemsolver import GroupBalance
 
 FILE_PREFERENCES = "voorkeuren.xlsx"
@@ -256,27 +258,29 @@ def distribute_students_from_data(
         preference_data.stamgroep_display,
     )
 
-    ps = problemsolver.ProblemSolver(
-        preferences,
-        students_info,
-        target_groups.counts,
-        not_together,
-        groupbalance=groupbalance,
-        optimize="lexmaxmin",
-    )
     on_update("Aan de slag! Groepen indelen...")
     if groupbalance is None:
         logger.info("Solving within the minimal class-balance relaxation")
-        try:
-            ps.solve_within_minimal_relaxation()
-        except errors.FeasibilityError as exc:
-            if exc.code == "infeasible_preferences":
-                exc.context = {"case": feasibility.diagnose(ps)}
-                logger.warning("Infeasible preferences: case=%s", exc.context["case"])
-            raise
-        result = ps.extract_solution()
-        _log_solve_summary(result, ps.groupbalance)
+        solution = cpsat_engine.solve_within_minimal_relaxation(
+            preferences=preferences,
+            students=students_info,
+            groups_to=target_groups.counts,
+            not_together=not_together,
+            optimize="lexmaxmin",
+        )
+        result = cpsat_results.to_solution_result(
+            solution, preferences, students_info, target_groups.counts
+        )
+        _log_solve_summary(result)
     else:
+        ps = problemsolver.ProblemSolver(
+            preferences,
+            students_info,
+            target_groups.counts,
+            not_together,
+            groupbalance=groupbalance,
+            optimize="lexmaxmin",
+        )
         _check_feasibility(ps)
         on_update("Bepaald dat probleem oplosbaar is!")
         logger.info("Finding first solution... lexmaxmin")
