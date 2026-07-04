@@ -8,7 +8,6 @@ than cell-by-cell. The per-student satisfaction - the actual optimization object
 uniquely determined and is asserted in full."""
 
 import json
-import re
 
 import pandas as pd
 import pytest
@@ -509,15 +508,8 @@ def test_distribute_students_once_happy_flow_infeasible():
                 max_imbalance_boys_girls_total=1,
             ),
         )
-    # Parse "<label>: <new value> (+ <relaxation>)" lines into {label: relaxation}.
-    msg = str(exc.value.context["possible_improvement"])
-    relaxations = {
-        m.group("label"): int(m.group("relax"))
-        for m in re.finditer(r"(?P<label>.+?): \d+ \(\+ (?P<relax>\d+)\)", msg)
-    }
-    # The problem needs a fixed minimal total relaxation (7 units) to become feasible.
-    # How that budget is split across the individual limits is a degenerate, non-unique
-    # optimum (the solver may shift it between limits), so only the total - the
-    # solver-independent invariant - is asserted, plus that a suggestion is produced.
-    assert relaxations
-    assert sum(relaxations.values()) == 7
+    # A fixed class balance that admits no valid assignment gets one generic Dutch
+    # message (no per-limit breakdown for CP-SAT yet: parked for a later balance
+    # redesign, see CLAUDE.md).
+    assert exc.value.code == "infeasible_problem"
+    assert "ruimere klassenbalans" in exc.value.context["possible_improvement"]

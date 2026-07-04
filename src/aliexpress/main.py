@@ -12,7 +12,7 @@ from . import errors
 from .data import datareader
 from .data.datareader import GroupCounts
 from .data.preferences_data import PreferenceData
-from .solver import feasibility, problemsolver, solutions
+from .solver import problemsolver, solutions
 from .solver.cpsat import engine as cpsat_engine
 from .solver.cpsat import results as cpsat_results
 from .solver.problemsolver import GroupBalance
@@ -85,53 +85,6 @@ def _log_initial_state(groups_to, students_info, on_update, stamgroep_display=No
     stamgroepen = df_students["Stamgroep"].map(lambda g: stamgroep_display.get(g, g))
     for group, value in stamgroepen.value_counts().items():
         on_update(f"{group}: {value}")
-
-
-def _check_feasibility(ps):
-    feas_prob = feasibility.check_balance_feasibility(ps)
-    if feas_prob.objective.value() <= 0:
-        return
-
-    slack_info = {
-        "SLACK_balanced_boys_girls_total": (
-            "Maximale verschil jongens/meisjes totale groep",
-            ps.groupbalance.max_imbalance_boys_girls_total,
-        ),
-        "SLACK_balanced_boys_girls_year": (
-            "Maximale verschil jongens/meisjes nieuwe jaarlaag",
-            ps.groupbalance.max_imbalance_boys_girls_year,
-        ),
-        "SLACK_diff_n_students_total": (
-            "Maximale verschil totale groepsgrootte",
-            ps.groupbalance.max_diff_n_students_total,
-        ),
-        "SLACK_diff_n_students_year": (
-            "Maximale verschil groepsgrootte nieuwe jaarlaag",
-            ps.groupbalance.max_diff_n_students_year,
-        ),
-        "SLACK_max_clique": (
-            "Maximale groep vanuit eerdere groep",
-            ps.groupbalance.max_clique,
-        ),
-        "SLACK_max_clique_sex": (
-            "Maximale groep jongens/meisjes vanuit eerdere groep",
-            ps.groupbalance.max_clique_sex,
-        ),
-    }
-
-    msg = []
-    variables = feas_prob.variablesDict()
-
-    for name, (label, base_value) in slack_info.items():
-        val = variables[name].value()
-        if val > 0:
-            msg.append(f"{label}: {round(base_value + val)} (+ {round(val)})")
-
-    raise errors.FeasibilityError(
-        "infeasible_problem",
-        context={"possible_improvement": "\n".join(msg)},
-        technical_message="Can not solve the problem for this class imbalance",
-    )
 
 
 def _export(result, preference_data, target_groups):
@@ -273,19 +226,28 @@ def distribute_students_from_data(
         )
         _log_solve_summary(result)
     else:
-        ps = problemsolver.ProblemSolver(
-            preferences,
-            students_info,
-            target_groups.counts,
-            not_together,
-            groupbalance=groupbalance,
-            optimize="lexmaxmin",
+        logger.info("Solving with a fixed class balance")
+        try:
+            solution = cpsat_engine.solve_with_fixed_balance(
+                preferences=preferences,
+                students=students_info,
+                groups_to=target_groups.counts,
+                not_together=not_together,
+                groupbalance=groupbalance,
+                optimize="lexmaxmin",
+            )
+        except errors.StageInfeasible as exc:
+            raise errors.FeasibilityError(
+                "infeasible_problem",
+                context={
+                    "possible_improvement": "Kies een ruimere klassenbalans; met de "
+                    "huidige vaste instellingen is geen geldige verdeling mogelijk."
+                },
+                technical_message="Fixed class balance admits no valid assignment",
+            ) from exc
+        result = cpsat_results.to_solution_result(
+            solution, preferences, students_info, target_groups.counts
         )
-        _check_feasibility(ps)
-        on_update("Bepaald dat probleem oplosbaar is!")
-        logger.info("Finding first solution... lexmaxmin")
-        ps.run()
-        result = ps.extract_solution()
         _log_solve_summary(result, groupbalance)
 
     output, dfs = _export(result, preference_data, target_groups)
