@@ -186,8 +186,9 @@ def distribute_students_from_data(
         Class-balance constraints. When None (the default), the balance is determined
         automatically: satisfaction is maximized within the minimal relaxation that still
         lets every student fulfil a positive wish (see
-        :meth:`ProblemSolver.solve_within_minimal_relaxation`). Pass a GroupBalance to
-        override this with fixed manual limits instead.
+        :func:`~.solver.cpsat.engine.solve_within_minimal_relaxation`). Pass a
+        GroupBalance to override this with fixed manual limits instead (see
+        :func:`~.solver.cpsat.engine.solve_with_fixed_balance`).
     """
     preferences = preference_data.preferences
     students_info = preference_data.students_info
