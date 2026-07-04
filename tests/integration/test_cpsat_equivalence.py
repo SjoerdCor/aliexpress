@@ -15,10 +15,12 @@ from test_integration_main import (
     _SMALL_SATISFACTION,
 )
 
+from aliexpress.data import preferences_data
 from aliexpress.data.datareader import matching_key
 from aliexpress.main import _read_groups, _read_preferences
 from aliexpress.solver._balance import GroupBalance
 from aliexpress.solver.cpsat import engine
+from aliexpress.solver.cpsat.results import to_solution_result
 
 
 def _small_instance():
@@ -55,6 +57,55 @@ def test_small_instance_reproduces_pinned_satisfaction():
         for student, value in solution.student_satisfaction.items()
     }
     assert actual == expected
+
+
+def test_solution_result_matches_cpsat_solution():
+    """`to_solution_result` derives a consistent `SolutionResult` from a solved instance."""
+    preference_data, target_groups, not_together = _small_instance()
+
+    solution = engine.solve_with_fixed_balance(
+        preferences=preference_data.preferences,
+        students=preference_data.students_info,
+        groups_to=target_groups.counts,
+        not_together=not_together,
+        groupbalance=GroupBalance(max_imbalance_boys_girls_total=7),
+    )
+    result = to_solution_result(
+        solution,
+        preference_data.preferences,
+        preference_data.students_info,
+        target_groups.counts,
+    )
+
+    graag_met = preferences_data.get_graag_met(preference_data.preferences)
+    assert result.weights == dict(graag_met["Gewicht"])
+
+    for key, weight in result.weights.items():
+        satisfied = result.satisfied[key]
+        expected = satisfied * weight if weight > 0 else (1 - satisfied) * weight
+        assert result.weighted_satisfied[key] == expected
+
+    assert result.student_satisfaction == solution.student_satisfaction
+
+    _assert_group_composition_reconciles(result, preference_data, target_groups)
+
+
+def _assert_group_composition_reconciles(result, preference_data, target_groups):
+    """The mapped `group_composition` must match a plain recount from `assignment`."""
+    boys_in_group: dict[str, int] = {group: 0 for group in target_groups.counts}
+    girls_in_group: dict[str, int] = {group: 0 for group in target_groups.counts}
+    for student, group in result.assignment.items():
+        if preference_data.students_info[student]["Jongen/meisje"] == "Jongen":
+            boys_in_group[group] += 1
+        else:
+            girls_in_group[group] += 1
+
+    for group, occupancy in target_groups.counts.items():
+        composition = result.group_composition[group]
+        assert composition.boys_year == boys_in_group[group]
+        assert composition.girls_year == girls_in_group[group]
+        assert composition.boys_total == occupancy["Jongens"] + boys_in_group[group]
+        assert composition.girls_total == occupancy["Meisjes"] + girls_in_group[group]
 
 
 def _full_instance():
