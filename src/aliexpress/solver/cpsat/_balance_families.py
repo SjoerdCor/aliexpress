@@ -13,12 +13,90 @@ All six are counting constraints over the boolean assignment variables:
 Cohorts follow ``Jaarlaag``; students without it fall into one ``None``
 cohort, which is the doorzetten case where per-year and whole-group
 constraints coincide.
+
+Each family can also be added *soft*: the limit becomes the strictest possible
+value (:data:`STRICTEST_LIMIT`) plus a shared per-family slack, so a caller can
+relax class balance just as far as some other objective (e.g. a wish
+requirement) demands, instead of fixing it upfront.
 """
 
+from ortools.sat.python import cp_model
 
-def add_balance_constraints(model, in_group, students, groups_to, groupbalance):
-    """Add all six balance families with the hard limits from ``groupbalance``."""
+#: The tightest possible value for every balance limit; the soft families
+#: relax outward from here via their slack.
+STRICTEST_LIMIT = 1
+
+#: Per balance-slack family, its weight in a relaxation objective (scaled x100
+#: to integers, so the objective stays exact). Whole-group families
+#: (``_total``) weigh less than their per-year counterpart: spreading students
+#: unevenly across the whole group is less disruptive than an uneven single
+#: year cohort, so it is cheaper to relax first.
+SLACK_WEIGHTS: dict[str, int] = {
+    "diff_year": 100,
+    "diff_total": 49,
+    "clique": 100,
+    "clique_sex": 100,
+    "gender_year": 100,
+    "gender_total": 49,
+}
+
+#: The six family names, in the order the slacks are created.
+FAMILY_NAMES: tuple[str, ...] = tuple(SLACK_WEIGHTS)
+
+
+def add_balance_constraints(
+    model: cp_model.CpModel,
+    in_group: dict[tuple[str, str], cp_model.IntVar],
+    students: dict,
+    groups_to: dict,
+    groupbalance,
+) -> None:
+    """Add all six balance families with the hard limits from ``groupbalance``.
+
+    Parameters
+    ----------
+    model : cp_model.CpModel
+        The model the constraints are added to.
+    in_group : dict[tuple[str, str], cp_model.IntVar]
+        Assignment booleans, keyed by ``(student, group)``.
+    students : dict
+        Per-student info (``Jaarlaag``, ``Jongen/meisje``, ``Stamgroep``).
+    groups_to : dict
+        Target groups, keyed by group name, with current ``Jongens``/``Meisjes``
+        occupancy.
+    groupbalance : aliexpress.solver._balance.GroupBalance
+        The hard limit for each of the six families.
+    """
     _BalanceFamilies(model, in_group, students, groups_to).add_all(groupbalance)
+
+
+def add_soft_balance_constraints(
+    model: cp_model.CpModel,
+    in_group: dict[tuple[str, str], cp_model.IntVar],
+    students: dict,
+    groups_to: dict,
+) -> dict[str, cp_model.IntVar]:
+    """Add all six balance families with limit ``STRICTEST_LIMIT + slack``.
+
+    Parameters
+    ----------
+    model : cp_model.CpModel
+        The model the constraints are added to.
+    in_group : dict[tuple[str, str], cp_model.IntVar]
+        Assignment booleans, keyed by ``(student, group)``.
+    students : dict
+        Per-student info (``Jaarlaag``, ``Jongen/meisje``, ``Stamgroep``).
+    groups_to : dict
+        Target groups, keyed by group name, with current ``Jongens``/``Meisjes``
+        occupancy.
+
+    Returns
+    -------
+    dict[str, cp_model.IntVar]
+        The six shared slacks, keyed by :data:`FAMILY_NAMES`, for the caller to
+        weight into a relaxation objective (see :data:`SLACK_WEIGHTS`).
+    """
+    return _BalanceFamilies(model, in_group, students, groups_to).add_all_soft()
 
 
 # A stateful builder with a single entry point (add_all); the families share the
@@ -28,22 +106,67 @@ def add_balance_constraints(model, in_group, students, groups_to, groupbalance):
 class _BalanceFamilies:
     """Builder for the balance families; holds the shared model context."""
 
-    def __init__(self, model, in_group, students, groups_to):
+    def __init__(
+        self,
+        model: cp_model.CpModel,
+        in_group: dict[tuple[str, str], cp_model.IntVar],
+        students: dict,
+        groups_to: dict,
+    ):
         self.model = model
         self.in_group = in_group
         self.students = students
         self.groups_to = groups_to
 
-    def add_all(self, groupbalance):
-        """Add all six families with the hard limits from ``groupbalance``."""
+    def add_all(self, groupbalance) -> None:
+        """Add all six families with the hard limits from ``groupbalance``.
+
+        Parameters
+        ----------
+        groupbalance : aliexpress.solver._balance.GroupBalance
+            The hard limit for each of the six families.
+        """
+        self._add_families(
+            {
+                "diff_year": groupbalance.max_diff_n_students_year,
+                "diff_total": groupbalance.max_diff_n_students_total,
+                "clique": groupbalance.max_clique,
+                "clique_sex": groupbalance.max_clique_sex,
+                "gender_year": groupbalance.max_imbalance_boys_girls_year,
+                "gender_total": groupbalance.max_imbalance_boys_girls_total,
+            }
+        )
+
+    def add_all_soft(self) -> dict[str, cp_model.IntVar]:
+        """Add all six families with limit ``STRICTEST_LIMIT + slack``.
+
+        Returns
+        -------
+        dict[str, cp_model.IntVar]
+            The six shared slacks, keyed by :data:`FAMILY_NAMES`.
+        """
+        slacks = {
+            name: self.model.NewIntVar(0, len(self.students), f"slack_{name}")
+            for name in FAMILY_NAMES
+        }
+        self._add_families(
+            {name: STRICTEST_LIMIT + slack for name, slack in slacks.items()}
+        )
+        return slacks
+
+    def _add_families(self, limits: dict[str, cp_model.LinearExprT]) -> None:
+        """Add all six families, each with its limit from ``limits``.
+
+        Parameters
+        ----------
+        limits : dict[str, cp_model.LinearExprT]
+            The limit for each of :data:`FAMILY_NAMES`: a plain int for a hard
+            limit, or ``STRICTEST_LIMIT + slack`` for a soft one.
+        """
         for cohort in self._cohorts().values():
-            self._count_spread(
-                cohort, limit=groupbalance.max_diff_n_students_year, occupancy=None
-            )
+            self._count_spread(cohort, limit=limits["diff_year"], occupancy=None)
             self._gender_balance(
-                cohort,
-                limit=groupbalance.max_imbalance_boys_girls_year,
-                with_occupancy=False,
+                cohort, limit=limits["gender_year"], with_occupancy=False
             )
 
         everyone = list(self.students)
@@ -51,30 +174,38 @@ class _BalanceFamilies:
             group: counts["Jongens"] + counts["Meisjes"]
             for group, counts in self.groups_to.items()
         }
-        self._count_spread(
-            everyone,
-            limit=groupbalance.max_diff_n_students_total,
-            occupancy=occupancy,
-        )
+        self._count_spread(everyone, limit=limits["diff_total"], occupancy=occupancy)
         self._gender_balance(
-            everyone,
-            limit=groupbalance.max_imbalance_boys_girls_total,
-            with_occupancy=True,
+            everyone, limit=limits["gender_total"], with_occupancy=True
         )
-        self._cliques(groupbalance)
+        self._cliques(limits["clique"], limits["clique_sex"])
 
-    def _cohorts(self) -> dict:
+    def _cohorts(self) -> dict[object, list[str]]:
         """Students grouped by ``Jaarlaag``; one ``None`` cohort when absent."""
-        result: dict = {}
+        result: dict[object, list[str]] = {}
         for student, info in self.students.items():
             result.setdefault(info.get("Jaarlaag"), []).append(student)
         return result
 
-    def _count_spread(self, members, *, limit, occupancy):
+    def _count_spread(
+        self,
+        members: list[str],
+        *,
+        limit: cp_model.LinearExprT,
+        occupancy: dict[str, int] | None,
+    ) -> None:
         """Max-min spread of member counts over groups stays within ``limit``.
 
-        With ``occupancy`` the spread is over total group sizes (current + new);
-        without it over the new members only (the per-cohort family).
+        Parameters
+        ----------
+        members : list[str]
+            The students the spread is computed over.
+        limit : cp_model.LinearExprT
+            The maximum allowed spread: a plain int for a hard limit, or
+            ``STRICTEST_LIMIT + slack`` for a soft one.
+        occupancy : dict[str, int] | None
+            Current per-group occupancy to add to the count, or ``None`` to
+            count only the new ``members`` (the per-cohort family).
         """
         n = len(members)
         top = n + (max(occupancy.values()) if occupancy else 0)
@@ -94,11 +225,25 @@ class _BalanceFamilies:
         self.model.AddMinEquality(smallest, counts)
         self.model.Add(largest - smallest <= limit)
 
-    def _gender_balance(self, members, *, limit, with_occupancy):
+    def _gender_balance(
+        self,
+        members: list[str],
+        *,
+        limit: cp_model.LinearExprT,
+        with_occupancy: bool,
+    ) -> None:
         """|boys - girls| per group stays within ``limit`` for these members.
 
-        ``with_occupancy`` adds the current boy/girl counts, as in the
-        whole-group family; the per-cohort family counts new students only.
+        Parameters
+        ----------
+        members : list[str]
+            The students the balance is computed over.
+        limit : cp_model.LinearExprT
+            The maximum allowed imbalance: a plain int for a hard limit, or
+            ``STRICTEST_LIMIT + slack`` for a soft one.
+        with_occupancy : bool
+            Whether to add the current boy/girl occupancy (the whole-group
+            family) or count only the new ``members`` (the per-cohort family).
         """
         boys = [s for s in members if self.students[s]["Jongen/meisje"] == "Jongen"]
         girls = [s for s in members if self.students[s]["Jongen/meisje"] == "Meisje"]
@@ -114,8 +259,21 @@ class _BalanceFamilies:
             self.model.Add(difference <= limit)
             self.model.Add(-difference <= limit)
 
-    def _cliques(self, groupbalance):
-        """Limit students from one previous group per target group, and per sex."""
+    def _cliques(
+        self,
+        clique_limit: cp_model.LinearExprT,
+        clique_sex_limit: cp_model.LinearExprT,
+    ) -> None:
+        """Limit students from one previous group per target group, and per sex.
+
+        Parameters
+        ----------
+        clique_limit : cp_model.LinearExprT
+            The maximum students from one ``Stamgroep`` per target group.
+        clique_sex_limit : cp_model.LinearExprT
+            The maximum same-sex students from one ``Stamgroep`` per target
+            group.
+        """
         previous_groups = {info["Stamgroep"] for info in self.students.values()}
         sexes = {info["Jongen/meisje"] for info in self.students.values()}
         for previous in previous_groups:
@@ -124,8 +282,7 @@ class _BalanceFamilies:
             ]
             for group in self.groups_to:
                 self.model.Add(
-                    sum(self.in_group[s, group] for s in clique)
-                    <= groupbalance.max_clique
+                    sum(self.in_group[s, group] for s in clique) <= clique_limit
                 )
                 for sex in sexes:
                     same_sex = [
@@ -133,5 +290,5 @@ class _BalanceFamilies:
                     ]
                     self.model.Add(
                         sum(self.in_group[s, group] for s in same_sex)
-                        <= groupbalance.max_clique_sex
+                        <= clique_sex_limit
                     )
