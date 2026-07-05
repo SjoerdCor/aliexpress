@@ -22,6 +22,13 @@ from . import feasibility, modelbuilder, strategies
 from ._balance_families import SLACK_WEIGHTS, max_slack_bound
 from .satisfaction import get_satisfaction_integral
 
+#: Weight of the max-slack spreading term in the relaxation objective below:
+#: equal to weight 1.0 on the ×100 scale :data:`~._balance_families.SLACK_WEIGHTS`
+#: uses, so the max-slack term weighs exactly as much as one per-year family —
+#: enough to break ties towards spreading the relaxation across limits rather
+#: than piling it onto one, without dominating the per-family weights.
+MAX_SLACK_WEIGHT = 100
+
 
 @dataclass
 class Solution:
@@ -175,7 +182,7 @@ def solve_within_minimal_relaxation(
     model.AddMaxEquality(max_slack, list(problem.slacks.values()))
     weighted = (
         sum(SLACK_WEIGHTS[name] * slack for name, slack in problem.slacks.items())
-        + 100 * max_slack
+        + MAX_SLACK_WEIGHT * max_slack
     )
     solver = strategies.solve_stage(model, "balance relaxation", minimize=weighted)
     budget = round(solver.ObjectiveValue())
