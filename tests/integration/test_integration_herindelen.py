@@ -364,16 +364,14 @@ def _build_realistic_prefs(students: dict) -> pd.DataFrame:
 
 
 #: Generous upper bound on wall time. This instance's specific Niet-samen
-#: student selection happens to be a hard CP-SAT proof (see
-#: benchmarks/spike_cpsat.py for a same-shape instance that proves in seconds
-#: when the Niet-samen students are drawn from a single stamgroep instead of
-#: spread across cohorts), and repeated measurements of this exact instance
-#: ranged 347-843s: CP-SAT's num_workers=8 races several search strategies in
-#: parallel threads, so a fixed random_seed makes the proof itself
-#: deterministic but not the wall-clock time to reach it (which thread finds
-#: and propagates a good bound first depends on real-time OS scheduling).
-#: 1800s gives ample headroom over the observed spread. Still dramatically
-#: better than the old pulp/HiGHS backend, which never finished this instance.
+#: student selection (coupling students across different Stamgroepen/
+#: Jaarlagen rather than within one) happens to be a hard CP-SAT proof, and
+#: repeated measurements of this exact instance ranged 347-869s: CP-SAT's
+#: num_workers=8 races several search strategies in parallel threads, so a
+#: fixed random_seed makes the proof itself deterministic but not the
+#: wall-clock time to reach it (which thread finds and propagates a good
+#: bound first depends on real-time OS scheduling). 1800s gives ample
+#: headroom over the observed spread.
 _REALISTIC_TIME_LIMIT_S = 1800
 
 
