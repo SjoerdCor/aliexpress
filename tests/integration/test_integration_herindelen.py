@@ -12,6 +12,7 @@ import math
 import time
 
 import pandas as pd
+import pytest
 
 from aliexpress.solver._balance import GroupBalance
 from aliexpress.solver.cpsat import engine
@@ -457,6 +458,7 @@ def _assert_total_balance(result, students: dict, groups_to: dict) -> None:
         )
 
 
+@pytest.mark.slow
 def test_herindelen_realistic_scale():
     """Scale + timing baseline: 88 students (4 × 22), 3 year groups, realistic prefs.
 
