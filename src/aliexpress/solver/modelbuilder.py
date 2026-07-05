@@ -40,12 +40,18 @@ class Problem:
     ``satisfied`` maps each ``(student, Nr)`` preference row to a boolean literal
     that is true when the wish is honored ("Graag met": together; negative weight:
     apart). ``satisfaction`` holds the per-student scaled-integer satisfaction.
+    ``satisfaction_bounds`` holds each of those variables' own ``(low, high)``
+    domain, computed in Python alongside them: CP-SAT's own domain reflection
+    (``var.Proto().domain``) is unsafe to call on a constant variable (see
+    :func:`_add_satisfaction`), so callers that need the domain (the lexmaxmin
+    strategy's ``minimum`` bounds) read it from here instead.
     """
 
     model: cp_model.CpModel
     in_group: dict  # (student, group) -> BoolVar
     satisfied: dict  # (student, Nr) -> boolean literal (honored)
     satisfaction: dict  # student -> IntVar, scaled by SATISFACTION_SCALE
+    satisfaction_bounds: dict  # student -> (low, high), same scale
 
 
 @dataclass
@@ -57,13 +63,15 @@ class SoftProblem:
     :func:`._balance_families.add_soft_balance_constraints`). ``unmet`` maps
     each student with at least one positive wish to a literal that is true only
     when none of their positive wishes is honored, so a caller can require
-    every such student to reach at least one.
+    every such student to reach at least one. ``satisfaction_bounds`` is the
+    same per-student domain as :attr:`Problem.satisfaction_bounds`.
     """
 
     model: cp_model.CpModel
     in_group: dict  # (student, group) -> BoolVar
     satisfied: dict  # (student, Nr) -> boolean literal (honored)
     satisfaction: dict  # student -> IntVar, scaled by SATISFACTION_SCALE
+    satisfaction_bounds: dict  # student -> (low, high), same scale
     slacks: dict  # family name -> IntVar
     unmet: dict  # student -> BoolVar
 
@@ -98,7 +106,7 @@ def build_problem(
         The built model plus the variables the pipeline reads back.
     """
     model, in_group = _build_assignment(students, groups_to)
-    satisfied, satisfaction = _add_satisfaction(
+    satisfied, satisfaction, satisfaction_bounds = _add_satisfaction(
         model, in_group, preferences, students, groups_to
     )
     _constrain_forbidden_groups(model, in_group, preferences)
@@ -110,6 +118,7 @@ def build_problem(
         in_group=in_group,
         satisfied=satisfied,
         satisfaction=satisfaction,
+        satisfaction_bounds=satisfaction_bounds,
     )
 
 
@@ -145,7 +154,7 @@ def build_soft_problem(
         The built model plus the variables the pipeline reads back.
     """
     model, in_group = _build_assignment(students, groups_to)
-    satisfied, satisfaction = _add_satisfaction(
+    satisfied, satisfaction, satisfaction_bounds = _add_satisfaction(
         model, in_group, preferences, students, groups_to
     )
     _constrain_forbidden_groups(model, in_group, preferences)
@@ -158,6 +167,7 @@ def build_soft_problem(
         in_group=in_group,
         satisfied=satisfied,
         satisfaction=satisfaction,
+        satisfaction_bounds=satisfaction_bounds,
         slacks=slacks,
         unmet=unmet,
     )
@@ -214,7 +224,7 @@ def build_feasibility_problem(  # pylint: disable=too-many-arguments
     _constrain_forbidden_groups(model, in_group, preferences)
     add_soft_balance_constraints(model, in_group, students, groups_to)
     if min_satisfaction_hard:
-        _, satisfaction = _add_satisfaction(
+        _, satisfaction, _ = _add_satisfaction(
             model, in_group, preferences, students, groups_to
         )
         _constrain_minimal_satisfaction(model, satisfaction, students)
@@ -347,6 +357,14 @@ def _add_satisfaction(model, in_group, preferences, students, groups_to):
     satisfaction integer follows from that sum through an element lookup over
     the staircase of F values (F = integral of 0.5^x), normalized as in
     :func:`..satisfaction._normalize_and_bound`.
+
+    Returns ``(satisfied, satisfaction, satisfaction_bounds)``: the last maps
+    each student to their satisfaction variable's own ``(low, high)`` domain,
+    computed here in plain Python rather than read back from CP-SAT — a
+    student with no preferences gets a constant variable
+    (``model.NewConstant``), and this ortools build crashes (a Windows fatal
+    exception, not a Python exception) when ``.Proto().domain`` is read from a
+    constant IntVar.
     """
     graag_met = preferences_data.get_graag_met(preferences)
     scale = weight_scale(graag_met["Gewicht"]) if not graag_met.empty else 1
@@ -355,14 +373,16 @@ def _add_satisfaction(model, in_group, preferences, students, groups_to):
     )
 
     satisfaction = {}
+    satisfaction_bounds = {}
     for student in students:
         if student not in weighted_terms:  # no preferences: constant baseline 1
             satisfaction[student] = model.NewConstant(SATISFACTION_SCALE)
+            satisfaction_bounds[student] = (SATISFACTION_SCALE, SATISFACTION_SCALE)
             continue
-        satisfaction[student] = _satisfaction_variable(
+        satisfaction[student], satisfaction_bounds[student] = _satisfaction_variable(
             model, student, weighted_terms[student], weight_range[student], scale
         )
-    return satisfied, satisfaction
+    return satisfied, satisfaction, satisfaction_bounds
 
 
 def _honored_terms(model, in_group, graag_met, groups_to, scale):
@@ -387,7 +407,13 @@ def _honored_terms(model, in_group, graag_met, groups_to, scale):
 
 
 def _satisfaction_variable(model, student, terms, bounds, scale):
-    """The student's satisfaction integer: element lookup over the F staircase."""
+    """The student's satisfaction integer, plus its own ``(low, high)`` domain.
+
+    Element lookup over the F staircase; ``min(table)``/``max(table)`` are
+    already computed here to size the variable, so returning them as the
+    domain costs nothing extra and avoids reading it back via CP-SAT
+    reflection (see :func:`_add_satisfaction`).
+    """
     low, high = bounds
     weighted_sum = model.NewIntVar(low, high, f"w_{student}")
     model.Add(weighted_sum == sum(terms))
@@ -396,11 +422,14 @@ def _satisfaction_variable(model, student, terms, bounds, scale):
         _scaled_satisfaction(value / scale, high / scale)
         for value in range(low, high + 1)
     ]
-    satisfaction_var = model.NewIntVar(min(table), max(table), f"sat_{student}")
+    satisfaction_low, satisfaction_high = min(table), max(table)
+    satisfaction_var = model.NewIntVar(
+        satisfaction_low, satisfaction_high, f"sat_{student}"
+    )
     index = model.NewIntVar(0, high - low, f"wi_{student}")
     model.Add(index == weighted_sum - low)
     model.AddElement(index, table, satisfaction_var)
-    return satisfaction_var
+    return satisfaction_var, (satisfaction_low, satisfaction_high)
 
 
 def _scaled_satisfaction(weighted: float, best: float) -> int:

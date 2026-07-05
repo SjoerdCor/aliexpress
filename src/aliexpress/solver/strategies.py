@@ -95,12 +95,18 @@ def _lexmaxmin(problem) -> None:
     model = problem.model
     scale = modelbuilder.SATISFACTION_SCALE
     students = list(problem.satisfaction)
+    # The minimum can only ever equal one student's satisfaction, so its domain
+    # is exactly the union of every satisfaction variable's own domain — data-
+    # driven, unlike a fixed constant: a student with only violated negative
+    # wishes can score far below any small fixed lower bound.
+    lower_bound = min(low for low, _ in problem.satisfaction_bounds.values())
+    upper_bound = max(high for _, high in problem.satisfaction_bounds.values())
     above_plateau = {}  # students that escaped the previous plateau (empty at level 0)
     plateau = None
     level = 0
     while True:
         t_start = time.perf_counter()
-        minimum = model.NewIntVar(-10 * scale, 2 * scale, f"minimum_{level}")
+        minimum = model.NewIntVar(lower_bound, upper_bound, f"minimum_{level}")
         if level == 0:
             for student in students:
                 model.Add(minimum <= problem.satisfaction[student])
