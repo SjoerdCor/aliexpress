@@ -55,7 +55,10 @@ ali-express = "aliexpress.main:main"
 aliexpress = "aliexpress.main:main"
 
 [tool.pytest.ini_options]
-addopts = "--cov=aliexpress --cov=app --cov-report=term-missing --cov-report=xml"
+addopts = "--cov=aliexpress --cov=app --cov-report=term-missing --cov-report=xml -m 'not slow'"
+markers = [
+    "slow: long-running solver acceptance tests; skipped by default, pre-merge only",
+]
 pythonpath = ["."]
 
 [tool.pylint.main]
