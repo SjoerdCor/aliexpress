@@ -36,7 +36,7 @@ class SolverError(Exception):
 
 
 class StageInfeasible(Exception):
-    """Raised by ``cpsat.strategies.solve_stage`` when a stage is proven
+    """Raised by ``solver.strategies.solve_stage`` when a stage is proven
     infeasible — the distinct counterpart of ``SolverError`` (which covers any
     other non-optimal status). A caller that gives infeasibility a concrete
     meaning catches this; anywhere else it propagates like ``SolverError``."""

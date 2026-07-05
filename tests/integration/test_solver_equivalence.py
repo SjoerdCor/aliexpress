@@ -1,9 +1,8 @@
-"""Meetpoort: the CP-SAT engine must reproduce the pinned pulp/HiGHS optimum.
+"""Meetpoort: the solver must reproduce the pinned satisfaction optimum.
 
 The per-student satisfaction values in ``test_integration_main`` are the uniquely
 determined optimization objective; they are solver-independent by design. These tests
-run the CP-SAT pipeline on the same instances and compare against the same pinned
-values — the equivalence guard for the backend migration.
+run the solver on the same instances and compare against the same pinned values.
 """
 
 import time
@@ -18,9 +17,9 @@ from test_integration_main import (
 from aliexpress.data import preferences_data
 from aliexpress.data.datareader import matching_key
 from aliexpress.main import _read_groups, _read_preferences
+from aliexpress.solver import engine
 from aliexpress.solver._balance import GroupBalance
-from aliexpress.solver.cpsat import engine
-from aliexpress.solver.cpsat.results import to_solution_result
+from aliexpress.solver.results import to_solution_result
 
 
 def _small_instance():
@@ -37,7 +36,7 @@ def _small_instance():
 
 
 def test_small_instance_reproduces_pinned_satisfaction():
-    """Manual-balance path: same optimum as pulp/HiGHS, per student, to 1e-6."""
+    """Manual-balance path: same optimum as the pinned reference, per student, to 1e-6."""
     preference_data, target_groups, not_together = _small_instance()
 
     solution = engine.solve_with_fixed_balance(
@@ -97,7 +96,7 @@ def test_total_strategy_maximizes_sum_over_lexmaxmin():
     )
 
 
-def test_solution_result_matches_cpsat_solution():
+def test_solution_result_matches_engine_solution():
     """`to_solution_result` derives a consistent `SolutionResult` from a solved instance."""
     preference_data, target_groups, not_together = _small_instance()
 
@@ -160,10 +159,9 @@ def _full_instance():
 
 
 def test_full_instance_reproduces_pinned_satisfaction():
-    """Automatic-balance path: same optimum as pulp/HiGHS, per student, to 1e-6.
+    """Automatic-balance path: same optimum as the pinned reference, per student, to 1e-6.
 
-    The pulp/HiGHS reference for this instance takes ~98s; this asserts the
-    CP-SAT wall time stays well under the 2-minute measurement-gate limit.
+    Also asserts the solve wall time stays well under a 2-minute measurement-gate limit.
     """
     preference_data, target_groups, not_together = _full_instance()
 

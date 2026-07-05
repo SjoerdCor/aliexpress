@@ -16,7 +16,7 @@ implemented, chosen via :func:`optimize`'s ``strategy`` argument:
   scaled satisfaction integers the plateau logic is exact: "strictly above" is
   simply ``>= plateau + 1``.
 
-Boundary with ``model.py``: that module builds the constraints and the
+Boundary with ``modelbuilder.py``: that module builds the constraints and the
 per-student satisfaction integers (the *problem*). This module aggregates
 those integers across students into a single objective (the *strategy*), and
 owns the generic "solve to proven optimality" helper every stage — of either
@@ -31,8 +31,8 @@ import time
 
 from ortools.sat.python import cp_model
 
-from ...errors import SolverError, StageInfeasible
-from . import model as cpsat_model
+from ..errors import SolverError, StageInfeasible
+from . import modelbuilder
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ def optimize(problem, strategy: str) -> cp_model.CpSolver:
 
     Parameters
     ----------
-    problem : model.CpSatProblem | model.CpSatSoftProblem
+    problem : modelbuilder.Problem | modelbuilder.SoftProblem
         The built model; mutated in place by ``"lexmaxmin"``'s plateau stages.
     strategy : str
         The strategy to run: ``"lexmaxmin"`` or ``"total"`` (see the module
@@ -89,11 +89,11 @@ def _lexmaxmin(problem) -> None:
 
     Parameters
     ----------
-    problem : model.CpSatProblem | model.CpSatSoftProblem
+    problem : modelbuilder.Problem | modelbuilder.SoftProblem
         The built model; mutated in place with the plateau constraints.
     """
     model = problem.model
-    scale = cpsat_model.SATISFACTION_SCALE
+    scale = modelbuilder.SATISFACTION_SCALE
     students = list(problem.satisfaction)
     above_plateau = {}  # students that escaped the previous plateau (empty at level 0)
     plateau = None

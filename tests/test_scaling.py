@@ -7,7 +7,7 @@ number, under the documented contract that weights are exact to 3 decimals.
 
 import pytest
 
-from aliexpress.solver.cpsat.scaling import weight_scale
+from aliexpress.solver.scaling import weight_scale
 
 
 def test_form_weight_set_scales_by_two():

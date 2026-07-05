@@ -1,10 +1,10 @@
-"""Tests for the CP-SAT infeasibility diagnosis (cpsat/feasibility.py).
+"""Tests for the CP-SAT infeasibility diagnosis (solver/feasibility.py).
 
 Each scenario is deliberately infeasible through one hard preference family;
 the tests assert which family the diagnosis attributes it to. They run against
 the CP-SAT model builders directly, on the plain
 ``(preferences, students, groups_to, not_together)`` inputs
-``cpsat.model.build_feasibility_problem`` consumes.
+``model.build_feasibility_problem`` consumes.
 """
 
 import pandas as pd
@@ -18,7 +18,7 @@ from aliexpress.data.preferences_form import (
     StudentEntry,
     build_preference_data,
 )
-from aliexpress.solver.cpsat import engine, feasibility
+from aliexpress.solver import engine, feasibility
 
 
 def _target_groups(*names: str) -> GroupCounts:

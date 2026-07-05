@@ -14,9 +14,9 @@ import time
 import pandas as pd
 import pytest
 
+from aliexpress.solver import engine
 from aliexpress.solver._balance import GroupBalance
-from aliexpress.solver.cpsat import engine
-from aliexpress.solver.cpsat.results import to_solution_result
+from aliexpress.solver.results import to_solution_result
 
 _GROUPS_TO = {
     "blauw": {"Jongens": 0, "Meisjes": 0},

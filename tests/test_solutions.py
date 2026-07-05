@@ -2,7 +2,7 @@
 
 import pandas as pd
 
-from aliexpress.solver.cpsat.results import GroupComposition, SolutionResult
+from aliexpress.solver.results import GroupComposition, SolutionResult
 from aliexpress.solver.solutions import DisplayNames, SolutionAnalyzer, to_display_names
 
 
