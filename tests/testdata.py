@@ -8,7 +8,12 @@ Produces the files a process needs to run the solver and navigate the wizard UI:
   roster.json         — participant list (for the "Wie gaat mee" step)
   input_method.json   — records that the form path was used
 
-Call ``main(n_groups, n_students, n_rules)`` to write everything to ``testdata/``.
+Call ``main(n_groups, n_students, n_rules)`` to write a doorzetten scenario to
+``testdata/``, or ``main_herindelen(...)`` for a herindelen (redistribute) scenario
+(adds ``mode.json``; groups start empty and double as origin groups).
+
+CLI: ``uv run python -m tests.testdata SCHOOL PROCES [herindelen]`` creates a ready-made
+process in the running app instance for manual browser testing.
 """
 
 import json
@@ -16,6 +21,7 @@ import math
 import os
 import random
 import string
+from dataclasses import dataclass
 
 import pandas as pd
 
@@ -160,22 +166,43 @@ class NativePreferenceGenerator:
         ("Zion", "Jongen"),
     ]
 
-    def __init__(self, groups_to: list, n_groups_from: int = 4):
+    def __init__(
+        self,
+        groups_to: list,
+        n_groups_from: int = 4,
+        groups_from: list | None = None,
+        allow_min_satisfaction: bool = True,
+    ):
         """
         Parameters
         ----------
         groups_to : list[str]
             Display names of the destination groups (e.g. ["Blauw", "Geel"]).
         n_groups_from : int
-            Number of origin groups (single letters A, B, …).
+            Number of origin groups (single letters A, B, …). Ignored when
+            ``groups_from`` is given.
+        groups_from : list[str] or None
+            Explicit origin group names. Used for herindelen, where students
+            originate from the same groups they are redistributed over.
+        allow_min_satisfaction : bool
+            When False, never generate a hard ``MinimaleTevredenheid``. Herindelen
+            redistributes every student at once with no fixed achterblijvers, so random
+            per-student minima are much more likely to be jointly infeasible than in the
+            doorzetten scenario; a generated test scenario must always be solvable.
         """
         self.groups_to = groups_to
-        self.groups_from = list(string.ascii_uppercase)[:n_groups_from]
+        if groups_from is not None:
+            self.groups_from = list(groups_from)
+        else:
+            self.groups_from = list(string.ascii_uppercase)[:n_groups_from]
+        self.allow_min_satisfaction = allow_min_satisfaction
 
-    @staticmethod
-    def generate_minimale_tevredenheid() -> float | None:
-        """Return None (80 % of the time) or a minimal satisfaction in [0.2, 0.8]."""
-        if random.random() >= 0.2:
+    def generate_minimale_tevredenheid(self) -> float | None:
+        """Return None (80 % of the time) or a minimal satisfaction in [0.2, 0.8].
+
+        Always None when ``allow_min_satisfaction`` is False.
+        """
+        if not self.allow_min_satisfaction or random.random() >= 0.2:
             return None
         return round(random.uniform(0.2, 0.8), 1)
 
@@ -388,6 +415,32 @@ def _build_pref_form_state(
     return {"students": state_students}
 
 
+def _write_common_process_files(
+    folder: str, entries: list[StudentEntry], n_groups: int, n_rules: int
+) -> None:
+    """Write the files shared by both modes: not_together, roster, form state, input method."""
+    leerlingen = [e.student for e in entries]
+    not_together = generate_not_together(leerlingen, n_groups, n_rules)
+    with open(os.path.join(folder, "not_together.json"), "w", encoding="utf-8") as fh:
+        json.dump(not_together, fh, ensure_ascii=False)
+
+    # roster.json — needed by the preferences form step
+    participants = _build_roster_participants(entries)
+    with open(os.path.join(folder, "roster.json"), "w", encoding="utf-8") as fh:
+        json.dump({"participants": participants}, fh, ensure_ascii=False)
+
+    # preferences_form_state.json — pre-fills the form on first GET
+    pref_state = _build_pref_form_state(entries, participants)
+    with open(
+        os.path.join(folder, "preferences_form_state.json"), "w", encoding="utf-8"
+    ) as fh:
+        json.dump(pref_state, fh, ensure_ascii=False)
+
+    # input_method.json — marks this process as form-based
+    with open(os.path.join(folder, "input_method.json"), "w", encoding="utf-8") as fh:
+        json.dump({"method": "form"}, fh, ensure_ascii=False)
+
+
 # ---------------------------------------------------------------------------
 # Public: write a complete process directory
 # ---------------------------------------------------------------------------
@@ -435,27 +488,71 @@ def main(n_groups: int = 4, n_students: int = 35, n_rules: int = 5, folder: str 
     ) as fh:
         json.dump(relevant, fh, ensure_ascii=False)
 
-    # not_together.json
-    leerlingen = [e.student for e in entries]
-    not_together = generate_not_together(leerlingen, n_groups, n_rules)
-    with open(os.path.join(folder, "not_together.json"), "w", encoding="utf-8") as fh:
-        json.dump(not_together, fh, ensure_ascii=False)
+    _write_common_process_files(folder, entries, n_groups, n_rules)
 
-    # roster.json — needed by the preferences form step
-    participants = _build_roster_participants(entries)
-    with open(os.path.join(folder, "roster.json"), "w", encoding="utf-8") as fh:
-        json.dump({"participants": participants}, fh, ensure_ascii=False)
 
-    # preferences_form_state.json — pre-fills the form on first GET
-    pref_state = _build_pref_form_state(entries, participants)
+def main_herindelen(
+    n_groups: int = 3, n_students: int = 35, n_rules: int = 5, folder: str = None
+):
+    """Generate a full set of process files for a herindelen (redistribute) process.
+
+    Differences from ``main()`` (the doorzetten scenario), mirroring what the wizard
+    writes for mode "redistribute":
+      - ``mode.json`` marks the process as redistribute.
+      - Students originate from the destination groups themselves (herkomst = bestemming).
+      - ``groups_to`` has no achterblijvers: every group starts empty.
+      - ``groups.xlsx`` has zero occupancy per group, exactly like
+        ``_groups_to_auto_redistribute`` in wizard.py writes it.
+
+    Parameters
+    ----------
+    n_groups : int
+        Number of groups to redistribute over (2–10).
+    n_students : int
+        Number of students to redistribute (1–39).
+    n_rules : int
+        Number of not-together rules to generate.
+    folder : str or None
+        Output directory; defaults to ``testdata/``.
+    """
+    if folder is None:
+        folder = FOLDER
+    os.makedirs(folder, exist_ok=True)
+
+    group_names = SAMPLE_GROUP_NAMES[:n_groups]
+    generator = NativePreferenceGenerator(
+        groups_to=group_names,
+        groups_from=group_names,
+        allow_min_satisfaction=False,
+    )
+    entries = generator.generate(
+        num_students=n_students,
+        fname=os.path.join(folder, "voorkeuren.json"),
+    )
+
+    # mode.json — absent means "forward", so only redistribute processes write it
+    with open(os.path.join(folder, "mode.json"), "w", encoding="utf-8") as fh:
+        json.dump({"mode": "redistribute"}, fh)
+
+    # groups.xlsx — zero occupancy, same format _groups_to_auto_redistribute produces
+    distribution = {g: {"Jongens": 0, "Meisjes": 0} for g in group_names}
+    pd.DataFrame(distribution).transpose().to_excel(
+        os.path.join(folder, "groups.xlsx"), index_label="Groepen"
+    )
+
+    # relevant_students_and_groups.json — mirrors handle_edexml_upload_herindelen:
+    # all selected-group students are candidates, destination groups start empty.
+    relevant = {
+        "candidates": _generate_candidates(entries),
+        "groups_from": generator.groups_from + ["Anders"],
+        "groups_to": {g: [] for g in group_names},
+    }
     with open(
-        os.path.join(folder, "preferences_form_state.json"), "w", encoding="utf-8"
+        os.path.join(folder, "relevant_students_and_groups.json"), "w", encoding="utf-8"
     ) as fh:
-        json.dump(pref_state, fh, ensure_ascii=False)
+        json.dump(relevant, fh, ensure_ascii=False)
 
-    # input_method.json — marks this process as form-based
-    with open(os.path.join(folder, "input_method.json"), "w", encoding="utf-8") as fh:
-        json.dump({"method": "form"}, fh, ensure_ascii=False)
+    _write_common_process_files(folder, entries, n_groups, n_rules)
 
 
 # ---------------------------------------------------------------------------
@@ -463,12 +560,20 @@ def main(n_groups: int = 4, n_students: int = 35, n_rules: int = 5, folder: str 
 # ---------------------------------------------------------------------------
 
 
+@dataclass(frozen=True)
+class ScenarioSize:
+    """Size parameters shared by ``main()`` and ``main_herindelen()``."""
+
+    n_groups: int = 4
+    n_students: int = 35
+    n_rules: int = 5
+
+
 def setup_test_process(
     school_id: str,
     process_name: str,
-    n_groups: int = 4,
-    n_students: int = 35,
-    n_rules: int = 5,
+    size: ScenarioSize = ScenarioSize(),
+    mode: str = "forward",
 ) -> str:
     """Create a DB entry + full process directory for manual browser testing.
 
@@ -478,8 +583,10 @@ def setup_test_process(
         The ``schoolcode`` of an existing school in the database.
     process_name : str
         Name of the process to create (inserted if it does not exist yet).
-    n_groups, n_students, n_rules : int
-        Passed to ``main()``; see its docstring.
+    size : ScenarioSize
+        Passed to ``main()`` / ``main_herindelen()``; see their docstrings.
+    mode : str
+        "forward" for a doorzetten process, "redistribute" for herindelen.
 
     Returns
     -------
@@ -503,7 +610,13 @@ def setup_test_process(
             db.session.commit()
         folder = get_process_path(school_id, process_name)
     os.makedirs(folder, exist_ok=True)
-    main(n_groups=n_groups, n_students=n_students, n_rules=n_rules, folder=folder)
+    generate = main_herindelen if mode == "redistribute" else main
+    generate(
+        n_groups=size.n_groups,
+        n_students=size.n_students,
+        n_rules=size.n_rules,
+        folder=folder,
+    )
     return folder
 
 
@@ -553,12 +666,18 @@ def {function_name}():
     return code
 
 
+def _run_cli(argv: list[str]) -> None:
+    """Handle ``python -m tests.testdata SCHOOL PROCES [herindelen]``."""
+    if len(argv) >= 3:
+        school, process = argv[1], argv[2]
+        mode = "redistribute" if "herindelen" in argv[3:] else "forward"
+        path = setup_test_process(school, process, mode=mode)
+        print(f"Testproces aangemaakt ({mode}): {path}")
+    else:
+        main(3, 8, 1)
+
+
 if __name__ == "__main__":
     import sys  # pylint: disable=import-outside-toplevel
 
-    if len(sys.argv) >= 3:
-        _school, _process = sys.argv[1], sys.argv[2]
-        _path = setup_test_process(_school, _process)
-        print(f"Testproces aangemaakt: {_path}")
-    else:
-        main(3, 8, 1)
+    _run_cli(sys.argv)
