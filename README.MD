@@ -21,7 +21,7 @@ uv sync --extra dev
 uv run pre-commit install
 ```
 
-The HiGHS solver (`highspy`) is installed automatically as a dependency. Run any command inside the environment with `uv run`, for example `uv run pytest tests/` to run the tests.
+The CP-SAT solver (`ortools`) is installed automatically as a dependency. Run any command inside the environment with `uv run`, for example `uv run pytest tests/` to run the tests.
 
 The `tests/browser/` suite uses Playwright to drive the real app and cover the page
 JavaScript. It needs the browser installed once:
@@ -51,15 +51,11 @@ filter on a single run or school:
 
 ```
 2025-01-15 09:31:04,123 INFO [schoolX/Groep4/7 solve] aliexpress.main MainThread: All files read
-2025-01-15 09:31:04,456 INFO [schoolX/Groep4/7 solve] aliexpress.solver.optimizationstrategies MainThread: lexmaxmin level 0: Optimal in 1.23s, plateau=18
+2025-01-15 09:31:04,456 INFO [schoolX/Groep4/7 solve] aliexpress.solver.strategies MainThread: lexmaxmin level 0: Optimal in 1.23s, plateau=18
 ```
 
 Fields in brackets: `school / process / run phase`. A dash (`-`) means no active context
-(e.g. an unauthenticated request).
-
-The HiGHS solver log is written separately to
-`instance/logs/highs-<school>-<process>.log` so concurrent solving jobs do not interleave.
-No student names appear in any log file.
+(e.g. an unauthenticated request). No student names appear in any log file.
 
 ## Schools and login
 

@@ -27,8 +27,8 @@ The remaining modules:
 - ``results``: maps a solved instance into the shared, solver-agnostic
   ``SolutionResult``/``GroupComposition``.
 - ``solutions``: reports on a solved distribution (``SolutionAnalyzer``).
-- ``_balance``: ``GroupBalance``, ``STRICTEST_BALANCE``, and ``solver_log_path``, shared
-  with the reporting/web layer.
+- ``_balance``: ``GroupBalance`` and ``STRICTEST_BALANCE``, shared with the reporting/web
+  layer.
 
 Runtime: most solves finish in seconds. On harder instances — many students, tight
 balance, Niet-samen rules that couple students across different Stamgroepen/Jaarlagen

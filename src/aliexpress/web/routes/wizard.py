@@ -43,7 +43,6 @@ from ...errors import (
 )
 from ...logging_config import bind_log_context
 from ...main import distribute_students_from_data
-from ...solver._balance import solver_log_path
 from ..extensions import db
 from ..flashing import warn_and_flash
 from ..models import LogLine, Process, Run
@@ -167,18 +166,12 @@ def _run_solve_thread(ctx: _ThreadContext, groups_to_path, not_together):
                 )
                 preference_data, _ = _read_voorkeuren_json(voorkeuren_path)
                 target_groups = datareader.read_groups_excel(groups_to_path)
-                highs_log = os.path.join(
-                    current_app.instance_path,
-                    "logs",
-                    f"highs-{ctx.school_id}-{ctx.process_name}.log",
+                result = distribute_students_from_data(
+                    preference_data,
+                    target_groups,
+                    not_together,
+                    on_update=on_update,
                 )
-                with solver_log_path(highs_log):
-                    result = distribute_students_from_data(
-                        preference_data,
-                        target_groups,
-                        not_together,
-                        on_update=on_update,
-                    )
                 logger.info("Distributing students finished successfully")
                 # Write artifacts before flipping to "done" so the result page never
                 # races ahead of the files it needs.

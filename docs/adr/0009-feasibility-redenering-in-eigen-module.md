@@ -2,6 +2,10 @@
 status: accepted
 ---
 
+> **Update (ADR-0013):** de PuLP/HiGHS-backend en het `ProblemSolver`-substraat die dit
+> ADR beschrijft, zijn vervangen door CP-SAT. Dit document blijft staan als historisch
+> verslag van die architectuur; zie ADR-0013 voor de huidige implementatie.
+
 # Feasibility-redenering in eigen module (`feasibility.py`)
 
 `ProblemSolver` bevat de veranderlijke PuLP-toestand: de gedeelde beslissingsvariabelen
