@@ -48,7 +48,7 @@ onderliggende schaalprobleem niet op en tast de kwaliteit van de indeling aan.
 
 **CP-SAT naast PuLP houden (twee backends)** — was de tussenstap tijdens de migratie
 (`solver/cpsat/` naast de PuLP-modules), gebruikt om de twee backends op pinned
-tevredenheidswaarden te verifiëren (zie `tests/integration/test_solver_equivalence.py`).
+tevredenheidswaarden te verifiëren (zie `tests/integration/test_pinned_optimum.py`).
 Na die verificatie voegt een tweede, ongebruikte backend alleen onderhoudslast toe.
 
 ## Consequenties
