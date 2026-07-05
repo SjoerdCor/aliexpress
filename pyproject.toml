@@ -6,8 +6,6 @@ readme = "README.MD"
 authors = [{ name = "Sjoerd Cornelissen"}]
 requires-python = ">=3.11"
 dependencies = [
-    "pulp==3.1.1",
-    "highspy==1.14.0",
     "flask==3.1.3",
     "python-dotenv==1.2.2",
     "pandas==2.2.3",
