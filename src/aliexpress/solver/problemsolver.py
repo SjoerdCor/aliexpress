@@ -13,7 +13,6 @@ The satisfaction metric (honored preferences → score per student) lives in
 import itertools
 import logging
 import math
-from dataclasses import dataclass
 
 import pandas as pd
 import pulp
@@ -22,40 +21,9 @@ from ..data import preferences_data
 from ..errors import SolverError
 from . import feasibility, optimizationstrategies, pulp_logical, satisfaction
 from ._balance import STRICTEST_BALANCE, GroupBalance, get_solver
+from .cpsat.results import GroupComposition, SolutionResult
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class GroupComposition:
-    """Boys/girls counts for one target group: total and for the new cohort (year)."""
-
-    boys_total: int
-    girls_total: int
-    boys_year: int
-    girls_year: int
-
-
-@dataclass(frozen=True)
-class SolutionResult:
-    """Structured outcome of a solved distribution, read straight from the solver.
-
-    Consumed by :class:`~aliexpress.solutions.SolutionAnalyzer`; it replaces parsing the
-    solution back out of pulp variable names. Every field holds plain Python values (no
-    pulp objects), so the result is straightforward to serialise once a persistence route
-    is needed.
-
-    The ``(student, Nr)`` keys index the positive ("Graag met") wishes: ``Nr`` is the
-    wish's sequence number within that student's wishes; its target (a classmate or group)
-    lives in ``preferences.loc[(student, "Graag met", Nr), "Waarde"]``.
-    """
-
-    assignment: dict[str, str]  # student -> assigned group
-    student_satisfaction: dict[str, float]  # student -> relative satisfaction (0..1)
-    satisfied: dict[tuple[str, int], bool]  # (student, Nr) -> wish fulfilled
-    weighted_satisfied: dict[tuple[str, int], float]  # (student, Nr) -> weighted value
-    weights: dict[tuple[str, int], float]  # (student, Nr) -> wish weight (signed)
-    group_composition: dict[str, GroupComposition]  # group -> boys/girls counts
 
 
 # pylint: disable=too-many-instance-attributes, too-many-arguments, too-many-positional-arguments

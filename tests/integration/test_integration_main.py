@@ -23,7 +23,7 @@ from aliexpress.data.preferences_form import (
     build_preference_data,
 )
 from aliexpress.main import distribute_students_from_data, distribute_students_once
-from aliexpress.solver.problemsolver import GroupBalance
+from aliexpress.solver._balance import GroupBalance
 
 _NOT_TOGETHER_SMALL = [
     {"group": {"Claire", "Bram", "Eva", "Daan"}, "Max_aantal_samen": 2},
