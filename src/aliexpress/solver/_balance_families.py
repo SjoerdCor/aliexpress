@@ -196,8 +196,13 @@ class _BalanceFamilies:
             The limit for each of :data:`FAMILY_NAMES`: a plain int for a hard
             limit, or ``STRICTEST_LIMIT + slack`` for a soft one.
         """
-        for cohort in self._cohorts().values():
-            self._count_spread(cohort, limit=limits["diff_year"], occupancy=None)
+        for cohort_key, cohort in self._cohorts().items():
+            self._count_spread(
+                cohort,
+                limit=limits["diff_year"],
+                occupancy=None,
+                label=f"year_{cohort_key if cohort_key is not None else 'none'}",
+            )
             self._gender_balance(
                 cohort, limit=limits["gender_year"], with_occupancy=False
             )
@@ -207,7 +212,9 @@ class _BalanceFamilies:
             group: counts["Jongens"] + counts["Meisjes"]
             for group, counts in self.groups_to.items()
         }
-        self._count_spread(everyone, limit=limits["diff_total"], occupancy=occupancy)
+        self._count_spread(
+            everyone, limit=limits["diff_total"], occupancy=occupancy, label="total"
+        )
         self._gender_balance(
             everyone, limit=limits["gender_total"], with_occupancy=True
         )
@@ -226,6 +233,7 @@ class _BalanceFamilies:
         *,
         limit: cp_model.LinearExprT,
         occupancy: dict[str, int] | None,
+        label: str,
     ) -> None:
         """Max-min spread of member counts over groups stays within ``limit``.
 
@@ -239,21 +247,22 @@ class _BalanceFamilies:
         occupancy : dict[str, int] | None
             Current per-group occupancy to add to the count, or ``None`` to
             count only the new ``members`` (the per-cohort family).
+        label : str
+            Identifies this call's variables (e.g. ``"year_6"`` or ``"total"``)
+            so variable names are deterministic across runs.
         """
         n = len(members)
         top = n + (max(occupancy.values()) if occupancy else 0)
         counts = []
         for group in self.groups_to:
             current = occupancy[group] if occupancy else 0
-            count = self.model.NewIntVar(
-                current, current + n, f"count_{id(members)}_{group}"
-            )
+            count = self.model.NewIntVar(current, current + n, f"count_{label}_{group}")
             self.model.Add(
                 count == sum(self.in_group[s, group] for s in members) + current
             )
             counts.append(count)
-        largest = self.model.NewIntVar(0, top, f"max_{id(members)}")
-        smallest = self.model.NewIntVar(0, top, f"min_{id(members)}")
+        largest = self.model.NewIntVar(0, top, f"max_{label}")
+        smallest = self.model.NewIntVar(0, top, f"min_{label}")
         self.model.AddMaxEquality(largest, counts)
         self.model.AddMinEquality(smallest, counts)
         self.model.Add(largest - smallest <= limit)
