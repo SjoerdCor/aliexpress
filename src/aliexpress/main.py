@@ -12,10 +12,11 @@ from . import errors
 from .data import datareader
 from .data.datareader import GroupCounts
 from .data.preferences_data import PreferenceData
-from .solver import problemsolver, solutions
+from .solver import solutions
+from .solver._balance import GroupBalance
 from .solver.cpsat import engine as cpsat_engine
 from .solver.cpsat import results as cpsat_results
-from .solver.problemsolver import GroupBalance
+from .solver.cpsat.results import SolutionResult
 
 FILE_PREFERENCES = "voorkeuren.xlsx"
 FILE_GROUPS_TO = "groepen.xlsx"
@@ -120,7 +121,7 @@ def _export(result, preference_data, target_groups):
 
 
 def _log_solve_summary(
-    result: problemsolver.SolutionResult, groupbalance: GroupBalance | None = None
+    result: SolutionResult, groupbalance: GroupBalance | None = None
 ) -> None:
     """Log anonymous headline metrics after a completed solve — no student names.
 

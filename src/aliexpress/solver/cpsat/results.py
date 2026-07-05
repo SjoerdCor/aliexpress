@@ -1,15 +1,46 @@
 """Map a :class:`~.engine.CpSatSolution` into the shared :class:`SolutionResult`.
 
 The reporting/export layer (``solver/solutions.py``) reads a
-:class:`~aliexpress.solver.problemsolver.SolutionResult`, not solver-specific
-objects. This module is a pure mapper: it derives every field the reporting
-layer needs from a solved :class:`~.engine.CpSatSolution`, with no solving of
-its own.
+:class:`SolutionResult`, not solver-specific objects. This module is a pure
+mapper: it derives every field the reporting layer needs from a solved
+:class:`~.engine.CpSatSolution`, with no solving of its own.
 """
 
+from dataclasses import dataclass
+
 from ...data import preferences_data
-from ..problemsolver import GroupComposition, SolutionResult
 from .engine import CpSatSolution
+
+
+@dataclass(frozen=True)
+class GroupComposition:
+    """Boys/girls counts for one target group: total and for the new cohort (year)."""
+
+    boys_total: int
+    girls_total: int
+    boys_year: int
+    girls_year: int
+
+
+@dataclass(frozen=True)
+class SolutionResult:
+    """Structured outcome of a solved distribution, read straight from the solver.
+
+    Consumed by :class:`~aliexpress.solver.solutions.SolutionAnalyzer`. Every field
+    holds plain Python values (no solver objects), so the result is straightforward
+    to serialise once a persistence route is needed.
+
+    The ``(student, Nr)`` keys index the positive ("Graag met") wishes: ``Nr`` is the
+    wish's sequence number within that student's wishes; its target (a classmate or
+    group) lives in ``preferences.loc[(student, "Graag met", Nr), "Waarde"]``.
+    """
+
+    assignment: dict[str, str]  # student -> assigned group
+    student_satisfaction: dict[str, float]  # student -> relative satisfaction (0..1)
+    satisfied: dict[tuple[str, int], bool]  # (student, Nr) -> wish fulfilled
+    weighted_satisfied: dict[tuple[str, int], float]  # (student, Nr) -> weighted value
+    weights: dict[tuple[str, int], float]  # (student, Nr) -> wish weight (signed)
+    group_composition: dict[str, GroupComposition]  # group -> boys/girls counts
 
 
 def to_solution_result(
