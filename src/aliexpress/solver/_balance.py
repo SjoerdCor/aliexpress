@@ -1,22 +1,6 @@
-"""Shared primitives for the solver sub-package: ``GroupBalance`` and the solver log path."""
+"""Shared primitives for the solver sub-package: ``GroupBalance``."""
 
-from contextlib import contextmanager
-from contextvars import ContextVar
 from dataclasses import dataclass
-
-# Per-thread solver log path: set by _run_solve_thread before each solve so that
-# concurrent processes write to separate files rather than the shared OS temp log.
-_SOLVER_LOG_PATH: ContextVar[str | None] = ContextVar("_SOLVER_LOG_PATH", default=None)
-
-
-@contextmanager
-def solver_log_path(path: str):
-    """Context manager that sets the per-thread solver log path to *path*."""
-    token = _SOLVER_LOG_PATH.set(path)
-    try:
-        yield
-    finally:
-        _SOLVER_LOG_PATH.reset(token)
 
 
 @dataclass

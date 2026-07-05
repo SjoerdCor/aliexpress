@@ -235,7 +235,7 @@ def matching_key(x):
     """Normalize a name to the internal key that matches wishes to students/groups.
 
     Strips HTML/URL-unsafe characters, removes spaces and folds case, so that e.g.
-    ``Anne claire`` and ``Anne Claire`` collapse to the same key. The key feeds pulp
+    ``Anne claire`` and ``Anne Claire`` collapse to the same key. The key feeds solver
     variable names and dict lookups (and is the only form rendered raw in the sociogram),
     so keeping it free of dangerous characters is a cheap, internal safety guarantee.
     """
