@@ -1,22 +1,12 @@
 """From honored preferences to satisfaction per student.
 
-Boundaries
-----------
-- ``problemsolver`` owns the LP model: which preferences are honored given an assignment.
-  It calls ``calculate_student_satisfaction`` to add the per-student satisfaction
-  variables to the model.
-- ``optimizationstrategies`` aggregates: given a satisfaction per student, what is the
-  single objective value? That is a different question from the metric per student.
-
-What this module does
----------------------
-It defines the *metric* that maps honored preferences to a satisfaction score per student.
-Conceptually this is one pluggable choice — two concrete metrics are provided:
+This module defines the *metric* that maps honored preferences to a satisfaction score
+per student. Conceptually this is one pluggable choice — two concrete metrics are
+provided:
 
 - ``get_satisfaction_integral``: concave, diminishing-returns scoring. The marginal value
-  of each additional honored preference decreases. The lexmaxmin objective in
-  ``optimizationstrategies`` then drives the "everyone gets preference 1 first" property,
-  not this function alone.
+  of each additional honored preference decreases. A lexmaxmin objective built on top of
+  it then drives the "everyone gets preference 1 first" property, not this function alone.
 - ``get_satisfaction_percentage``: linear scoring. Treats all preferences as equally
   important regardless of order.
 
@@ -25,13 +15,8 @@ Narrative through the file:
 """
 
 import itertools
-import warnings
-
-import pandas as pd
-import pulp
 
 from ..data import preferences_data
-from . import pulp_thresholds
 
 # ---------------------------------------------------------------------------
 # 1. Satisfaction functions (the pluggable metric)
@@ -146,139 +131,3 @@ def calculate_added_satisfaction(preferences) -> dict:
         for last_wp, wp in zip(values[:-1], values[1:]):
             preference_value[wp] = get_satisfaction_integral(last_wp, wp)
     return preference_value
-
-
-# ---------------------------------------------------------------------------
-# 3. Application to the LP
-# ---------------------------------------------------------------------------
-
-
-def _threshold_big_m(graag_met: pd.DataFrame) -> float:
-    """Smallest safe big-M for the weighted-level threshold constraints.
-
-    The thresholded value is a student's weighted honored-preference sum, which lives
-    in ``[min negative weight sum, max positive weight sum]`` over all students; every
-    threshold is a subset sum and lies in that same interval.  A big-M spanning that
-    range (plus 1 as slack for the strict-inequality epsilon) is therefore sufficient,
-    and keeps the LP relaxation tight — an oversized M (the previous 1e6 default) makes
-    the relaxation nearly vacuous and branch-and-bound dramatically slower.
-    """
-    if graag_met.empty:
-        return 1.0
-    per_student = graag_met.groupby("Leerling")["Gewicht"]
-    pos_max = per_student.apply(lambda w: w[w > 0].sum()).max()
-    neg_min = per_student.apply(lambda w: w[w < 0].sum()).min()
-    return float(pos_max - neg_min) + 1.0
-
-
-def calculate_weighted_preferences(
-    solver, satisfied: dict, prob: pulp.LpProblem
-) -> dict:
-    """Add LP variables for weighted honored preferences to ``prob`` and return them.
-
-    ``satisfied[key]`` is 1 when the preference is honored, 0 otherwise.
-    """
-    graag_met = preferences_data.get_graag_met(solver.preferences)
-    weights = graag_met["Gewicht"].to_dict()
-    weights_pulp = pulp.LpVariable.dicts(
-        "Weights_preferences", graag_met.index.to_list(), cat="Continuous"
-    )
-    weighted_satisfied = pulp.LpVariable.dicts(
-        "WeightedSatisfied", graag_met.index.to_list(), cat="Continuous"
-    )
-
-    for key, weight in weights.items():
-        prob += weights_pulp[key] == weight
-        if weight > 0:
-            prob += weighted_satisfied[key] == (satisfied[key] * weight)
-        else:
-            # Negative weight → lower satisfaction when not satisfied (satisfied==0),
-            # so (1 - satisfied) selects that case.
-            prob += weighted_satisfied[key] == ((1 - satisfied[key]) * weight)
-
-    return weighted_satisfied
-
-
-def calculate_student_satisfaction(
-    solver, satisfied: dict, prob: pulp.LpProblem
-) -> dict:
-    """Add per-student satisfaction LP variables to ``prob`` and return them.
-
-    Applies the integral satisfaction metric to map each student's honored preferences
-    to a single satisfaction variable. Students without positive preferences receive a
-    baseline score so they do not drive the lexmaxmin objective.
-
-    Each satisfaction variable also gets tight per-student bounds (worst case: all
-    negative wishes violated; best case: everything honored, i.e. 1).  Integer solutions
-    always lie within these bounds, so the optimum is unchanged; the bounds only cut
-    fractional solutions, strengthening the LP relaxation.
-    """
-    added_satisfaction = calculate_added_satisfaction(solver.preferences)
-    weighted_satisfied = calculate_weighted_preferences(solver, satisfied, prob)
-    threshold_big_m = _threshold_big_m(
-        preferences_data.get_graag_met(solver.preferences)
-    )
-
-    for student in solver.students:
-        student_weighted = [
-            weighted_satisfied.get((student, i), 0)
-            for i in range(1, len(added_satisfaction) + 1)
-        ]
-        wp_satisfied = pulp.lpSum(student_weighted)
-
-        wp_satisfied_per_student = pulp.LpVariable.dicts(
-            f"{student}_weighted_preferences_accountend",
-            added_satisfaction.keys(),
-            cat="Binary",
-        )
-
-        pulp_thresholds.apply_threshold_constraints(
-            prob,
-            wp_satisfied,
-            added_satisfaction.keys(),
-            wp_satisfied_per_student,
-            M=threshold_big_m,
-            eps=1e-3,  # Necessary to run lexmaxmin without errors; I dont know why
-        )
-
-        satisfaction_current_student = pulp.lpSum(
-            val * wp_satisfied_per_student[n_wp]
-            for n_wp, val in added_satisfaction.items()
-        )
-
-        satisfaction_current_student, low_bound, up_bound = _normalize_and_bound(
-            solver.preferences, student, satisfaction_current_student
-        )
-        solver.studentsatisfaction[student].bounds(low_bound, up_bound)
-        prob += solver.studentsatisfaction[student] == satisfaction_current_student
-    return solver.studentsatisfaction
-
-
-def _normalize_and_bound(all_preferences, student, raw_satisfaction):
-    """Normalize one student's raw satisfaction expression and derive its bounds.
-
-    Returns ``(expression, low_bound, up_bound)``.  Students without positive
-    preferences get a baseline of 1 so they do not drive the maxmin objective.
-    The bounds are the student's achievable extremes: worst case every negative
-    wish violated, best case everything honored (1).
-    """
-    with warnings.catch_warnings(
-        action="ignore", category=pd.errors.PerformanceWarning
-    ):
-        try:
-            preferences = all_preferences.loc[(student, "Graag met")]
-        except KeyError:
-            return 1, 1.0, 1.0
-        # Worst case: every negative wish is violated (<= 0, 0 without them).
-        negative_sum = preferences.query("Gewicht < 0")["Gewicht"].sum()
-        worst_case = get_satisfaction_integral(0, negative_sum)
-        positive_preferences = preferences.query("Gewicht > 0")
-        if positive_preferences.empty:
-            return raw_satisfaction + 1, 1 + worst_case, 1.0
-        max_preferences = positive_preferences["Gewicht"].sum()
-        max_satisfaction = get_satisfaction_integral(0, max_preferences)
-        return (
-            raw_satisfaction / max_satisfaction,
-            worst_case / max_satisfaction,
-            1.0,
-        )
