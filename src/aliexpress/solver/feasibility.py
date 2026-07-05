@@ -11,7 +11,7 @@ them, once left soft, restores feasibility.
 
 from ortools.sat.python import cp_model
 
-from . import model as cpsat_model
+from . import modelbuilder
 from .strategies import NUM_WORKERS
 
 
@@ -29,7 +29,7 @@ def feasible_when_relaxed(  # pylint: disable=too-many-arguments
 ) -> bool:
     """Whether a valid assignment exists when the chosen families are left soft.
 
-    Builds :func:`.model.build_feasibility_problem` with the two relaxable
+    Builds :func:`.modelbuilder.build_feasibility_problem` with the two relaxable
     families hard except where the caller marks them soft, and checks whether
     any assignment satisfies it. Class balance is always soft and "Niet in" is
     always hard, matching the real solve.
@@ -56,7 +56,7 @@ def feasible_when_relaxed(  # pylint: disable=too-many-arguments
     bool
         Whether a valid assignment exists under this relaxation choice.
     """
-    problem = cpsat_model.build_feasibility_problem(
+    problem = modelbuilder.build_feasibility_problem(
         preferences,
         students,
         groups_to,

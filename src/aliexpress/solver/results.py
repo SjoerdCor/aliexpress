@@ -1,15 +1,15 @@
-"""Map a :class:`~.engine.CpSatSolution` into the shared :class:`SolutionResult`.
+"""Map a :class:`~.engine.Solution` into the shared :class:`SolutionResult`.
 
 The reporting/export layer (``solver/solutions.py``) reads a
 :class:`SolutionResult`, not solver-specific objects. This module is a pure
 mapper: it derives every field the reporting layer needs from a solved
-:class:`~.engine.CpSatSolution`, with no solving of its own.
+:class:`~.engine.Solution`, with no solving of its own.
 """
 
 from dataclasses import dataclass
 
-from ...data import preferences_data
-from .engine import CpSatSolution
+from ..data import preferences_data
+from .engine import Solution
 
 
 @dataclass(frozen=True)
@@ -44,13 +44,13 @@ class SolutionResult:
 
 
 def to_solution_result(
-    solution: CpSatSolution, preferences, students: dict, groups_to: dict
+    solution: Solution, preferences, students: dict, groups_to: dict
 ) -> SolutionResult:
     """Read a solved CP-SAT instance into a structured :class:`SolutionResult`.
 
     Parameters
     ----------
-    solution : CpSatSolution
+    solution : Solution
         The solved assignment, honored wishes and recomputed satisfaction.
     preferences : pandas.DataFrame
         Long-format preference rows, indexed by ``(student, TypeWens, Nr)``.

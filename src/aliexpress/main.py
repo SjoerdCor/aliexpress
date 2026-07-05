@@ -12,11 +12,9 @@ from . import errors
 from .data import datareader
 from .data.datareader import GroupCounts
 from .data.preferences_data import PreferenceData
-from .solver import solutions
+from .solver import engine, results, solutions
 from .solver._balance import GroupBalance
-from .solver.cpsat import engine as cpsat_engine
-from .solver.cpsat import results as cpsat_results
-from .solver.cpsat.results import SolutionResult
+from .solver.results import SolutionResult
 
 FILE_PREFERENCES = "voorkeuren.xlsx"
 FILE_GROUPS_TO = "groepen.xlsx"
@@ -187,9 +185,9 @@ def distribute_students_from_data(
         Class-balance constraints. When None (the default), the balance is determined
         automatically: satisfaction is maximized within the minimal relaxation that still
         lets every student fulfil a positive wish (see
-        :func:`~.solver.cpsat.engine.solve_within_minimal_relaxation`). Pass a
+        :func:`~.solver.engine.solve_within_minimal_relaxation`). Pass a
         GroupBalance to override this with fixed manual limits instead (see
-        :func:`~.solver.cpsat.engine.solve_with_fixed_balance`).
+        :func:`~.solver.engine.solve_with_fixed_balance`).
     """
     preferences = preference_data.preferences
     students_info = preference_data.students_info
@@ -216,21 +214,21 @@ def distribute_students_from_data(
     on_update("Aan de slag! Groepen indelen...")
     if groupbalance is None:
         logger.info("Solving within the minimal class-balance relaxation")
-        solution = cpsat_engine.solve_within_minimal_relaxation(
+        solution = engine.solve_within_minimal_relaxation(
             preferences=preferences,
             students=students_info,
             groups_to=target_groups.counts,
             not_together=not_together,
             optimize="lexmaxmin",
         )
-        result = cpsat_results.to_solution_result(
+        result = results.to_solution_result(
             solution, preferences, students_info, target_groups.counts
         )
         _log_solve_summary(result)
     else:
         logger.info("Solving with a fixed class balance")
         try:
-            solution = cpsat_engine.solve_with_fixed_balance(
+            solution = engine.solve_with_fixed_balance(
                 preferences=preferences,
                 students=students_info,
                 groups_to=target_groups.counts,
@@ -247,7 +245,7 @@ def distribute_students_from_data(
                 },
                 technical_message="Fixed class balance admits no valid assignment",
             ) from exc
-        result = cpsat_results.to_solution_result(
+        result = results.to_solution_result(
             solution, preferences, students_info, target_groups.counts
         )
         _log_solve_summary(result, groupbalance)

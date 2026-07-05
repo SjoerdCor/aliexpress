@@ -1,10 +1,10 @@
 """The CP-SAT solve pipeline: build the model, run it, extract the solution.
 
 Orchestrates the two entry points below: build the constraints via
-:mod:`.model`, fix any lexicographic pre-stages a path needs (the automatic
-path's minimal-relaxation search), hand off to :mod:`.strategies` for the
-chosen aggregate objective, and extract the proven-optimal solution into a
-plain :class:`CpSatSolution`.
+:mod:`.modelbuilder`, fix any lexicographic pre-stages a path needs (the
+automatic path's minimal-relaxation search), hand off to :mod:`.strategies`
+for the chosen aggregate objective, and extract the proven-optimal solution
+into a plain :class:`Solution`.
 
 The reported per-student satisfaction is *recomputed in float* from the honored
 wishes — not read back as ``integer / SATISFACTION_SCALE`` — so the ×10^6
@@ -16,17 +16,15 @@ from dataclasses import dataclass
 
 from ortools.sat.python import cp_model
 
-from ... import errors
-from ...data import preferences_data
-from ..satisfaction import get_satisfaction_integral
-from . import feasibility
-from . import model as cpsat_model
-from . import strategies
+from .. import errors
+from ..data import preferences_data
+from . import feasibility, modelbuilder, strategies
 from ._balance_families import SLACK_WEIGHTS, max_slack_bound
+from .satisfaction import get_satisfaction_integral
 
 
 @dataclass
-class CpSatSolution:
+class Solution:
     """Solved outcome, in plain Python values (no solver objects)."""
 
     assignment: dict  # student -> group
@@ -45,10 +43,10 @@ def solve_with_fixed_balance(  # pylint: disable=too-many-arguments
     not_together: list,
     groupbalance,
     optimize: str = "lexmaxmin",
-) -> CpSatSolution:
+) -> Solution:
     """Solve the distribution with hard balance limits (the manual path).
 
-    Builds the model via :func:`.model.build_problem`, runs the chosen
+    Builds the model via :func:`.modelbuilder.build_problem`, runs the chosen
     optimization strategy, and returns the solved values.
 
     Parameters
@@ -73,7 +71,7 @@ def solve_with_fixed_balance(  # pylint: disable=too-many-arguments
 
     Returns
     -------
-    CpSatSolution
+    Solution
         The solved assignment, honored wishes and recomputed satisfaction.
 
     Raises
@@ -81,7 +79,7 @@ def solve_with_fixed_balance(  # pylint: disable=too-many-arguments
     SolverError
         If any stage cannot be solved to proven optimality.
     """
-    problem = cpsat_model.build_problem(
+    problem = modelbuilder.build_problem(
         preferences, students, groups_to, not_together, groupbalance
     )
     solver = strategies.optimize(problem, optimize)
@@ -95,10 +93,10 @@ def solve_within_minimal_relaxation(
     groups_to: dict,
     not_together: list,
     optimize: str = "lexmaxmin",
-) -> CpSatSolution:
+) -> Solution:
     """Solve the distribution with the class balance relaxed only as far as needed.
 
-    Builds the model via :func:`.model.build_soft_problem` and fixes the class
+    Builds the model via :func:`.modelbuilder.build_soft_problem` and fixes the class
     balance in two lexicographic stages before the main solve:
 
     1. Minimize the number of students left without any honored positive wish
@@ -134,7 +132,7 @@ def solve_within_minimal_relaxation(
 
     Returns
     -------
-    CpSatSolution
+    Solution
         The solved assignment, honored wishes and recomputed satisfaction.
 
     Raises
@@ -148,7 +146,7 @@ def solve_within_minimal_relaxation(
     SolverError
         If any other stage cannot be solved to proven optimality.
     """
-    problem = cpsat_model.build_soft_problem(
+    problem = modelbuilder.build_soft_problem(
         preferences, students, groups_to, not_together
     )
     model = problem.model
@@ -187,12 +185,12 @@ def solve_within_minimal_relaxation(
     return _extract(problem, solver, preferences)
 
 
-def _extract(problem, solver: cp_model.CpSolver, preferences) -> CpSatSolution:
+def _extract(problem, solver: cp_model.CpSolver, preferences) -> Solution:
     """Read the solved values; satisfaction is recomputed in float per student.
 
     Parameters
     ----------
-    problem : model.CpSatProblem | model.CpSatSoftProblem
+    problem : modelbuilder.Problem | modelbuilder.SoftProblem
         The built model, for the ``in_group``/``satisfied``/``satisfaction``
         variables to read back.
     solver : cp_model.CpSolver
@@ -202,7 +200,7 @@ def _extract(problem, solver: cp_model.CpSolver, preferences) -> CpSatSolution:
 
     Returns
     -------
-    CpSatSolution
+    Solution
         The solved assignment, honored wishes and recomputed satisfaction.
     """
     assignment = {
@@ -213,7 +211,7 @@ def _extract(problem, solver: cp_model.CpSolver, preferences) -> CpSatSolution:
     satisfied = {
         key: solver.BooleanValue(literal) for key, literal in problem.satisfied.items()
     }
-    return CpSatSolution(
+    return Solution(
         assignment=assignment,
         satisfied=satisfied,
         student_satisfaction=_float_satisfaction(

@@ -5,7 +5,7 @@ The model is built from boolean assignment variables ``in_group[student, group]`
 not-together rules, satisfaction floors and the class-balance families
 (:mod:`._balance_families`).
 
-The satisfaction metric is the one defined in :mod:`..satisfaction` (the
+The satisfaction metric is the one defined in :mod:`.satisfaction` (the
 integral of 0.5^x over the weighted honored-preference sum). CP-SAT reasons
 over integers only, and the metric is non-linear — so per student it enters
 the model as a lookup table (``AddElement``): every reachable weighted sum is
@@ -23,9 +23,9 @@ from dataclasses import dataclass
 
 from ortools.sat.python import cp_model
 
-from ...data import preferences_data
-from ..satisfaction import get_satisfaction_integral
+from ..data import preferences_data
 from ._balance_families import add_balance_constraints, add_soft_balance_constraints
+from .satisfaction import get_satisfaction_integral
 from .scaling import weight_scale
 
 SATISFACTION_SCALE = 10**6
@@ -34,7 +34,7 @@ rounding the integration tests pin."""
 
 
 @dataclass
-class CpSatProblem:
+class Problem:
     """A built CP-SAT model plus the variables the pipeline reads back.
 
     ``satisfied`` maps each ``(student, Nr)`` preference row to a boolean literal
@@ -49,7 +49,7 @@ class CpSatProblem:
 
 
 @dataclass
-class CpSatSoftProblem:
+class SoftProblem:
     """A built CP-SAT model with class balance left relaxable, plus the extra
     variables that shape how far it may relax.
 
@@ -74,7 +74,7 @@ def build_problem(
     groups_to: dict,
     not_together: list,
     groupbalance,
-) -> CpSatProblem:
+) -> Problem:
     """Build the full CP-SAT model with hard class-balance limits.
 
     Parameters
@@ -94,7 +94,7 @@ def build_problem(
 
     Returns
     -------
-    CpSatProblem
+    Problem
         The built model plus the variables the pipeline reads back.
     """
     model, in_group = _build_assignment(students, groups_to)
@@ -105,7 +105,7 @@ def build_problem(
     _constrain_not_together(model, in_group, not_together, groups_to)
     _constrain_minimal_satisfaction(model, satisfaction, students)
     add_balance_constraints(model, in_group, students, groups_to, groupbalance)
-    return CpSatProblem(
+    return Problem(
         model=model,
         in_group=in_group,
         satisfied=satisfied,
@@ -115,7 +115,7 @@ def build_problem(
 
 def build_soft_problem(
     preferences, students: dict, groups_to: dict, not_together: list
-) -> CpSatSoftProblem:
+) -> SoftProblem:
     """Build the CP-SAT model with class balance left relaxable.
 
     Forbidden groups, not-together rules and satisfaction floors stay hard —
@@ -141,7 +141,7 @@ def build_soft_problem(
 
     Returns
     -------
-    CpSatSoftProblem
+    SoftProblem
         The built model plus the variables the pipeline reads back.
     """
     model, in_group = _build_assignment(students, groups_to)
@@ -153,7 +153,7 @@ def build_soft_problem(
     _constrain_minimal_satisfaction(model, satisfaction, students)
     slacks = add_soft_balance_constraints(model, in_group, students, groups_to)
     unmet = _constrain_wish_requirement(model, satisfied, preferences)
-    return CpSatSoftProblem(
+    return SoftProblem(
         model=model,
         in_group=in_group,
         satisfied=satisfied,
