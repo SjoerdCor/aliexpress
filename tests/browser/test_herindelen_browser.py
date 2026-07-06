@@ -203,3 +203,26 @@ def test_roster_no_jaargroep_dropdown_in_forward_mode(live_server, tmp_path, pag
     page.click("button:has-text('Leerling toevoegen')")
     row = page.locator(".new-student-row").last
     assert row.locator("[name='new_jaargroep[]']").count() == 0
+
+
+@pytest.mark.usefixtures("login")
+def test_roster_back_button_points_to_select_groups(live_server, page):
+    """In redistribute mode, /roster's back button returns to the group selection step."""
+    _reach_roster(live_server, page, "roster-nav-test")
+
+    back = page.locator("a.previous-step")
+    assert back.inner_text().strip() == "← Naar Groepskeuze"
+    assert back.get_attribute("href").endswith("/select_groups")
+
+
+@pytest.mark.usefixtures("login")
+def test_preferences_form_back_button_points_to_roster(live_server, page):
+    """In redistribute mode, /preferences_form's back button returns to "Wie gaat mee"
+    (groups_to is skipped entirely — ``_groups_to_auto_redistribute``)."""
+    _reach_roster(live_server, page, "prefs-nav-test")
+    page.click("button:has-text('Naar Voorkeuren')")
+    page.wait_for_url(f"{live_server}/preferences_form")
+
+    back = page.locator("a.previous-step")
+    assert back.inner_text().strip() == "← Naar Wie gaat mee"
+    assert back.get_attribute("href").endswith("/roster")
