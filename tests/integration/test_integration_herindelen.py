@@ -17,6 +17,7 @@ import pytest
 from aliexpress.solver import engine
 from aliexpress.solver._balance import GroupBalance
 from aliexpress.solver.results import to_solution_result
+from aliexpress.solver.solutions import SolutionAnalyzer
 
 _GROUPS_TO = {
     "blauw": {"Jongens": 0, "Meisjes": 0},
@@ -184,6 +185,24 @@ def test_herindelen_multi_year_all_constraints():
                 f"year {year}, group {grp}: gender imbalance |{boys}-{girls}|"
                 f" > {_BALANCE.max_imbalance_boys_girls_year}"
             )
+
+    _assert_klassenoverzicht_per_year_rows(result, prefs, students)
+
+
+def _assert_klassenoverzicht_per_year_rows(result, prefs, students) -> None:
+    """Each group gets a "Jaarlaag 6/7/8" row per cohort, summing to "Totaal"
+    (ADR-0012's report consequence)."""
+    report = SolutionAnalyzer(result, prefs, pd.DataFrame(), students).group_report
+    for grp in _GROUPS_TO:
+        assert list(report.loc[grp].index) == [
+            "Totaal",
+            "Jaarlaag 6",
+            "Jaarlaag 7",
+            "Jaarlaag 8",
+        ]
+        year_rows = report.loc[grp].drop("Totaal")
+        assert year_rows["Jongen"].sum() == report.loc[(grp, "Totaal"), "Jongen"]
+        assert year_rows["Meisje"].sum() == report.loc[(grp, "Totaal"), "Meisje"]
 
 
 def test_herindelen_single_year_matches_doorzetten_behavior():
