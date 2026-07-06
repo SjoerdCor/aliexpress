@@ -11,6 +11,7 @@ import xml.etree.ElementTree as ET
 import pytest
 
 from tests.browser.conftest import TEST_SCHOOLCODE
+from tests.browser.test_roster_browser import _open_roster
 
 # Three combi groups (jaargroep 6 and 7 mixed, as real combination classes are), twelve
 # students total. A group's own <jaargroep> is dropped by EdexReader.get_full_df (the
@@ -104,6 +105,14 @@ def _select_groups(live_server, page, group_names):
     page.wait_for_url(f"{live_server}/roster")
 
 
+def _reach_roster(live_server, page, name):
+    """Create a redistribute process, upload the dummy EDEXML, select every group, land on
+    /roster with the 3 combi groups and their 12 students as candidates."""
+    _create_redistribute_process(live_server, page, name)
+    _upload_herindelen_edexml(live_server, page)
+    _select_groups(live_server, page, [g["naam"] for g in _HERINDELEN_GROUPS])
+
+
 @pytest.mark.usefixtures("login")
 def test_create_process_redistribute_mode(live_server, tmp_path, page):
     """Choosing "Herindelen binnen dezelfde groepen" writes mode.json and skips the
@@ -156,3 +165,41 @@ def test_select_groups_requires_at_least_two(live_server, page):
     page.locator(f'input[name=groups][value="{second_group}"]').check()
     page.click("button[type=submit]")
     page.wait_for_url(f"{live_server}/roster")
+
+
+@pytest.mark.usefixtures("login")
+def test_roster_new_student_jaargroep_dropdown(live_server, page):
+    """A hand-added student in redistribute mode gets a jaargroep dropdown, populated with
+    the jaargroepen of the selected groups; confirming without a jaargroep is rejected.
+    """
+    _reach_roster(live_server, page, "roster-jaargroep-test")
+
+    page.click("button:has-text('Leerling toevoegen')")
+    row = page.locator(".new-student-row").last
+    jaargroep_select = row.locator("[name='new_jaargroep[]']")
+    option_labels = jaargroep_select.locator("option").all_inner_texts()
+    assert option_labels == ["— jaargroep —", "Jaargroep 6", "Jaargroep 7"]
+
+    # Error path: confirming without a jaargroep is rejected, the row stays unconfirmed.
+    row.locator("[name='new_voornaam[]']").fill("Mila")
+    row.locator("[name='new_achternaam[]']").fill("Visser")
+    row.locator("[name='new_geslacht[]']").select_option("Meisje")
+    row.locator("button.ns-confirm").click()
+    assert row.get_attribute("data-confirmed") == "0"
+    assert "jaargroep" in row.locator(".ns-error").inner_text().lower()
+
+    # Happy path: picking a jaargroep and confirming turns the row into a chip.
+    jaargroep_select.select_option("6")
+    row.locator("button.ns-confirm").click()
+    assert row.get_attribute("data-confirmed") == "1"
+    assert "jaargroep 6" in row.locator(".ns-chip").inner_text().lower()
+
+
+@pytest.mark.usefixtures("login")
+def test_roster_no_jaargroep_dropdown_in_forward_mode(live_server, tmp_path, page):
+    """Regression guard for the doorzetten path: the jaargroep dropdown is redistribute-only
+    (complements test_roster_browser.py, which never asserts its absence)."""
+    _open_roster(live_server, tmp_path, page)
+    page.click("button:has-text('Leerling toevoegen')")
+    row = page.locator(".new-student-row").last
+    assert row.locator("[name='new_jaargroep[]']").count() == 0
