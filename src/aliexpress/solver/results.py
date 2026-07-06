@@ -13,13 +13,25 @@ from .engine import Solution
 
 
 @dataclass(frozen=True)
+class SexCounts:
+    """Boys/girls counts for one jaarlaag cohort within a group."""
+
+    boys: int
+    girls: int
+
+
+@dataclass(frozen=True)
 class GroupComposition:
-    """Boys/girls counts for one target group: total and for the new cohort (year)."""
+    """Boys/girls counts for one target group: total, and per jaarlaag cohort.
+
+    ``per_year`` keys are jaarlaag numbers, or ``None`` for students without one (the
+    Excel input path). ``boys_total``/``girls_total`` include the group's current
+    occupancy; summing ``per_year`` gives the newly assigned students only.
+    """
 
     boys_total: int
     girls_total: int
-    boys_year: int
-    girls_year: int
+    per_year: dict[int | None, SexCounts]
 
 
 @dataclass(frozen=True)
@@ -84,23 +96,27 @@ def to_solution_result(
 def _group_composition(
     assignment: dict[str, str], students: dict, groups_to: dict
 ) -> dict[str, GroupComposition]:
-    """Per target group, the boys/girls counts derived from the assignment."""
+    """Per target group, the boys/girls counts derived from the assignment, per jaarlaag."""
     composition = {}
     for group, occupancy in groups_to.items():
-        boys_year = sum(
-            1
-            for student, assigned in assignment.items()
-            if assigned == group and students[student]["Jongen/meisje"] == "Jongen"
-        )
-        girls_year = sum(
-            1
-            for student, assigned in assignment.items()
-            if assigned == group and students[student]["Jongen/meisje"] == "Meisje"
-        )
+        per_year = _per_year_counts(assignment, students, group)
         composition[group] = GroupComposition(
-            boys_total=occupancy["Jongens"] + boys_year,
-            girls_total=occupancy["Meisjes"] + girls_year,
-            boys_year=boys_year,
-            girls_year=girls_year,
+            boys_total=occupancy["Jongens"] + sum(c.boys for c in per_year.values()),
+            girls_total=occupancy["Meisjes"] + sum(c.girls for c in per_year.values()),
+            per_year=per_year,
         )
     return composition
+
+
+def _per_year_counts(
+    assignment: dict[str, str], students: dict, group: str
+) -> dict[int | None, SexCounts]:
+    """Boys/girls counts for ``group``'s newly assigned students, by jaarlaag cohort."""
+    tallies: dict[int | None, list[int]] = {}
+    for student, assigned in assignment.items():
+        if assigned != group:
+            continue
+        year = students[student].get("Jaarlaag")
+        sex_index = 0 if students[student]["Jongen/meisje"] == "Jongen" else 1
+        tallies.setdefault(year, [0, 0])[sex_index] += 1
+    return {year: SexCounts(boys=b, girls=g) for year, (b, g) in tallies.items()}

@@ -271,8 +271,10 @@ class SolutionAnalyzer:
         for group, comp in self.result.group_composition.items():
             distribution[(group, "Totaal", "Jongen")] = comp.boys_total
             distribution[(group, "Totaal", "Meisje")] = comp.girls_total
-            distribution[(group, "Jaarlaag", "Jongen")] = comp.boys_year
-            distribution[(group, "Jaarlaag", "Meisje")] = comp.girls_year
+            for year, counts in comp.per_year.items():
+                label = "Jaarlaag" if year is None else f"Jaarlaag {year}"
+                distribution[(group, label, "Jongen")] = counts.boys
+                distribution[(group, label, "Meisje")] = counts.girls
 
         df_group_report = (
             pd.Series(distribution)
