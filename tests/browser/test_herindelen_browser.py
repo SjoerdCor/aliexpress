@@ -226,3 +226,42 @@ def test_preferences_form_back_button_points_to_roster(live_server, page):
     back = page.locator("a.previous-step")
     assert back.inner_text().strip() == "← Naar Wie gaat mee"
     assert back.get_attribute("href").endswith("/roster")
+
+
+@pytest.mark.usefixtures("login")
+def test_full_redistribute_flow_to_result(live_server, page):
+    """End-to-end herindelen run: process creation through the result page, on a mini
+    instance (3 groups, 12 students, 2 jaargroepen). Mirrors
+    test_distribution_browser.py's forward-mode equivalent; CP-SAT solves an instance this
+    small in well under a second, but the wait is given a generous timeout regardless.
+    """
+    _reach_roster(live_server, page, "full-flow-test")
+
+    # "Wie gaat mee": every candidate is checked by default; continue straight through.
+    page.click("button:has-text('Naar Voorkeuren')")
+    page.wait_for_url(f"{live_server}/preferences_form")
+
+    # One "graag met" wish for the first pupil (h01, Anna Berg): an empty preference set for
+    # every single pupil in the whole process is a valid end state per the page's own JS, but
+    # it trips a pre-existing pandas/openpyxl crash in the Excel export (see the browser-test
+    # write-up for full-flow herindelen coverage) — entering one wish, as any real teacher
+    # would, sidesteps that unrelated bug without masking the herindelen behavior under test.
+    page.locator("#row-h01").click()
+    combo = page.locator("#combo-graag_met-h01")
+    combo.click()
+    combo.fill("Bram")
+    page.locator("#list-graag_met-h01 .combobox-option").first.click()
+    page.locator(".modal-done[data-key='h01']").click()
+    page.click("button:has-text('Naar niet samen')")
+    page.wait_for_url(f"{live_server}/not_together")
+
+    # No niet-samen rules either; start the solve.
+    page.click("button:has-text('Opslaan & Indeling starten')")
+    page.wait_for_url("**/result", timeout=60000)
+
+    klassenoverzicht_tab = page.locator(".tab", has_text="Klassenoverzicht")
+    assert klassenoverzicht_tab.count() == 1
+    klassenoverzicht_tab.click()
+    pane_text = page.locator("#tab1").inner_text()
+    assert pane_text.count("Jaarlaag 6") == 3, "Expected one 'Jaarlaag 6' row per group"
+    assert pane_text.count("Jaarlaag 7") == 3, "Expected one 'Jaarlaag 7' row per group"
