@@ -552,10 +552,17 @@ def _select_groups_post(df, school_id, process_id):
             log_detail="no_candidates_in_selected_groups",
         )
         return redirect(url_for("wizard.select_groups"))
+    # Recorded here, from the full EDEXML data at selection time, rather than re-derived
+    # from `candidates` later: the set of jaargroepen involved in this herindeling is
+    # settled by this selection, independent of who ends up ticked on the roster page.
+    jaargroepen = sorted(
+        df.loc[df["groepsnaam"].isin(selected), "jaargroep"].dropna().unique().tolist()
+    )
     data = {
         "candidates": candidates,
         "groups_from": groups_from,
         "groups_to": groups_to,
+        "jaargroepen": jaargroepen,
     }
     path = get_file_path(school_id, process_id, "relevant_students_and_groups.json")
     with open(path, "w", encoding="utf-8") as f:

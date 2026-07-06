@@ -18,6 +18,7 @@ from aliexpress.web.models import LogLine, Process, Run
 from app import app as flask_app
 from tests.helpers import (
     SCHOOL_ID,
+    TWO_STUDENTS_GROEN,
     flashes,
     immediate_thread,
     make_students,
@@ -379,22 +380,7 @@ class TestParseGroupsToForm:
 class TestPreferencesExcel:
     """GET/POST /preferences_excel: download a roster-prefilled template, then upload it."""
 
-    PARTICIPANTS = [
-        {
-            "key": "s1",
-            "roepnaam": "Anna",
-            "achternaam": "Bos",
-            "groepsnaam": "Groen",
-            "geslacht": "Meisje",
-        },
-        {
-            "key": "s2",
-            "roepnaam": "Bram",
-            "achternaam": "Dijk",
-            "groepsnaam": "Groen",
-            "geslacht": "Jongen",
-        },
-    ]
+    PARTICIPANTS = TWO_STUDENTS_GROEN
 
     def _setup(self, client, tmp_path, with_roster=True):
         proc_dir = setup_process(client, tmp_path)
@@ -907,81 +893,3 @@ class TestUploadEdexmlMode:
         assert resp.status_code == 302
         assert resp.headers["Location"].endswith("/upload_edexml")
         assert any(cat == "error" for cat, _ in flashes(client))
-
-
-_SELECT_GROUPS_FAKE_DF = pd.DataFrame(
-    {
-        "key": ["k1", "k2", "k3"],
-        "roepnaam": ["Anna", "Ben", "Carl"],
-        "achternaam": ["A", "B", "C"],
-        "groepsnaam": ["3A", "3B", "3A"],
-        "geslacht": ["Meisje", "Jongen", "Jongen"],
-        "jaargroep": [3, 3, 3],
-    }
-)
-
-
-class TestSelectGroups:
-    """Tests for GET/POST /select_groups."""
-
-    def _write_fake_edex(self, proc_dir):
-        (proc_dir / "edex.xml").write_bytes(b"fake")
-
-    def test_get_shows_groups_from_edexml(self, client, tmp_path, monkeypatch):
-        """GET /select_groups shows checkboxes for each group found in the EDEXML."""
-        proc_dir = setup_process(client, tmp_path)
-        self._write_fake_edex(proc_dir)
-        monkeypatch.setattr(
-            wizard_module.datareader,
-            "EdexReader",
-            _make_edexml_reader(_SELECT_GROUPS_FAKE_DF),
-        )
-        resp = client.get("/select_groups")
-        assert resp.status_code == 200
-        assert b"3A" in resp.data
-        assert b"3B" in resp.data
-
-    def test_get_without_edex_redirects_to_upload(self, client, tmp_path):
-        """GET /select_groups without an uploaded EDEXML redirects back to upload."""
-        setup_process(client, tmp_path)
-        resp = client.get("/select_groups")
-        assert resp.status_code == 302
-        assert resp.headers["Location"].endswith("/upload_edexml")
-
-    def test_post_fewer_than_two_groups_flashes_error(
-        self, client, tmp_path, monkeypatch
-    ):
-        """POST /select_groups with only one group selected flashes an error."""
-        proc_dir = setup_process(client, tmp_path)
-        self._write_fake_edex(proc_dir)
-        monkeypatch.setattr(
-            wizard_module.datareader,
-            "EdexReader",
-            _make_edexml_reader(_SELECT_GROUPS_FAKE_DF),
-        )
-        resp = client.post("/select_groups", data={"groups": ["3A"]})
-        assert resp.status_code == 302
-        assert resp.headers["Location"].endswith("/select_groups")
-        assert any(cat == "error" for cat, _ in flashes(client))
-
-    def test_post_valid_selection_saves_json_and_redirects_to_roster(
-        self, client, tmp_path, monkeypatch
-    ):
-        """POST /select_groups with valid groups saves candidates JSON and goes to roster."""
-        proc_dir = setup_process(client, tmp_path)
-        self._write_fake_edex(proc_dir)
-        monkeypatch.setattr(
-            wizard_module.datareader,
-            "EdexReader",
-            _make_edexml_reader(_SELECT_GROUPS_FAKE_DF),
-        )
-        resp = client.post("/select_groups", data={"groups": ["3A", "3B"]})
-        assert resp.status_code == 302
-        assert resp.headers["Location"].endswith("/roster")
-        saved = json.loads(
-            (proc_dir / "relevant_students_and_groups.json").read_text("utf-8")
-        )
-        assert len(saved["candidates"]) == 3
-        assert set(saved["groups_to"].keys()) == {"3A", "3B"}
-        assert saved["groups_to"]["3A"] == []
-        assert saved["groups_to"]["3B"] == []

@@ -1,0 +1,127 @@
+"""Tests for GET/POST /select_groups (herindelen's group-selection step).
+
+Split out of test_wizard.py, which was bumping into pylint's module-length limit.
+"""
+
+# pylint: disable=redefined-outer-name  # standard pytest fixture pattern
+
+import json
+from unittest.mock import MagicMock
+
+import pandas as pd
+
+import aliexpress.web.routes.wizard as wizard_module
+from tests.helpers import flashes, setup_process
+
+
+def _make_edexml_reader(df):
+    """Return an EdexReader replacement whose get_full_df() returns df."""
+    instance = MagicMock()
+    instance.get_full_df.return_value = df
+    return MagicMock(return_value=instance)
+
+
+_SELECT_GROUPS_FAKE_DF = pd.DataFrame(
+    {
+        "key": ["k1", "k2", "k3"],
+        "roepnaam": ["Anna", "Ben", "Carl"],
+        "achternaam": ["A", "B", "C"],
+        "groepsnaam": ["3A", "3B", "3A"],
+        "geslacht": ["Meisje", "Jongen", "Jongen"],
+        "jaargroep": [3, 3, 3],
+    }
+)
+
+
+class TestSelectGroups:
+    """Tests for GET/POST /select_groups."""
+
+    def _write_fake_edex(self, proc_dir):
+        (proc_dir / "edex.xml").write_bytes(b"fake")
+
+    def test_get_shows_groups_from_edexml(self, client, tmp_path, monkeypatch):
+        """GET /select_groups shows checkboxes for each group found in the EDEXML."""
+        proc_dir = setup_process(client, tmp_path)
+        self._write_fake_edex(proc_dir)
+        monkeypatch.setattr(
+            wizard_module.datareader,
+            "EdexReader",
+            _make_edexml_reader(_SELECT_GROUPS_FAKE_DF),
+        )
+        resp = client.get("/select_groups")
+        assert resp.status_code == 200
+        assert b"3A" in resp.data
+        assert b"3B" in resp.data
+
+    def test_get_without_edex_redirects_to_upload(self, client, tmp_path):
+        """GET /select_groups without an uploaded EDEXML redirects back to upload."""
+        setup_process(client, tmp_path)
+        resp = client.get("/select_groups")
+        assert resp.status_code == 302
+        assert resp.headers["Location"].endswith("/upload_edexml")
+
+    def test_post_fewer_than_two_groups_flashes_error(
+        self, client, tmp_path, monkeypatch
+    ):
+        """POST /select_groups with only one group selected flashes an error."""
+        proc_dir = setup_process(client, tmp_path)
+        self._write_fake_edex(proc_dir)
+        monkeypatch.setattr(
+            wizard_module.datareader,
+            "EdexReader",
+            _make_edexml_reader(_SELECT_GROUPS_FAKE_DF),
+        )
+        resp = client.post("/select_groups", data={"groups": ["3A"]})
+        assert resp.status_code == 302
+        assert resp.headers["Location"].endswith("/select_groups")
+        assert any(cat == "error" for cat, _ in flashes(client))
+
+    def test_post_valid_selection_saves_json_and_redirects_to_roster(
+        self, client, tmp_path, monkeypatch
+    ):
+        """POST /select_groups with valid groups saves candidates JSON and goes to roster."""
+        proc_dir = setup_process(client, tmp_path)
+        self._write_fake_edex(proc_dir)
+        monkeypatch.setattr(
+            wizard_module.datareader,
+            "EdexReader",
+            _make_edexml_reader(_SELECT_GROUPS_FAKE_DF),
+        )
+        resp = client.post("/select_groups", data={"groups": ["3A", "3B"]})
+        assert resp.status_code == 302
+        assert resp.headers["Location"].endswith("/roster")
+        saved = json.loads(
+            (proc_dir / "relevant_students_and_groups.json").read_text("utf-8")
+        )
+        assert len(saved["candidates"]) == 3
+        assert set(saved["groups_to"].keys()) == {"3A", "3B"}
+        assert saved["groups_to"]["3A"] == []
+        assert saved["groups_to"]["3B"] == []
+        assert saved["jaargroepen"] == [3]
+
+    def test_post_persists_every_jaargroep_in_a_combination_class(
+        self, client, tmp_path, monkeypatch
+    ):
+        """A selected combination class ("6/7A") spans two jaargroepen; both are recorded
+        for the roster page's new-student dropdown, not just one per selected group."""
+        proc_dir = setup_process(client, tmp_path)
+        self._write_fake_edex(proc_dir)
+        df = pd.DataFrame(
+            {
+                "key": ["k1", "k2", "k3"],
+                "roepnaam": ["Anna", "Ben", "Carl"],
+                "achternaam": ["A", "B", "C"],
+                "groepsnaam": ["6/7A", "6/7A", "8B"],
+                "geslacht": ["Meisje", "Jongen", "Jongen"],
+                "jaargroep": [6, 7, 8],
+            }
+        )
+        monkeypatch.setattr(
+            wizard_module.datareader, "EdexReader", _make_edexml_reader(df)
+        )
+        resp = client.post("/select_groups", data={"groups": ["6/7A", "8B"]})
+        assert resp.status_code == 302
+        saved = json.loads(
+            (proc_dir / "relevant_students_and_groups.json").read_text("utf-8")
+        )
+        assert saved["jaargroepen"] == [6, 7, 8]
