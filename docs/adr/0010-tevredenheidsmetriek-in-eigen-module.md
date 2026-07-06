@@ -2,6 +2,12 @@
 status: accepted
 ---
 
+> **Update (ADR-0013):** de PuLP/HiGHS-backend en `optimizationstrategies.py` die dit ADR
+> beschrijft, zijn vervangen door CP-SAT (`solver/strategies.py`). Dit document blijft
+> staan als historisch verslag; zie ADR-0013 voor de huidige implementatie. De kern van
+> dit ADR — de tevredenheidsmaat als vrije functies in `satisfaction.py`, los van de
+> aggregatiestrategie — staat nog steeds overeind.
+
 # Tevredenheidsmaat in eigen module (`satisfaction.py`)
 
 `ProblemSolver` vermengt de **probleemdefinitie** (welke voorkeuren worden vervuld gegeven

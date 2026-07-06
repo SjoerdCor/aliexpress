@@ -18,6 +18,7 @@ from aliexpress.web.models import LogLine, Process, Run
 from app import app as flask_app
 from tests.helpers import (
     SCHOOL_ID,
+    TWO_STUDENTS_GROEN,
     flashes,
     immediate_thread,
     make_students,
@@ -267,6 +268,34 @@ class TestGroupsToPage:
         assert "Nieuwe groep 1" in html  # restored new group is rendered
 
 
+class TestGroupsToRedistribute:
+    """Tests for /groups_to in redistribute mode (auto-passthrough, no page shown)."""
+
+    def _setup(self, client, tmp_path, groups=("3A", "3B")):
+        proc_dir = setup_process(client, tmp_path)
+        (proc_dir / "mode.json").write_text('{"mode":"redistribute"}', encoding="utf-8")
+        write_groups_to_json(proc_dir, {g: [] for g in groups})
+        return proc_dir
+
+    def test_get_auto_redirects_and_writes_groups_xlsx(self, client, tmp_path):
+        """GET /groups_to in redistribute mode auto-writes groups.xlsx and redirects."""
+        proc_dir = self._setup(client, tmp_path)
+        resp = client.get("/groups_to")
+        assert resp.status_code == 302
+        assert resp.headers["Location"].endswith("/preferences_form")
+        df = pd.read_excel(proc_dir / "groups.xlsx", index_col=0)
+        assert (df.loc[["3A", "3B"]] == 0).all().all()
+        method = json.loads((proc_dir / "input_method.json").read_text("utf-8"))
+        assert method["method"] == "form"
+
+    def test_post_also_auto_redirects_to_preferences_form(self, client, tmp_path):
+        """POST /groups_to in redistribute mode is the same: transparent passthrough."""
+        self._setup(client, tmp_path)
+        resp = client.post("/groups_to")
+        assert resp.status_code == 302
+        assert resp.headers["Location"].endswith("/preferences_form")
+
+
 class TestParseGroupsToForm:
     """Tests for the form-parsing helper parse_groups_to_form."""
 
@@ -351,22 +380,7 @@ class TestParseGroupsToForm:
 class TestPreferencesExcel:
     """GET/POST /preferences_excel: download a roster-prefilled template, then upload it."""
 
-    PARTICIPANTS = [
-        {
-            "key": "s1",
-            "roepnaam": "Anna",
-            "achternaam": "Bos",
-            "groepsnaam": "Groen",
-            "geslacht": "Meisje",
-        },
-        {
-            "key": "s2",
-            "roepnaam": "Bram",
-            "achternaam": "Dijk",
-            "groepsnaam": "Groen",
-            "geslacht": "Jongen",
-        },
-    ]
+    PARTICIPANTS = TWO_STUDENTS_GROEN
 
     def _setup(self, client, tmp_path, with_roster=True):
         proc_dir = setup_process(client, tmp_path)
@@ -816,3 +830,66 @@ class TestHandleError:
             content_type="application/json",
         )
         assert any(msg == "Er ging iets mis" for _, msg in flashes(client))
+
+
+def _make_edexml_reader(df):
+    """Return an EdexReader replacement whose get_full_df() returns df."""
+    instance = MagicMock()
+    instance.get_full_df.return_value = df
+    return MagicMock(return_value=instance)
+
+
+class TestUploadEdexmlMode:
+    """Tests for mode-branching in the upload_edexml route."""
+
+    def test_get_forward_mode_shows_jaargroep(self, client, tmp_path):
+        """GET /upload_edexml in forward mode shows the jaargroep selector."""
+        setup_process(client, tmp_path)
+        resp = client.get("/upload_edexml")
+        assert resp.status_code == 200
+        assert b"jaargroep" in resp.data
+
+    def test_get_redistribute_mode_hides_jaargroep(self, client, tmp_path):
+        """GET /upload_edexml in redistribute mode hides the jaargroep selector."""
+        proc_dir = setup_process(client, tmp_path)
+        (proc_dir / "mode.json").write_text(
+            json.dumps({"mode": "redistribute"}), encoding="utf-8"
+        )
+        resp = client.get("/upload_edexml")
+        assert resp.status_code == 200
+        assert b"jaargroep" not in resp.data
+
+    def test_post_redistribute_valid_edexml_redirects_to_select_groups(
+        self, client, tmp_path, monkeypatch
+    ):
+        """POST /upload_edexml in redistribute mode redirects to /select_groups."""
+        proc_dir = setup_process(client, tmp_path)
+        (proc_dir / "mode.json").write_text(
+            json.dumps({"mode": "redistribute"}), encoding="utf-8"
+        )
+        fake_df = pd.DataFrame({"groepsnaam": ["3A", "3B"], "jaargroep": [3, 3]})
+        monkeypatch.setattr(
+            wizard_module.datareader, "EdexReader", _make_edexml_reader(fake_df)
+        )
+        resp = client.post(
+            "/upload_edexml",
+            data={"edexml": (BytesIO(b"anything"), "edex.xml")},
+            content_type="multipart/form-data",
+        )
+        assert resp.status_code == 302
+        assert resp.headers["Location"].endswith("/select_groups")
+
+    def test_post_redistribute_garbage_edexml_flashes_error(self, client, tmp_path):
+        """POST /upload_edexml in redistribute mode with a garbage file flashes an error."""
+        proc_dir = setup_process(client, tmp_path)
+        (proc_dir / "mode.json").write_text(
+            json.dumps({"mode": "redistribute"}), encoding="utf-8"
+        )
+        resp = client.post(
+            "/upload_edexml",
+            data={"edexml": (BytesIO(b"garbage"), "edex.xml")},
+            content_type="multipart/form-data",
+        )
+        assert resp.status_code == 302
+        assert resp.headers["Location"].endswith("/upload_edexml")
+        assert any(cat == "error" for cat, _ in flashes(client))

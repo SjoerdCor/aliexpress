@@ -4,11 +4,14 @@ import pandas as pd
 import pytest
 
 from aliexpress.data.candidatedetermination import (
+    CANDIDATE_FIELDS,
     create_unique_name,
     get_candidates,
+    get_candidates_herindelen,
     get_groups_from,
     get_groups_to,
     handle_edexml_upload,
+    handle_edexml_upload_herindelen,
     students_df_from_records,
     unique_display_names,
 )
@@ -94,13 +97,8 @@ def test_get_candidates_sorted(sample_df):
     names = [r["roepnaam"] for r in result]
     assert names == ["Anna", "Carl", "Ben"]
     # bevat juiste kolommen
-    assert set(result[0].keys()) == {
-        "key",
-        "roepnaam",
-        "achternaam",
-        "groepsnaam",
-        "geslacht",
-    }
+    assert set(result[0].keys()) == set(CANDIDATE_FIELDS)
+    assert result[0]["jaargroep"] == 3
 
 
 def test_get_candidates_empty(sample_df):
@@ -141,6 +139,44 @@ def test_handle_edexml_upload(sample_df):
     assert isinstance(candidates, list)
     assert "Anders" in groups_from
     assert isinstance(groups_to, dict)
+
+
+def test_get_candidates_herindelen_returns_all_students_in_selected_groups(sample_df):
+    """get_candidates_herindelen returns all students from the selected groups."""
+    result = get_candidates_herindelen(sample_df, ["3A", "3B"])
+    names = [r["roepnaam"] for r in result]
+    # 3A: Anna, Carl; 3B: Ben — sorted by groepsnaam then roepnaam
+    assert names == ["Anna", "Carl", "Ben"]
+    assert set(result[0].keys()) == set(CANDIDATE_FIELDS)
+    assert result[0]["jaargroep"] == 3
+
+
+def test_get_candidates_herindelen_empty_when_no_matching_groups(sample_df):
+    """get_candidates_herindelen returns [] when no student belongs to the selected groups."""
+    assert get_candidates_herindelen(sample_df, ["Onbekend"]) == []
+    assert get_candidates_herindelen(sample_df, []) == []
+
+
+def test_handle_edexml_upload_herindelen(sample_df):
+    """handle_edexml_upload_herindelen returns candidates, groups_from, groups_to.
+
+    - candidates: all students from selected groups, with jaargroep included.
+    - groups_from: selected group names + "Anders".
+    - groups_to: each selected group mapped to an empty list (zero occupancy).
+    """
+    candidates, groups_from, groups_to = handle_edexml_upload_herindelen(
+        sample_df, ["3A", "4A"]
+    )
+
+    candidate_names = {c["roepnaam"] for c in candidates}
+    assert candidate_names == {"Anna", "Carl", "Daan", "Emma"}
+    assert all(set(c.keys()) == set(CANDIDATE_FIELDS) for c in candidates)
+    assert all(c["jaargroep"] in (3, 4) for c in candidates)
+
+    assert set(groups_from) == {"3A", "4A", "Anders"}
+    assert set(groups_to.keys()) == {"3A", "4A"}
+    assert groups_to["3A"] == []
+    assert groups_to["4A"] == []
 
 
 def test_students_df_from_records_assigns_unique_names():

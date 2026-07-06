@@ -11,7 +11,9 @@
 {
   "groups_from": {{ groups_from | tojson }},
   "known_names": {{ known_names | tojson }},
-  "new_students": {{ new_students | tojson }}
+  "new_students": {{ new_students | tojson }},
+  "mode": {{ mode | tojson }},
+  "jaargroep_options": {{ jaargroep_options | tojson }}
 }
 </script>
 
@@ -50,10 +52,8 @@
   </button>
 
   <div class="step-navigation">
-    <a href="{{ url_for('wizard.upload_edexml') }}" class="button previous-step">
-      ← Naar Schoolinformatie uploaden
-    </a>
-    <button type="submit" class="button next-step">Naar Groepen naartoe →</button>
+    <a href="{{ prev_url }}" class="button previous-step">{{ prev_label }}</a>
+    <button type="submit" class="button next-step">{{ next_label }}</button>
   </div>
 </form>
 
@@ -65,6 +65,8 @@ const GROUPS_FROM = _rd.groups_from.includes("Anders")
   ? _rd.groups_from
   : [..._rd.groups_from, "Anders"];
 const KNOWN_NAMES = new Set(_rd.known_names.map(normalizeName));
+const MODE = _rd.mode;
+const JAARGROEP_OPTIONS = _rd.jaargroep_options;
 let newStudentCount = 0;
 
 function normalizeName(name) {
@@ -86,7 +88,9 @@ function rowValues(li) {
   const an = li.querySelector('[name="new_achternaam[]"]').value.trim();
   const sex = li.querySelector('[name="new_geslacht[]"]').value;
   const groep = li.querySelector('[name="new_groep[]"]').value;
-  return { vn, an, sex, groep, name: `${vn} ${an}`.trim() };
+  const jaargroepEl = li.querySelector('[name="new_jaargroep[]"]');
+  const jaargroep = jaargroepEl ? jaargroepEl.value : "";
+  return { vn, an, sex, groep, jaargroep, name: `${vn} ${an}`.trim() };
 }
 
 function addNewStudentRow(prefill) {
@@ -94,6 +98,13 @@ function addNewStudentRow(prefill) {
   const key = `new_${newStudentCount++}`;
   const groupOptions = GROUPS_FROM
     .map(g => `<option value="${g}">${g}</option>`).join("");
+  // Herindelen spans several jaargroepen, so a new student must say which one; doorzetten
+  // has only one jaargroep for the whole process, so it is assumed server-side instead.
+  const jaargroepField = MODE === "redistribute" ? `
+      <select name="new_jaargroep[]" title="Jaargroep">
+        <option value="">— jaargroep —</option>
+        ${JAARGROEP_OPTIONS.map(j => `<option value="${j}">Jaargroep ${j}</option>`).join("")}
+      </select>` : "";
   const li = document.createElement("div");
   li.className = "new-student-row";
   li.dataset.confirmed = "0";
@@ -108,7 +119,7 @@ function addNewStudentRow(prefill) {
         <option value="Jongen">Jongen</option>
         <option value="Meisje">Meisje</option>
       </select>
-      <select name="new_groep[]" title="Herkomstgroep">${groupOptions}</select>
+      <select name="new_groep[]" title="Herkomstgroep">${groupOptions}</select>${jaargroepField}
       <button type="button" class="button button--small ns-confirm">Toevoegen</button>
       <button type="button" class="delete-btn ns-remove">✖</button>
       <span class="field-error ns-error"></span>
@@ -125,6 +136,10 @@ function addNewStudentRow(prefill) {
     li.querySelector('[name="new_achternaam[]"]').value = prefill.achternaam || "";
     li.querySelector('[name="new_geslacht[]"]').value = prefill.geslacht || "";
     setSelect(li.querySelector('[name="new_groep[]"]'), prefill.groepsnaam);
+    const jaargroepEl = li.querySelector('[name="new_jaargroep[]"]');
+    if (jaargroepEl && prefill.jaargroep != null) {
+      setSelect(jaargroepEl, String(prefill.jaargroep));
+    }
     confirmRow(li);  // saved students come back confirmed
   }
   return li;
@@ -142,10 +157,14 @@ function wireRow(li) {
 
 // Confirm turns the editable row into a compact chip, after a quick name check.
 function confirmRow(li) {
-  const { vn, an, sex, groep, name } = rowValues(li);
+  const { vn, an, sex, groep, jaargroep, name } = rowValues(li);
   const err = li.querySelector(".ns-error");
   if (!vn || !an || !sex) {
     err.textContent = "Vul voornaam, achternaam én geslacht in.";
+    return;
+  }
+  if (MODE === "redistribute" && !jaargroep) {
+    err.textContent = "Geef ook de jaargroep aan.";
     return;
   }
   const norm = normalizeName(name);
@@ -155,7 +174,8 @@ function confirmRow(li) {
   }
   err.textContent = "";
   const extra = (groep && groep !== "Anders") ? ` · uit ${groep}` : "";
-  li.querySelector(".ns-chip-label").textContent = `${name} · ${sex}${extra}`;
+  const jaarExtra = jaargroep ? ` · jaargroep ${jaargroep}` : "";
+  li.querySelector(".ns-chip-label").textContent = `${name} · ${sex}${extra}${jaarExtra}`;
   li.querySelector(".ns-edit").hidden = true;
   li.querySelector(".ns-chip").hidden = false;
   li.dataset.confirmed = "1";

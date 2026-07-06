@@ -5,13 +5,22 @@ import pandas as pd
 from ..errors import DuplicateNameError
 from .datareader import display_name, matching_key
 
+CANDIDATE_FIELDS = [
+    "key",
+    "roepnaam",
+    "achternaam",
+    "groepsnaam",
+    "geslacht",
+    "jaargroep",
+]
+
 
 def get_candidates(df: pd.DataFrame, jaargroep: int) -> list:
     """Return list of candidates for the given jaargroep."""
     df_current = df[df["jaargroep"] == jaargroep]
     if df_current.empty:
         return []
-    relevant_columns = ["key", "roepnaam", "achternaam", "groepsnaam", "geslacht"]
+    relevant_columns = CANDIDATE_FIELDS
 
     return (
         df_current.reset_index()
@@ -59,6 +68,31 @@ def handle_edexml_upload(df: pd.DataFrame, jaargroep: int):
     candidates = get_candidates(df, jaargroep)
     groups_from = get_groups_from(df, jaargroep)
     groups_to = get_groups_to(df, jaargroep)
+    return candidates, groups_from, groups_to
+
+
+def get_candidates_herindelen(df: pd.DataFrame, group_names: list[str]) -> list:
+    """Return candidates for herindelen: all students in the selected groups."""
+    df_selected = df[df["groepsnaam"].isin(group_names)]
+    if df_selected.empty:
+        return []
+    return (
+        df_selected.reset_index()
+        .sort_values(["groepsnaam", "roepnaam", "achternaam"])[CANDIDATE_FIELDS]
+        .to_dict(orient="records")
+    )
+
+
+def handle_edexml_upload_herindelen(df: pd.DataFrame, group_names: list[str]):
+    """Process uploaded EDEXML for herindelen: redistribute students within selected groups.
+
+    All students in the selected groups become candidates; the destination groups are the
+    same groups with zero occupancy (no fixed students, so the solver controls placement
+    entirely).
+    """
+    candidates = get_candidates_herindelen(df, group_names)
+    groups_from = list(group_names) + ["Anders"]
+    groups_to = {g: [] for g in group_names}
     return candidates, groups_from, groups_to
 
 

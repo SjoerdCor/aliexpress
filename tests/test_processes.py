@@ -9,6 +9,7 @@ from werkzeug.security import generate_password_hash
 import aliexpress.web.routes.processes as proc_module
 from aliexpress.web.extensions import db
 from aliexpress.web.models import Process, Run, School
+from aliexpress.web.routes.processes import get_process_mode
 from app import app as flask_app
 from tests.helpers import SCHOOL_ID, flashes, make_process_row
 
@@ -280,6 +281,51 @@ class TestSelectProcess:
         response = client.get("/processes/select/foutproces")
         assert response.status_code == 302
         assert response.headers["Location"].endswith("/processing")
+
+
+class TestProcessMode:
+    """Tests for the distribution mode stored in mode.json."""
+
+    def test_create_with_forward_saves_mode_json(self, client, tmp_path):
+        """Creating a process with mode 'forward' writes that mode to mode.json."""
+        client.post(
+            "/processes/create",
+            data={"process_name": "forwardpro", "mode": "forward"},
+        )
+        mode_file = tmp_path / SCHOOL_ID / "forwardpro" / "mode.json"
+        assert json.loads(mode_file.read_text(encoding="utf-8"))["mode"] == "forward"
+
+    def test_create_with_redistribute_saves_mode_json(self, client, tmp_path):
+        """Creating a process with mode 'redistribute' writes that mode to mode.json."""
+        client.post(
+            "/processes/create",
+            data={"process_name": "redistpro", "mode": "redistribute"},
+        )
+        mode_file = tmp_path / SCHOOL_ID / "redistpro" / "mode.json"
+        assert (
+            json.loads(mode_file.read_text(encoding="utf-8"))["mode"] == "redistribute"
+        )
+
+    def test_create_without_mode_defaults_to_forward(self, client, tmp_path):
+        """When no mode is submitted (e.g. older HTML or direct API call), 'forward' is used."""
+        client.post("/processes/create", data={"process_name": "defaultpro"})
+        mode_file = tmp_path / SCHOOL_ID / "defaultpro" / "mode.json"
+        assert json.loads(mode_file.read_text(encoding="utf-8"))["mode"] == "forward"
+
+    def test_get_process_mode_returns_forward_when_no_file(self, tmp_path):
+        """get_process_mode defaults to 'forward' for processes without mode.json."""
+        proc_dir = tmp_path / "school" / "proc"
+        proc_dir.mkdir(parents=True)
+        assert get_process_mode(str(proc_dir)) == "forward"
+
+    def test_get_process_mode_reads_redistribute(self, tmp_path):
+        """get_process_mode returns 'redistribute' when mode.json contains that value."""
+        proc_dir = tmp_path / "school" / "proc"
+        proc_dir.mkdir(parents=True)
+        (proc_dir / "mode.json").write_text(
+            json.dumps({"mode": "redistribute"}), encoding="utf-8"
+        )
+        assert get_process_mode(str(proc_dir)) == "redistribute"
 
 
 class TestSchoolIsolation:

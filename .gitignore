@@ -160,14 +160,7 @@ cython_debug/
 #.idea/
 
 *.pptx
-solver.log
 .env
-
-# PuLP / HiGHS solver artifacts
-*.mps
-*.sol
-*.HiGHS
-*.HiGHS_log
 
 # Ad-hoc test output
 test_err.txt
