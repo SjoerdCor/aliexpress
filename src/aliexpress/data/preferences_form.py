@@ -58,8 +58,10 @@ class StudentEntry:
 
     ``student``, ``origin_group`` and each preference ``target`` hold the names exactly as
     entered; the builder normalises them to matching keys. ``excluded_groups`` holds group
-    names only. ``year_group`` is ``None`` in doorzetten mode, where students have no
-    year cohort.
+    names only. ``year_group`` holds the student's ``jaargroep`` for both doorzetten and
+    herindelen (a single shared value in doorzetten mode, one per cohort in herindelen
+    mode); it is ``None`` only for students without an EDEXML-derived jaargroep, e.g. a
+    student added by hand on the roster page.
     """
 
     student: str

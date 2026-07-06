@@ -11,28 +11,13 @@ import re
 
 import pandas as pd
 
-from tests.helpers import setup_process
+from tests.helpers import TWO_STUDENTS_GROEN, setup_process
 
 
 class TestRosterPage:
     """Tests for GET/POST /roster."""
 
-    CANDIDATES = [
-        {
-            "key": "s1",
-            "roepnaam": "Anna",
-            "achternaam": "Bos",
-            "groepsnaam": "Groen",
-            "geslacht": "Meisje",
-        },
-        {
-            "key": "s2",
-            "roepnaam": "Bram",
-            "achternaam": "Dijk",
-            "groepsnaam": "Groen",
-            "geslacht": "Jongen",
-        },
-    ]
+    CANDIDATES = TWO_STUDENTS_GROEN
 
     def _setup(self, client, tmp_path):
         proc_dir = setup_process(client, tmp_path)
@@ -158,3 +143,157 @@ class TestRosterPage:
         assert response.status_code == 302
         assert response.headers["Location"].endswith("/roster")
         assert not (proc_dir / "roster.json").exists()
+
+
+class TestRosterNewStudentJaargroep:
+    """A hand-added new student needs a jaargroep too (for the per-year group report).
+
+    In doorzetten mode every candidate already shares one jaargroep (the one chosen on the
+    EDEXML upload page), so a new student is assumed to join that same cohort. In herindelen
+    mode candidates span several jaargroepen, so the teacher must say which one explicitly.
+    """
+
+    CANDIDATES_FORWARD = [
+        {
+            "key": "s1",
+            "roepnaam": "Anna",
+            "achternaam": "Bos",
+            "groepsnaam": "Groen",
+            "geslacht": "Meisje",
+            "jaargroep": 5,
+        },
+    ]
+
+    CANDIDATES_REDISTRIBUTE = [
+        {
+            "key": "s1",
+            "roepnaam": "Anna",
+            "achternaam": "Bos",
+            "groepsnaam": "Groen",
+            "geslacht": "Meisje",
+            "jaargroep": 6,
+        },
+        {
+            "key": "s2",
+            "roepnaam": "Bram",
+            "achternaam": "Dijk",
+            "groepsnaam": "Blauw",
+            "geslacht": "Jongen",
+            "jaargroep": 7,
+        },
+    ]
+
+    def _setup(self, client, tmp_path, candidates, redistribute_jaargroepen=None):
+        """Set up a process; ``redistribute_jaargroepen`` given means herindelen mode."""
+        mode = "redistribute" if redistribute_jaargroepen is not None else "forward"
+        proc_dir = setup_process(client, tmp_path)
+        (proc_dir / "relevant_students_and_groups.json").write_text(
+            json.dumps(
+                {
+                    "candidates": candidates,
+                    "groups_from": ["Groen"],
+                    "jaargroepen": redistribute_jaargroepen or [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        (proc_dir / "mode.json").write_text(
+            json.dumps({"mode": mode}), encoding="utf-8"
+        )
+        pd.DataFrame(
+            {"Jongens": [1], "Meisjes": [1]}, index=pd.Index(["Klas A"], name="Groepen")
+        ).to_excel(proc_dir / "groups.xlsx")
+        return proc_dir
+
+    def test_forward_mode_new_student_gets_shared_jaargroep(self, client, tmp_path):
+        """Doorzetten: a new student with no jaargroep entered gets the process's jaargroep."""
+        proc_dir = self._setup(client, tmp_path, self.CANDIDATES_FORWARD)
+        client.post(
+            "/roster",
+            data={
+                "gaat_over": ["s1", "new_0"],
+                "new_key[]": "new_0",
+                "new_voornaam[]": "Emma",
+                "new_achternaam[]": "Jansen",
+                "new_geslacht[]": "Meisje",
+                "new_groep[]": "Groen",
+            },
+        )
+        roster = json.loads((proc_dir / "roster.json").read_text("utf-8"))
+        emma = next(p for p in roster["participants"] if p["roepnaam"] == "Emma")
+        assert emma["jaargroep"] == 5
+
+    def test_redistribute_mode_new_student_without_jaargroep_flashes(
+        self, client, tmp_path
+    ):
+        """Herindelen: a new student without an explicit jaargroep is rejected."""
+        proc_dir = self._setup(
+            client,
+            tmp_path,
+            self.CANDIDATES_REDISTRIBUTE,
+            redistribute_jaargroepen=[6, 7],
+        )
+        response = client.post(
+            "/roster",
+            data={
+                "gaat_over": ["s1", "s2", "new_0"],
+                "new_key[]": "new_0",
+                "new_voornaam[]": "Emma",
+                "new_achternaam[]": "Jansen",
+                "new_geslacht[]": "Meisje",
+                "new_groep[]": "Groen",
+            },
+        )
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/roster")
+        assert not (proc_dir / "roster.json").exists()
+
+    def test_redistribute_mode_new_student_with_jaargroep_is_saved(
+        self, client, tmp_path
+    ):
+        """Herindelen: a new student with an explicit jaargroep is accepted as-entered."""
+        proc_dir = self._setup(
+            client,
+            tmp_path,
+            self.CANDIDATES_REDISTRIBUTE,
+            redistribute_jaargroepen=[6, 7],
+        )
+        client.post(
+            "/roster",
+            data={
+                "gaat_over": ["s1", "s2", "new_0"],
+                "new_key[]": "new_0",
+                "new_voornaam[]": "Emma",
+                "new_achternaam[]": "Jansen",
+                "new_geslacht[]": "Meisje",
+                "new_groep[]": "Groen",
+                "new_jaargroep[]": "7",
+            },
+        )
+        roster = json.loads((proc_dir / "roster.json").read_text("utf-8"))
+        emma = next(p for p in roster["participants"] if p["roepnaam"] == "Emma")
+        assert emma["jaargroep"] == 7
+
+    def test_redistribute_mode_jaargroep_options_reflect_the_group_selection(
+        self, client, tmp_path
+    ):
+        """The dropdown offers the jaargroepen recorded at select_groups time, even when a
+        candidate of one of them is no longer present (e.g. unticked/removed since)."""
+        candidate_missing_jaargroep_6 = [
+            self.CANDIDATES_REDISTRIBUTE[1]
+        ]  # only s2, jg 7
+        self._setup(
+            client,
+            tmp_path,
+            candidate_missing_jaargroep_6,
+            redistribute_jaargroepen=[6, 7],
+        )
+        html = client.get("/roster").data.decode("utf-8")
+        roster_data = json.loads(
+            re.search(
+                r'<script type="application/json" id="roster-data">\s*(\{.*?\})\s*</script>',
+                html,
+                re.S,
+            ).group(1)
+        )
+        assert roster_data["jaargroep_options"] == [6, 7]
