@@ -139,8 +139,11 @@ def _assert_group_composition_reconciles(result, preference_data, target_groups)
 
     for group, occupancy in target_groups.counts.items():
         composition = result.group_composition[group]
-        assert composition.boys_year == boys_in_group[group]
-        assert composition.girls_year == girls_in_group[group]
+        # This instance's students have no "Jaarlaag" (Excel input path), so everyone
+        # falls into the single None cohort.
+        counts = composition.per_year[None]
+        assert counts.boys == boys_in_group[group]
+        assert counts.girls == girls_in_group[group]
         assert composition.boys_total == occupancy["Jongens"] + boys_in_group[group]
         assert composition.girls_total == occupancy["Meisjes"] + girls_in_group[group]
 

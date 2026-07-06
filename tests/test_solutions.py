@@ -2,7 +2,7 @@
 
 import pandas as pd
 
-from aliexpress.solver.results import GroupComposition, SolutionResult
+from aliexpress.solver.results import GroupComposition, SexCounts, SolutionResult
 from aliexpress.solver.solutions import DisplayNames, SolutionAnalyzer, to_display_names
 
 
@@ -16,10 +16,10 @@ def _analyzer() -> SolutionAnalyzer:
         weights={("Anna", 1): 1.0, ("Bram", 1): 2.0},
         group_composition={
             "A": GroupComposition(
-                boys_total=2, girls_total=1, boys_year=1, girls_year=0
+                boys_total=2, girls_total=1, per_year={None: SexCounts(1, 0)}
             ),
             "B": GroupComposition(
-                boys_total=1, girls_total=2, boys_year=0, girls_year=1
+                boys_total=1, girls_total=2, per_year={None: SexCounts(0, 1)}
             ),
         },
     )
@@ -77,7 +77,9 @@ def _result_for_students(assignment: dict, students: list) -> SolutionResult:
         weighted_satisfied={(s, 1): 1.0 for s in students},
         weights={(s, 1): 1.0 for s in students},
         group_composition={
-            g: GroupComposition(boys_total=1, girls_total=1, boys_year=1, girls_year=1)
+            g: GroupComposition(
+                boys_total=1, girls_total=1, per_year={None: SexCounts(1, 1)}
+            )
             for g in set(assignment.values())
         },
     )
