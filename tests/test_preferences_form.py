@@ -124,6 +124,18 @@ def test_duplicate_target_within_one_student_is_rejected():
     assert exc.value.check.name == "duplicated_values_preferences"
 
 
+def test_student_entry_rejects_non_integer_year_group():
+    """``year_group`` accepts only a whole number or None; anything else fails loudly."""
+    with pytest.raises(TypeError):
+        StudentEntry("John", "Jongen", "A", None, [_together("Jane", 1.0)])
+
+
+def test_student_entry_preferences_are_keyword_only():
+    """``preferences`` and ``excluded_groups`` can only be passed by name."""
+    with pytest.raises(TypeError):
+        StudentEntry("John", "Jongen", "A", None, 5, [_together("Jane", 1.0)])
+
+
 def test_duplicate_group_target_is_allowed():
     """The same group twice for one student is allowed: group preferences stack (ADR 0004)."""
     students = [
@@ -219,6 +231,25 @@ def test_student_without_preferences_is_allowed():
     assert data.preferences.empty
     assert data.students_info["john"]["Jongen/meisje"] == "Jongen"
     assert data.student_display["john"] == "John"
+
+
+def test_year_group_in_students_info_and_json_round_trip():
+    """year_group on StudentEntry appears as Jaarlaag in students_info and survives JSON."""
+    students = [
+        _student(student="John", year_group=6),
+        _student(student="Jane", sex="Meisje", origin_group="Blauw", year_group=7),
+        _student(student="Kim", sex="Meisje", origin_group="Blauw"),  # no year_group
+    ]
+    data = build_preference_data(students, all_to_groups=["rood", "blauw"])
+
+    assert data.students_info["john"]["Jaarlaag"] == 6
+    assert data.students_info["jane"]["Jaarlaag"] == 7
+    assert "Jaarlaag" not in data.students_info["kim"]
+
+    restored = PreferenceData.from_json(data.to_json())
+    assert restored.students_info["john"]["Jaarlaag"] == 6
+    assert restored.students_info["jane"]["Jaarlaag"] == 7
+    assert "Jaarlaag" not in restored.students_info["kim"]
 
 
 def test_unlimited_together_is_accepted_and_round_trips():

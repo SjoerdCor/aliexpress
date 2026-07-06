@@ -33,6 +33,17 @@ Ga door met een bestaand proces of creëer een nieuw indelingsproces
         title="Alleen letters, cijfers, spaties, - en _ toegestaan"
         id="processName"
     >
+    <fieldset>
+        <legend>Verdeelmodus</legend>
+        <label>
+            <input type="radio" name="mode" value="forward" checked>
+            Doorzetten naar volgende groepen
+        </label>
+        <label>
+            <input type="radio" name="mode" value="redistribute">
+            Herindelen binnen dezelfde groepen
+        </label>
+    </fieldset>
     <button class="button" type="submit">Begin nieuw indelingsproces</button>
 </form>
 <script>

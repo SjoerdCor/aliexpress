@@ -127,6 +127,9 @@ def readableerror_to_validation_message(exc: Exception) -> str:
         "duplicate_new_student": (
             'Er bestaat al een leerling "{naam}". Geef een onderscheidende naam.'
         ),
+        "missing_jaargroep_new_student": (
+            "Geef bij elke nieuwe leerling ook de jaargroep aan."
+        ),
         "duplicate_group_names": (
             "Groepsnamen moeten uniek zijn. Dubbel: {duplicates}."
         ),

@@ -15,7 +15,8 @@ non-positive weight is rejected at construction time by :class:`Preference`.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import numbers
+from dataclasses import KW_ONLY, dataclass, field
 from enum import Enum
 
 import numpy as np
@@ -57,15 +58,29 @@ class StudentEntry:
 
     ``student``, ``origin_group`` and each preference ``target`` hold the names exactly as
     entered; the builder normalises them to matching keys. ``excluded_groups`` holds group
-    names only.
+    names only. ``year_group`` holds the student's ``jaargroep`` for both doorzetten and
+    herindelen (a single shared value in doorzetten mode, one per cohort in herindelen
+    mode); it is ``None`` only for students without an EDEXML-derived jaargroep, e.g. a
+    student added by hand on the roster page.
     """
 
     student: str
     sex: str  # "Jongen" | "Meisje" (data values stay Dutch)
     origin_group: str  # the student's current group
     min_satisfaction: float | None
+    year_group: int | None = None
+    _: KW_ONLY
     preferences: list[Preference] = field(default_factory=list)
     excluded_groups: list[str] = field(default_factory=list)
+
+    def __post_init__(self):
+        # Integral (not int) so pandas/numpy integers from the wizard pass too.
+        if self.year_group is not None and not isinstance(
+            self.year_group, numbers.Integral
+        ):
+            raise TypeError(
+                f"year_group must be a whole number or None, got {self.year_group!r}"
+            )
 
 
 def build_preference_data(
@@ -283,8 +298,9 @@ def _cell_lookup(cells: dict, col: tuple):
 
 def _build_students_info(students: list[StudentEntry]) -> dict:
     """Per matching-key meta info in ``get_students_meta_info``'s shape."""
-    return {
-        matching_key(student.student): {
+    result = {}
+    for student in students:
+        info = {
             "MinimaleTevredenheid": (
                 np.nan
                 if student.min_satisfaction is None
@@ -293,5 +309,7 @@ def _build_students_info(students: list[StudentEntry]) -> dict:
             "Jongen/meisje": student.sex,
             "Stamgroep": matching_key(student.origin_group),
         }
-        for student in students
-    }
+        if student.year_group is not None:
+            info["Jaarlaag"] = student.year_group
+        result[matching_key(student.student)] = info
+    return result

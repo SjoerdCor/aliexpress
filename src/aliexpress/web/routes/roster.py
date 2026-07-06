@@ -21,9 +21,9 @@ from flask_login import login_required
 from ...data import datareader
 from ...errors import ValidationError
 from ..flashing import warn_and_flash
-from ..storage import get_file_path
+from ..storage import get_file_path, get_process_path
 from ..validation_messages import to_validation_message
-from .processes import require_process, require_school
+from .processes import get_process_mode, require_process, require_school
 
 logger = logging.getLogger(__name__)
 
@@ -42,10 +42,18 @@ def load_roster(roster_path):
 
 
 def load_candidates(candidates_path):
-    """Load (candidate dicts, groups_from) from relevant_students_and_groups.json."""
+    """Load (candidate dicts, groups_from, jaargroepen) from relevant_students_and_groups.json.
+
+    ``jaargroepen`` (herindelen only) is the set of jaargroepen settled by the group
+    selection itself, not re-derived from the candidates — see ``_select_groups_post``.
+    """
     with open(candidates_path, encoding="utf-8") as fh:
         raw = json.load(fh)
-    return raw.get("candidates", []), raw.get("groups_from", [])
+    return (
+        raw.get("candidates", []),
+        raw.get("groups_from", []),
+        raw.get("jaargroepen", []),
+    )
 
 
 def sorted_for_display(candidates: list[dict]) -> list[dict]:
@@ -63,53 +71,67 @@ def sorted_for_display(candidates: list[dict]) -> list[dict]:
     return sorted(candidates, key=key)
 
 
-def build_new_candidates(form, groups_from: list) -> list[dict]:
+def build_new_candidates(
+    form, groups_from: list, default_jaargroep: int | None = None
+) -> list[dict]:
     """Build candidate dicts for incoming students added via the form.
 
     Expects parallel lists ``new_key[]``, ``new_voornaam[]``, ``new_achternaam[]``,
-    ``new_geslacht[]`` and optionally ``new_groep[]``. Incomplete rows are skipped.
+    ``new_geslacht[]`` and optionally ``new_groep[]``, ``new_jaargroep[]``. Incomplete rows
+    are skipped. A row's own ``new_jaargroep[]`` wins; otherwise ``default_jaargroep`` is
+    used (the process's single shared jaargroep in doorzetten mode). No ``"jaargroep"`` key
+    is added when neither is available, matching the Excel input path's None-cohort.
     """
     fallback = groups_from[0] if groups_from else ""
     candidates = []
-    for key, vn, an, geslacht, groep in zip_longest(
+    for key, vn, an, geslacht, groep, jaargroep in zip_longest(
         form.getlist("new_key[]"),
         form.getlist("new_voornaam[]"),
         form.getlist("new_achternaam[]"),
         form.getlist("new_geslacht[]"),
         form.getlist("new_groep[]"),
+        form.getlist("new_jaargroep[]"),
         fillvalue="",
     ):
         vn, an = vn.strip(), an.strip()
         if vn and an and geslacht and key:
-            candidates.append(
-                {
-                    "key": key,
-                    "roepnaam": vn,
-                    "achternaam": an,
-                    "geslacht": geslacht,
-                    "groepsnaam": groep or fallback,
-                }
+            candidate = {
+                "key": key,
+                "roepnaam": vn,
+                "achternaam": an,
+                "geslacht": geslacht,
+                "groepsnaam": groep or fallback,
+            }
+            resolved_jaargroep = (
+                int(jaargroep) if jaargroep.strip() else default_jaargroep
             )
+            if resolved_jaargroep is not None:
+                candidate["jaargroep"] = resolved_jaargroep
+            candidates.append(candidate)
     return candidates
 
 
-def validate_new_students(form, orig_candidates) -> None:
+def validate_new_students(form, orig_candidates, mode: str) -> None:
     """Validate hand-added new students; raise ValidationError on the first problem.
 
     The form is best-effort client-side, so the server is the safety net: a row that was
     started but left incomplete, or whose name clashes (compared on matching keys, so
     spelling/case differences still collide) with an existing leerling or another new
-    student, is rejected. Entirely empty rows are ignored.
+    student, is rejected. Entirely empty rows are ignored. In herindelen mode (``mode ==
+    "redistribute"``), candidates span several jaargroepen, so a new student must say which
+    one explicitly; in doorzetten mode they all share one, so it can be assumed instead
+    (see ``build_new_candidates``'s ``default_jaargroep``).
     """
     existing = {
         datareader.matching_key(f"{c['roepnaam']} {c['achternaam']}")
         for c in orig_candidates
     }
     seen = set()
-    for vn, an, geslacht in zip_longest(
+    for vn, an, geslacht, jaargroep in zip_longest(
         form.getlist("new_voornaam[]"),
         form.getlist("new_achternaam[]"),
         form.getlist("new_geslacht[]"),
+        form.getlist("new_jaargroep[]"),
         fillvalue="",
     ):
         vn, an = vn.strip(), an.strip()
@@ -117,6 +139,8 @@ def validate_new_students(form, orig_candidates) -> None:
             continue  # untouched row
         if not (vn and an and geslacht):
             raise ValidationError(code="incomplete_new_student")
+        if mode == "redistribute" and not jaargroep.strip():
+            raise ValidationError(code="missing_jaargroep_new_student")
         key = datareader.matching_key(f"{vn} {an}")
         if key in existing or key in seen:
             raise ValidationError(
@@ -125,11 +149,16 @@ def validate_new_students(form, orig_candidates) -> None:
         seen.add(key)
 
 
-def build_participants(form, orig_candidates, groups_from) -> list[dict]:
+def build_participants(form, orig_candidates, groups_from, mode: str) -> list[dict]:
     """Resolve the population: ticked existing candidates plus hand-added new students."""
     checked_keys = set(form.getlist("gaat_over"))
     participants = [c for c in orig_candidates if c["key"] in checked_keys]
-    participants.extend(build_new_candidates(form, groups_from))
+    default_jaargroep = (
+        orig_candidates[0].get("jaargroep")
+        if orig_candidates and mode != "redistribute"
+        else None
+    )
+    participants.extend(build_new_candidates(form, groups_from, default_jaargroep))
     return participants
 
 
@@ -145,7 +174,7 @@ def roster_page(school_id):
     process_id = session["process_id"]
 
     try:
-        orig_candidates, groups_from = load_candidates(
+        orig_candidates, groups_from, jaargroep_options = load_candidates(
             get_file_path(school_id, process_id, "relevant_students_and_groups.json")
         )
     except Exception as exc:  # pylint: disable=broad-exception-caught
@@ -153,8 +182,12 @@ def roster_page(school_id):
         flash(to_validation_message(exc), "error")
         return redirect(url_for("wizard.upload_edexml"))
 
+    mode = get_process_mode(get_process_path(school_id, process_id))
+
     if request.method == "POST":
-        return _handle_roster_post(school_id, process_id, orig_candidates, groups_from)
+        return _handle_roster_post(
+            school_id, process_id, orig_candidates, groups_from, mode
+        )
 
     saved = load_roster(get_file_path(school_id, process_id, "roster.json"))
     orig_keys = {c["key"] for c in orig_candidates}
@@ -166,24 +199,38 @@ def roster_page(school_id):
         checked_keys = {p["key"] for p in participants if p["key"] in orig_keys}
         new_students = [p for p in participants if p["key"] not in orig_keys]
 
+    if mode == "redistribute":
+        prev_url = url_for("wizard.select_groups")
+        prev_label = "← Naar Groepskeuze"
+        next_label = "Naar Voorkeuren →"
+    else:
+        prev_url = url_for("wizard.upload_edexml")
+        prev_label = "← Naar Schoolinformatie uploaden"
+        next_label = "Naar Groepen naartoe →"
+
     return render_template(
         "roster.html",
         candidates=sorted_for_display(orig_candidates),
         checked_keys=checked_keys,
         new_students=new_students,
         groups_from=groups_from,
+        prev_url=prev_url,
+        prev_label=prev_label,
+        next_label=next_label,
+        mode=mode,
+        jaargroep_options=jaargroep_options,
     )
 
 
-def _handle_roster_post(school_id, process_id, orig_candidates, groups_from):
+def _handle_roster_post(school_id, process_id, orig_candidates, groups_from, mode):
     """Validate + persist the roster, then continue to "Groepen naartoe" (ADR 0006)."""
     try:
-        validate_new_students(request.form, orig_candidates)
+        validate_new_students(request.form, orig_candidates, mode)
     except ValidationError as exc:
         warn_and_flash(to_validation_message(exc), log_detail=exc.code)
         return redirect(url_for("roster.roster_page"))
 
-    participants = build_participants(request.form, orig_candidates, groups_from)
+    participants = build_participants(request.form, orig_candidates, groups_from, mode)
     with open(
         get_file_path(school_id, process_id, "roster.json"), "w", encoding="utf-8"
     ) as fh:

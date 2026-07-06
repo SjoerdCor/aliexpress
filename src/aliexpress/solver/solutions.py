@@ -159,6 +159,16 @@ def to_display_names(
     )
 
 
+def _year_label(year: int | None) -> str:
+    """Row label for a jaarlaag cohort: bare "Jaarlaag" for the None cohort."""
+    return "Jaarlaag" if year is None else f"Jaarlaag {year}"
+
+
+def _year_sort_key(year: int | None) -> tuple:
+    """Sort key placing the None cohort right after "Totaal", then years numerically."""
+    return (0,) if year is None else (1, year)
+
+
 # pylint: disable-next=too-many-instance-attributes  # ten computed views of one solution; each is a distinct output table
 class SolutionAnalyzer:
     """Create a report about the solution found to the Linear Programming problem
@@ -268,15 +278,32 @@ class SolutionAnalyzer:
 
     def _calculate_group_report(self) -> pd.DataFrame:
         distribution = {}
+        years: set[int | None] = set()
         for group, comp in self.result.group_composition.items():
             distribution[(group, "Totaal", "Jongen")] = comp.boys_total
             distribution[(group, "Totaal", "Meisje")] = comp.girls_total
-            distribution[(group, "Jaarlaag", "Jongen")] = comp.boys_year
-            distribution[(group, "Jaarlaag", "Meisje")] = comp.girls_year
+            for year, counts in comp.per_year.items():
+                distribution[(group, _year_label(year), "Jongen")] = counts.boys
+                distribution[(group, _year_label(year), "Meisje")] = counts.girls
+            years.update(comp.per_year)
+
+        # unstack() sorts row labels alphabetically ("Jaarlaag 10" before "Jaarlaag 6"),
+        # so the row order is reindexed explicitly: Totaal first, then jaarlagen
+        # numerically (the None cohort, if any, right after Totaal). A full cartesian
+        # reindex also fills in a 0 row for a group missing one of the other groups'
+        # cohorts (e.g. nobody from jaarlaag 7 assigned to this particular group).
+        row_order = ["Totaal"] + [
+            _year_label(year) for year in sorted(years, key=_year_sort_key)
+        ]
+        full_index = pd.MultiIndex.from_product(
+            [sorted(self.result.group_composition), row_order]
+        )
 
         df_group_report = (
             pd.Series(distribution)
             .unstack()
+            .reindex(full_index)
+            .fillna(0)
             .assign(
                 VerschilJongensMeisjes=lambda df: (df["Jongen"] - df["Meisje"]).abs(),
                 Groepsgrootte=lambda df: df["Jongen"] + df["Meisje"],

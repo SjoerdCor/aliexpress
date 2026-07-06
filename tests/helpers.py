@@ -60,6 +60,24 @@ def make_process_row(school_id, name):
     return proc
 
 
+TWO_STUDENTS_GROEN = [
+    {
+        "key": "s1",
+        "roepnaam": "Anna",
+        "achternaam": "Bos",
+        "groepsnaam": "Groen",
+        "geslacht": "Meisje",
+    },
+    {
+        "key": "s2",
+        "roepnaam": "Bram",
+        "achternaam": "Dijk",
+        "groepsnaam": "Groen",
+        "geslacht": "Jongen",
+    },
+]
+
+
 def write_groups_to_json(proc_dir, groups_to):
     """Persist a candidates JSON whose groups_to maps each group to student dicts."""
     (proc_dir / "relevant_students_and_groups.json").write_text(

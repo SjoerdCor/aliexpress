@@ -12,8 +12,9 @@ from . import errors
 from .data import datareader
 from .data.datareader import GroupCounts
 from .data.preferences_data import PreferenceData
-from .solver import feasibility, problemsolver, solutions
-from .solver.problemsolver import GroupBalance
+from .solver import engine, results, solutions
+from .solver._balance import GroupBalance
+from .solver.results import SolutionResult
 
 FILE_PREFERENCES = "voorkeuren.xlsx"
 FILE_GROUPS_TO = "groepen.xlsx"
@@ -85,55 +86,8 @@ def _log_initial_state(groups_to, students_info, on_update, stamgroep_display=No
         on_update(f"{group}: {value}")
 
 
-def _check_feasibility(ps):
-    feas_prob = feasibility.check_balance_feasibility(ps)
-    if feas_prob.objective.value() <= 0:
-        return
-
-    slack_info = {
-        "SLACK_balanced_boys_girls_total": (
-            "Maximale verschil jongens/meisjes totale groep",
-            ps.groupbalance.max_imbalance_boys_girls_total,
-        ),
-        "SLACK_balanced_boys_girls_year": (
-            "Maximale verschil jongens/meisjes nieuwe jaarlaag",
-            ps.groupbalance.max_imbalance_boys_girls_year,
-        ),
-        "SLACK_diff_n_students_total": (
-            "Maximale verschil totale groepsgrootte",
-            ps.groupbalance.max_diff_n_students_total,
-        ),
-        "SLACK_diff_n_students_year": (
-            "Maximale verschil groepsgrootte nieuwe jaarlaag",
-            ps.groupbalance.max_diff_n_students_year,
-        ),
-        "SLACK_max_clique": (
-            "Maximale groep vanuit eerdere groep",
-            ps.groupbalance.max_clique,
-        ),
-        "SLACK_max_clique_sex": (
-            "Maximale groep jongens/meisjes vanuit eerdere groep",
-            ps.groupbalance.max_clique_sex,
-        ),
-    }
-
-    msg = []
-    variables = feas_prob.variablesDict()
-
-    for name, (label, base_value) in slack_info.items():
-        val = variables[name].value()
-        if val > 0:
-            msg.append(f"{label}: {round(base_value + val)} (+ {round(val)})")
-
-    raise errors.FeasibilityError(
-        "infeasible_problem",
-        context={"possible_improvement": "\n".join(msg)},
-        technical_message="Can not solve the problem for this class imbalance",
-    )
-
-
-def _export(ps, preference_data, target_groups):
-    """Build the download workbook and result tables from the already-solved problem."""
+def _export(result, preference_data, target_groups):
+    """Build the download workbook and result tables from the already-solved result."""
     display_names = solutions.DisplayNames(
         student=preference_data.student_display,
         group=target_groups.display,
@@ -141,7 +95,7 @@ def _export(ps, preference_data, target_groups):
     )
     # The solver works on matching keys; translate to names as entered before reporting.
     result, preferences, input_sheet, students_info = solutions.to_display_names(
-        ps.extract_solution(),
+        result,
         preference_data.preferences,
         preference_data.input_sheet,
         preference_data.students_info,
@@ -164,20 +118,27 @@ def _export(ps, preference_data, target_groups):
     return output, dfs
 
 
-def _log_solve_summary(ps: problemsolver.ProblemSolver) -> None:
-    """Log anonymous headline metrics after a completed solve — no student names."""
-    gb = ps.groupbalance
-    logger.info(
-        "Balance used: clique=%d clique_sex=%d diff_year=%d diff_total=%d "
-        "imbalance_year=%d imbalance_total=%d",
-        gb.max_clique,
-        gb.max_clique_sex,
-        gb.max_diff_n_students_year,
-        gb.max_diff_n_students_total,
-        gb.max_imbalance_boys_girls_year,
-        gb.max_imbalance_boys_girls_total,
-    )
-    sat = ps.extract_solution().student_satisfaction
+def _log_solve_summary(
+    result: SolutionResult, groupbalance: GroupBalance | None = None
+) -> None:
+    """Log anonymous headline metrics after a completed solve — no student names.
+
+    ``groupbalance`` logs the class-balance limits that were actually used, when
+    known to the caller (the manual path always knows them; the automatic path
+    does not report the balance it settled on, so it is omitted there).
+    """
+    if groupbalance is not None:
+        logger.info(
+            "Balance used: clique=%d clique_sex=%d diff_year=%d diff_total=%d "
+            "imbalance_year=%d imbalance_total=%d",
+            groupbalance.max_clique,
+            groupbalance.max_clique_sex,
+            groupbalance.max_diff_n_students_year,
+            groupbalance.max_diff_n_students_total,
+            groupbalance.max_imbalance_boys_girls_year,
+            groupbalance.max_imbalance_boys_girls_total,
+        )
+    sat = result.student_satisfaction
     values = list(sat.values())
     n = len(values)
     n_full = sum(1 for v in values if v >= 1.0)
@@ -224,8 +185,9 @@ def distribute_students_from_data(
         Class-balance constraints. When None (the default), the balance is determined
         automatically: satisfaction is maximized within the minimal relaxation that still
         lets every student fulfil a positive wish (see
-        :meth:`ProblemSolver.solve_within_minimal_relaxation`). Pass a GroupBalance to
-        override this with fixed manual limits instead.
+        :func:`~.solver.engine.solve_within_minimal_relaxation`). Pass a
+        GroupBalance to override this with fixed manual limits instead (see
+        :func:`~.solver.engine.solve_with_fixed_balance`).
     """
     preferences = preference_data.preferences
     students_info = preference_data.students_info
@@ -249,32 +211,46 @@ def distribute_students_from_data(
         preference_data.stamgroep_display,
     )
 
-    ps = problemsolver.ProblemSolver(
-        preferences,
-        students_info,
-        target_groups.counts,
-        not_together,
-        groupbalance=groupbalance,
-        optimize="lexmaxmin",
-    )
     on_update("Aan de slag! Groepen indelen...")
     if groupbalance is None:
         logger.info("Solving within the minimal class-balance relaxation")
-        try:
-            ps.solve_within_minimal_relaxation()
-        except errors.FeasibilityError as exc:
-            if exc.code == "infeasible_preferences":
-                exc.context = {"case": feasibility.diagnose(ps)}
-                logger.warning("Infeasible preferences: case=%s", exc.context["case"])
-            raise
+        solution = engine.solve_within_minimal_relaxation(
+            preferences=preferences,
+            students=students_info,
+            groups_to=target_groups.counts,
+            not_together=not_together,
+            optimize="lexmaxmin",
+        )
+        result = results.to_solution_result(
+            solution, preferences, students_info, target_groups.counts
+        )
+        _log_solve_summary(result)
     else:
-        _check_feasibility(ps)
-        on_update("Bepaald dat probleem oplosbaar is!")
-        logger.info("Finding first solution... lexmaxmin")
-        ps.run()
+        logger.info("Solving with a fixed class balance")
+        try:
+            solution = engine.solve_with_fixed_balance(
+                preferences=preferences,
+                students=students_info,
+                groups_to=target_groups.counts,
+                not_together=not_together,
+                groupbalance=groupbalance,
+                optimize="lexmaxmin",
+            )
+        except errors.StageInfeasible as exc:
+            raise errors.FeasibilityError(
+                "infeasible_problem",
+                context={
+                    "possible_improvement": "Kies een ruimere klassenbalans; met de "
+                    "huidige vaste instellingen is geen geldige verdeling mogelijk."
+                },
+                technical_message="Fixed class balance admits no valid assignment",
+            ) from exc
+        result = results.to_solution_result(
+            solution, preferences, students_info, target_groups.counts
+        )
+        _log_solve_summary(result, groupbalance)
 
-    _log_solve_summary(ps)
-    output, dfs = _export(ps, preference_data, target_groups)
+    output, dfs = _export(result, preference_data, target_groups)
     logger.info("Done!")
     on_update("Klaar!")
     return {"download": output, "dataframes": dfs}

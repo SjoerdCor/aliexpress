@@ -43,14 +43,13 @@ from ...errors import (
 )
 from ...logging_config import bind_log_context
 from ...main import distribute_students_from_data
-from ...solver._balance import solver_log_path
 from ..extensions import db
 from ..flashing import warn_and_flash
 from ..models import LogLine, Process, Run
-from ..storage import get_file_path
+from ..storage import get_file_path, get_process_path
 from ..validation_messages import to_validation_message
 from .auth import effective_school_id
-from .processes import require_process
+from .processes import get_process_mode, require_process
 from .roster import load_roster, sorted_for_display
 
 logger = logging.getLogger(__name__)
@@ -167,18 +166,12 @@ def _run_solve_thread(ctx: _ThreadContext, groups_to_path, not_together):
                 )
                 preference_data, _ = _read_voorkeuren_json(voorkeuren_path)
                 target_groups = datareader.read_groups_excel(groups_to_path)
-                highs_log = os.path.join(
-                    current_app.instance_path,
-                    "logs",
-                    f"highs-{ctx.school_id}-{ctx.process_name}.log",
+                result = distribute_students_from_data(
+                    preference_data,
+                    target_groups,
+                    not_together,
+                    on_update=on_update,
                 )
-                with solver_log_path(highs_log):
-                    result = distribute_students_from_data(
-                        preference_data,
-                        target_groups,
-                        not_together,
-                        on_update=on_update,
-                    )
                 logger.info("Distributing students finished successfully")
                 # Write artifacts before flipping to "done" so the result page never
                 # races ahead of the files it needs.
@@ -287,6 +280,7 @@ def _parse_student_entry(candidate: dict, form) -> StudentEntry:
         sex=candidate["geslacht"],
         origin_group=candidate["groepsnaam"],
         min_satisfaction=min_satisfaction,
+        year_group=candidate.get("jaargroep"),
         preferences=preferences,
         excluded_groups=excluded,
     )
@@ -486,19 +480,38 @@ def download_template(filename):
 @login_required
 def upload_edexml():
     """Route to upload edexml"""
-    if request.method == "GET":
-        return render_template("upload_edexml.html")
     school_id = effective_school_id()
     if school_id is None:
         return redirect(url_for("admin.dashboard"))
-    process_id = session["process_id"]
+    process_id = session.get("process_id")
+    if request.method == "GET":
+        mode = "forward"
+        if process_id:
+            try:
+                mode = get_process_mode(get_process_path(school_id, process_id))
+            except PermissionError:
+                pass
+        return render_template("upload_edexml.html", mode=mode)
+    # POST
+    if not process_id:
+        flash("Geen actief proces geselecteerd.", "error")
+        return redirect(url_for("processes.index"))
+    mode = get_process_mode(get_process_path(school_id, process_id))
     try:
         edex_file = request.files["edexml"]
         edex_path = get_file_path(school_id, process_id, "edex.xml")
         edex_file.save(edex_path)
         edex_file.stream.seek(0)
-
         edexml = file_to_io(edex_file)
+
+        if mode == "redistribute":
+            datareader.EdexReader(edexml).get_full_df()
+            logger.info(
+                "EDEXML accepted for redistribute mode in %s: redirecting to group selection",
+                process_id,
+            )
+            return redirect(url_for("wizard.select_groups"))
+
         jaargroep = int(request.form["jaargroep"])
         df = datareader.EdexReader(edexml).get_full_df()
         candidates, groups_from, groups_to = (
@@ -510,7 +523,6 @@ def upload_edexml():
             "groups_to": groups_to,
         }
         path = get_file_path(school_id, process_id, "relevant_students_and_groups.json")
-
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
         logger.info(
@@ -520,6 +532,94 @@ def upload_edexml():
         _flash_upload_error(exc)
         return redirect(url_for("wizard.upload_edexml"))
     return redirect(url_for("roster.roster_page"))
+
+
+def _select_groups_post(df, school_id, process_id):
+    """Process a POST to /select_groups: validate, save candidates JSON, redirect."""
+    selected = request.form.getlist("groups")
+    if len(selected) < 2:
+        warn_and_flash(
+            "Selecteer minimaal twee groepen om te herindelen.",
+            log_detail="too_few_groups_redistribute",
+        )
+        return redirect(url_for("wizard.select_groups"))
+    candidates, groups_from, groups_to = (
+        candidatedetermination.handle_edexml_upload_herindelen(df, selected)
+    )
+    if not candidates:
+        warn_and_flash(
+            "Geen leerlingen gevonden in de geselecteerde groepen.",
+            log_detail="no_candidates_in_selected_groups",
+        )
+        return redirect(url_for("wizard.select_groups"))
+    # Recorded here, from the full EDEXML data at selection time, rather than re-derived
+    # from `candidates` later: the set of jaargroepen involved in this herindeling is
+    # settled by this selection, independent of who ends up ticked on the roster page.
+    jaargroepen = sorted(
+        df.loc[df["groepsnaam"].isin(selected), "jaargroep"].dropna().unique().tolist()
+    )
+    data = {
+        "candidates": candidates,
+        "groups_from": groups_from,
+        "groups_to": groups_to,
+        "jaargroepen": jaargroepen,
+    }
+    path = get_file_path(school_id, process_id, "relevant_students_and_groups.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+    logger.info(
+        "Groups selected for redistribution in %s: %s (%d candidates)",
+        process_id,
+        ", ".join(selected),
+        len(candidates),
+    )
+    return redirect(url_for("roster.roster_page"))
+
+
+@wizard_bp.route("/select_groups", methods=["GET", "POST"])
+@login_required
+@require_process
+def select_groups():
+    """Select groups to redistribute (redistribute mode only)."""
+    school_id = effective_school_id()
+    if school_id is None:
+        return redirect(url_for("admin.dashboard"))
+    process_id = session["process_id"]
+    edex_path = get_file_path(school_id, process_id, "edex.xml")
+    if not os.path.exists(edex_path):
+        warn_and_flash(
+            "Upload eerst het EDEXML-bestand.",
+            log_detail="missing_edex_for_select_groups",
+        )
+        return redirect(url_for("wizard.upload_edexml"))
+    try:
+        with open(edex_path, "rb") as fh:
+            edexml = BytesIO(fh.read())
+        df = datareader.EdexReader(edexml).get_full_df()
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        _flash_upload_error(exc)
+        return redirect(url_for("wizard.upload_edexml"))
+    if request.method == "GET":
+        groups = sorted(df["groepsnaam"].unique().tolist())
+        return render_template("select_groups.html", groups=groups)
+    return _select_groups_post(df, school_id, process_id)
+
+
+def _groups_to_auto_redistribute(school_id, process_id, groups_to):
+    """Write groups.xlsx (zero occupancy per group) and redirect straight to preferences_form."""
+    distribution = {g: {"Jongens": 0, "Meisjes": 0} for g in groups_to}
+    path = get_file_path(school_id, process_id, "groups.xlsx")
+    pd.DataFrame(distribution).transpose().to_excel(path, index_label="Groepen")
+    with open(
+        get_file_path(school_id, process_id, "input_method.json"), "w", encoding="utf-8"
+    ) as f:
+        json.dump({"method": "form"}, f)
+    logger.info(
+        "Groups-to auto-written for redistribute process %s: %d groups, zero occupancy",
+        process_id,
+        len(distribution),
+    )
+    return redirect(url_for("wizard.preferences_form"))
 
 
 @wizard_bp.route("/groups_to", methods=["GET", "POST"])
@@ -532,6 +632,10 @@ def groups_to_page():
         return redirect(url_for("admin.dashboard"))
     process_id = session["process_id"]
     groups_to = _load_groups_to(school_id, process_id)
+    mode = get_process_mode(get_process_path(school_id, process_id))
+
+    if mode == "redistribute":
+        return _groups_to_auto_redistribute(school_id, process_id, groups_to)
 
     if request.method == "GET":
         return render_template(
@@ -701,6 +805,19 @@ def upload_preferences():
     return redirect(url_for("wizard.not_together_page"))
 
 
+def _apply_draft_preferences(
+    draft_state, participants, display_candidates, all_groups_to, group_display
+):
+    """Mutate display_candidates in-place with saved min_satisfaction; return notices to flash."""
+    if not draft_state:
+        return []
+    group_labels = [group_display[g] for g in all_groups_to]
+    ms_by_key = {s["key"]: s.get("min_satisfaction") for s in draft_state["students"]}
+    for candidate in display_candidates:
+        candidate["min_satisfaction"] = ms_by_key.get(candidate["key"])
+    return list(_reconcile_dangling(draft_state, participants, group_labels))
+
+
 def _handle_pref_form_post(participants, all_groups_to, state_path, voorkeuren_path):
     """Process a POST to /preferences_form and return the response to send.
 
@@ -765,17 +882,17 @@ def preferences_form():
     # target was removed from the roster, with a friendly notice about what was removed.
     draft_state = _load_pref_form_state(state_path)
     display_candidates = sorted_for_display(participants)
-    if draft_state:
-        group_labels = [group_display[g] for g in all_groups_to]
-        for notice in _reconcile_dangling(draft_state, participants, group_labels):
-            flash(notice, "info")
-        # The preference chips are restored client-side from the draft; carry over the
-        # one server-rendered field (min. satisfaction) so its radio reflects the draft.
-        ms_by_key = {
-            s["key"]: s.get("min_satisfaction") for s in draft_state["students"]
-        }
-        for candidate in display_candidates:
-            candidate["min_satisfaction"] = ms_by_key.get(candidate["key"])
+    for notice in _apply_draft_preferences(
+        draft_state, participants, display_candidates, all_groups_to, group_display
+    ):
+        flash(notice, "info")
+
+    if get_process_mode(get_process_path(school_id, process_id)) == "redistribute":
+        prev_url = url_for("roster.roster_page")
+        prev_label = "← Naar Wie gaat mee"
+    else:
+        prev_url = url_for("wizard.groups_to_page")
+        prev_label = "← Naar Groepen naartoe"
 
     return render_template(
         "preferences_form.html",
@@ -784,6 +901,8 @@ def preferences_form():
         group_display=group_display,
         draft_state=draft_state,
         short_names=candidatedetermination.unique_display_names(participants),
+        prev_url=prev_url,
+        prev_label=prev_label,
     )
 
 
