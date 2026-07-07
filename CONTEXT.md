@@ -24,9 +24,17 @@ _Avoid_: modus, type, soort
 De verdeelmodus waarin één instromende Jaarlaag over de gecombineerde groepen van de volgende bouw wordt verdeeld; de blijvende oudere leerlingen vormen de vaste bezetting van die Bestemmingsgroepen. Eén bewegende jaarlaag.
 _Avoid_: promoveren, overgang
 
+**Overgang**:
+De jaarovergang waarbij elke leerling één Jaarlaag opschuift en de oudste jaarlaag buiten de nieuwe indeling valt (verlaat de school of de bouw). Een eigenschap van de situatie, geen Verdeelmodus: zowel Doorzetten als Herindelen met doorzetten spelen zich af rond een overgang, gewoon Herindelen niet. Kenmerk: de bron-jaarlagen verschillen van de groepslabels van de bestemming.
+_Avoid_: promotie, jaarwissel, doorschuiven
+
 **Herindelen**:
-De verdeelmodus waarin alle nog-aanwezige leerlingen van een aantal bestaande groepen (één of meer jaarlagen, welke bouw dan ook) opnieuw over diezelfde groepen worden verdeeld, met balans per Jaarlaag. Bestemmingsgroepen starten leeg; wie vertrekt doet niet mee.
+De Verdeelmodus waarin nog-aanwezige leerlingen opnieuw over een set leeg startende bestemmingsgroepen worden verdeeld, met balans per Jaarlaag. Twee subvarianten. Zonder doorzetten: de huidige bewoners van de gekozen groepen worden over diezelfde groepen herverdeeld. Met doorzetten: leerlingen van gekozen Jaarlagen komen in een apart gekozen set bestemmingsgroepen (zie Herindelen met doorzetten). Wie vertrekt doet niet mee.
 _Avoid_: herverdelen, herschikken, mengen
+
+**Herindelen met doorzetten**:
+De subvariant van Herindelen waarin niet de huidige bewoners van de gekozen groepen worden herverdeeld, maar de leerlingen van een (doorgaans aaneengesloten) reeks Jaarlagen — bijv. 5-6-7 — over een apart gekozen set bestemmingsgroepen: de huidige groepen van 6-7-8, die leeg starten. Meerdere jaarlagen schuiven tegelijk op (zie Overgang). Backend-identiek aan Herindelen; alleen de invoer verschilt: eerst de Jaarlagen kiezen (zoals bij Doorzetten), dan de bestemmingsgroepen handmatig. Alleen via EDEXML, want de Jaarlaag komt daaruit.
+_Avoid_: overgang, doorschuiven, promotie-herindeling
 
 **Groep**:
 Een klas leerlingen. In een verdeling worden leerlingen vanuit hun huidige groep over bestemmingsgroepen verdeeld; "groep" is op zichzelf rolneutraal — of een groep herkomst of bestemming is, volgt uit de context, niet uit het woord.
@@ -63,6 +71,10 @@ _Avoid_: indeling, uitkomst
 **Sociogram**:
 Een visualisatie van de relaties tussen leerlingen, afgeleid uit hun voorkeuren. Het is een tweede analyse over dezelfde invoer als de Verdeling en staat daar los van: de optimalisatie maakt een Verdeling, het sociogram maakt een relatiegrafiek. Beide zijn "wat je met de ingelezen voorkeuren doet" — peers, geen onderdeel van elkaar.
 _Avoid_: grafiek, netwerk, plaatje
+
+**Tussenstand**:
+De beste kandidaat-verdeling die de optimalisatie tot nu toe heeft gevonden, getoond tijdens het rekenen: de voorlopige indeling met namen plus samenvattende aantallen per groep. Nadrukkelijk voorlopig — zowel de toewijzing als de tevredenheid kan nog veranderen (ook verbeteren) tot de Verdeling definitief is.
+_Avoid_: tussenresultaat, voorlopig resultaat
 
 **Proces**:
 Één verdelingsrun voor een school, geïdentificeerd door naam. Bevat de invoerbestanden, status en resultaten van die run.
