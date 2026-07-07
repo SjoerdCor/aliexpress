@@ -1057,3 +1057,79 @@ class TestUploadEdexmlMode:
         assert resp.status_code == 302
         assert resp.headers["Location"].endswith("/upload_edexml")
         assert any(cat == "error" for cat, _ in flashes(client))
+
+    def test_post_redistribute_and_forward_reupload_clears_stale_wizard_state(
+        self, client, tmp_path, monkeypatch
+    ):
+        """Re-uploading EDEXML in redistribute_and_forward mode (e.g. after going back and
+        picking different jaargroepen) must wipe stale downstream artifacts from the
+        earlier upload, so the roster/preferences pages don't merge old and new
+        populations."""
+        proc_dir = setup_process(client, tmp_path)
+        (proc_dir / "mode.json").write_text(
+            json.dumps({"mode": "redistribute_and_forward"}), encoding="utf-8"
+        )
+        # Simulate leftover state from an earlier upload of jaargroepen 5-6-7.
+        (proc_dir / "roster.json").write_text("{}", encoding="utf-8")
+        (proc_dir / "voorkeuren.json").write_text("{}", encoding="utf-8")
+        (proc_dir / "groups.xlsx").write_text("stale", encoding="utf-8")
+
+        fake_df = pd.DataFrame(
+            {
+                "groepsnaam": ["3A", "4A", "5A"],
+                "roepnaam": ["Anna", "Ben", "Carl"],
+                "achternaam": ["A", "B", "C"],
+                "key": ["k1", "k2", "k3"],
+                "geslacht": ["Meisje", "Jongen", "Jongen"],
+                "jaargroep": pd.array([3, 4, 5], dtype="Int64"),
+            }
+        )
+        monkeypatch.setattr(
+            wizard_module.datareader, "EdexReader", _make_edexml_reader(fake_df)
+        )
+        resp = client.post(
+            "/upload_edexml",
+            data={
+                "edexml": (BytesIO(b"anything"), "edex.xml"),
+                "jaargroepen": ["3", "4", "5"],
+            },
+            content_type="multipart/form-data",
+        )
+        assert resp.status_code == 302
+        assert resp.headers["Location"].endswith("/roster")
+        assert not (proc_dir / "roster.json").exists()
+        assert not (proc_dir / "voorkeuren.json").exists()
+        assert not (proc_dir / "groups.xlsx").exists()
+        saved = json.loads(
+            (proc_dir / "relevant_students_and_groups.json").read_text("utf-8")
+        )
+        assert {c["roepnaam"] for c in saved["candidates"]} == {"Anna", "Ben", "Carl"}
+
+    def test_post_upload_edexml_removes_stale_downstream_files(
+        self, client, tmp_path, monkeypatch
+    ):
+        """A general check that any new EDEXML upload (forward mode here) removes stale
+        wizard artifacts derived from a previous upload."""
+        proc_dir = setup_process(client, tmp_path)
+        (proc_dir / "roster.json").write_text("{}", encoding="utf-8")
+        (proc_dir / "voorkeuren.json").write_text("{}", encoding="utf-8")
+        (proc_dir / "groups.xlsx").write_text("stale", encoding="utf-8")
+
+        fake_df = pd.DataFrame({"groepsnaam": ["3A", "3B"], "jaargroep": [3, 3]})
+        monkeypatch.setattr(
+            wizard_module.datareader, "EdexReader", _make_edexml_reader(fake_df)
+        )
+        monkeypatch.setattr(
+            wizard_module.candidatedetermination,
+            "handle_edexml_upload",
+            lambda df, jaargroep: ([], {}, {}),
+        )
+        client.post(
+            "/upload_edexml",
+            data={"edexml": (BytesIO(b"anything"), "edex.xml"), "jaargroep": "4"},
+            content_type="multipart/form-data",
+        )
+
+        assert not (proc_dir / "roster.json").exists()
+        assert not (proc_dir / "voorkeuren.json").exists()
+        assert not (proc_dir / "groups.xlsx").exists()

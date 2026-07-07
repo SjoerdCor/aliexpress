@@ -563,6 +563,32 @@ def _forward_upload(school_id, process_id, edexml):
     return redirect(url_for("roster.roster_page"))
 
 
+_DOWNSTREAM_WIZARD_FILES = (
+    "relevant_students_and_groups.json",
+    "roster.json",
+    "groups.xlsx",
+    "groups_to_state.json",
+    "input_method.json",
+    "preferences_form_state.json",
+    "voorkeuren.json",
+    "preferences.xlsx",
+    "not_together.json",
+)
+
+
+def _reset_downstream_wizard_files(school_id, process_id):
+    """Remove wizard artifacts derived from a previous EDEXML upload.
+
+    A fresh upload defines a new population, so any roster / groups / preferences saved
+    against the previous upload are stale — the newest upload overwrites them, and the
+    wizard restarts cleanly from this point (all three modes).
+    """
+    for name in _DOWNSTREAM_WIZARD_FILES:
+        path = get_file_path(school_id, process_id, name)
+        if os.path.exists(path):
+            os.remove(path)
+
+
 def _dispatch_edexml_upload(mode, school_id, process_id, edexml):
     """Branch the EDEXML upload on mode, returning the resulting redirect response."""
     if mode == "redistribute":
@@ -599,6 +625,7 @@ def upload_edexml():
         edex_file.save(edex_path)
         edex_file.stream.seek(0)
         edexml = file_to_io(edex_file)
+        _reset_downstream_wizard_files(school_id, process_id)
         return _dispatch_edexml_upload(mode, school_id, process_id, edexml)
     except Exception as exc:  # pylint: disable=broad-exception-caught
         _flash_upload_error(exc)
