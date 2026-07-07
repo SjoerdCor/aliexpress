@@ -86,7 +86,7 @@ wiskundig identiek.
 - **Prestaties** op realistische omvang (±3 groepen × ~75 kinderen) worden gebenchmarkt.
 - **Buiten scope:** jaarlaag-kolom in `voorkeuren.xlsx`, groepen opheffen/samenvoegen, pin-UI.
 
-## Uitbreiding: Herindelen met doorzetten (2026-07-05)
+## Uitbreiding: Herindelen met doorzetten (2026-07-05, herzien 2026-07-07)
 
 In de praktijk valt een herindeling vaak samen met de jaarovergang: niet de huidige bewoners
 van 6-7-8 worden herverdeeld, maar de leerlingen van jaarlagen 5-6-7 komen in de (leeg
@@ -94,13 +94,21 @@ startende) huidige groepen van 6-7-8. De bron-populatie valt dan níét samen me
 bestemmingsgroepen — de jaarlaag-5'ers zitten nu in de middenbouw. De bestaande
 herindeel-invoer (kies fysieke groepen, populatie = hun bewoners) kan dit niet uitdrukken.
 
-### Beslissing: subvariant binnen Herindelen, populatie op jaarlaag
+### Beslissing: derde gelijkwaardige Verdeelmodus-optie bij procesaanmaak, populatie op jaarlaag
 
-- **Geen derde verdeelmodus.** De backend is aantoonbaar identiek aan herindelen (de
-  anti-clique leidt herkomstgroepen uit de leerlingdata zelf af; de per-jaarlaag balans
-  werkt op de distinct jaarlagen onder de bewegende leerlingen). Een derde modus zou
-  alleen de wizard dupliceren. "Met doorzetten" wordt bínnen de herindeel-tak gekozen,
-  direct na de EDEXML-upload; `Verdeelmodus` blijft tweewaardig.
+- **Derde gelijkwaardige Verdeelmodus-optie bij procesaanmaak** (herzien 2026-07-07). De
+  leerkracht kiest bij het aanmaken uit drie gelijkwaardige opties: *Doorzetten*,
+  *Herindelen met dezelfde groepen* en *Herindelen met doorzetten*. `mode.json` wordt
+  driewaardig (`forward` / `redistribute` / `redistribute_and_forward`); `redistribute`
+  blijft de bestaande "met dezelfde groepen"-modus (back-compat). Dit is nog steeds **één
+  engine, geen tweede solver-pad**: de backend is aantoonbaar identiek (de anti-clique
+  leidt herkomstgroepen uit de leerlingdata zelf af; de per-jaarlaag balans werkt op de
+  distinct jaarlagen onder de bewegende leerlingen), en de wizard is vanaf de groepskeuze
+  volledig gedeeld — alleen de dataprep verschilt. De eerder gevreesde "duplicatie van de
+  herindeel-tak" blijkt dus niet op te treden. *Oorspronkelijk (2026-07-05) was besloten de
+  variant als aparte stap ná de upload te kiezen en `Verdeelmodus` tweewaardig te houden;
+  in de praktijk las dat als een overbodige, niet-in-de-stepper-staande tussenstap en werd
+  de modus-radio bij aanmaak misleidend — daarom nu drie gelijkwaardige opties.*
 - **Flow spiegelt doorzetten: jaarlagen eerst, dan groepen.** De leerkracht kiest de
   bewegende jaargroepen (bijv. 5-6-7) en daarna handmatig de bestemmingsgroepen.
   Aaneengesloten jaarlagen zijn een zachte conventie, niet hard afgedwongen. Bewust géén
@@ -114,8 +122,11 @@ herindeel-invoer (kies fysieke groepen, populatie = hun bewoners) kan dit niet u
 
 ### Verworpen alternatieven
 
-- **Derde verdeelmodus** ("Herindelen met doorzetten" als eigen knop bij procesaanmaak):
-  dupliceert de volledige herindeel-tak voor één afwijkende invoerstap.
+- **Variantkeuze als aparte wizard-stap ná de upload** (geprobeerd 2026-07-07, verworpen):
+  een tussenpagina `/redistribute_variant` tussen upload en groepskeuze. Las als een
+  overbodige stap die niet in de stepper stond, en dwong de modus-radio bij aanmaak al tot
+  "binnen dezelfde groepen" vóór die keuze bewust gemaakt was. Vervangen door drie
+  gelijkwaardige opties bij aanmaak.
 - **Volledige unificatie** (herindelen = altijd populatie + bestemming los kiezen): maakt
   het gangbare geval (zelfde leerlingen terug) een stap omslachtiger.
 - **Jaarlaag×bron-groep-selectie**: dekt parallelle stromen, maar extra klikwerk en
