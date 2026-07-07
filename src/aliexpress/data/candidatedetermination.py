@@ -112,6 +112,31 @@ def handle_edexml_upload_herindelen(df: pd.DataFrame, group_names: list[str]):
     return candidates, groups_from, groups_to
 
 
+def handle_edexml_upload_redistribute_and_forward(
+    df: pd.DataFrame, jaargroepen: list[int], group_names: list[str]
+):
+    """Process uploaded EDEXML for redistribute-and-forward ("Herindelen met doorzetten").
+
+    Unlike plain herindelen, origin and destination groups do not coincide here: students
+    currently sit in their (lower) current groups, but are being distributed into newly
+    chosen destination groups. Concretely:
+
+    - candidates: all students in the selected jaargroepen, school-wide (via
+      ``get_candidates_redistribute_and_forward``), not limited to the destination groups.
+    - groups_to: the manually chosen destination groups, each starting at zero occupancy.
+    - groups_from: the students' *actual current* groups (plus "Anders") — deliberately not
+      ``group_names``. This feeds the roster step's origin dropdown: a manually added student
+      must be assignable to the group they are really coming from, which may not be one of
+      the destination groups at all.
+    """
+    candidates = get_candidates_redistribute_and_forward(df, jaargroepen)
+    groups_from = df.loc[
+        df["jaargroep"].isin(jaargroepen), "groepsnaam"
+    ].unique().tolist() + ["Anders"]
+    groups_to = {g: [] for g in group_names}
+    return candidates, groups_from, groups_to
+
+
 def students_df(students: pd.DataFrame) -> pd.DataFrame:
     """Assign a unique display name per leerling and sort for the prefilled Excel template."""
     return students.assign(uniekenaam=create_unique_name).sort_values(
