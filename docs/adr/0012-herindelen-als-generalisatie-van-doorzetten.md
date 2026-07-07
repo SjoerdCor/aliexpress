@@ -85,3 +85,47 @@ wiskundig identiek.
   zien.
 - **Prestaties** op realistische omvang (±3 groepen × ~75 kinderen) worden gebenchmarkt.
 - **Buiten scope:** jaarlaag-kolom in `voorkeuren.xlsx`, groepen opheffen/samenvoegen, pin-UI.
+
+## Uitbreiding: Herindelen met doorzetten (2026-07-05)
+
+In de praktijk valt een herindeling vaak samen met de jaarovergang: niet de huidige bewoners
+van 6-7-8 worden herverdeeld, maar de leerlingen van jaarlagen 5-6-7 komen in de (leeg
+startende) huidige groepen van 6-7-8. De bron-populatie valt dan níét samen met de
+bestemmingsgroepen — de jaarlaag-5'ers zitten nu in de middenbouw. De bestaande
+herindeel-invoer (kies fysieke groepen, populatie = hun bewoners) kan dit niet uitdrukken.
+
+### Beslissing: subvariant binnen Herindelen, populatie op jaarlaag
+
+- **Geen derde verdeelmodus.** De backend is aantoonbaar identiek aan herindelen (de
+  anti-clique leidt herkomstgroepen uit de leerlingdata zelf af; de per-jaarlaag balans
+  werkt op de distinct jaarlagen onder de bewegende leerlingen). Een derde modus zou
+  alleen de wizard dupliceren. "Met doorzetten" wordt bínnen de herindeel-tak gekozen,
+  direct na de EDEXML-upload; `Verdeelmodus` blijft tweewaardig.
+- **Flow spiegelt doorzetten: jaarlagen eerst, dan groepen.** De leerkracht kiest de
+  bewegende jaargroepen (bijv. 5-6-7) en daarna handmatig de bestemmingsgroepen.
+  Aaneengesloten jaarlagen zijn een zachte conventie, niet hard afgedwongen. Bewust géén
+  slimme voorinvulling van jaarlagen uit de gekozen groepen: door de volgorde
+  (jaarlagen eerst) valt er niets af te leiden, en groepen aanvinken is een kleine moeite.
+- **Populatie = alle leerlingen in de gekozen jaarlagen, school-breed.** Geen
+  jaarlaag×bron-groep-scoping: het gangbare geval heeft één stroom, en over-selectie
+  (parallelle stroom die elders heen moet) wordt opgevangen door de bestaande
+  "Wie gaat mee"-stap (vertrekkers uitvinken) — het vangnet bestaat al.
+- **Alleen via EDEXML**, net als gewoon herindelen: de jaarlaag komt alleen daaruit.
+
+### Verworpen alternatieven
+
+- **Derde verdeelmodus** ("Herindelen met doorzetten" als eigen knop bij procesaanmaak):
+  dupliceert de volledige herindeel-tak voor één afwijkende invoerstap.
+- **Volledige unificatie** (herindelen = altijd populatie + bestemming los kiezen): maakt
+  het gangbare geval (zelfde leerlingen terug) een stap omslachtiger.
+- **Jaarlaag×bron-groep-selectie**: dekt parallelle stromen, maar extra klikwerk en
+  foutkans voor het gangbare geval; de roster-stap dekt het randgeval al.
+
+### Consequenties
+
+- **Solver, feasibility en rapportage: nul wijzigingen** (geverifieerd: `_cliques` leest
+  `Stamgroep` uit de leerlingdata, niet uit een lijst; de herkomst×bestemming-crosstab
+  blijft betekenisvol als herkomst- en bestemmingslabels verschillen).
+- De enige inhoudelijke delta zit in de dataprep (`candidatedetermination`): kandidaten
+  op jaarlaag selecteren, en `groups_from` = de échte herkomstgroepen van die jaarlagen
+  (voedt de herkomst-dropdown van de roster-stap), niet de bestemmingsgroepen.
