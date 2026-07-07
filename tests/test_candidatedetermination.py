@@ -13,6 +13,7 @@ from aliexpress.data.candidatedetermination import (
     get_groups_to,
     handle_edexml_upload,
     handle_edexml_upload_herindelen,
+    handle_edexml_upload_redistribute_and_forward,
     students_df_from_records,
     unique_display_names,
 )
@@ -205,6 +206,29 @@ def test_handle_edexml_upload_herindelen(sample_df):
     assert set(groups_to.keys()) == {"3A", "4A"}
     assert groups_to["3A"] == []
     assert groups_to["4A"] == []
+
+
+def test_handle_edexml_upload_redistribute_and_forward(sample_df):
+    """handle_edexml_upload_redistribute_and_forward returns candidates, groups_from, groups_to.
+
+    - candidates: all students from the selected jaargroepen, school-wide (not limited to
+      the chosen destination groups).
+    - groups_from: the actual source groups of the selected jaargroepen + "Anders" — origin
+      differs from destination in this variant, so this must NOT be the destination groups.
+    - groups_to: each chosen destination group mapped to an empty list (zero occupancy).
+    """
+    candidates, groups_from, groups_to = handle_edexml_upload_redistribute_and_forward(
+        sample_df, [3, 4], ["4A", "5A"]
+    )
+
+    candidate_names = {c["roepnaam"] for c in candidates}
+    assert candidate_names == {"Anna", "Carl", "Ben", "Daan", "Emma"}
+    assert all(set(c.keys()) == set(CANDIDATE_FIELDS) for c in candidates)
+
+    assert set(groups_from) == {"3A", "3B", "4A", "Anders"}
+    assert set(groups_to.keys()) == {"4A", "5A"}
+    assert groups_to["4A"] == []
+    assert groups_to["5A"] == []
 
 
 def test_students_df_from_records_assigns_unique_names():
