@@ -83,6 +83,22 @@ def get_candidates_herindelen(df: pd.DataFrame, group_names: list[str]) -> list:
     )
 
 
+def get_candidates_redistribute_and_forward(
+    df: pd.DataFrame, jaargroepen: list[int]
+) -> list:
+    """Return candidates for the redistribute-and-forward variant of Herindelen
+    ("Herindelen met doorzetten"): all students in the selected jaargroepen,
+    school-wide (not limited to specific groups)."""
+    df_selected = df[df["jaargroep"].isin(jaargroepen)]
+    if df_selected.empty:
+        return []
+    return (
+        df_selected.reset_index()
+        .sort_values(["groepsnaam", "roepnaam", "achternaam"])[CANDIDATE_FIELDS]
+        .to_dict(orient="records")
+    )
+
+
 def handle_edexml_upload_herindelen(df: pd.DataFrame, group_names: list[str]):
     """Process uploaded EDEXML for herindelen: redistribute students within selected groups.
 
@@ -92,6 +108,31 @@ def handle_edexml_upload_herindelen(df: pd.DataFrame, group_names: list[str]):
     """
     candidates = get_candidates_herindelen(df, group_names)
     groups_from = list(group_names) + ["Anders"]
+    groups_to = {g: [] for g in group_names}
+    return candidates, groups_from, groups_to
+
+
+def handle_edexml_upload_redistribute_and_forward(
+    df: pd.DataFrame, jaargroepen: list[int], group_names: list[str]
+):
+    """Process uploaded EDEXML for redistribute-and-forward ("Herindelen met doorzetten").
+
+    Unlike plain herindelen, origin and destination groups do not coincide here: students
+    currently sit in their (lower) current groups, but are being distributed into newly
+    chosen destination groups. Concretely:
+
+    - candidates: all students in the selected jaargroepen, school-wide (via
+      ``get_candidates_redistribute_and_forward``), not limited to the destination groups.
+    - groups_to: the manually chosen destination groups, each starting at zero occupancy.
+    - groups_from: the students' *actual current* groups (plus "Anders") — deliberately not
+      ``group_names``. This feeds the roster step's origin dropdown: a manually added student
+      must be assignable to the group they are really coming from, which may not be one of
+      the destination groups at all.
+    """
+    candidates = get_candidates_redistribute_and_forward(df, jaargroepen)
+    groups_from = df.loc[
+        df["jaargroep"].isin(jaargroepen), "groepsnaam"
+    ].unique().tolist() + ["Anders"]
     groups_to = {g: [] for g in group_names}
     return candidates, groups_from, groups_to
 
