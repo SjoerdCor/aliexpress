@@ -17,7 +17,7 @@ Het leerjaar van een leerling (bijv. 6, 7 of 8), los van de Groep waarin die zit
 _Avoid_: jaargroep, leerjaar, cohort
 
 **Verdeelmodus**:
-Waarvoor een Proces dient: Doorzetten of Herindelen. Gekozen bij het aanmaken van het proces en bepaalt de wizard-stappen en welke balans-eisen gelden.
+Waarvoor een Proces dient: Doorzetten, Herindelen met dezelfde groepen of Herindelen met doorzetten. Gekozen bij het aanmaken van het proces (drie gelijkwaardige opties) en bepaalt de wizard-stappen en welke balans-eisen gelden.
 _Avoid_: modus, type, soort
 
 **Doorzetten**:
@@ -25,15 +25,19 @@ De verdeelmodus waarin één instromende Jaarlaag over de gecombineerde groepen 
 _Avoid_: promoveren, overgang
 
 **Overgang**:
-De jaarovergang waarbij elke leerling één Jaarlaag opschuift en de oudste jaarlaag buiten de nieuwe indeling valt (verlaat de school of de bouw). Een eigenschap van de situatie, geen Verdeelmodus: zowel Doorzetten als Herindelen met doorzetten spelen zich af rond een overgang, gewoon Herindelen niet. Kenmerk: de bron-jaarlagen verschillen van de groepslabels van de bestemming.
+De jaarovergang waarbij elke leerling één Jaarlaag opschuift en de oudste jaarlaag buiten de nieuwe indeling valt (verlaat de school of de bouw). Een eigenschap van de situatie, geen Verdeelmodus: zowel Doorzetten als Herindelen met doorzetten spelen zich af rond een overgang, Herindelen met dezelfde groepen niet. Kenmerk: de bron-jaarlagen verschillen van de groepslabels van de bestemming.
 _Avoid_: promotie, jaarwissel, doorschuiven
 
 **Herindelen**:
-De Verdeelmodus waarin nog-aanwezige leerlingen opnieuw over een set leeg startende bestemmingsgroepen worden verdeeld, met balans per Jaarlaag. Twee subvarianten. Zonder doorzetten: de huidige bewoners van de gekozen groepen worden over diezelfde groepen herverdeeld. Met doorzetten: leerlingen van gekozen Jaarlagen komen in een apart gekozen set bestemmingsgroepen (zie Herindelen met doorzetten). Wie vertrekt doet niet mee.
+Verzamelnaam voor de twee Verdeelmodi waarin nog-aanwezige leerlingen opnieuw over een set leeg startende bestemmingsgroepen worden verdeeld, met balans per Jaarlaag: *Herindelen met dezelfde groepen* en *Herindelen met doorzetten*. Wie vertrekt doet niet mee. Geen eigen keuze in de app — je kiest altijd één van de twee concrete modi.
 _Avoid_: herverdelen, herschikken, mengen
 
+**Herindelen met dezelfde groepen**:
+De Verdeelmodus waarin de huidige bewoners van de gekozen groepen opnieuw over diezelfde groepen worden verdeeld, met balans per Jaarlaag: bron en bestemming zijn dezelfde groepen. Wie vertrekt doet niet mee. Speelt zich niet af rond een Overgang.
+_Avoid_: herindelen zonder doorzetten, in-place
+
 **Herindelen met doorzetten**:
-De subvariant van Herindelen waarin niet de huidige bewoners van de gekozen groepen worden herverdeeld, maar de leerlingen van een (doorgaans aaneengesloten) reeks Jaarlagen — bijv. 5-6-7 — over een apart gekozen set bestemmingsgroepen: de huidige groepen van 6-7-8, die leeg starten. Meerdere jaarlagen schuiven tegelijk op (zie Overgang). Backend-identiek aan Herindelen; alleen de invoer verschilt: eerst de Jaarlagen kiezen (zoals bij Doorzetten), dan de bestemmingsgroepen handmatig. Alleen via EDEXML, want de Jaarlaag komt daaruit.
+De Verdeelmodus waarin niet de huidige bewoners van de gekozen groepen worden herverdeeld, maar de leerlingen van een (doorgaans aaneengesloten) reeks Jaarlagen — bijv. 5-6-7 — over een apart gekozen set bestemmingsgroepen: de huidige groepen van 6-7-8, die leeg starten. Meerdere jaarlagen schuiven tegelijk op (zie Overgang). Backend-identiek aan Herindelen met dezelfde groepen; alleen de invoer verschilt: eerst de Jaarlagen kiezen (zoals bij Doorzetten), dan de bestemmingsgroepen handmatig. Alleen via EDEXML, want de Jaarlaag komt daaruit.
 _Avoid_: overgang, doorschuiven, promotie-herindeling
 
 **Groep**:
