@@ -89,6 +89,26 @@ ALI Express then solves the problem in three steps:
 
 The result is shown in the browser; download the full Excel workbook for the school administration.
 
+## Distribution modes
+
+When creating a process, the teacher picks one of three modes. The choice shapes the wizard
+and how the moving cohort and destination groups are determined, but all three run on the
+*same* solver and balance engine — only the data preparation differs.
+
+- **Doorzetten** (carry-over) — one incoming year layer is distributed over the combined
+  groups of the next building phase; the older students who stay form the fixed occupancy of
+  those destination groups.
+- **Herindelen met dezelfde groepen** (redistribute in place) — the current students of the
+  chosen groups are redistributed over those *same* groups (source and destination coincide),
+  balanced per year layer.
+- **Herindelen met doorzetten** (redistribute with progression) — the students of chosen year
+  layers (e.g. 5-6-7) are distributed over separately chosen, empty-starting destination groups
+  (the current 6-7-8 groups) as the cohorts move up a year at the school-year transition. Here
+  the source groups differ from the destinations; the flow mirrors doorzetten (pick the year
+  layers on upload, then "who takes part", then the destination groups).
+
+The year layer comes from the EDEXML export for both redistribute modes.
+
 ## What ALI Express takes into account
 
 ### Student preferences
