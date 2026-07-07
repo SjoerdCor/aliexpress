@@ -203,6 +203,10 @@ def roster_page(school_id):
         prev_url = url_for("wizard.select_groups")
         prev_label = "← Naar Groepskeuze"
         next_label = "Naar Voorkeuren →"
+    elif mode == "redistribute_and_forward":
+        prev_url = url_for("wizard.upload_edexml")
+        prev_label = "← Naar Schoolinformatie uploaden"
+        next_label = "Naar Groepskeuze →"
     else:
         prev_url = url_for("wizard.upload_edexml")
         prev_label = "← Naar Schoolinformatie uploaden"
@@ -236,4 +240,6 @@ def _handle_roster_post(school_id, process_id, orig_candidates, groups_from, mod
     ) as fh:
         json.dump({"participants": participants}, fh, ensure_ascii=False)
     logger.info("Roster accepted: %d participants", len(participants))
+    if mode == "redistribute_and_forward":
+        return redirect(url_for("wizard.select_groups"))
     return redirect(url_for("wizard.groups_to_page"))

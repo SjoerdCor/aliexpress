@@ -193,12 +193,20 @@ def _resume_url(proc, path):
     def has(*names):
         return any(os.path.exists(os.path.join(path, n)) for n in names)
 
+    # redistribute_and_forward picks destination groups after the roster step (its
+    # select_groups comes after roster, unlike the other two modes); every other mode
+    # continues straight to groups_to.
+    after_roster = (
+        url_for("wizard.select_groups")
+        if get_process_mode(path) == "redistribute_and_forward"
+        else url_for("wizard.groups_to_page")
+    )
     # Latest wizard step whose artifact is present wins; checked newest-first.
     # Step order (ADR 0006): EDEXML → roster → groups_to → preferences → not_together.
     steps = [
         (("voorkeuren.json", "preferences.xlsx"), url_for("wizard.not_together_page")),
         (("groups.xlsx",), _preferences_url(path)),
-        (("roster.json",), url_for("wizard.groups_to_page")),
+        (("roster.json",), after_roster),
         (("relevant_students_and_groups.json",), url_for("roster.roster_page")),
     ]
     for names, target in steps:

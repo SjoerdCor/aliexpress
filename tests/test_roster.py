@@ -145,6 +145,48 @@ class TestRosterPage:
         assert not (proc_dir / "roster.json").exists()
 
 
+class TestRosterRedistributeAndForward:
+    """Tests for /roster's redistribute_and_forward branch: next step is /select_groups
+    (destinations), not /groups_to, and the back button returns to /upload_edexml."""
+
+    CANDIDATES = TWO_STUDENTS_GROEN
+
+    def _setup(self, client, tmp_path):
+        proc_dir = setup_process(client, tmp_path)
+        (proc_dir / "mode.json").write_text(
+            json.dumps({"mode": "redistribute_and_forward"}), encoding="utf-8"
+        )
+        (proc_dir / "relevant_students_and_groups.json").write_text(
+            json.dumps(
+                {
+                    "candidates": self.CANDIDATES,
+                    "groups_from": ["Groen"],
+                    "groups_to": {},
+                }
+            ),
+            encoding="utf-8",
+        )
+        return proc_dir
+
+    def test_get_prev_button_points_to_upload_edexml(self, client, tmp_path):
+        """GET /roster's back link points to /upload_edexml in redistribute_and_forward
+        mode (destinations have not been chosen yet)."""
+        self._setup(client, tmp_path)
+        response = client.get("/roster")
+        assert response.status_code == 200
+        assert b'href="/upload_edexml"' in response.data
+
+    def test_post_redirects_to_select_groups(self, client, tmp_path):
+        """POST /roster in redistribute_and_forward mode continues to /select_groups, where
+        the destination groups are chosen, instead of /groups_to."""
+        proc_dir = self._setup(client, tmp_path)
+        response = client.post("/roster", data={"gaat_over": ["s1", "s2"]})
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/select_groups")
+        roster = json.loads((proc_dir / "roster.json").read_text("utf-8"))
+        assert {p["key"] for p in roster["participants"]} == {"s1", "s2"}
+
+
 class TestRosterNewStudentJaargroep:
     """A hand-added new student needs a jaargroep too (for the per-year group report).
 

@@ -879,9 +879,12 @@ class TestUploadEdexmlMode:
         assert resp.status_code == 302
         assert resp.headers["Location"].endswith("/select_groups")
 
-    def test_get_redistribute_and_forward_mode_hides_jaargroep(self, client, tmp_path):
-        """GET /upload_edexml in redistribute_and_forward mode hides the jaargroep selector
-        and shows the "Ga door naar jaargroepen" button text."""
+    def test_get_redistribute_and_forward_mode_shows_jaargroep_checkboxes(
+        self, client, tmp_path
+    ):
+        """GET /upload_edexml in redistribute_and_forward mode shows jaargroep checkboxes
+        (not the forward-mode dropdown) and the shared "Selecteer leerlingen en groepen"
+        button text."""
         proc_dir = setup_process(client, tmp_path)
         (proc_dir / "mode.json").write_text(
             json.dumps({"mode": "redistribute_and_forward"}), encoding="utf-8"
@@ -889,18 +892,73 @@ class TestUploadEdexmlMode:
         resp = client.get("/upload_edexml")
         assert resp.status_code == 200
         assert b'name="jaargroep"' not in resp.data
-        assert "Ga door naar jaargroepen".encode() in resp.data
+        assert resp.data.count(b'name="jaargroepen"') == 8
+        assert "Selecteer leerlingen en groepen".encode() in resp.data
 
-    def test_post_redistribute_and_forward_redirects_to_select_jaargroepen(
+    def test_post_redistribute_and_forward_valid_selection_saves_json_and_redirects_to_roster(
         self, client, tmp_path, monkeypatch
     ):
-        """POST /upload_edexml in redistribute_and_forward mode redirects to
-        /select_jaargroepen."""
+        """POST /upload_edexml in redistribute_and_forward mode, with jaargroepen ticked,
+        determines candidates school-wide for those jaargroepen, leaves groups_to empty
+        (destinations are picked later at /select_groups) and redirects to /roster."""
         proc_dir = setup_process(client, tmp_path)
         (proc_dir / "mode.json").write_text(
             json.dumps({"mode": "redistribute_and_forward"}), encoding="utf-8"
         )
-        fake_df = pd.DataFrame({"groepsnaam": ["3A", "3B"], "jaargroep": [3, 3]})
+        fake_df = pd.DataFrame(
+            {
+                "groepsnaam": ["5A", "6A", "6B", "7A", "8A"],
+                "roepnaam": ["Anna", "Ben", "Carl", "Dana", "Eva"],
+                "achternaam": ["A", "B", "C", "D", "E"],
+                "key": ["k1", "k2", "k3", "k4", "k5"],
+                "geslacht": ["Meisje", "Jongen", "Jongen", "Meisje", "Meisje"],
+                "jaargroep": pd.array([5, 6, 6, 7, 8], dtype="Int64"),
+            }
+        )
+        monkeypatch.setattr(
+            wizard_module.datareader, "EdexReader", _make_edexml_reader(fake_df)
+        )
+        resp = client.post(
+            "/upload_edexml",
+            data={
+                "edexml": (BytesIO(b"anything"), "edex.xml"),
+                "jaargroepen": ["5", "6", "7"],
+            },
+            content_type="multipart/form-data",
+        )
+        assert resp.status_code == 302
+        assert resp.headers["Location"].endswith("/roster")
+        saved = json.loads(
+            (proc_dir / "relevant_students_and_groups.json").read_text("utf-8")
+        )
+        assert {c["roepnaam"] for c in saved["candidates"]} == {
+            "Anna",
+            "Ben",
+            "Carl",
+            "Dana",
+        }
+        assert saved["groups_to"] == {}
+        assert saved["jaargroepen"] == [5, 6, 7]
+
+    def test_post_redistribute_and_forward_without_jaargroep_flashes(
+        self, client, tmp_path, monkeypatch
+    ):
+        """POST /upload_edexml in redistribute_and_forward mode without ticking any
+        jaargroep flashes a warning and redirects back to /upload_edexml."""
+        proc_dir = setup_process(client, tmp_path)
+        (proc_dir / "mode.json").write_text(
+            json.dumps({"mode": "redistribute_and_forward"}), encoding="utf-8"
+        )
+        fake_df = pd.DataFrame(
+            {
+                "groepsnaam": ["5A"],
+                "roepnaam": ["Anna"],
+                "achternaam": ["A"],
+                "key": ["k1"],
+                "geslacht": ["Meisje"],
+                "jaargroep": pd.array([5], dtype="Int64"),
+            }
+        )
         monkeypatch.setattr(
             wizard_module.datareader, "EdexReader", _make_edexml_reader(fake_df)
         )
@@ -910,7 +968,80 @@ class TestUploadEdexmlMode:
             content_type="multipart/form-data",
         )
         assert resp.status_code == 302
-        assert resp.headers["Location"].endswith("/select_jaargroepen")
+        assert resp.headers["Location"].endswith("/upload_edexml")
+        assert any(cat == "error" for cat, _ in flashes(client))
+        assert not (proc_dir / "relevant_students_and_groups.json").exists()
+
+    def test_post_redistribute_and_forward_no_candidates_flashes(
+        self, client, tmp_path, monkeypatch
+    ):
+        """POST /upload_edexml in redistribute_and_forward mode with jaargroepen that match
+        no students flashes a warning and redirects back to /upload_edexml."""
+        proc_dir = setup_process(client, tmp_path)
+        (proc_dir / "mode.json").write_text(
+            json.dumps({"mode": "redistribute_and_forward"}), encoding="utf-8"
+        )
+        fake_df = pd.DataFrame(
+            {
+                "groepsnaam": ["5A"],
+                "roepnaam": ["Anna"],
+                "achternaam": ["A"],
+                "key": ["k1"],
+                "geslacht": ["Meisje"],
+                "jaargroep": pd.array([5], dtype="Int64"),
+            }
+        )
+        monkeypatch.setattr(
+            wizard_module.datareader, "EdexReader", _make_edexml_reader(fake_df)
+        )
+        resp = client.post(
+            "/upload_edexml",
+            data={
+                "edexml": (BytesIO(b"anything"), "edex.xml"),
+                "jaargroepen": ["8"],
+            },
+            content_type="multipart/form-data",
+        )
+        assert resp.status_code == 302
+        assert resp.headers["Location"].endswith("/upload_edexml")
+        assert any(cat == "error" for cat, _ in flashes(client))
+        assert not (proc_dir / "relevant_students_and_groups.json").exists()
+
+    def test_post_redistribute_and_forward_missing_jaargroep_flashes_info(
+        self, client, tmp_path, monkeypatch
+    ):
+        """A student without a jaargroep in the uploaded file is reported (info flash) as
+        not taking part, while the rest of the upload succeeds normally."""
+        proc_dir = setup_process(client, tmp_path)
+        (proc_dir / "mode.json").write_text(
+            json.dumps({"mode": "redistribute_and_forward"}), encoding="utf-8"
+        )
+        fake_df = pd.DataFrame(
+            {
+                "groepsnaam": ["5A", "5A"],
+                "roepnaam": ["Anna", "Ben"],
+                "achternaam": ["A", "B"],
+                "key": ["k1", "k2"],
+                "geslacht": ["Meisje", "Jongen"],
+                "jaargroep": pd.array([5, None], dtype="Int64"),
+            }
+        )
+        monkeypatch.setattr(
+            wizard_module.datareader, "EdexReader", _make_edexml_reader(fake_df)
+        )
+        resp = client.post(
+            "/upload_edexml",
+            data={
+                "edexml": (BytesIO(b"anything"), "edex.xml"),
+                "jaargroepen": ["5"],
+            },
+            content_type="multipart/form-data",
+        )
+        assert resp.status_code == 302
+        assert resp.headers["Location"].endswith("/roster")
+        assert any(
+            cat == "info" and "geen jaargroep" in msg for cat, msg in flashes(client)
+        )
 
     def test_post_redistribute_garbage_edexml_flashes_error(self, client, tmp_path):
         """POST /upload_edexml in redistribute mode with a garbage file flashes an error."""
