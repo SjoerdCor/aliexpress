@@ -8,10 +8,12 @@ from aliexpress.data.candidatedetermination import (
     create_unique_name,
     get_candidates,
     get_candidates_herindelen,
+    get_candidates_redistribute_and_forward,
     get_groups_from,
     get_groups_to,
     handle_edexml_upload,
     handle_edexml_upload_herindelen,
+    handle_edexml_upload_redistribute_and_forward,
     students_df_from_records,
     unique_display_names,
 )
@@ -157,6 +159,33 @@ def test_get_candidates_herindelen_empty_when_no_matching_groups(sample_df):
     assert get_candidates_herindelen(sample_df, []) == []
 
 
+def test_get_candidates_redistribute_and_forward_returns_all_students_in_selected_jaargroepen(
+    sample_df,
+):
+    """get_candidates_redistribute_and_forward returns all students school-wide from the
+    selected jaargroepen."""
+    result = get_candidates_redistribute_and_forward(sample_df, [3, 4])
+    names = [r["roepnaam"] for r in result]
+    # 3A: Anna, Carl; 3B: Ben; 4A: Daan, Emma — sorted by groepsnaam then roepnaam
+    assert names == ["Anna", "Carl", "Ben", "Daan", "Emma"]
+    assert all(set(r.keys()) == set(CANDIDATE_FIELDS) for r in result)
+    assert all(r["jaargroep"] in (3, 4) for r in result)
+
+
+def test_get_candidates_redistribute_and_forward_empty_when_no_jaargroepen_selected(
+    sample_df,
+):
+    """get_candidates_redistribute_and_forward returns [] for an empty jaargroep selection."""
+    assert get_candidates_redistribute_and_forward(sample_df, []) == []
+
+
+def test_get_candidates_redistribute_and_forward_empty_when_unknown_jaargroep(
+    sample_df,
+):
+    """get_candidates_redistribute_and_forward returns [] when the jaargroep does not exist."""
+    assert get_candidates_redistribute_and_forward(sample_df, [99]) == []
+
+
 def test_handle_edexml_upload_herindelen(sample_df):
     """handle_edexml_upload_herindelen returns candidates, groups_from, groups_to.
 
@@ -177,6 +206,29 @@ def test_handle_edexml_upload_herindelen(sample_df):
     assert set(groups_to.keys()) == {"3A", "4A"}
     assert groups_to["3A"] == []
     assert groups_to["4A"] == []
+
+
+def test_handle_edexml_upload_redistribute_and_forward(sample_df):
+    """handle_edexml_upload_redistribute_and_forward returns candidates, groups_from, groups_to.
+
+    - candidates: all students from the selected jaargroepen, school-wide (not limited to
+      the chosen destination groups).
+    - groups_from: the actual source groups of the selected jaargroepen + "Anders" — origin
+      differs from destination in this variant, so this must NOT be the destination groups.
+    - groups_to: each chosen destination group mapped to an empty list (zero occupancy).
+    """
+    candidates, groups_from, groups_to = handle_edexml_upload_redistribute_and_forward(
+        sample_df, [3, 4], ["4A", "5A"]
+    )
+
+    candidate_names = {c["roepnaam"] for c in candidates}
+    assert candidate_names == {"Anna", "Carl", "Ben", "Daan", "Emma"}
+    assert all(set(c.keys()) == set(CANDIDATE_FIELDS) for c in candidates)
+
+    assert set(groups_from) == {"3A", "3B", "4A", "Anders"}
+    assert set(groups_to.keys()) == {"4A", "5A"}
+    assert groups_to["4A"] == []
+    assert groups_to["5A"] == []
 
 
 def test_students_df_from_records_assigns_unique_names():

@@ -9,7 +9,7 @@ from werkzeug.security import generate_password_hash
 import aliexpress.web.routes.processes as proc_module
 from aliexpress.web.extensions import db
 from aliexpress.web.models import Process, Run, School
-from aliexpress.web.routes.processes import get_process_mode
+from aliexpress.web.routes.processes import get_process_mode, is_redistribute_mode
 from app import app as flask_app
 from tests.helpers import SCHOOL_ID, flashes, make_process_row
 
@@ -179,6 +179,28 @@ class TestSelectProcess:
         assert response.status_code == 302
         assert response.headers["Location"].endswith("/groups_to")
 
+    def test_redistribute_and_forward_with_roster_redirects_to_select_groups(
+        self, client, tmp_path
+    ):
+        """A redistribute_and_forward process with a settled roster but no groups.xlsx yet
+        resumes at /select_groups (destinations still to be chosen), not /groups_to."""
+        proc_dir = tmp_path / SCHOOL_ID / "procresredistforward"
+        proc_dir.mkdir(parents=True, exist_ok=True)
+        (proc_dir / "mode.json").write_text(
+            json.dumps({"mode": "redistribute_and_forward"}), encoding="utf-8"
+        )
+        (proc_dir / "relevant_students_and_groups.json").write_text(
+            "{}", encoding="utf-8"
+        )
+        (proc_dir / "roster.json").write_text(
+            json.dumps({"participants": []}), encoding="utf-8"
+        )
+        with flask_app.app_context():
+            make_process_row(SCHOOL_ID, "procresredistforward")
+        response = client.get("/processes/select/procresredistforward")
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/select_groups")
+
     def test_process_with_roster_and_excel_method_redirects_to_preferences_excel(
         self, client, tmp_path
     ):
@@ -326,6 +348,48 @@ class TestProcessMode:
             json.dumps({"mode": "redistribute"}), encoding="utf-8"
         )
         assert get_process_mode(str(proc_dir)) == "redistribute"
+
+    def test_create_with_redistribute_and_forward_saves_mode_json(
+        self, client, tmp_path
+    ):
+        """Creating a process with mode 'redistribute_and_forward' writes that mode."""
+        client.post(
+            "/processes/create",
+            data={
+                "process_name": "redistforwardpro",
+                "mode": "redistribute_and_forward",
+            },
+        )
+        mode_file = tmp_path / SCHOOL_ID / "redistforwardpro" / "mode.json"
+        assert (
+            json.loads(mode_file.read_text(encoding="utf-8"))["mode"]
+            == "redistribute_and_forward"
+        )
+
+    def test_create_with_invalid_mode_falls_back_to_forward(self, client, tmp_path):
+        """An unrecognised mode value falls back to 'forward'."""
+        client.post(
+            "/processes/create",
+            data={"process_name": "invalidmodepro", "mode": "nonsense"},
+        )
+        mode_file = tmp_path / SCHOOL_ID / "invalidmodepro" / "mode.json"
+        assert json.loads(mode_file.read_text(encoding="utf-8"))["mode"] == "forward"
+
+
+class TestIsRedistributeMode:
+    """Tests for the is_redistribute_mode helper."""
+
+    def test_redistribute_is_redistribute(self):
+        """'redistribute' counts as a redistribute mode."""
+        assert is_redistribute_mode("redistribute") is True
+
+    def test_redistribute_and_forward_is_redistribute(self):
+        """'redistribute_and_forward' counts as a redistribute mode."""
+        assert is_redistribute_mode("redistribute_and_forward") is True
+
+    def test_forward_is_not_redistribute(self):
+        """'forward' does not count as a redistribute mode."""
+        assert is_redistribute_mode("forward") is False
 
 
 class TestSchoolIsolation:
