@@ -20,9 +20,19 @@ In het volgende scherm kun je dan controleren of het allemaal klopt.
         <option value="{{ year }}">{{ year }}</option>
         {% endfor %}
     </select>
+    {% elif mode == "redistribute_and_forward" %}
+    <fieldset>
+        <legend>Welke jaargroepen deel je opnieuw in? (bijv. 5, 6 en 7)</legend>
+        {% for year in range(1, 9) %}
+        <label>
+            <input type="checkbox" name="jaargroepen" value="{{ year }}">
+            {{ year }}
+        </label><br>
+        {% endfor %}
+    </fieldset>
     {% endif %}
     <button type="submit" class="button">
-        {% if mode == "redistribute" %}Ga door naar groepskeuze{% elif mode == "redistribute_and_forward" %}Ga door naar jaargroepen{% else %}Selecteer leerlingen en groepen{% endif %}
+        {% if mode == "redistribute" %}Ga door naar groepskeuze{% else %}Selecteer leerlingen en groepen{% endif %}
     </button>
     <br><br>
     </form>

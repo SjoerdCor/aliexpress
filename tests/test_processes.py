@@ -179,6 +179,28 @@ class TestSelectProcess:
         assert response.status_code == 302
         assert response.headers["Location"].endswith("/groups_to")
 
+    def test_redistribute_and_forward_with_roster_redirects_to_select_groups(
+        self, client, tmp_path
+    ):
+        """A redistribute_and_forward process with a settled roster but no groups.xlsx yet
+        resumes at /select_groups (destinations still to be chosen), not /groups_to."""
+        proc_dir = tmp_path / SCHOOL_ID / "procresredistforward"
+        proc_dir.mkdir(parents=True, exist_ok=True)
+        (proc_dir / "mode.json").write_text(
+            json.dumps({"mode": "redistribute_and_forward"}), encoding="utf-8"
+        )
+        (proc_dir / "relevant_students_and_groups.json").write_text(
+            "{}", encoding="utf-8"
+        )
+        (proc_dir / "roster.json").write_text(
+            json.dumps({"participants": []}), encoding="utf-8"
+        )
+        with flask_app.app_context():
+            make_process_row(SCHOOL_ID, "procresredistforward")
+        response = client.get("/processes/select/procresredistforward")
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/select_groups")
+
     def test_process_with_roster_and_excel_method_redirects_to_preferences_excel(
         self, client, tmp_path
     ):

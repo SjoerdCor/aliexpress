@@ -105,6 +105,32 @@ def _select_groups(live_server, page, group_names):
     page.wait_for_url(f"{live_server}/roster")
 
 
+def _create_redistribute_and_forward_process(live_server, page, name):
+    """Drive /processes to create a process with the redistribute_and_forward mode radio
+    checked."""
+    page.goto(f"{live_server}/processes")
+    page.fill("#processName", name)
+    page.check("input[name='mode'][value='redistribute_and_forward']")
+    page.click("#processForm button[type=submit]")
+    page.wait_for_url(f"{live_server}/upload_edexml")
+
+
+def _upload_redistribute_and_forward_edexml(live_server, page, jaargroepen):
+    """Upload the dummy EDEXML with the given jaargroep checkboxes ticked; land on /roster."""
+    page.set_input_files(
+        "input[name=edexml]",
+        {
+            "name": "edex.xml",
+            "mimeType": "text/xml",
+            "buffer": _build_herindelen_edexml(),
+        },
+    )
+    for jaargroep in jaargroepen:
+        page.locator(f'input[name=jaargroepen][value="{jaargroep}"]').check()
+    page.click("button[type=submit]")
+    page.wait_for_url(f"{live_server}/roster")
+
+
 def _reach_roster(live_server, page, name):
     """Create a redistribute process, upload the dummy EDEXML, select every group, land on
     /roster with the 3 combi groups and their 12 students as candidates."""
@@ -277,3 +303,24 @@ def test_full_redistribute_flow_to_result(live_server, page):
     pane_text = page.locator("#tab1").inner_text()
     assert pane_text.count("Jaarlaag 6") == 3, "Expected one 'Jaarlaag 6' row per group"
     assert pane_text.count("Jaarlaag 7") == 3, "Expected one 'Jaarlaag 7' row per group"
+
+
+@pytest.mark.usefixtures("login")
+def test_redistribute_and_forward_flow_reaches_select_groups_then_next_step(
+    live_server, page
+):
+    """Herindelen met doorzetten follows its own order: upload (with jaargroep
+    checkboxes) → roster ("Wie gaat mee") → select_groups (destinations) → groups_to
+    (auto) → preferences. Complements the redistribute (in_place) coverage above, which
+    goes upload → select_groups → roster instead."""
+    _create_redistribute_and_forward_process(live_server, page, "redist-forward-test")
+    _upload_redistribute_and_forward_edexml(live_server, page, jaargroepen=[6, 7])
+
+    # roster.json has not been settled yet: this is the first visit, straight to /select_groups.
+    page.click("button:has-text('Naar Groepskeuze')")
+    page.wait_for_url(f"{live_server}/select_groups")
+
+    for group in _HERINDELEN_GROUPS[:2]:
+        page.locator(f'input[name=groups][value="{group["naam"]}"]').check()
+    page.click("button[type=submit]")
+    page.wait_for_url(f"{live_server}/preferences_form")

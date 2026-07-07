@@ -476,25 +476,100 @@ def download_template(filename):
     return send_from_directory("input_templates", filename, as_attachment=True)
 
 
-def _redistribute_upload_redirect(mode, process_id):
-    """Return the redirect target after a valid EDEXML upload in a herindelen mode.
+def _write_candidates_json(school_id, process_id, data):
+    """Persist the candidates JSON (relevant_students_and_groups.json)."""
+    path = get_file_path(school_id, process_id, "relevant_students_and_groups.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
 
-    Both herindelen variants accept the same upload; only the next step differs:
-    redistribute_and_forward first picks the jaargroepen, redistribute goes straight
-    to group selection.
-    """
-    if mode == "redistribute_and_forward":
-        logger.info(
-            "EDEXML accepted for redistribute_and_forward mode in %s: "
-            "redirecting to jaargroep selection",
-            process_id,
-        )
-        return redirect(url_for("wizard.select_jaargroepen"))
+
+def _redistribute_upload(process_id, edexml):
+    """mode == 'redistribute' (in_place): validate the EDEXML, then pick the groups."""
+    datareader.EdexReader(edexml).get_full_df()
     logger.info(
         "EDEXML accepted for redistribute mode in %s: redirecting to group selection",
         process_id,
     )
     return redirect(url_for("wizard.select_groups"))
+
+
+def _redistribute_and_forward_upload(school_id, process_id, edexml):
+    """mode == 'redistribute_and_forward': pick jaargroepen here, destinations later.
+
+    Unlike plain herindelen, candidates are determined school-wide from the chosen
+    jaargroepen (not from a group selection), and ``groups_to`` is left empty — the
+    destination groups are only settled on the next step, /select_groups.
+    """
+    jaargroepen = [int(j) for j in request.form.getlist("jaargroepen")]
+    if not jaargroepen:
+        warn_and_flash(
+            "Selecteer minimaal één jaargroep.",
+            log_detail="no_jaargroepen_selected",
+        )
+        return redirect(url_for("wizard.upload_edexml"))
+    df = datareader.EdexReader(edexml).get_full_df()
+    candidates, groups_from, groups_to = (
+        candidatedetermination.handle_edexml_upload_redistribute_and_forward(
+            df, jaargroepen, []
+        )
+    )
+    if not candidates:
+        warn_and_flash(
+            "Geen leerlingen gevonden in de gekozen jaargroepen.",
+            log_detail="no_candidates_in_selected_jaargroepen",
+        )
+        return redirect(url_for("wizard.upload_edexml"))
+    _write_candidates_json(
+        school_id,
+        process_id,
+        {
+            "candidates": candidates,
+            "groups_from": groups_from,
+            "groups_to": groups_to,
+            "jaargroepen": jaargroepen,
+        },
+    )
+    missing = int(df["jaargroep"].isna().sum())
+    if missing > 0:
+        flash(
+            f"Let op: {missing} leerling(en) hebben geen jaargroep in het bestand en "
+            "doen niet mee.",
+            "info",
+        )
+    logger.info(
+        "EDEXML accepted for redistribute_and_forward mode in %s: %d candidates "
+        "across jaargroepen %s",
+        process_id,
+        len(candidates),
+        jaargroepen,
+    )
+    return redirect(url_for("roster.roster_page"))
+
+
+def _forward_upload(school_id, process_id, edexml):
+    """mode == 'forward' (doorzetten): candidates for one jaargroep, groups_to derived
+    from the next jaargroep already present in the EDEXML."""
+    jaargroep = int(request.form["jaargroep"])
+    df = datareader.EdexReader(edexml).get_full_df()
+    candidates, groups_from, groups_to = candidatedetermination.handle_edexml_upload(
+        df, jaargroep
+    )
+    _write_candidates_json(
+        school_id,
+        process_id,
+        {"candidates": candidates, "groups_from": groups_from, "groups_to": groups_to},
+    )
+    logger.info("EDEXML accepted: %d candidates, %d groups", len(candidates), jaargroep)
+    return redirect(url_for("roster.roster_page"))
+
+
+def _dispatch_edexml_upload(mode, school_id, process_id, edexml):
+    """Branch the EDEXML upload on mode, returning the resulting redirect response."""
+    if mode == "redistribute":
+        return _redistribute_upload(process_id, edexml)
+    if mode == "redistribute_and_forward":
+        return _redistribute_and_forward_upload(school_id, process_id, edexml)
+    return _forward_upload(school_id, process_id, edexml)
 
 
 @wizard_bp.route("/upload_edexml", methods=["GET", "POST"])
@@ -524,42 +599,15 @@ def upload_edexml():
         edex_file.save(edex_path)
         edex_file.stream.seek(0)
         edexml = file_to_io(edex_file)
-
-        if is_redistribute_mode(mode):
-            datareader.EdexReader(edexml).get_full_df()
-            return _redistribute_upload_redirect(mode, process_id)
-
-        jaargroep = int(request.form["jaargroep"])
-        df = datareader.EdexReader(edexml).get_full_df()
-        candidates, groups_from, groups_to = (
-            candidatedetermination.handle_edexml_upload(df, jaargroep)
-        )
-        data = {
-            "candidates": candidates,
-            "groups_from": groups_from,
-            "groups_to": groups_to,
-        }
-        path = get_file_path(school_id, process_id, "relevant_students_and_groups.json")
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
-        logger.info(
-            "EDEXML accepted: %d candidates, %d groups", len(candidates), jaargroep
-        )
+        return _dispatch_edexml_upload(mode, school_id, process_id, edexml)
     except Exception as exc:  # pylint: disable=broad-exception-caught
         _flash_upload_error(exc)
         return redirect(url_for("wizard.upload_edexml"))
-    return redirect(url_for("roster.roster_page"))
 
 
-def _select_groups_post(df, school_id, process_id):
-    """Process a POST to /select_groups: validate, save candidates JSON, redirect."""
-    selected = request.form.getlist("groups")
-    if len(selected) < 2:
-        warn_and_flash(
-            "Selecteer minimaal twee groepen om te herindelen.",
-            log_detail="too_few_groups_redistribute",
-        )
-        return redirect(url_for("wizard.select_groups"))
+def _select_groups_post_in_place(df, school_id, process_id, selected):
+    """redistribute (in_place): candidates and origin groups are the selected groups
+    themselves — students are redistributed within them."""
     candidates, groups_from, groups_to = (
         candidatedetermination.handle_edexml_upload_herindelen(df, selected)
     )
@@ -575,15 +623,16 @@ def _select_groups_post(df, school_id, process_id):
     jaargroepen = sorted(
         df.loc[df["groepsnaam"].isin(selected), "jaargroep"].dropna().unique().tolist()
     )
-    data = {
-        "candidates": candidates,
-        "groups_from": groups_from,
-        "groups_to": groups_to,
-        "jaargroepen": jaargroepen,
-    }
-    path = get_file_path(school_id, process_id, "relevant_students_and_groups.json")
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
+    _write_candidates_json(
+        school_id,
+        process_id,
+        {
+            "candidates": candidates,
+            "groups_from": groups_from,
+            "groups_to": groups_to,
+            "jaargroepen": jaargroepen,
+        },
+    )
     logger.info(
         "Groups selected for redistribution in %s: %s (%d candidates)",
         process_id,
@@ -593,15 +642,49 @@ def _select_groups_post(df, school_id, process_id):
     return redirect(url_for("roster.roster_page"))
 
 
+def _select_groups_post_redistribute_and_forward(school_id, process_id, selected):
+    """redistribute_and_forward: candidates and origin groups were already settled at
+    upload time (school-wide, by jaargroep); this step only records the destinations."""
+    path = get_file_path(school_id, process_id, "relevant_students_and_groups.json")
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    data["groups_to"] = {g: [] for g in selected}
+    _write_candidates_json(school_id, process_id, data)
+    logger.info(
+        "Destination groups selected for redistribute_and_forward in %s: %s",
+        process_id,
+        ", ".join(selected),
+    )
+    return redirect(url_for("wizard.groups_to_page"))
+
+
+def _select_groups_post(df, school_id, process_id, mode):
+    """Process a POST to /select_groups: validate the selection, then branch on mode."""
+    selected = request.form.getlist("groups")
+    if len(selected) < 2:
+        warn_and_flash(
+            "Selecteer minimaal twee groepen om te herindelen.",
+            log_detail="too_few_groups_redistribute",
+        )
+        return redirect(url_for("wizard.select_groups"))
+    if mode == "redistribute_and_forward":
+        return _select_groups_post_redistribute_and_forward(
+            school_id, process_id, selected
+        )
+    return _select_groups_post_in_place(df, school_id, process_id, selected)
+
+
 @wizard_bp.route("/select_groups", methods=["GET", "POST"])
 @login_required
 @require_process
 def select_groups():
-    """Select groups to redistribute (redistribute mode only)."""
+    """Select groups: redistribute (which groups to shuffle) or redistribute_and_forward
+    (destination groups for the jaargroepen chosen at upload time)."""
     school_id = effective_school_id()
     if school_id is None:
         return redirect(url_for("admin.dashboard"))
     process_id = session["process_id"]
+    mode = get_process_mode(get_process_path(school_id, process_id))
     edex_path = get_file_path(school_id, process_id, "edex.xml")
     if not os.path.exists(edex_path):
         warn_and_flash(
@@ -618,16 +701,8 @@ def select_groups():
         return redirect(url_for("wizard.upload_edexml"))
     if request.method == "GET":
         groups = sorted(df["groepsnaam"].unique().tolist())
-        return render_template("select_groups.html", groups=groups)
-    return _select_groups_post(df, school_id, process_id)
-
-
-@wizard_bp.route("/select_jaargroepen", methods=["GET"])
-@login_required
-@require_process
-def select_jaargroepen():
-    """Placeholder for the jaargroep-selection step; fully implemented in the next step."""
-    return redirect(url_for("wizard.select_groups"))
+        return render_template("select_groups.html", groups=groups, mode=mode)
+    return _select_groups_post(df, school_id, process_id, mode)
 
 
 def _groups_to_auto_redistribute(school_id, process_id, groups_to):
