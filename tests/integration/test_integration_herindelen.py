@@ -205,6 +205,149 @@ def _assert_klassenoverzicht_per_year_rows(result, prefs, students) -> None:
         assert year_rows["Meisje"].sum() == report.loc[(grp, "Totaal"), "Meisje"]
 
 
+_GROUPS_TO_DOORZETTEN = {
+    "blauw": {"Jongens": 0, "Meisjes": 0},
+    "rood": {"Jongens": 0, "Meisjes": 0},
+    "geel": {"Jongens": 0, "Meisjes": 0},
+}
+
+# Same shape as _BALANCE: 18 students, 3 years, 3 destination groups, 2 per
+# group per year.
+_BALANCE_DOORZETTEN = GroupBalance(
+    max_clique=2,
+    max_clique_sex=2,
+    max_diff_n_students_year=0,
+    max_diff_n_students_total=0,
+    max_imbalance_boys_girls_year=0,
+    max_imbalance_boys_girls_total=0,
+)
+
+
+def _build_students_doorzetten():
+    """18 students: years 5, 6, 7 x 3 stamgroepen x 1 boy + 1 girl.
+
+    Year 5's Stamgroep is "M5A"/"M5B"/"M5C" (a middenbouw group that is not
+    one of the destination groups blauw/rood/geel) -- these students are
+    "doorgezet" from a source group distinct from any destination, unlike
+    years 6 and 7 whose Stamgroep names (G6*, G7*) also don't coincide with a
+    destination but represent the *current* 6/7 classes. The point the test
+    proves is that the solver treats all of this identically: nothing in the
+    engine keys off whether a Stamgroep label happens to equal a destination
+    group name.
+    """
+    students = {}
+    for year in (5, 6, 7):
+        for i in range(3):
+            grp = (
+                f"M5{chr(ord('A') + i)}" if year == 5 else f"G{year}{chr(ord('A') + i)}"
+            )
+            students[f"b{year}_{i}"] = {
+                "Stamgroep": grp,
+                "Jongen/meisje": "Jongen",
+                "MinimaleTevredenheid": math.nan,
+                "Jaarlaag": year,
+            }
+            students[f"g{year}_{i}"] = {
+                "Stamgroep": grp,
+                "Jongen/meisje": "Meisje",
+                "MinimaleTevredenheid": math.nan,
+                "Jaarlaag": year,
+            }
+    return students
+
+
+def _build_prefs_doorzetten() -> pd.DataFrame:
+    """A small preference set touching year 5 (the doorzetten cohort)."""
+    records = [
+        {
+            "Leerling": "b5_0",
+            "TypeWens": "Graag met",
+            "Nr": 1,
+            "Waarde": "g5_0",
+            "Gewicht": 1.0,
+        },
+    ]
+    df = pd.DataFrame(records).set_index(["Leerling", "TypeWens", "Nr"])
+    df.columns.name = "TypeWaarde"
+    return df
+
+
+def test_herindelen_doorzetten_source_differs_from_destination():
+    """Doorzetten scenario: year 5's source Stamgroep is not a destination group.
+
+    ADR-0012's claim is that the solver/backend is unchanged for doorzetten --
+    it is purely a dataprep variant that determines candidates per Jaarlaag
+    instead of per group, with destinations independent of origin. This test
+    proves that claim empirically: year 5 students come from "M5A"/"M5B"/"M5C"
+    (the current middenbouw groups), which appear nowhere among the
+    destination groups blauw/rood/geel, yet the solve succeeds and distributes
+    them exactly like years 6 and 7.
+    """
+    students = _build_students_doorzetten()
+    prefs = _build_prefs_doorzetten()
+
+    solution = engine.solve_with_fixed_balance(
+        preferences=prefs,
+        students=students,
+        groups_to=_GROUPS_TO_DOORZETTEN,
+        not_together=[],
+        groupbalance=_BALANCE_DOORZETTEN,
+    )
+    result = to_solution_result(solution, prefs, students, _GROUPS_TO_DOORZETTEN)
+
+    assert set(result.assignment.keys()) == set(
+        students.keys()
+    ), "Not all students assigned"
+
+    # Every student -- including the year-5 "doorzetten" cohort -- lands in a
+    # destination group, never in a source/middenbouw group.
+    source_stamgroepen = {info["Stamgroep"] for info in students.values()}
+    assert source_stamgroepen.isdisjoint(_GROUPS_TO_DOORZETTEN), (
+        "test setup error: a source Stamgroep coincides with a destination "
+        "group name"
+    )
+    assert set(result.assignment.values()) <= set(
+        _GROUPS_TO_DOORZETTEN
+    ), "some student was assigned to a group outside the destinations"
+    year5_students = [s for s, info in students.items() if info["Jaarlaag"] == 5]
+    assert all(
+        result.assignment[s] in _GROUPS_TO_DOORZETTEN for s in year5_students
+    ), "a year-5 (doorzetten) student was not placed in a destination group"
+
+    # Per-year structural balance, mirroring the assertion in
+    # test_herindelen_multi_year_all_constraints.
+    for year in (5, 6, 7):
+        cohort = [s for s, info in students.items() if info["Jaarlaag"] == year]
+        counts = {
+            g: sum(1 for s in cohort if result.assignment[s] == g)
+            for g in _GROUPS_TO_DOORZETTEN
+        }
+        diff = max(counts.values()) - min(counts.values())
+        assert diff <= _BALANCE_DOORZETTEN.max_diff_n_students_year, (
+            f"year {year}: count diff={diff} > limit "
+            f"{_BALANCE_DOORZETTEN.max_diff_n_students_year}"
+        )
+        for grp in _GROUPS_TO_DOORZETTEN:
+            boys = sum(
+                1
+                for s in cohort
+                if result.assignment[s] == grp
+                and students[s]["Jongen/meisje"] == "Jongen"
+            )
+            girls = sum(
+                1
+                for s in cohort
+                if result.assignment[s] == grp
+                and students[s]["Jongen/meisje"] == "Meisje"
+            )
+            assert (
+                abs(boys - girls) <= _BALANCE_DOORZETTEN.max_imbalance_boys_girls_year
+            ), (
+                f"year {year}, group {grp}: gender imbalance |{boys}-{girls}|"
+                f" > {_BALANCE_DOORZETTEN.max_imbalance_boys_girls_year}"
+            )
+
+
 def test_herindelen_single_year_matches_doorzetten_behavior():
     """Herindelen with a single Jaarlaag behaves identically to the doorzetten path.
 
