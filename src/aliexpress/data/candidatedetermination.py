@@ -83,6 +83,22 @@ def get_candidates_herindelen(df: pd.DataFrame, group_names: list[str]) -> list:
     )
 
 
+def get_candidates_redistribute_and_forward(
+    df: pd.DataFrame, jaargroepen: list[int]
+) -> list:
+    """Return candidates for the redistribute-and-forward variant of Herindelen
+    ("Herindelen met doorzetten"): all students in the selected jaargroepen,
+    school-wide (not limited to specific groups)."""
+    df_selected = df[df["jaargroep"].isin(jaargroepen)]
+    if df_selected.empty:
+        return []
+    return (
+        df_selected.reset_index()
+        .sort_values(["groepsnaam", "roepnaam", "achternaam"])[CANDIDATE_FIELDS]
+        .to_dict(orient="records")
+    )
+
+
 def handle_edexml_upload_herindelen(df: pd.DataFrame, group_names: list[str]):
     """Process uploaded EDEXML for herindelen: redistribute students within selected groups.
 

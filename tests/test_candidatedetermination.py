@@ -8,6 +8,7 @@ from aliexpress.data.candidatedetermination import (
     create_unique_name,
     get_candidates,
     get_candidates_herindelen,
+    get_candidates_redistribute_and_forward,
     get_groups_from,
     get_groups_to,
     handle_edexml_upload,
@@ -155,6 +156,33 @@ def test_get_candidates_herindelen_empty_when_no_matching_groups(sample_df):
     """get_candidates_herindelen returns [] when no student belongs to the selected groups."""
     assert get_candidates_herindelen(sample_df, ["Onbekend"]) == []
     assert get_candidates_herindelen(sample_df, []) == []
+
+
+def test_get_candidates_redistribute_and_forward_returns_all_students_in_selected_jaargroepen(
+    sample_df,
+):
+    """get_candidates_redistribute_and_forward returns all students school-wide from the
+    selected jaargroepen."""
+    result = get_candidates_redistribute_and_forward(sample_df, [3, 4])
+    names = [r["roepnaam"] for r in result]
+    # 3A: Anna, Carl; 3B: Ben; 4A: Daan, Emma — sorted by groepsnaam then roepnaam
+    assert names == ["Anna", "Carl", "Ben", "Daan", "Emma"]
+    assert all(set(r.keys()) == set(CANDIDATE_FIELDS) for r in result)
+    assert all(r["jaargroep"] in (3, 4) for r in result)
+
+
+def test_get_candidates_redistribute_and_forward_empty_when_no_jaargroepen_selected(
+    sample_df,
+):
+    """get_candidates_redistribute_and_forward returns [] for an empty jaargroep selection."""
+    assert get_candidates_redistribute_and_forward(sample_df, []) == []
+
+
+def test_get_candidates_redistribute_and_forward_empty_when_unknown_jaargroep(
+    sample_df,
+):
+    """get_candidates_redistribute_and_forward returns [] when the jaargroep does not exist."""
+    assert get_candidates_redistribute_and_forward(sample_df, [99]) == []
 
 
 def test_handle_edexml_upload_herindelen(sample_df):
