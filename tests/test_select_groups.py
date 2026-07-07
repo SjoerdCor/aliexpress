@@ -6,6 +6,7 @@ Split out of test_wizard.py, which was bumping into pylint's module-length limit
 # pylint: disable=redefined-outer-name  # standard pytest fixture pattern
 
 import json
+import re
 from unittest.mock import MagicMock
 
 import pandas as pd
@@ -166,6 +167,43 @@ class TestSelectGroups:
         assert saved["groups_from"] == ["3A", "3B", "Anders"]
         assert saved["groups_to"] == {"4A": [], "4B": []}
         assert saved["jaargroepen"] == [3]
+
+    def test_get_redistribute_and_forward_marks_step_3_active_in_stepper(
+        self, client, tmp_path, monkeypatch
+    ):
+        """GET /select_groups in redistribute_and_forward mode is reached after "Wie gaat
+        mee" (step 2), so the stepper must mark step 3 ("Groepen naartoe") as active, not
+        step 1 ("Schoolinformatie")."""
+        proc_dir = setup_process(client, tmp_path)
+        (proc_dir / "mode.json").write_text(
+            json.dumps({"mode": "redistribute_and_forward"}), encoding="utf-8"
+        )
+        self._write_fake_edex(proc_dir)
+        monkeypatch.setattr(
+            wizard_module.datareader,
+            "EdexReader",
+            _make_edexml_reader(_SELECT_GROUPS_FAKE_DF),
+        )
+        resp = client.get("/select_groups")
+        html = resp.data.decode("utf-8")
+        assert re.search(r"step active\">\s*<span>Groepen naartoe<", html)
+        assert re.search(r"step done\">\s*<span>Schoolinformatie<", html)
+
+    def test_get_redistribute_marks_step_1_active_in_stepper(
+        self, client, tmp_path, monkeypatch
+    ):
+        """Regression: GET /select_groups in plain redistribute mode still marks step 1
+        ("Schoolinformatie") as active, unchanged from before."""
+        proc_dir = setup_process(client, tmp_path)
+        self._write_fake_edex(proc_dir)
+        monkeypatch.setattr(
+            wizard_module.datareader,
+            "EdexReader",
+            _make_edexml_reader(_SELECT_GROUPS_FAKE_DF),
+        )
+        resp = client.get("/select_groups")
+        html = resp.data.decode("utf-8")
+        assert re.search(r"step active\">\s*<span>Schoolinformatie<", html)
 
     def test_post_persists_every_jaargroep_in_a_combination_class(
         self, client, tmp_path, monkeypatch
