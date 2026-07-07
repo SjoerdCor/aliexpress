@@ -49,7 +49,7 @@ from ..models import LogLine, Process, Run
 from ..storage import get_file_path, get_process_path
 from ..validation_messages import to_validation_message
 from .auth import effective_school_id
-from .processes import get_process_mode, require_process
+from .processes import get_process_mode, is_redistribute_mode, require_process
 from .roster import load_roster, sorted_for_display
 
 logger = logging.getLogger(__name__)
@@ -476,6 +476,27 @@ def download_template(filename):
     return send_from_directory("input_templates", filename, as_attachment=True)
 
 
+def _redistribute_upload_redirect(mode, process_id):
+    """Return the redirect target after a valid EDEXML upload in a herindelen mode.
+
+    Both herindelen variants accept the same upload; only the next step differs:
+    redistribute_and_forward first picks the jaargroepen, redistribute goes straight
+    to group selection.
+    """
+    if mode == "redistribute_and_forward":
+        logger.info(
+            "EDEXML accepted for redistribute_and_forward mode in %s: "
+            "redirecting to jaargroep selection",
+            process_id,
+        )
+        return redirect(url_for("wizard.select_jaargroepen"))
+    logger.info(
+        "EDEXML accepted for redistribute mode in %s: redirecting to group selection",
+        process_id,
+    )
+    return redirect(url_for("wizard.select_groups"))
+
+
 @wizard_bp.route("/upload_edexml", methods=["GET", "POST"])
 @login_required
 def upload_edexml():
@@ -504,13 +525,9 @@ def upload_edexml():
         edex_file.stream.seek(0)
         edexml = file_to_io(edex_file)
 
-        if mode == "redistribute":
+        if is_redistribute_mode(mode):
             datareader.EdexReader(edexml).get_full_df()
-            logger.info(
-                "EDEXML accepted for redistribute mode in %s: redirecting to group selection",
-                process_id,
-            )
-            return redirect(url_for("wizard.select_groups"))
+            return _redistribute_upload_redirect(mode, process_id)
 
         jaargroep = int(request.form["jaargroep"])
         df = datareader.EdexReader(edexml).get_full_df()
@@ -605,6 +622,14 @@ def select_groups():
     return _select_groups_post(df, school_id, process_id)
 
 
+@wizard_bp.route("/select_jaargroepen", methods=["GET"])
+@login_required
+@require_process
+def select_jaargroepen():
+    """Placeholder for the jaargroep-selection step; fully implemented in the next step."""
+    return redirect(url_for("wizard.select_groups"))
+
+
 def _groups_to_auto_redistribute(school_id, process_id, groups_to):
     """Write groups.xlsx (zero occupancy per group) and redirect straight to preferences_form."""
     distribution = {g: {"Jongens": 0, "Meisjes": 0} for g in groups_to}
@@ -634,7 +659,7 @@ def groups_to_page():
     groups_to = _load_groups_to(school_id, process_id)
     mode = get_process_mode(get_process_path(school_id, process_id))
 
-    if mode == "redistribute":
+    if is_redistribute_mode(mode):
         return _groups_to_auto_redistribute(school_id, process_id, groups_to)
 
     if request.method == "GET":
@@ -887,7 +912,7 @@ def preferences_form():
     ):
         flash(notice, "info")
 
-    if get_process_mode(get_process_path(school_id, process_id)) == "redistribute":
+    if is_redistribute_mode(get_process_mode(get_process_path(school_id, process_id))):
         prev_url = url_for("roster.roster_page")
         prev_label = "← Naar Wie gaat mee"
     else:

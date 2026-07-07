@@ -61,7 +61,8 @@ def require_school(f):
 
 
 def get_process_mode(path: str) -> str:
-    """Return the distribution mode for a process: 'forward' or 'redistribute'.
+    """Return the distribution mode for a process: 'forward', 'redistribute' or
+    'redistribute_and_forward'.
 
     Defaults to 'forward' when mode.json is absent (processes created before the mode
     field was introduced).
@@ -71,6 +72,15 @@ def get_process_mode(path: str) -> str:
         return "forward"
     with open(mode_path, encoding="utf-8") as fh:
         return json.load(fh).get("mode", "forward")
+
+
+def is_redistribute_mode(mode: str) -> bool:
+    """True for both herindelen modes (in-place and redistribute-and-forward).
+
+    Doorzetten ("forward") is the only non-redistribute mode; both herindelen
+    variants share the same wizard branch (auto groups_to, roster back-links).
+    """
+    return mode in ("redistribute", "redistribute_and_forward")
 
 
 def _is_valid_process_name(name):
@@ -120,7 +130,7 @@ def create():
         flash(error, "error")
         return redirect(url_for("processes.index"))
     mode = request.form.get("mode", "forward")
-    if mode not in ("forward", "redistribute"):
+    if mode not in ("forward", "redistribute", "redistribute_and_forward"):
         mode = "forward"
     proc = Process(school_id=school_id, name=process_name)
     db.session.add(proc)

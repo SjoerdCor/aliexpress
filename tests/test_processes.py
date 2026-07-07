@@ -9,7 +9,7 @@ from werkzeug.security import generate_password_hash
 import aliexpress.web.routes.processes as proc_module
 from aliexpress.web.extensions import db
 from aliexpress.web.models import Process, Run, School
-from aliexpress.web.routes.processes import get_process_mode
+from aliexpress.web.routes.processes import get_process_mode, is_redistribute_mode
 from app import app as flask_app
 from tests.helpers import SCHOOL_ID, flashes, make_process_row
 
@@ -326,6 +326,48 @@ class TestProcessMode:
             json.dumps({"mode": "redistribute"}), encoding="utf-8"
         )
         assert get_process_mode(str(proc_dir)) == "redistribute"
+
+    def test_create_with_redistribute_and_forward_saves_mode_json(
+        self, client, tmp_path
+    ):
+        """Creating a process with mode 'redistribute_and_forward' writes that mode."""
+        client.post(
+            "/processes/create",
+            data={
+                "process_name": "redistforwardpro",
+                "mode": "redistribute_and_forward",
+            },
+        )
+        mode_file = tmp_path / SCHOOL_ID / "redistforwardpro" / "mode.json"
+        assert (
+            json.loads(mode_file.read_text(encoding="utf-8"))["mode"]
+            == "redistribute_and_forward"
+        )
+
+    def test_create_with_invalid_mode_falls_back_to_forward(self, client, tmp_path):
+        """An unrecognised mode value falls back to 'forward'."""
+        client.post(
+            "/processes/create",
+            data={"process_name": "invalidmodepro", "mode": "nonsense"},
+        )
+        mode_file = tmp_path / SCHOOL_ID / "invalidmodepro" / "mode.json"
+        assert json.loads(mode_file.read_text(encoding="utf-8"))["mode"] == "forward"
+
+
+class TestIsRedistributeMode:
+    """Tests for the is_redistribute_mode helper."""
+
+    def test_redistribute_is_redistribute(self):
+        """'redistribute' counts as a redistribute mode."""
+        assert is_redistribute_mode("redistribute") is True
+
+    def test_redistribute_and_forward_is_redistribute(self):
+        """'redistribute_and_forward' counts as a redistribute mode."""
+        assert is_redistribute_mode("redistribute_and_forward") is True
+
+    def test_forward_is_not_redistribute(self):
+        """'forward' does not count as a redistribute mode."""
+        assert is_redistribute_mode("forward") is False
 
 
 class TestSchoolIsolation:
