@@ -38,10 +38,17 @@ Ga door met een bestaand proces of creëer een nieuw indelingsproces
         <label>
             <input type="radio" name="mode" value="forward" checked>
             Doorzetten naar volgende groepen
+            <button type="button" class="info-pop" data-help="Eén instromende jaargroep verdelen over de volgende bouw.">ℹ</button>
         </label>
         <label>
             <input type="radio" name="mode" value="redistribute">
-            Herindelen binnen dezelfde groepen
+            Herindelen met dezelfde groepen
+            <button type="button" class="info-pop" data-help="De huidige leerlingen opnieuw over diezelfde groepen verdelen.">ℹ</button>
+        </label>
+        <label>
+            <input type="radio" name="mode" value="redistribute_and_forward">
+            Herindelen met doorzetten
+            <button type="button" class="info-pop" data-help="Leerlingen van gekozen jaargroepen (bij de jaarovergang) over apart gekozen, leeg startende groepen verdelen.">ℹ</button>
         </label>
     </fieldset>
     <button class="button" type="submit">Begin nieuw indelingsproces</button>
@@ -61,6 +68,33 @@ Ga door met een bestaand proces of creëer een nieuw indelingsproces
     function confirmDelete() {
     return confirm("Weet je zeker dat je dit proces wilt verwijderen? Dit kan niet ongedaan worden gemaakt.");
 }
+
+    // Click-popovers for the ℹ mode explanations (same pattern as preferences_form).
+    let _openInfoBtn = null;
+    function closeInfoPopover() {
+        document.querySelectorAll('.info-popover').forEach(p => p.remove());
+    }
+    function showInfoPopover(btn) {
+        const wasOpen = _openInfoBtn === btn;
+        closeInfoPopover();
+        _openInfoBtn = null;
+        if (wasOpen) return;  // second click closes it
+        const pop = document.createElement('div');
+        pop.className = 'info-popover';
+        pop.textContent = btn.dataset.help;
+        btn.insertAdjacentElement('afterend', pop);
+        _openInfoBtn = btn;
+    }
+    document.querySelectorAll('.info-pop').forEach(btn => {
+        btn.addEventListener('click', e => {
+            e.preventDefault();
+            e.stopPropagation();  // keep the surrounding <label> from toggling the radio
+            showInfoPopover(btn);
+        });
+    });
+    document.addEventListener('click', e => {
+        if (!e.target.closest('.info-popover')) { closeInfoPopover(); _openInfoBtn = null; }
+    });
 
 </script>
 {% endblock %}

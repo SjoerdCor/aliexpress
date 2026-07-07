@@ -130,6 +130,18 @@ def test_create_process_redistribute_mode(live_server, tmp_path, page):
 
 
 @pytest.mark.usefixtures("login")
+def test_mode_info_popover_shows_explanation(live_server, page):
+    """The ℹ button next to a Verdeelmodus reveals its explanation in a click-popover."""
+    page.goto(f"{live_server}/processes")
+    assert page.locator(".info-popover").count() == 0
+    doorzetten_label = page.locator("label", has_text="Herindelen met doorzetten")
+    doorzetten_label.locator("button.info-pop").click()
+    popover = page.locator(".info-popover")
+    assert popover.count() == 1
+    assert "jaargroepen" in popover.inner_text()
+
+
+@pytest.mark.usefixtures("login")
 def test_upload_edexml_redistribute_shows_groups_on_select_groups(live_server, page):
     """Uploading EDEXML in redistribute mode redirects to /select_groups, listing the
     groups found in the file as checkboxes."""
