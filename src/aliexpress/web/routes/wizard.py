@@ -2,13 +2,11 @@
 
 import json
 import logging
-import os
 from dataclasses import dataclass
 from io import BytesIO
 from threading import Thread
 from typing import Any
 
-import pandas as pd
 import pandera as pa
 from flask import (
     Blueprint,
@@ -46,10 +44,27 @@ from ..extensions import db
 from ..flashing import warn_and_flash
 from ..models import LogLine, Process, Run
 from ..process_files import (
+    has_edexml,
     has_preferences_excel,
+    load_candidates,
+    load_edexml,
+    load_groups,
+    load_groups_to,
+    load_groups_to_state,
+    load_input_method,
+    load_not_together,
     load_pref_form_state,
+    load_roster,
     load_student_names,
     load_voorkeuren,
+    reset_downstream_wizard_files,
+    reset_result_files,
+    save_candidates,
+    save_edexml,
+    save_groups_excel,
+    save_groups_to_state,
+    save_input_method,
+    save_not_together,
     save_pref_form_state,
     save_preferences_excel,
     save_voorkeuren,
@@ -58,7 +73,7 @@ from ..storage import get_file_path, get_process_path
 from ..validation_messages import to_validation_message
 from .auth import effective_school_id
 from .processes import get_process_mode, is_redistribute_mode, require_process
-from .roster import load_roster, sorted_for_display
+from .roster import sorted_for_display
 
 logger = logging.getLogger(__name__)
 
@@ -354,40 +369,18 @@ def _reconcile_dangling(draft_state, participants, group_labels):
 
 def _not_together_get_context(school_id, process_id):
     """Return (existing_rules, prev_url) for a GET to /not_together."""
-    nt_path = get_file_path(school_id, process_id, "not_together.json")
-    if os.path.exists(nt_path):
-        with open(nt_path, encoding="utf-8") as fh:
-            existing_rules = json.load(fh)
-    else:
-        existing_rules = []
-    method_path = get_file_path(school_id, process_id, "input_method.json")
-    if os.path.exists(method_path):
-        with open(method_path, encoding="utf-8") as fh:
-            input_method = json.load(fh).get("method", "form")
-    else:
-        input_method = "form"
+    rules = load_not_together(school_id, process_id)
+    existing_rules = [
+        {"group": list(r["group"]), "Max_aantal_samen": r["Max_aantal_samen"]}
+        for r in rules
+    ]
+    input_method = load_input_method(school_id, process_id)
     prev_url = (
         url_for("wizard.preferences_excel")
         if input_method == "excel"
         else url_for("wizard.preferences_form")
     )
     return existing_rules, prev_url
-
-
-def _load_groups_to(school_id, process_id) -> dict:
-    """Load the groups-to mapping (groupname → students) from the candidates JSON."""
-    path = get_file_path(school_id, process_id, "relevant_students_and_groups.json")
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f).get("groups_to", {})
-
-
-def _load_groups_to_state(school_id, process_id):
-    """Load the saved groups-to form state, or None when the page was not filled yet."""
-    path = get_file_path(school_id, process_id, "groups_to_state.json")
-    if not os.path.exists(path):
-        return None
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
 
 
 def _parse_not_together_form(form, n_rules):
@@ -418,28 +411,10 @@ def _parse_not_together_form(form, n_rules):
     return rules, None
 
 
-def _save_not_together(school_id, process_id, rules):
-    """Persist not-together rules as JSON (sets serialised as lists)."""
-    data = [
-        {"group": list(r["group"]), "Max_aantal_samen": r["Max_aantal_samen"]}
-        for r in rules
-    ]
-    path = get_file_path(school_id, process_id, "not_together.json")
-    with open(path, "w", encoding="utf-8") as fh:
-        json.dump(data, fh, ensure_ascii=False)
-
-
 @wizard_bp.route("/input_templates/<path:filename>")
 def download_template(filename):
     """Download the template sheets"""
     return send_from_directory("input_templates", filename, as_attachment=True)
-
-
-def _write_candidates_json(school_id, process_id, data):
-    """Persist the candidates JSON (relevant_students_and_groups.json)."""
-    path = get_file_path(school_id, process_id, "relevant_students_and_groups.json")
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
 
 
 def _redistribute_upload(process_id, edexml):
@@ -478,7 +453,7 @@ def _redistribute_and_forward_upload(school_id, process_id, edexml):
             log_detail="no_candidates_in_selected_jaargroepen",
         )
         return redirect(url_for("wizard.upload_edexml"))
-    _write_candidates_json(
+    save_candidates(
         school_id,
         process_id,
         {
@@ -513,39 +488,13 @@ def _forward_upload(school_id, process_id, edexml):
     candidates, groups_from, groups_to = candidatedetermination.handle_edexml_upload(
         df, jaargroep
     )
-    _write_candidates_json(
+    save_candidates(
         school_id,
         process_id,
         {"candidates": candidates, "groups_from": groups_from, "groups_to": groups_to},
     )
     logger.info("EDEXML accepted: %d candidates, %d groups", len(candidates), jaargroep)
     return redirect(url_for("roster.roster_page"))
-
-
-_DOWNSTREAM_WIZARD_FILES = (
-    "relevant_students_and_groups.json",
-    "roster.json",
-    "groups.xlsx",
-    "groups_to_state.json",
-    "input_method.json",
-    "preferences_form_state.json",
-    "voorkeuren.json",
-    "preferences.xlsx",
-    "not_together.json",
-)
-
-
-def _reset_downstream_wizard_files(school_id, process_id):
-    """Remove wizard artifacts derived from a previous EDEXML upload.
-
-    A fresh upload defines a new population, so any roster / groups / preferences saved
-    against the previous upload are stale — the newest upload overwrites them, and the
-    wizard restarts cleanly from this point (all three modes).
-    """
-    for name in _DOWNSTREAM_WIZARD_FILES:
-        path = get_file_path(school_id, process_id, name)
-        if os.path.exists(path):
-            os.remove(path)
 
 
 def _dispatch_edexml_upload(mode, school_id, process_id, edexml):
@@ -580,11 +529,10 @@ def upload_edexml():
     mode = get_process_mode(get_process_path(school_id, process_id))
     try:
         edex_file = request.files["edexml"]
-        edex_path = get_file_path(school_id, process_id, "edex.xml")
-        edex_file.save(edex_path)
+        save_edexml(school_id, process_id, edex_file)
         edex_file.stream.seek(0)
         edexml = file_to_io(edex_file)
-        _reset_downstream_wizard_files(school_id, process_id)
+        reset_downstream_wizard_files(school_id, process_id)
         return _dispatch_edexml_upload(mode, school_id, process_id, edexml)
     except Exception as exc:  # pylint: disable=broad-exception-caught
         _flash_upload_error(exc)
@@ -609,7 +557,7 @@ def _select_groups_post_in_place(df, school_id, process_id, selected):
     jaargroepen = sorted(
         df.loc[df["groepsnaam"].isin(selected), "jaargroep"].dropna().unique().tolist()
     )
-    _write_candidates_json(
+    save_candidates(
         school_id,
         process_id,
         {
@@ -631,11 +579,17 @@ def _select_groups_post_in_place(df, school_id, process_id, selected):
 def _select_groups_post_redistribute_and_forward(school_id, process_id, selected):
     """redistribute_and_forward: candidates and origin groups were already settled at
     upload time (school-wide, by jaargroep); this step only records the destinations."""
-    path = get_file_path(school_id, process_id, "relevant_students_and_groups.json")
-    with open(path, encoding="utf-8") as f:
-        data = json.load(f)
-    data["groups_to"] = {g: [] for g in selected}
-    _write_candidates_json(school_id, process_id, data)
+    candidates, groups_from, jaargroepen = load_candidates(school_id, process_id)
+    save_candidates(
+        school_id,
+        process_id,
+        {
+            "candidates": candidates,
+            "groups_from": groups_from,
+            "groups_to": {g: [] for g in selected},
+            "jaargroepen": jaargroepen,
+        },
+    )
     logger.info(
         "Destination groups selected for redistribute_and_forward in %s: %s",
         process_id,
@@ -671,16 +625,14 @@ def select_groups():
         return redirect(url_for("admin.dashboard"))
     process_id = session["process_id"]
     mode = get_process_mode(get_process_path(school_id, process_id))
-    edex_path = get_file_path(school_id, process_id, "edex.xml")
-    if not os.path.exists(edex_path):
+    if not has_edexml(school_id, process_id):
         warn_and_flash(
             "Upload eerst het EDEXML-bestand.",
             log_detail="missing_edex_for_select_groups",
         )
         return redirect(url_for("wizard.upload_edexml"))
     try:
-        with open(edex_path, "rb") as fh:
-            edexml = BytesIO(fh.read())
+        edexml = load_edexml(school_id, process_id)
         df = datareader.EdexReader(edexml).get_full_df()
     except Exception as exc:  # pylint: disable=broad-exception-caught
         _flash_upload_error(exc)
@@ -694,12 +646,8 @@ def select_groups():
 def _groups_to_auto_redistribute(school_id, process_id, groups_to):
     """Write groups.xlsx (zero occupancy per group) and redirect straight to preferences_form."""
     distribution = {g: {"Jongens": 0, "Meisjes": 0} for g in groups_to}
-    path = get_file_path(school_id, process_id, "groups.xlsx")
-    pd.DataFrame(distribution).transpose().to_excel(path, index_label="Groepen")
-    with open(
-        get_file_path(school_id, process_id, "input_method.json"), "w", encoding="utf-8"
-    ) as f:
-        json.dump({"method": "form"}, f)
+    save_groups_excel(school_id, process_id, distribution)
+    save_input_method(school_id, process_id, "form")
     logger.info(
         "Groups-to auto-written for redistribute process %s: %d groups, zero occupancy",
         process_id,
@@ -717,7 +665,7 @@ def groups_to_page():
     if school_id is None:
         return redirect(url_for("admin.dashboard"))
     process_id = session["process_id"]
-    groups_to = _load_groups_to(school_id, process_id)
+    groups_to = load_groups_to(school_id, process_id)
     mode = get_process_mode(get_process_path(school_id, process_id))
 
     if is_redistribute_mode(mode):
@@ -727,7 +675,7 @@ def groups_to_page():
         return render_template(
             "groups_to.html",
             groups_to=groups_to,
-            state=_load_groups_to_state(school_id, process_id),
+            state=load_groups_to_state(school_id, process_id),
         )
 
     submitted_names = request.form.getlist("group")
@@ -751,16 +699,8 @@ def groups_to_page():
         )
         return redirect(url_for("wizard.groups_to_page"))
 
-    path = get_file_path(school_id, process_id, "groups.xlsx")
-    pd.DataFrame(submission.distribution).transpose().to_excel(
-        path, index_label="Groepen"
-    )
-    with open(
-        get_file_path(school_id, process_id, "groups_to_state.json"),
-        "w",
-        encoding="utf-8",
-    ) as f:
-        json.dump(submission.state, f, ensure_ascii=False)
+    save_groups_excel(school_id, process_id, submission.distribution)
+    save_groups_to_state(school_id, process_id, submission.state)
     logger.info(
         "Groups-to saved for process %s: %d active group(s), %d disabled, %d new",
         process_id,
@@ -772,10 +712,7 @@ def groups_to_page():
     # enter them (web form or Excel); the choice is recorded for resume and the back link
     # of the not-together step (ADR 0006, reordering ADR 0005).
     method = "form" if request.form.get("action") == "form" else "excel"
-    with open(
-        get_file_path(school_id, process_id, "input_method.json"), "w", encoding="utf-8"
-    ) as f:
-        json.dump({"method": method}, f)
+    save_input_method(school_id, process_id, method)
     target = (
         "wizard.preferences_form" if method == "form" else "wizard.preferences_excel"
     )
@@ -795,7 +732,7 @@ def preferences_excel():
     if school_id is None:
         return redirect(url_for("admin.dashboard"))
     process_id = session["process_id"]
-    saved_roster = load_roster(get_file_path(school_id, process_id, "roster.json"))
+    saved_roster = load_roster(school_id, process_id)
     if saved_roster is None:
         # The population must be settled first; send the teacher to "Wie gaat mee".
         return redirect(url_for("roster.roster_page"))
@@ -819,10 +756,8 @@ def preferences_excel():
         flash(f"Vond leerlingen dubbel: {exc.context['duplicate_names']}", "error")
         return redirect(url_for("roster.roster_page"))
 
-    groups_to = pd.read_excel(
-        get_file_path(school_id, process_id, "groups.xlsx"), index_col=0
-    ).index.tolist()
-    buffer = input_writer.create_prefilled_excel(groups_to, df_total)
+    _, group_display = load_groups(school_id, process_id)
+    buffer = input_writer.create_prefilled_excel(list(group_display.values()), df_total)
 
     return send_file(
         buffer,
@@ -860,8 +795,7 @@ def upload_preferences():
         return redirect(url_for("wizard.preferences_excel"))
     try:
         raw = upload.read()
-        groups_to_path = get_file_path(school_id, process_id, "groups.xlsx")
-        groups_to_data, _ = datareader.read_groups_excel(groups_to_path)
+        groups_to_data, _ = load_groups(school_id, process_id)
         groups_to = list(groups_to_data.keys())
         processor = datareader.VoorkeurenProcessor(BytesIO(raw))
         processor.process(all_to_groups=groups_to)  # validates; raises on invalid input
@@ -934,14 +868,12 @@ def preferences_form():
         return redirect(url_for("admin.dashboard"))
     process_id = session["process_id"]
 
-    saved_roster = load_roster(get_file_path(school_id, process_id, "roster.json"))
+    saved_roster = load_roster(school_id, process_id)
     if saved_roster is None:
         # The population must be settled first; send the teacher to "Wie gaat mee".
         return redirect(url_for("roster.roster_page"))
     try:
-        groups_to, group_display = datareader.read_groups_excel(
-            get_file_path(school_id, process_id, "groups.xlsx")
-        )
+        groups_to, group_display = load_groups(school_id, process_id)
     except Exception as exc:  # pylint: disable=broad-exception-caught
         _flash_upload_error(exc)
         return redirect(url_for("wizard.groups_to_page"))
@@ -991,10 +923,9 @@ def not_together_page():
     if school_id is None:
         return redirect(url_for("admin.dashboard"))
     process_id = session["process_id"]
-    groups_to_path = get_file_path(school_id, process_id, "groups.xlsx")
 
     try:
-        groups_to, _ = datareader.read_groups_excel(groups_to_path)
+        groups_to, _ = load_groups(school_id, process_id)
         students = load_student_names(school_id, process_id, groups_to)
     except Exception as exc:  # pylint: disable=broad-exception-caught
         _flash_upload_error(exc)
@@ -1022,7 +953,7 @@ def not_together_page():
         warn_and_flash(error, log_detail="not_together_invalid")
         return redirect(url_for("wizard.not_together_page"))
 
-    _save_not_together(school_id, process_id, rules)
+    save_not_together(school_id, process_id, rules)
     logger.info("Not-together rules accepted: %d rules", len(rules))
     return redirect(url_for("wizard.start_distribution"))
 
@@ -1039,23 +970,11 @@ def start_distribution():
     process_name = session["process_id"]
     groups_to_path = get_file_path(school_id, process_name, "groups.xlsx")
 
-    not_together_path = get_file_path(school_id, process_name, "not_together.json")
-    if os.path.exists(not_together_path):
-        with open(not_together_path, "r", encoding="utf-8") as fh:
-            raw = json.load(fh)
-        not_together = [
-            {"group": set(r["group"]), "Max_aantal_samen": r["Max_aantal_samen"]}
-            for r in raw
-        ]
-    else:
-        not_together = []
+    not_together = load_not_together(school_id, process_name)
 
     proc = Process.by_name(school_id, process_name)
     Run.reset(proc.id)
-    for _stale in ("results.xlsx", "result_tables.json", "sociogram.html"):
-        _path = get_file_path(school_id, process_name, _stale)
-        if os.path.exists(_path):
-            os.remove(_path)
+    reset_result_files(school_id, process_name)
     # Capture the integer PK before spawning threads so they append log lines without
     # a school+name lookup on every on_update call.
     run_id = proc.id

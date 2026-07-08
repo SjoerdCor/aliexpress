@@ -10,9 +10,7 @@ The pure form/data helpers below are free of Flask so they can be unit-tested an
 by the wizard blueprint without an import cycle.
 """
 
-import json
 import logging
-import os
 from itertools import zip_longest
 
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
@@ -21,7 +19,8 @@ from flask_login import login_required
 from ...data import datareader
 from ...errors import ValidationError
 from ..flashing import warn_and_flash
-from ..storage import get_file_path, get_process_path
+from ..process_files import load_candidates, load_roster, save_roster
+from ..storage import get_process_path
 from ..validation_messages import to_validation_message
 from .processes import get_process_mode, require_process, require_school
 
@@ -31,29 +30,6 @@ roster_bp = Blueprint("roster", __name__)
 
 
 # ── Pure helpers ──────────────────────────────────────────────────────────────
-
-
-def load_roster(roster_path):
-    """Load the saved roster dict, or None when the step was not used yet."""
-    if not os.path.exists(roster_path):
-        return None
-    with open(roster_path, encoding="utf-8") as fh:
-        return json.load(fh)
-
-
-def load_candidates(candidates_path):
-    """Load (candidate dicts, groups_from, jaargroepen) from relevant_students_and_groups.json.
-
-    ``jaargroepen`` (herindelen only) is the set of jaargroepen settled by the group
-    selection itself, not re-derived from the candidates — see ``_select_groups_post``.
-    """
-    with open(candidates_path, encoding="utf-8") as fh:
-        raw = json.load(fh)
-    return (
-        raw.get("candidates", []),
-        raw.get("groups_from", []),
-        raw.get("jaargroepen", []),
-    )
 
 
 def sorted_for_display(candidates: list[dict]) -> list[dict]:
@@ -175,7 +151,7 @@ def roster_page(school_id):
 
     try:
         orig_candidates, groups_from, jaargroep_options = load_candidates(
-            get_file_path(school_id, process_id, "relevant_students_and_groups.json")
+            school_id, process_id
         )
     except Exception as exc:  # pylint: disable=broad-exception-caught
         logger.exception("Could not read candidates for roster")
@@ -189,7 +165,7 @@ def roster_page(school_id):
             school_id, process_id, orig_candidates, groups_from, mode
         )
 
-    saved = load_roster(get_file_path(school_id, process_id, "roster.json"))
+    saved = load_roster(school_id, process_id)
     orig_keys = {c["key"] for c in orig_candidates}
     if saved is None:
         checked_keys = orig_keys  # first visit: everyone goes by default
@@ -235,10 +211,7 @@ def _handle_roster_post(school_id, process_id, orig_candidates, groups_from, mod
         return redirect(url_for("roster.roster_page"))
 
     participants = build_participants(request.form, orig_candidates, groups_from, mode)
-    with open(
-        get_file_path(school_id, process_id, "roster.json"), "w", encoding="utf-8"
-    ) as fh:
-        json.dump({"participants": participants}, fh, ensure_ascii=False)
+    save_roster(school_id, process_id, {"participants": participants})
     logger.info("Roster accepted: %d participants", len(participants))
     if mode == "redistribute_and_forward":
         return redirect(url_for("wizard.select_groups"))
