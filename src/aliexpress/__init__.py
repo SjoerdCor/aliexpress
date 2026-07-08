@@ -17,8 +17,8 @@ from aliexpress.logging_config import (
     pop_log_context,
     push_log_context,
 )
+from aliexpress.web.admin_seed import ensure_admin_password, seed_admin_from_env
 from aliexpress.web.appconfig import DevelopmentConfig, ProductionConfig
-from aliexpress.web.cli import admins as admins_cli
 from aliexpress.web.cli import schools as schools_cli
 from aliexpress.web.extensions import db, limiter, login_manager
 from aliexpress.web.http_errors import register_error_handlers
@@ -46,6 +46,27 @@ def ensure_secret_key(flask_app):
         )
 
 
+def _configure_secrets(app, env, test_config):
+    """Resolve SECRET_KEY/ADMIN_PASSWORD from the environment and fail fast if unusable.
+
+    Read here, after ``load_dotenv()``, so ``.env`` is already in ``os.environ``; they
+    cannot live in the Config class body because class attributes are evaluated at
+    import time, before ``load_dotenv()`` runs (and before uv injects ``.env`` on
+    non-uv launchers). ``test_config`` is applied before the guards so tests can
+    override either value.
+    """
+    app.config["SECRET_KEY"] = os.getenv("SECRET_KEY") or (
+        "dev-fallback-secret" if env == "development" else None
+    )
+    app.config["ADMIN_PASSWORD"] = os.getenv("ADMIN_PASSWORD")
+
+    if test_config is not None:
+        app.config.update(test_config)
+
+    ensure_secret_key(app)
+    ensure_admin_password(app)
+
+
 def create_app(test_config=None):
     """Create and configure a Flask application instance.
 
@@ -70,17 +91,7 @@ def create_app(test_config=None):
     config_class = DevelopmentConfig if env == "development" else ProductionConfig
     app.config.from_object(config_class)
 
-    # SECRET_KEY is read here, after load_dotenv(), so .env is already in os.environ.
-    # It cannot live in the Config class body because class attributes are evaluated at
-    # import time, before load_dotenv() runs (and before uv injects .env on non-uv launchers).
-    app.config["SECRET_KEY"] = os.getenv("SECRET_KEY") or (
-        "dev-fallback-secret" if env == "development" else None
-    )
-
-    if test_config is not None:
-        app.config.update(test_config)
-
-    ensure_secret_key(app)
+    _configure_secrets(app, env, test_config)
 
     os.makedirs(app.instance_path, exist_ok=True)
     if "STORAGE_DIR" not in app.config:
@@ -105,7 +116,6 @@ def create_app(test_config=None):
     login_manager.user_loader(load_user)
 
     app.cli.add_command(schools_cli, "schools")
-    app.cli.add_command(admins_cli, "admins")
 
     app.register_blueprint(admin_bp)
     app.register_blueprint(auth_bp)
@@ -152,5 +162,6 @@ def create_app(test_config=None):
 
     with app.app_context():
         db.create_all()
+        seed_admin_from_env(app)
 
     return app

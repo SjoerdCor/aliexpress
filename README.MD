@@ -38,10 +38,18 @@ Create a `.env` file containing at least:
 ```
 FLASK_ENV=production
 SECRET_KEY=<your-secret-key-here>
+ADMIN_PASSWORD=<your-admin-password-here>
 ```
 
 `SECRET_KEY` signs the login session cookie. In production the app refuses to start
 without one; in development a fallback key is used so you can run it without a `.env`.
+
+`ADMIN_PASSWORD` is the password for the single administrator account, which is created
+automatically on startup — there is no admin sign-up or CLI command. The app refuses to
+start if it is missing or too weak (in both development and production; there is no
+fallback). To rotate it, edit `.env` and restart: the stored hash is synced to the new
+value on every startup. The administrator logs in at `/admin/login` with this password
+only (no username).
 
 ## Logging
 
