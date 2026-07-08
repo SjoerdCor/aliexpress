@@ -1,11 +1,8 @@
 """Wizard blueprint: step-by-step distribution setup routes and helpers."""
 
-import json
 import logging
-from dataclasses import dataclass
 from io import BytesIO
 from threading import Thread
-from typing import Any
 
 import pandera as pa
 from flask import (
@@ -22,7 +19,6 @@ from flask import (
 )
 from flask_login import login_required
 
-from ... import sociogram
 from ...data import candidatedetermination, datareader, input_writer
 from ...data.form_parsers import parse_groups_to_form
 from ...data.preferences_form import (
@@ -31,18 +27,9 @@ from ...data.preferences_form import (
     StudentEntry,
     build_preference_data,
 )
-from ...errors import (
-    CouldNotReadFileError,
-    DuplicateNameError,
-    FeasibilityError,
-    SolverError,
-    ValidationError,
-)
-from ...logging_config import bind_log_context
-from ...main import distribute_students_from_data
-from ..extensions import db
+from ...errors import DuplicateNameError, ValidationError
 from ..flashing import warn_and_flash
-from ..models import LogLine, Process, Run
+from ..models import Process, Run
 from ..process_files import (
     has_edexml,
     has_preferences_excel,
@@ -56,7 +43,6 @@ from ..process_files import (
     load_pref_form_state,
     load_roster,
     load_student_names,
-    load_voorkeuren,
     reset_downstream_wizard_files,
     reset_result_files,
     save_candidates,
@@ -69,7 +55,8 @@ from ..process_files import (
     save_preferences_excel,
     save_voorkeuren,
 )
-from ..storage import get_file_path, get_process_path
+from ..storage import get_process_path
+from ..tasks import ThreadContext, create_sociogram_thread, run_solve_thread
 from ..validation_messages import to_validation_message
 from .auth import effective_school_id
 from .processes import get_process_mode, is_redistribute_mode, require_process
@@ -80,150 +67,15 @@ logger = logging.getLogger(__name__)
 wizard_bp = Blueprint("wizard", __name__)
 
 
-@dataclass
-class _ThreadContext:
-    """Shared context passed to background solver/sociogram threads.
-
-    Bundles the Flask app object (needed to open a thread-local app context) with the
-    process identifiers required to locate files and append log lines.
-    """
-
-    app_obj: Any
-    school_id: str
-    process_name: str
-    run_id: int
-
-
 def file_to_io(uploaded_file) -> BytesIO:
     """Get file as BytesIO"""
     return BytesIO(uploaded_file.read())
-
-
-def _write_result_files(school_id, process_name, result):
-    """Persist the solver output as files in the process dir (download + rendered tables).
-
-    Written before the status flips to "done" so the result page never polls ahead of the
-    files it needs.
-    """
-    with open(get_file_path(school_id, process_name, "results.xlsx"), "wb") as fh:
-        fh.write(result["download"].getbuffer())
-    tables = {name: df.to_html(na_rep="") for name, df in result["dataframes"].items()}
-    with open(
-        get_file_path(school_id, process_name, "result_tables.json"),
-        "w",
-        encoding="utf-8",
-    ) as fh:
-        json.dump(tables, fh, ensure_ascii=False)
 
 
 def _flash_upload_error(exc: Exception) -> None:
     """Log a rejected upload and flash a friendly Dutch message to the user."""
     logger.exception("Upload rejected")
     flash(to_validation_message(exc), "error")
-
-
-def _handle_failure(exc, school_id, process_name):
-    file_reading_errs = (
-        pa.errors.SchemaError,
-        ValidationError,
-        CouldNotReadFileError,
-    )
-    if isinstance(exc, file_reading_errs):
-        log_msg = "Files are incorrect"
-    elif isinstance(exc, FeasibilityError):
-        log_msg = "Problem is infeasible"
-    elif isinstance(exc, SolverError):
-        log_msg = "Solver could not solve the problem"
-    else:
-        log_msg = "Uncaught exception"
-    logger.exception(log_msg)
-    Process.by_name(school_id, process_name).run.set_status(
-        "error", to_validation_message(exc)
-    )
-
-
-def _run_solve_thread(ctx: _ThreadContext, groups_to_path, not_together):
-    """Background thread: run the solver and write result artifacts.
-
-    Each call creates its own app context and DB session. ``ctx.run_id`` is the integer
-    PK of the Run row so log lines can be appended without a school+name query per line.
-    Reads preferences from ``voorkeuren.json`` (written by both input paths) so that the
-    solver is independent of the original file format.
-    """
-
-    def on_update(message):
-        db.session.add(LogLine(run_id=ctx.run_id, text=message))
-        db.session.commit()
-
-    with ctx.app_obj.app_context():
-        with bind_log_context(
-            school=ctx.school_id,
-            process=ctx.process_name,
-            run=str(ctx.run_id),
-            phase="solve",
-        ):
-            try:  # pylint: disable=broad-exception-caught
-                Process.by_name(ctx.school_id, ctx.process_name).run.set_status(
-                    "running"
-                )
-                preference_data, _ = load_voorkeuren(ctx.school_id, ctx.process_name)
-                target_groups = datareader.read_groups_excel(groups_to_path)
-                result = distribute_students_from_data(
-                    preference_data,
-                    target_groups,
-                    not_together,
-                    on_update=on_update,
-                )
-                logger.info("Distributing students finished successfully")
-                # Write artifacts before flipping to "done" so the result page never
-                # races ahead of the files it needs.
-                _write_result_files(ctx.school_id, ctx.process_name, result)
-                Process.by_name(ctx.school_id, ctx.process_name).run.set_status("done")
-            except Exception as exc:  # pylint: disable=broad-exception-caught
-                _handle_failure(exc, ctx.school_id, ctx.process_name)
-
-
-def _create_sociogram_thread(ctx: _ThreadContext):
-    """Background thread: build and write the Plotly sociogram HTML.
-
-    Runs concurrently with the solver; log lines are appended via ``ctx.run_id`` just
-    like the solver thread does. Reads preferences from ``voorkeuren.json`` (written by
-    both input paths) via ``SociogramMaker.from_preference_data``, so the sociogram is
-    available for both the Excel and web-form input paths.
-    """
-
-    def on_update(message):
-        db.session.add(LogLine(run_id=ctx.run_id, text=message))
-        db.session.commit()
-
-    with ctx.app_obj.app_context():
-        with bind_log_context(
-            school=ctx.school_id,
-            process=ctx.process_name,
-            run=str(ctx.run_id),
-            phase="sociogram",
-        ):
-            try:  # pylint: disable=broad-exception-caught
-                on_update("Sociogram tekenen...")
-                preference_data, _ = load_voorkeuren(ctx.school_id, ctx.process_name)
-                sg = sociogram.SociogramMaker.from_preference_data(preference_data)
-                fig, g, pos = sg.plot_sociogram()
-                logger.info("Sociogram created")
-                fig = sociogram.networkx_to_plotly(g, pos)
-                html = fig.to_html(full_html=False, include_plotlyjs="cdn")
-                logger.info("HTML created")
-                with open(
-                    get_file_path(ctx.school_id, ctx.process_name, "sociogram.html"),
-                    "w",
-                    encoding="utf-8",
-                ) as fh:
-                    fh.write(html)
-                on_update(
-                    '<a href=/sociogram target="_blank" class="button">'
-                    "Bekijk het sociogram nu!</a>"
-                )
-            except Exception:  # pylint: disable=broad-exception-caught
-                logger.exception("Could not create sociogram")
 
 
 def _parse_preference_list(form, key, soort_field_value) -> list[Preference]:
@@ -968,7 +820,6 @@ def start_distribution():
     if school_id is None:
         return redirect(url_for("admin.dashboard"))
     process_name = session["process_id"]
-    groups_to_path = get_file_path(school_id, process_name, "groups.xlsx")
 
     not_together = load_not_together(school_id, process_name)
 
@@ -980,12 +831,12 @@ def start_distribution():
     run_id = proc.id
     # Capture the real app object before spawning threads; current_app is a proxy that
     # cannot be used across thread boundaries.
-    ctx = _ThreadContext(
+    ctx = ThreadContext(
         app_obj=current_app._get_current_object(),  # pylint: disable=protected-access
         school_id=school_id,
         process_name=process_name,
         run_id=run_id,
     )
-    Thread(target=_create_sociogram_thread, args=(ctx,)).start()
-    Thread(target=_run_solve_thread, args=(ctx, groups_to_path, not_together)).start()
+    Thread(target=create_sociogram_thread, args=(ctx,)).start()
+    Thread(target=run_solve_thread, args=(ctx, not_together)).start()
     return redirect(url_for("results.processing"))
