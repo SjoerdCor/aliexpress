@@ -20,13 +20,14 @@ from flask import (
 from flask_login import login_required
 
 from ...data import candidatedetermination, datareader, input_writer
-from ...data.form_parsers import parse_groups_to_form
-from ...data.preferences_form import (
-    Preference,
-    PreferenceKind,
-    StudentEntry,
-    build_preference_data,
+from ...data.form_parsers import (
+    build_form_state,
+    parse_groups_to_form,
+    parse_not_together_form,
+    parse_student_entry,
+    reconcile_dangling,
 )
+from ...data.preferences_form import build_preference_data
 from ...errors import DuplicateNameError, ValidationError
 from ..flashing import warn_and_flash
 from ..models import Process, Run
@@ -78,100 +79,6 @@ def _flash_upload_error(exc: Exception) -> None:
     flash(to_validation_message(exc), "error")
 
 
-def _parse_preference_list(form, key, soort_field_value) -> list[Preference]:
-    """Parse all preferences of one kind for a student from the submitted form."""
-    kind = (
-        PreferenceKind.APART
-        if soort_field_value == "liever_niet_met"
-        else PreferenceKind.TOGETHER
-    )
-    prefix = f"preference_{key}_{soort_field_value}"
-    targets = form.getlist(f"{prefix}_target")
-    weights = form.getlist(f"{prefix}_gewicht")
-    result = []
-    for target, gewicht_raw in zip(targets, weights):
-        target = target.strip()
-        if not target:
-            continue
-        try:
-            gewicht = float(gewicht_raw)
-        except ValueError:
-            gewicht = 1.0
-        if gewicht <= 0:
-            gewicht = 1.0
-        result.append(Preference(target=target, weight=gewicht, kind=kind))
-    return result
-
-
-def _parse_student_entry(candidate: dict, form) -> StudentEntry:
-    """Build a StudentEntry from one candidate dict and the submitted form data.
-
-    Graag-met preferences use ``preference_{key}_graag_met_target[]`` / ``_gewicht[]``.
-    Liever-niet-met use ``preference_{key}_liever_niet_met_target[]`` / ``_gewicht[]``.
-    Group exclusions use ``nieting_{key}[]``.
-    Min. satisfaction uses ``min_sat_{key}``.
-    """
-    key = candidate["key"]
-    name = f"{candidate['roepnaam']} {candidate['achternaam']}"
-
-    preferences = _parse_preference_list(
-        form, key, "graag_met"
-    ) + _parse_preference_list(form, key, "liever_niet_met")
-
-    excluded = [g.strip() for g in form.getlist(f"nieting_{key}") if g.strip()]
-
-    raw_min_sat = form.get(f"min_sat_{key}", "").strip()
-    try:
-        min_satisfaction = float(raw_min_sat) / 100.0 if raw_min_sat else None
-    except ValueError:
-        min_satisfaction = None
-
-    return StudentEntry(
-        student=name,
-        sex=candidate["geslacht"],
-        origin_group=candidate["groepsnaam"],
-        min_satisfaction=min_satisfaction,
-        year_group=candidate.get("jaargroep"),
-        preferences=preferences,
-        excluded_groups=excluded,
-    )
-
-
-def _build_form_state(entries: list[StudentEntry], participants: list[dict]) -> dict:
-    """Serialize submitted preferences to a dict for prefill on next GET.
-
-    The population is already fixed by the roster step (every participant takes part), so
-    this only carries each participant's preferences, keyed so the page can restore them.
-    """
-    entry_by_name = {e.student: e for e in entries}
-    state_students = []
-    for c in participants:
-        name = f"{c['roepnaam']} {c['achternaam']}"
-        entry = entry_by_name.get(name)
-        state_students.append(
-            {
-                "key": c["key"],
-                "roepnaam": c["roepnaam"],
-                "achternaam": c["achternaam"],
-                "groepsnaam": c.get("groepsnaam", ""),
-                "geslacht": c.get("geslacht", ""),
-                "min_satisfaction": entry.min_satisfaction if entry else None,
-                "graag_met": [
-                    {"target": p.target, "weight": p.weight}
-                    for p in (entry.preferences if entry else [])
-                    if p.kind == PreferenceKind.TOGETHER
-                ],
-                "liever_niet_met": [
-                    {"target": p.target, "weight": p.weight}
-                    for p in (entry.preferences if entry else [])
-                    if p.kind == PreferenceKind.APART
-                ],
-                "niet_in": entry.excluded_groups if entry else [],
-            }
-        )
-    return {"students": state_students}
-
-
 def _write_pref_form_state(school_id, process_id, form, participants):
     """Parse the form and persist the intermediate draft (``preferences_form_state.json``).
 
@@ -179,8 +86,8 @@ def _write_pref_form_state(school_id, process_id, form, participants):
     the page so a reload (or a crash) restores it. The population is the settled roster, so
     every participant is parsed (there are no checkboxes and no new students here anymore).
     """
-    entries = [_parse_student_entry(c, form) for c in participants]
-    state = _build_form_state(entries, participants)
+    entries = [parse_student_entry(c, form) for c in participants]
+    state = build_form_state(entries, participants)
     save_pref_form_state(school_id, process_id, state)
     return entries
 
@@ -189,34 +96,6 @@ def _pref_form_post_data(school_id, process_id, form, participants, all_groups_t
     """Parse + save the draft, then validate and return the resulting PreferenceData."""
     entries = _write_pref_form_state(school_id, process_id, form, participants)
     return build_preference_data(entries, all_groups_to)
-
-
-def _reconcile_dangling(draft_state, participants, group_labels):
-    """Drop draft preferences whose target no longer takes part; return friendly notices.
-
-    A classmate target is valid only when that leerling is still a participant (the teacher
-    may have removed them on the roster step). Group targets stay valid. Mutates
-    ``draft_state`` in place and returns one Dutch message per removed preference.
-    """
-    valid_keys = {
-        datareader.matching_key(f"{p['roepnaam']} {p['achternaam']}")
-        for p in participants
-    } | {datareader.matching_key(g) for g in group_labels}
-    notices = []
-    for student in draft_state["students"]:
-        owner = f"{student['roepnaam']} {student['achternaam']}".strip()
-        for kind in ("graag_met", "liever_niet_met"):
-            kept = []
-            for wish in student.get(kind, []):
-                if datareader.matching_key(wish["target"]) in valid_keys:
-                    kept.append(wish)
-                else:
-                    notices.append(
-                        f"{wish['target']} gaat niet meer mee — de voorkeur van {owner} "
-                        f"naar {wish['target']} is verwijderd."
-                    )
-            student[kind] = kept
-    return notices
 
 
 def _not_together_get_context(school_id, process_id):
@@ -233,34 +112,6 @@ def _not_together_get_context(school_id, process_id):
         else url_for("wizard.preferences_form")
     )
     return existing_rules, prev_url
-
-
-def _parse_not_together_form(form, n_rules):
-    """Parse not-together form fields into rule dicts. Returns (rules, error_msg)."""
-    rules = []
-    for i in range(n_rules):
-        names_raw = form.getlist(f"rule_students[{i}]")
-        # Keep the names as entered for display; dedupe on the matching key so the same
-        # student picked twice (in any spelling) is caught.
-        cleaned = [datareader.display_name(n) for n in names_raw if n.strip()]
-        if len({datareader.matching_key(n) for n in cleaned}) != len(cleaned):
-            return (
-                None,
-                f"Niet-samen-regel {i + 1} bevat dezelfde leerling meerdere keren.",
-            )
-        max_samen_raw = form.get(f"rule_max[{i}]", "").strip()
-        if not max_samen_raw:
-            return None, f"Vul het maximale aantal samen in voor regel {i + 1}."
-        try:
-            max_samen = int(max_samen_raw)
-        except ValueError:
-            return (
-                None,
-                f"Maximale aantal samen moet een heel getal zijn (regel {i + 1}).",
-            )
-        if cleaned:
-            rules.append({"group": set(cleaned), "Max_aantal_samen": max_samen})
-    return rules, None
 
 
 @wizard_bp.route("/input_templates/<path:filename>")
@@ -681,7 +532,12 @@ def _apply_draft_preferences(
     ms_by_key = {s["key"]: s.get("min_satisfaction") for s in draft_state["students"]}
     for candidate in display_candidates:
         candidate["min_satisfaction"] = ms_by_key.get(candidate["key"])
-    return list(_reconcile_dangling(draft_state, participants, group_labels))
+    removed = reconcile_dangling(draft_state, participants, group_labels)
+    return [
+        f"{target} gaat niet meer mee — de voorkeur van {owner} "
+        f"naar {target} is verwijderd."
+        for owner, target in removed
+    ]
 
 
 def _handle_pref_form_post(school_id, process_id, participants, all_groups_to):
@@ -795,14 +651,11 @@ def not_together_page():
         )
 
     n_rules = int(request.form.get("n_rules", 0))
-    rules, error = _parse_not_together_form(request.form, n_rules)
-    if error is None:
-        try:
-            datareader.validate_not_together(rules, students, n_groups)
-        except ValidationError as exc:
-            error = to_validation_message(exc)
-    if error:
-        warn_and_flash(error, log_detail="not_together_invalid")
+    try:
+        rules = parse_not_together_form(request.form, n_rules)
+        datareader.validate_not_together(rules, students, n_groups)
+    except ValidationError as exc:
+        warn_and_flash(to_validation_message(exc), log_detail=exc.code)
         return redirect(url_for("wizard.not_together_page"))
 
     save_not_together(school_id, process_id, rules)
