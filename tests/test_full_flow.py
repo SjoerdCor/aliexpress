@@ -349,13 +349,14 @@ class TestFullWizardFormFlow:  # pylint: disable=too-few-public-methods  # one t
     def _assert_ready_to_solve(self, pdir):
         """Assert the process directory holds a complete, consistent input set.
 
-        These are the exact files _run_solve_thread reads before calling the solver.
-        A missing file here means start_distribution would immediately error out in
-        production even though the wizard appeared to complete successfully.
+        These are the exact files run_solve_thread (in web/tasks.py) reads before
+        calling the solver. A missing file here means start_distribution would
+        immediately error out in production even though the wizard appeared to
+        complete successfully.
         """
         required = {
             "voorkeuren.json": "preferences (read by both solver thread and sociogram thread)",
-            "groups.xlsx": "target groups (read by _run_solve_thread as groups_to_path)",
+            "groups.xlsx": "target groups (read by run_solve_thread via process_files.load_groups)",
             "not_together.json": "separation rules (loaded by start_distribution route)",
             "roster.json": "settled participant list (read by preferences_form on resume)",
             "input_method.json": "input method tag (controls back-link in not_together)",

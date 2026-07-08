@@ -406,7 +406,7 @@ def _build_pref_form_state(
 ) -> dict:
     """Build preferences_form_state.json content from StudentEntry objects.
 
-    Mirrors the structure that ``_build_form_state`` in wizard.py produces after a
+    Mirrors the structure that ``build_form_state`` in ``data/form_parsers.py`` produces after a
     form POST, so the preferences form pre-fills correctly on the first GET.
     Entries and participants must be in the same order (both come from the same
     generated list).

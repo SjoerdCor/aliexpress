@@ -64,10 +64,3 @@ init-hook = "import sys; sys.path.insert(0, '.')"
 
 [tool.pylint."VARIABLES"]
 good-names = ["M"]
-
-[tool.pylint.format]
-# The wizard blueprint (wizard.py) holds the full step-by-step distribution flow in one
-# cohesive module; the herindelen-met-doorzetten variant adds several routes. We accept a
-# larger module here rather than split the wizard flow prematurely; revisit with a blueprint
-# split (see ADR-0012) if it keeps growing.
-max-module-lines = 1200

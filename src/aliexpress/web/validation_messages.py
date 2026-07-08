@@ -87,6 +87,12 @@ def readableerror_to_validation_message(exc: Exception) -> str:
             "Er is iets onverwachts misgegaan. Het probleem is gelogd. "
             "Laat de maker dit onderzoeken."
         ),
+        "duplicate_student_not_together": (
+            "Niet-samen-regel {rule_index} bevat dezelfde leerling meerdere keren."
+        ),
+        "missing_max_samen_not_together": (
+            "Vul het maximale aantal samen in voor regel {rule_index}."
+        ),
         "too_few_students_not_together": (
             "Niet-samen-regel {rule_index} heeft minder dan 2 leerlingen. "
             "Voeg minstens 2 leerlingen toe."
@@ -125,7 +131,7 @@ def readableerror_to_validation_message(exc: Exception) -> str:
             "Maak elke nieuwe leerling af: vul voornaam, achternaam én geslacht in."
         ),
         "duplicate_new_student": (
-            'Er bestaat al een leerling "{naam}". Geef een onderscheidende naam.'
+            'Er bestaat al een leerling "{name}". Geef een onderscheidende naam.'
         ),
         "missing_jaargroep_new_student": (
             "Geef bij elke nieuwe leerling ook de jaargroep aan."
