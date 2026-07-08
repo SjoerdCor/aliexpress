@@ -13,7 +13,7 @@ import pytest
 from aliexpress.data import datareader
 from aliexpress.web.extensions import db as flask_db
 from aliexpress.web.models import Process
-from aliexpress.web.routes.wizard import _write_voorkeuren_json
+from aliexpress.web.process_files import save_voorkeuren
 from app import app
 from tests.browser.conftest import TEST_SCHOOLCODE
 
@@ -30,10 +30,10 @@ def _make_process(live_server, tmp_path, page, name="browserrun"):
     groups_to, _ = datareader.read_groups_excel(str(proc / "groups.xlsx"))
     processor = datareader.VoorkeurenProcessor(_INTEGRATION / "voorkeuren_small.xlsx")
     processor.process(all_to_groups=list(groups_to.keys()))
-    _write_voorkeuren_json(
-        str(proc / "voorkeuren.json"), processor.to_preference_data(), source="excel"
-    )
     with app.app_context():
+        save_voorkeuren(
+            TEST_SCHOOLCODE, name, processor.to_preference_data(), source="excel"
+        )
         flask_db.session.add(Process(school_id=TEST_SCHOOLCODE, name=name))
         flask_db.session.commit()
     page.goto(f"{live_server}/processes/select/{name}")  # sets the session process
