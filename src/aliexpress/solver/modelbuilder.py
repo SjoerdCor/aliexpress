@@ -25,7 +25,7 @@ from ortools.sat.python import cp_model
 
 from ..data import preferences_data
 from ._balance_families import add_balance_constraints, add_soft_balance_constraints
-from .satisfaction import get_satisfaction_integral
+from .satisfaction import _normalize_and_bound
 from .scaling import weight_scale
 
 SATISFACTION_SCALE = 10**6
@@ -419,7 +419,7 @@ def _satisfaction_variable(model, student, terms, bounds, scale):
     model.Add(weighted_sum == sum(terms))
 
     table = [
-        _scaled_satisfaction(value / scale, high / scale)
+        _scaled_satisfaction(value / scale, high / scale, low / scale)
         for value in range(low, high + 1)
     ]
     satisfaction_low, satisfaction_high = min(table), max(table)
@@ -432,17 +432,12 @@ def _satisfaction_variable(model, student, terms, bounds, scale):
     return satisfaction_var, (satisfaction_low, satisfaction_high)
 
 
-def _scaled_satisfaction(weighted: float, best: float) -> int:
+def _scaled_satisfaction(weighted: float, best: float, worst: float) -> int:
     """Normalized satisfaction at weighted level ``weighted``, as a scaled integer.
 
-    ``best`` is the student's maximal positive weight sum. Mirrors
-    ``satisfaction._normalize_and_bound``: with positive wishes the score is
-    F(weighted)/F(best); without them the baseline 1 plus the (non-positive)
-    F(weighted) of violated negative wishes.
+    ``best`` is the student's maximal positive weight sum, ``worst`` the
+    minimal (most negative) weight sum. Delegates to
+    :func:`~.satisfaction._normalize_and_bound` so the model's integer table
+    and the reported float agree by construction.
     """
-    raw = get_satisfaction_integral(0, weighted)
-    if best > 0:
-        value = raw / get_satisfaction_integral(0, best)
-    else:
-        value = 1.0 + raw
-    return round(value * SATISFACTION_SCALE)
+    return round(_normalize_and_bound(weighted, best, worst) * SATISFACTION_SCALE)

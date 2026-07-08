@@ -20,7 +20,7 @@ from .. import errors
 from ..data import preferences_data
 from . import feasibility, modelbuilder, strategies
 from ._balance_families import SLACK_WEIGHTS, max_slack_bound
-from .satisfaction import get_satisfaction_integral
+from .satisfaction import _normalize_and_bound
 
 #: Weight of the max-slack spreading term in the relaxation objective below:
 #: equal to weight 1.0 on the ×100 scale :data:`~._balance_families.SLACK_WEIGHTS`
@@ -230,9 +230,10 @@ def _extract(problem, solver: cp_model.CpSolver, preferences) -> Solution:
 def _float_satisfaction(preferences, satisfied: dict, students: list) -> dict:
     """Per-student float satisfaction from the honored wishes.
 
-    The float twin of the model's integer element table: F(weighted honored
-    sum), normalized by F(best case) when the student has positive wishes, or
-    added to the baseline 1 when not.
+    The float twin of the model's integer element table: computed via
+    :func:`~.satisfaction._normalize_and_bound` from the weighted honored sum
+    and the student's best/worst possible sums, so the model's optimized
+    integer table and this reported float agree by construction.
 
     Parameters
     ----------
@@ -251,6 +252,7 @@ def _float_satisfaction(preferences, satisfied: dict, students: list) -> dict:
     graag_met = preferences_data.get_graag_met(preferences)
     honored_sum: dict[str, float] = {}
     best_sum: dict[str, float] = {}
+    worst_sum: dict[str, float] = {}
     for key, row in graag_met.iterrows():
         student, weight = key[0], row["Gewicht"]
         honored = satisfied[key]
@@ -259,15 +261,14 @@ def _float_satisfaction(preferences, satisfied: dict, students: list) -> dict:
         contribution = weight if (weight > 0) == honored else 0.0
         honored_sum[student] = honored_sum.get(student, 0.0) + contribution
         best_sum[student] = best_sum.get(student, 0.0) + max(weight, 0.0)
+        worst_sum[student] = worst_sum.get(student, 0.0) + min(weight, 0.0)
 
     result = {}
     for student in students:
         if student not in honored_sum:
             result[student] = 1.0
             continue
-        raw = get_satisfaction_integral(0, honored_sum[student])
-        if best_sum[student] > 0:
-            result[student] = raw / get_satisfaction_integral(0, best_sum[student])
-        else:
-            result[student] = 1.0 + raw
+        result[student] = _normalize_and_bound(
+            honored_sum[student], best_sum[student], worst_sum[student]
+        )
     return result
