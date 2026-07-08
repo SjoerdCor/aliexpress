@@ -13,21 +13,20 @@ another school's data.
 import pytest
 from werkzeug.security import generate_password_hash
 
+from aliexpress.web.admin_seed import seed_admin_from_env
 from aliexpress.web.extensions import db
 from aliexpress.web.models import Admin, Process, School
 from aliexpress.web.routes.auth import load_user
 
-ADMIN_USERNAME = "beheerder"
 ADMIN_PASSWORD = "AdminGeheim!42xyz"
 
 
-def _create_admin(app, username=ADMIN_USERNAME, password=ADMIN_PASSWORD):
-    """Persist an Admin and return its integer id."""
+def _create_admin(app, password=ADMIN_PASSWORD):
+    """Seed an Admin via seed_admin_from_env and return its integer id."""
     with app.app_context():
-        admin = Admin(username=username, password_hash=generate_password_hash(password))
-        db.session.add(admin)
-        db.session.commit()
-        return admin.id
+        app.config["ADMIN_PASSWORD"] = password
+        seed_admin_from_env(app)
+        return Admin.query.first().id
 
 
 def _create_school(app, schoolcode="obs-x", naam="School X", password="schoolpw"):
@@ -50,7 +49,7 @@ def admin_client(unauthed_client):
     _create_admin(unauthed_client.application)
     unauthed_client.post(
         "/admin/login",
-        data={"username": ADMIN_USERNAME, "wachtwoord": ADMIN_PASSWORD},
+        data={"wachtwoord": ADMIN_PASSWORD},
     )
     return unauthed_client
 
@@ -83,17 +82,17 @@ class TestAdminLogin:
         _create_admin(unauthed_client.application)
         resp = unauthed_client.post(
             "/admin/login",
-            data={"username": ADMIN_USERNAME, "wachtwoord": "fout"},
+            data={"wachtwoord": "fout"},
         )
         assert resp.status_code == 200
-        assert "Ongeldige gebruikersnaam of wachtwoord" in resp.data.decode("utf-8")
+        assert "Ongeldig wachtwoord" in resp.data.decode("utf-8")
 
     def test_correct_credentials_redirect_to_dashboard(self, unauthed_client):
         """Correct admin credentials log in and redirect to the dashboard."""
         _create_admin(unauthed_client.application)
         resp = unauthed_client.post(
             "/admin/login",
-            data={"username": ADMIN_USERNAME, "wachtwoord": ADMIN_PASSWORD},
+            data={"wachtwoord": ADMIN_PASSWORD},
         )
         assert resp.status_code == 302
         assert resp.headers["Location"].endswith("/admin/")
@@ -191,7 +190,7 @@ class TestAuthAdminPaths:
             user = load_user(f"admin:{admin_id}")
             assert user is not None
             assert user.is_admin
-            assert user.username == ADMIN_USERNAME
+            assert user.naam == "Beheerder"
 
     def test_authenticated_admin_redirected_from_school_login(self, admin_client):
         """An authenticated admin hitting the school /login is sent to the admin dashboard."""

@@ -69,13 +69,12 @@ class Admin(UserMixin, db.Model):
     is_admin = True
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    username = db.Column(db.String(64), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
 
     @property
     def naam(self):
         """Display name used in templates, mirrors the School.naam column."""
-        return f"Beheerder ({self.username})"
+        return "Beheerder"
 
     def get_id(self):
         return f"admin:{self.id}"

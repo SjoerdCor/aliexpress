@@ -1,8 +1,8 @@
 """Flask CLI commands for school and admin management.
 
-Register via ``app.cli.add_command(schools)`` and ``app.cli.add_command(admins)``
-in ``app.py``. Commands run inside an application context automatically, so
-``db.session`` is available without an explicit ``with app.app_context():``.
+Register via ``app.cli.add_command(schools)`` in ``app.py``. Commands run
+inside an application context automatically, so ``db.session`` is available
+without an explicit ``with app.app_context():``.
 """
 
 import os
@@ -14,10 +14,9 @@ import click
 from flask import current_app
 from flask.cli import with_appcontext
 from werkzeug.security import generate_password_hash
-from zxcvbn import zxcvbn
 
 from .extensions import db
-from .models import Admin, School
+from .models import School
 
 _PASSWORD_ALPHABET = string.ascii_letters + string.digits
 
@@ -77,29 +76,3 @@ def delete_school(schoolcode):
         shutil.rmtree(storage_dir)
         click.echo(f"Opgeslagen bestanden verwijderd: {storage_dir}")
     click.echo(f"School '{schoolcode}' verwijderd.")
-
-
-@click.group()
-def admins():
-    """Admin account management commands."""
-
-
-@admins.command("add")
-@click.argument("username")
-@with_appcontext
-def add_admin(username):
-    """Create an admin account"""
-    if Admin.query.filter_by(username=username).first():
-        raise click.ClickException(f"Admin '{username}' bestaat al.")
-    password = click.prompt("Wachtwoord", hide_input=True, confirmation_prompt=True)
-    if zxcvbn(password, user_inputs=[username])["score"] < 3:
-        raise click.ClickException(
-            "Wachtwoord is te zwak. Gebruik meer tekens of vermijd voor de hand liggende woorden."
-        )
-    admin = Admin(
-        username=username,
-        password_hash=generate_password_hash(password),
-    )
-    db.session.add(admin)
-    db.session.commit()
-    click.echo(f"Admin '{username}' aangemaakt.")
