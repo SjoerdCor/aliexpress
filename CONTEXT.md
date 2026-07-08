@@ -68,6 +68,10 @@ _Avoid_: minimale tevredenheid, garantie
 Een harde eis dat een specifieke leerling niet in een bepaalde bestemmingsgroep geplaatst mag worden — bedoeld voor gevallen waarin het écht niet kan, met name als er al een familielid (bijv. een oudere broer of zus) in die groep zit. Hard, dus altijd gerespecteerd. Onderscheidt zich van een negatieve Voorkeur naar een groep ("liever niet naar Blauw"), die zacht is en mag wijken.
 _Avoid_: niet in, verbod
 
+**Relaxatievloer**:
+De minimale Tevredenheid die de verdeling voor iedere leerling probeert te halen voordat ze de balans-eisen per groep gaat versoepelen. De balans wordt alleen zover gebroken als nodig om zoveel mogelijk leerlingen boven die vloer te krijgen, en daarna zo strak mogelijk gehouden. De vloer is strikt positieve tevredenheid: een puur-positieve leerling haalt hem met minstens één ingewilligde voorkeur, een leerling met vermij-voorkeuren alleen als geen ervan geschonden wordt.
+_Avoid_: ondergrens (dat is Extra zekerheid), minimale relaxatie
+
 **Verdeling**:
 Het resultaat van de optimalisatie: de toewijzing van alle leerlingen aan groepen.
 _Avoid_: indeling, uitkomst
