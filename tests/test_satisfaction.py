@@ -74,3 +74,28 @@ def test_calculate_added_satisfaction_monotonic():
 
     expected = {1: 0.5, 2: 0.25, 3: 0.125}
     assert added == expected
+
+
+def test_normalize_and_bound_avoid_wish_violated_lower_bound():
+    """A single violated avoid-wish scores -1.0 (the jump lower bound)."""
+    assert satisfaction._normalize_and_bound(-1, 0, -1) == pytest.approx(-1.0)
+
+
+def test_normalize_and_bound_avoid_wish_honored_upper_bound():
+    """An avoid-wish that is honored (not violated) scores +1.0 (the jump upper bound)."""
+    assert satisfaction._normalize_and_bound(0, 0, -1) == pytest.approx(1.0)
+
+
+def test_normalize_and_bound_avoid_wishes_saturating_band():
+    """Multiple avoid-wishes saturate towards -1.0 as more are violated."""
+    assert satisfaction._normalize_and_bound(-1, 0, -3) == pytest.approx(-1 / 7)
+    assert satisfaction._normalize_and_bound(-3, 0, -3) == pytest.approx(-1.0)
+
+
+def test_normalize_and_bound_positive_and_mixed_unchanged():
+    """Students with positive wishes (incl. mixed) normalize by F(best), unchanged."""
+    assert satisfaction._normalize_and_bound(1, 1, 0) == pytest.approx(1.0)
+    assert satisfaction._normalize_and_bound(0, 2, 0) == pytest.approx(0.0)
+    assert satisfaction._normalize_and_bound(1, 2, 0) == pytest.approx(2 / 3)
+    assert satisfaction._normalize_and_bound(-1, 2, -3) == pytest.approx(-1 / 0.75)
+    assert satisfaction._normalize_and_bound(0, 0, 0) == pytest.approx(1.0)
