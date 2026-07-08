@@ -60,11 +60,12 @@ class SoftProblem:
     variables that shape how far it may relax.
 
     ``slacks`` holds the six shared class-balance slacks (see
-    :func:`._balance_families.add_soft_balance_constraints`). ``unmet`` maps
-    each student with at least one positive wish to a literal that is true only
-    when none of their positive wishes is honored, so a caller can require
-    every such student to reach at least one. ``satisfaction_bounds`` is the
-    same per-student domain as :attr:`Problem.satisfaction_bounds`.
+    :func:`._balance_families.add_soft_balance_constraints`). ``nonpositive``
+    maps each student whose satisfaction *can* reach zero or below to a
+    literal that is true exactly when it does, so a caller can require every
+    such student to reach strictly positive satisfaction instead.
+    ``satisfaction_bounds`` is the same per-student domain as
+    :attr:`Problem.satisfaction_bounds`.
     """
 
     model: cp_model.CpModel
@@ -73,7 +74,7 @@ class SoftProblem:
     satisfaction: dict  # student -> IntVar, scaled by SATISFACTION_SCALE
     satisfaction_bounds: dict  # student -> (low, high), same scale
     slacks: dict  # family name -> IntVar
-    unmet: dict  # student -> BoolVar
+    nonpositive: dict  # student -> BoolVar
 
 
 def build_problem(
@@ -129,11 +130,11 @@ def build_soft_problem(
 
     Forbidden groups, not-together rules and satisfaction floors stay hard —
     only the class-balance limits become soft, each as ``STRICTEST_LIMIT +
-    slack`` (see :func:`._balance_families.add_soft_balance_constraints`). Each
-    student with a positive wish also gets an ``unmet`` literal
-    (:func:`_constrain_wish_requirement`), so a caller can look for the
-    smallest balance relaxation under which every such student can still be
-    given at least one positive wish.
+    slack`` (see :func:`._balance_families.add_soft_balance_constraints`).
+    Each student whose satisfaction can reach zero or below also gets a
+    ``nonpositive`` literal (:func:`_constrain_positive_satisfaction`), so a
+    caller can look for the smallest balance relaxation under which every
+    such student still reaches strictly positive satisfaction.
 
     Parameters
     ----------
@@ -161,7 +162,9 @@ def build_soft_problem(
     _constrain_not_together(model, in_group, not_together, groups_to)
     _constrain_minimal_satisfaction(model, satisfaction, students)
     slacks = add_soft_balance_constraints(model, in_group, students, groups_to)
-    unmet = _constrain_wish_requirement(model, satisfied, preferences)
+    nonpositive = _constrain_positive_satisfaction(
+        model, satisfaction, satisfaction_bounds
+    )
     return SoftProblem(
         model=model,
         in_group=in_group,
@@ -169,7 +172,7 @@ def build_soft_problem(
         satisfaction=satisfaction,
         satisfaction_bounds=satisfaction_bounds,
         slacks=slacks,
-        unmet=unmet,
+        nonpositive=nonpositive,
     )
 
 
@@ -261,42 +264,50 @@ def _build_assignment(
     return model, in_group
 
 
-def _constrain_wish_requirement(
-    model: cp_model.CpModel, satisfied: dict, preferences
+def _constrain_positive_satisfaction(
+    model: cp_model.CpModel, satisfaction: dict, satisfaction_bounds: dict
 ) -> dict:
-    """Per-student ``unmet`` literal: true only if no positive wish is honored.
+    """Per-student ``nonpositive`` literal: true iff satisfaction is <= 0.
 
-    Only students with at least one positive wish get a literal: a student with
-    none cannot structurally satisfy the requirement, so including them would
-    force ``unmet`` to always be true and add nothing to reason about.
+    Only students whose satisfaction variable *can* reach zero or below get a
+    literal: their domain's low bound is <= 0. This excludes exactly the
+    students with no preferences, whose satisfaction is a constant 1.0 (bounds
+    ``(SATISFACTION_SCALE, SATISFACTION_SCALE)``) and so can never be
+    nonpositive; it keeps pure-positive students in (low bound 0), since their
+    satisfaction can still be exactly 0.
+
+    The literal is a full reification (both directions), not a one-sided
+    ``AddBoolOr``: minimizing the count of true ``nonpositive`` literals would
+    otherwise let the solver push a literal false while the student's
+    satisfaction is actually <= 0, since nothing forces the literal true in
+    that case.
 
     Parameters
     ----------
     model : cp_model.CpModel
         The model the literals are added to.
-    satisfied : dict
-        Honored-literal per ``(student, Nr)`` preference row (from
-        :func:`_add_satisfaction`).
-    preferences : pandas.DataFrame
-        Long-format preference rows, indexed by ``(student, TypeWens, Nr)``.
+    satisfaction : dict
+        Per-student satisfaction IntVar, scaled by
+        :data:`SATISFACTION_SCALE` (from :func:`_add_satisfaction`).
+    satisfaction_bounds : dict
+        Per-student ``(low, high)`` domain of the satisfaction variable, same
+        scale (from :func:`_add_satisfaction`).
 
     Returns
     -------
     dict[str, cp_model.IntVar]
-        The ``unmet`` literal per student with at least one positive wish.
+        The ``nonpositive`` literal per student whose satisfaction can be
+        <= 0.
     """
-    graag_met = preferences_data.get_graag_met(preferences)
-    positive_per_student: dict[str, list] = {}
-    for key, row in graag_met.iterrows():
-        if row["Gewicht"] > 0:
-            positive_per_student.setdefault(key[0], []).append(satisfied[key])
-
-    unmet = {}
-    for student, honored in positive_per_student.items():
-        literal = model.NewBoolVar(f"unmet_{student}")
-        model.AddBoolOr(honored + [literal])
-        unmet[student] = literal
-    return unmet
+    nonpositive = {}
+    for student, (low, _high) in satisfaction_bounds.items():
+        if low > 0:
+            continue
+        literal = model.NewBoolVar(f"nonpositive_{student}")
+        model.Add(satisfaction[student] <= 0).OnlyEnforceIf(literal)
+        model.Add(satisfaction[student] >= 1).OnlyEnforceIf(literal.Not())
+        nonpositive[student] = literal
+    return nonpositive
 
 
 def _constrain_forbidden_groups(model, in_group, preferences):

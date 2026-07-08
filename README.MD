@@ -81,7 +81,7 @@ Start the app by double-clicking the ALI Express shortcut — a browser window o
 
 ALI Express then solves the problem in three steps:
 
-1. **Ensure every student gets at least one wish.** The solver first finds the *minimal* relaxation of the group-balance constraints under which every student can still fulfil at least one positive preference. This gives a single relaxation budget R\*: as tight as the data allows, no tighter.
+1. **Ensure every student reaches strictly positive satisfaction.** The solver first finds the *minimal* relaxation of the group-balance constraints under which as many students as possible end up with satisfaction above zero — a pure-positive student clears this with at least one honored preference, while a student with avoid-preferences clears it only if none of them is violated. This gives a single relaxation budget R\*: as tight as the data allows, no tighter. (See [ADR-0015](docs/adr/0015-relaxatievloer-strikt-positieve-tevredenheid.md).)
 
 2. **Set the group balance within that budget.** With R\* fixed, the solver distributes the allowed flexibility across all balance dimensions — group size, boy/girl ratio, and clique limits — as evenly as possible. No manual configuration required.
 

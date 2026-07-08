@@ -106,10 +106,11 @@ def solve_within_minimal_relaxation(
     Builds the model via :func:`.modelbuilder.build_soft_problem` and fixes the class
     balance in two lexicographic stages before the main solve:
 
-    1. Minimize the number of students left without any honored positive wish
+    1. Minimize the number of students left at or below zero satisfaction
        (normally 0), then pin that count as an upper bound. A student cannot
-       keep a positive wish if the balance that would give it to them is
-       forbidden, so this stage finds how much relaxation is unavoidable.
+       reach strictly positive satisfaction if the balance that would give
+       them one is forbidden, so this stage finds how much relaxation is
+       unavoidable.
     2. With that count pinned, minimize the weighted balance relaxation, then
        pin the resulting minimum too. Whole-group limits weigh less than
        per-year ones (:data:`~._balance_families.SLACK_WEIGHTS`), and a
@@ -160,7 +161,9 @@ def solve_within_minimal_relaxation(
 
     try:
         solver = strategies.solve_stage(
-            model, "unmet wishes", minimize=sum(problem.unmet.values())
+            model,
+            "non-positive satisfaction",
+            minimize=sum(problem.nonpositive.values()),
         )
     except errors.StageInfeasible as exc:
         raise errors.FeasibilityError(
@@ -175,8 +178,8 @@ def solve_within_minimal_relaxation(
             },
             technical_message="Hard preference constraints are mutually infeasible",
         ) from exc
-    unmet_optimum = round(solver.ObjectiveValue())
-    model.Add(sum(problem.unmet.values()) <= unmet_optimum)
+    nonpositive_optimum = round(solver.ObjectiveValue())
+    model.Add(sum(problem.nonpositive.values()) <= nonpositive_optimum)
 
     max_slack = model.NewIntVar(0, max_slack_bound(students, groups_to), "max_slack")
     model.AddMaxEquality(max_slack, list(problem.slacks.values()))
