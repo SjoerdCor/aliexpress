@@ -27,7 +27,6 @@ from flask_login import login_required
 from ... import sociogram
 from ...data import candidatedetermination, datareader, input_writer
 from ...data.form_parsers import parse_groups_to_form
-from ...data.preferences_data import PreferenceData
 from ...data.preferences_form import (
     Preference,
     PreferenceKind,
@@ -46,6 +45,15 @@ from ...main import distribute_students_from_data
 from ..extensions import db
 from ..flashing import warn_and_flash
 from ..models import LogLine, Process, Run
+from ..process_files import (
+    has_preferences_excel,
+    load_pref_form_state,
+    load_student_names,
+    load_voorkeuren,
+    save_pref_form_state,
+    save_preferences_excel,
+    save_voorkeuren,
+)
 from ..storage import get_file_path, get_process_path
 from ..validation_messages import to_validation_message
 from .auth import effective_school_id
@@ -55,24 +63,6 @@ from .roster import load_roster, sorted_for_display
 logger = logging.getLogger(__name__)
 
 wizard_bp = Blueprint("wizard", __name__)
-
-
-def _write_voorkeuren_json(
-    path: str, preference_data: PreferenceData, source: str
-) -> None:
-    """Persist a PreferenceData as voorkeuren.json, tagged with its input source."""
-    payload = json.loads(preference_data.to_json())
-    payload["source"] = source
-    with open(path, "w", encoding="utf-8") as fh:
-        json.dump(payload, fh, ensure_ascii=False)
-
-
-def _read_voorkeuren_json(path: str) -> tuple[PreferenceData, str]:
-    """Load a PreferenceData and its source tag from voorkeuren.json."""
-    with open(path, encoding="utf-8") as fh:
-        payload = json.load(fh)
-    source = payload.pop("source", "form")
-    return PreferenceData.from_json(json.dumps(payload)), source
 
 
 @dataclass
@@ -158,13 +148,10 @@ def _run_solve_thread(ctx: _ThreadContext, groups_to_path, not_together):
             phase="solve",
         ):
             try:  # pylint: disable=broad-exception-caught
-                voorkeuren_path = get_file_path(
-                    ctx.school_id, ctx.process_name, "voorkeuren.json"
-                )
                 Process.by_name(ctx.school_id, ctx.process_name).run.set_status(
                     "running"
                 )
-                preference_data, _ = _read_voorkeuren_json(voorkeuren_path)
+                preference_data, _ = load_voorkeuren(ctx.school_id, ctx.process_name)
                 target_groups = datareader.read_groups_excel(groups_to_path)
                 result = distribute_students_from_data(
                     preference_data,
@@ -203,10 +190,7 @@ def _create_sociogram_thread(ctx: _ThreadContext):
         ):
             try:  # pylint: disable=broad-exception-caught
                 on_update("Sociogram tekenen...")
-                voorkeuren_path = get_file_path(
-                    ctx.school_id, ctx.process_name, "voorkeuren.json"
-                )
-                preference_data, _ = _read_voorkeuren_json(voorkeuren_path)
+                preference_data, _ = load_voorkeuren(ctx.school_id, ctx.process_name)
                 sg = sociogram.SociogramMaker.from_preference_data(preference_data)
                 fig, g, pos = sg.plot_sociogram()
                 logger.info("Sociogram created")
@@ -321,7 +305,7 @@ def _build_form_state(entries: list[StudentEntry], participants: list[dict]) -> 
     return {"students": state_students}
 
 
-def _write_pref_form_state(form, participants, state_path):
+def _write_pref_form_state(school_id, process_id, form, participants):
     """Parse the form and persist the intermediate draft (``preferences_form_state.json``).
 
     Returns the parsed ``StudentEntry`` list. Does not validate — it captures whatever is on
@@ -330,14 +314,13 @@ def _write_pref_form_state(form, participants, state_path):
     """
     entries = [_parse_student_entry(c, form) for c in participants]
     state = _build_form_state(entries, participants)
-    with open(state_path, "w", encoding="utf-8") as fh:
-        json.dump(state, fh, ensure_ascii=False)
+    save_pref_form_state(school_id, process_id, state)
     return entries
 
 
-def _pref_form_post_data(form, participants, all_groups_to, state_path):
+def _pref_form_post_data(school_id, process_id, form, participants, all_groups_to):
     """Parse + save the draft, then validate and return the resulting PreferenceData."""
-    entries = _write_pref_form_state(form, participants, state_path)
+    entries = _write_pref_form_state(school_id, process_id, form, participants)
     return build_preference_data(entries, all_groups_to)
 
 
@@ -369,14 +352,6 @@ def _reconcile_dangling(draft_state, participants, group_labels):
     return notices
 
 
-def _load_pref_form_state(state_path):
-    """Load saved form state dict, or None when none exists."""
-    if not os.path.exists(state_path):
-        return None
-    with open(state_path, encoding="utf-8") as fh:
-        return json.load(fh)
-
-
 def _not_together_get_context(school_id, process_id):
     """Return (existing_rules, prev_url) for a GET to /not_together."""
     nt_path = get_file_path(school_id, process_id, "not_together.json")
@@ -397,22 +372,6 @@ def _not_together_get_context(school_id, process_id):
         else url_for("wizard.preferences_form")
     )
     return existing_rules, prev_url
-
-
-def _load_student_names(groups_to, voorkeuren_path, preferences_path) -> list[str]:
-    """Return sorted display names of students to populate the not-together dropdown.
-
-    Prefers ``voorkeuren.json`` (canonical, written by both input paths); falls back to
-    reading the raw Excel for processes created before ``voorkeuren.json`` was introduced.
-    """
-    if os.path.exists(voorkeuren_path):
-        preference_data, _ = _read_voorkeuren_json(voorkeuren_path)
-        names = sorted(preference_data.student_display.values())
-    else:
-        processor = datareader.VoorkeurenProcessor(preferences_path)
-        processor.process(all_to_groups=list(groups_to.keys()))
-        names = sorted(processor.student_display.values())
-    return names
 
 
 def _load_groups_to(school_id, process_id) -> dict:
@@ -845,9 +804,7 @@ def preferences_excel():
     if request.method == "GET":
         return render_template(
             "preferences_excel.html",
-            preferences_uploaded=os.path.exists(
-                get_file_path(school_id, process_id, "preferences.xlsx")
-            ),
+            preferences_uploaded=has_preferences_excel(school_id, process_id),
         )
 
     if not participants:
@@ -890,7 +847,7 @@ def upload_preferences():
     process_id = session["process_id"]
     upload = request.files.get("preferences")
     if not (upload and upload.filename):
-        if os.path.exists(get_file_path(school_id, process_id, "preferences.xlsx")):
+        if has_preferences_excel(school_id, process_id):
             logger.info(
                 "No new preferences upload for process %s; continuing with stored file",
                 process_id,
@@ -911,15 +868,11 @@ def upload_preferences():
         # Save the raw upload directly so re-reading later preserves names as entered.
         # VoorkeurenProcessor normalises names to matching keys at read time anyway,
         # and storing the original ensures student_display maps correctly to display names.
-        preferences_path = get_file_path(school_id, process_id, "preferences.xlsx")
-        with open(preferences_path, "wb") as fh:
-            fh.write(raw)
+        save_preferences_excel(school_id, process_id, raw)
         # Persist as voorkeuren.json so the solver and sociogram can load from a single
         # canonical format regardless of input path (Excel or web form).
-        _write_voorkeuren_json(
-            get_file_path(school_id, process_id, "voorkeuren.json"),
-            processor.to_preference_data(),
-            source="excel",
+        save_voorkeuren(
+            school_id, process_id, processor.to_preference_data(), source="excel"
         )
         logger.info(
             "Preferences accepted for process %s: %d students",
@@ -945,7 +898,7 @@ def _apply_draft_preferences(
     return list(_reconcile_dangling(draft_state, participants, group_labels))
 
 
-def _handle_pref_form_post(participants, all_groups_to, state_path, voorkeuren_path):
+def _handle_pref_form_post(school_id, process_id, participants, all_groups_to):
     """Process a POST to /preferences_form and return the response to send.
 
     Two actions: ``autosave`` saves only the draft (best effort, no validation — used by the
@@ -956,17 +909,17 @@ def _handle_pref_form_post(participants, all_groups_to, state_path, voorkeuren_p
     if request.form.get("action") == "autosave":
         # Best-effort background save of the draft only (never voorkeuren.json, never
         # validated): a reload then restores the work via the normal GET prefill.
-        _write_pref_form_state(request.form, participants, state_path)
+        _write_pref_form_state(school_id, process_id, request.form, participants)
         return ("", 204)
     try:
         preference_data = _pref_form_post_data(
-            request.form, participants, all_groups_to, state_path
+            school_id, process_id, request.form, participants, all_groups_to
         )
     except (pa.errors.SchemaError, ValidationError, ValueError) as exc:
         # The form is novalidate + JS-best-effort, so the server must catch bad input.
         _flash_upload_error(exc)
         return redirect(url_for("wizard.preferences_form"))
-    _write_voorkeuren_json(voorkeuren_path, preference_data, source="form")
+    save_voorkeuren(school_id, process_id, preference_data, source="form")
     logger.info("Preferences form accepted: %d participants", len(participants))
     return redirect(url_for("wizard.not_together_page"))
 
@@ -981,7 +934,6 @@ def preferences_form():
         return redirect(url_for("admin.dashboard"))
     process_id = session["process_id"]
 
-    state_path = get_file_path(school_id, process_id, "preferences_form_state.json")
     saved_roster = load_roster(get_file_path(school_id, process_id, "roster.json"))
     if saved_roster is None:
         # The population must be settled first; send the teacher to "Wie gaat mee".
@@ -999,15 +951,12 @@ def preferences_form():
 
     if request.method == "POST":
         return _handle_pref_form_post(
-            participants,
-            all_groups_to,
-            state_path,
-            get_file_path(school_id, process_id, "voorkeuren.json"),
+            school_id, process_id, participants, all_groups_to
         )
 
     # GET — load saved preferences for prefill, dropping any that now dangle because their
     # target was removed from the roster, with a friendly notice about what was removed.
-    draft_state = _load_pref_form_state(state_path)
+    draft_state = load_pref_form_state(school_id, process_id)
     display_candidates = sorted_for_display(participants)
     for notice in _apply_draft_preferences(
         draft_state, participants, display_candidates, all_groups_to, group_display
@@ -1046,11 +995,7 @@ def not_together_page():
 
     try:
         groups_to, _ = datareader.read_groups_excel(groups_to_path)
-        students = _load_student_names(
-            groups_to,
-            get_file_path(school_id, process_id, "voorkeuren.json"),
-            get_file_path(school_id, process_id, "preferences.xlsx"),
-        )
+        students = load_student_names(school_id, process_id, groups_to)
     except Exception as exc:  # pylint: disable=broad-exception-caught
         _flash_upload_error(exc)
         return redirect(url_for("wizard.preferences_excel"))
