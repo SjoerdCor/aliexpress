@@ -68,6 +68,47 @@ def get_satisfaction_percentage(honored_weight: float, max_weight: float) -> flo
     return honored_weight / max_weight
 
 
+def _normalize_and_bound(weighted: float, best: float, worst: float) -> float:
+    """Normalize a student's weighted honored sum to a satisfaction score.
+
+    Parameters
+    ----------
+    weighted:
+        The student's weighted honored sum: an honored positive wish contributes its
+        weight, a violated negative (avoid) wish contributes its (negative) weight, and
+        anything else contributes 0.
+    best:
+        Sum of the student's positive weights — the maximum achievable ``weighted``.
+    worst:
+        Sum of the student's negative weights — the minimum achievable ``weighted``
+        (always ``<= 0``).
+
+    Returns
+    -------
+        A satisfaction score:
+
+        - If the student has any positive wishes (``best > 0``, including students with
+          both positive and negative wishes), the score is
+          ``get_satisfaction_integral(0, weighted) / get_satisfaction_integral(0, best)``
+          — unchanged from the original behavior. This branch is not bounded below at -1:
+          a mixed student whose avoid-wishes are violated can score well under -100%.
+        - Otherwise, if the student only has avoid-wishes and at least one is violated
+          (``worst < 0`` and ``weighted != 0``), the score is normalized by
+          ``abs(get_satisfaction_integral(0, worst))`` instead: a single violated
+          avoid-wish always scores -1.0 regardless of its weight, and further violations
+          saturate towards -1.0 rather than diverging.
+        - Otherwise (nothing was violated, or the student had no wishes at all), the
+          score is the baseline 1.0. This also captures the "jump" from 0 to +1.0 when a
+          student with only avoid-wishes is kept away from everyone they wanted to avoid.
+    """
+    raw = get_satisfaction_integral(0, weighted)
+    if best > 0:
+        return raw / get_satisfaction_integral(0, best)
+    if worst < 0 and weighted != 0:
+        return raw / abs(get_satisfaction_integral(0, worst))
+    return 1.0
+
+
 # ---------------------------------------------------------------------------
 # 2. The achievable range (specific to the integral metric)
 # ---------------------------------------------------------------------------

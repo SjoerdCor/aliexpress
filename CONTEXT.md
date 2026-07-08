@@ -57,7 +57,7 @@ Een harde eis vanuit de school/leerkracht dat hoogstens een bepaald aantal van e
 _Avoid_: harde voorkeur, blacklist
 
 **Tevredenheid**:
-De mate waarin de voorkeuren van een leerling in de verdeling zijn ingewilligd, op een verzadigende schaal (iedereen krijgt voorkeur 1 voor wie dan ook voorkeur 2 krijgt). Een leerling zonder voorkeuren geldt als volledig tevreden. De optimalisatie maximaliseert de tevredenheid lexicografisch over de minst tevreden leerlingen.
+De mate waarin de voorkeuren van een leerling in de verdeling zijn ingewilligd, op een verzadigende schaal (iedereen krijgt voorkeur 1 voor wie dan ook voorkeur 2 krijgt). Positieve voorkeuren ("graag met") lopen van 0% (geen enkele ingewilligd) tot 100% (alle ingewilligd); een leerling zonder voorkeuren geldt als volledig tevreden (100%). Een geschonden vermij-voorkeur ("liever niet met") is echter erger dan een misgelopen graag-met-voorkeur: ze maakt een leerling actief ontevreden en drukt de tevredenheid onder 0%. Een leerling met uitsluitend vermij-voorkeuren is 100% tevreden zolang hij van iedereen wordt weggehouden, maar zakt bij de eerste schending onder 0% — tot −100% als alle vermij-voorkeuren geschonden zijn. De optimalisatie maximaliseert de tevredenheid lexicografisch over de minst tevreden leerlingen, en tilt zo een leerling met een geschonden vermij-voorkeur (negatief) vóór een leerling die enkel een graag-met-voorkeur misloopt (0%).
 _Avoid_: score, geluk
 
 **Extra zekerheid**:

@@ -114,7 +114,7 @@ The year layer comes from the EDEXML export for both redistribute modes.
 ### Student preferences
 
 - **Positive wishes** ("Graag met") — who a student wants to be with
-- **Negative wishes** ("Liever niet met") — who a student wants to avoid
+- **Negative wishes** ("Liever niet met") — who a student wants to avoid. Being kept away from everyone counts as full satisfaction (+100%); a violated avoid-wish drops the student into negative satisfaction, so 0% is not the floor.
 - **Forbidden groups** ("Niet in") — groups a student cannot join (e.g. a sibling is already placed there)
 - **Preference weights** — not all wishes carry equal importance; weighted preferences are supported
 - **Minimum satisfaction** — a per-student guarantee that a student reaches at least a specified satisfaction level
