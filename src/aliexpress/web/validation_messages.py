@@ -131,7 +131,7 @@ def readableerror_to_validation_message(exc: Exception) -> str:
             "Maak elke nieuwe leerling af: vul voornaam, achternaam én geslacht in."
         ),
         "duplicate_new_student": (
-            'Er bestaat al een leerling "{naam}". Geef een onderscheidende naam.'
+            'Er bestaat al een leerling "{name}". Geef een onderscheidende naam.'
         ),
         "missing_jaargroep_new_student": (
             "Geef bij elke nieuwe leerling ook de jaargroep aan."

@@ -29,6 +29,7 @@ from ...data.form_parsers import (
 )
 from ...data.preferences_form import build_preference_data
 from ...errors import DuplicateNameError, ValidationError
+from ..display import sorted_for_display
 from ..flashing import warn_and_flash
 from ..models import Process, Run
 from ..process_files import (
@@ -61,7 +62,6 @@ from ..tasks import ThreadContext, create_sociogram_thread, run_solve_thread
 from ..validation_messages import to_validation_message
 from .auth import effective_school_id
 from .processes import get_process_mode, is_redistribute_mode, require_process
-from .roster import sorted_for_display
 
 logger = logging.getLogger(__name__)
 

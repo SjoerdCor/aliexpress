@@ -6,6 +6,7 @@ without a running Flask app.
 """
 
 from dataclasses import dataclass
+from itertools import zip_longest
 
 from ..errors import ValidationError
 from . import datareader
@@ -236,3 +237,94 @@ def parse_not_together_form(form, n_rules):
         if cleaned:
             rules.append({"group": set(cleaned), "Max_aantal_samen": max_samen})
     return rules
+
+
+def build_new_candidates(
+    form, groups_from: list, default_jaargroep: int | None = None
+) -> list[dict]:
+    """Build candidate dicts for incoming students added via the form.
+
+    Expects parallel lists ``new_key[]``, ``new_voornaam[]``, ``new_achternaam[]``,
+    ``new_geslacht[]`` and optionally ``new_groep[]``, ``new_jaargroep[]``. Incomplete rows
+    are skipped. A row's own ``new_jaargroep[]`` wins; otherwise ``default_jaargroep`` is
+    used (the process's single shared jaargroep in doorzetten mode). No ``"jaargroep"`` key
+    is added when neither is available, matching the Excel input path's None-cohort.
+    """
+    fallback = groups_from[0] if groups_from else ""
+    candidates = []
+    for key, vn, an, geslacht, groep, jaargroep in zip_longest(
+        form.getlist("new_key[]"),
+        form.getlist("new_voornaam[]"),
+        form.getlist("new_achternaam[]"),
+        form.getlist("new_geslacht[]"),
+        form.getlist("new_groep[]"),
+        form.getlist("new_jaargroep[]"),
+        fillvalue="",
+    ):
+        vn, an = vn.strip(), an.strip()
+        if vn and an and geslacht and key:
+            candidate = {
+                "key": key,
+                "roepnaam": vn,
+                "achternaam": an,
+                "geslacht": geslacht,
+                "groepsnaam": groep or fallback,
+            }
+            resolved_jaargroep = (
+                int(jaargroep) if jaargroep.strip() else default_jaargroep
+            )
+            if resolved_jaargroep is not None:
+                candidate["jaargroep"] = resolved_jaargroep
+            candidates.append(candidate)
+    return candidates
+
+
+def validate_new_students(form, orig_candidates, mode: str) -> None:
+    """Validate hand-added new students; raise ValidationError on the first problem.
+
+    The form is best-effort client-side, so the server is the safety net: a row that was
+    started but left incomplete, or whose name clashes (compared on matching keys, so
+    spelling/case differences still collide) with an existing leerling or another new
+    student, is rejected. Entirely empty rows are ignored. In herindelen mode (``mode ==
+    "redistribute"``), candidates span several jaargroepen, so a new student must say which
+    one explicitly; in doorzetten mode they all share one, so it can be assumed instead
+    (see ``build_new_candidates``'s ``default_jaargroep``).
+    """
+    existing = {
+        datareader.matching_key(f"{c['roepnaam']} {c['achternaam']}")
+        for c in orig_candidates
+    }
+    seen = set()
+    for vn, an, geslacht, jaargroep in zip_longest(
+        form.getlist("new_voornaam[]"),
+        form.getlist("new_achternaam[]"),
+        form.getlist("new_geslacht[]"),
+        form.getlist("new_jaargroep[]"),
+        fillvalue="",
+    ):
+        vn, an = vn.strip(), an.strip()
+        if not (vn or an or geslacht):
+            continue  # untouched row
+        if not (vn and an and geslacht):
+            raise ValidationError(code="incomplete_new_student")
+        if mode == "redistribute" and not jaargroep.strip():
+            raise ValidationError(code="missing_jaargroep_new_student")
+        key = datareader.matching_key(f"{vn} {an}")
+        if key in existing or key in seen:
+            raise ValidationError(
+                code="duplicate_new_student", context={"name": f"{vn} {an}"}
+            )
+        seen.add(key)
+
+
+def build_participants(form, orig_candidates, groups_from, mode: str) -> list[dict]:
+    """Resolve the population: ticked existing candidates plus hand-added new students."""
+    checked_keys = set(form.getlist("gaat_over"))
+    participants = [c for c in orig_candidates if c["key"] in checked_keys]
+    default_jaargroep = (
+        orig_candidates[0].get("jaargroep")
+        if orig_candidates and mode != "redistribute"
+        else None
+    )
+    participants.extend(build_new_candidates(form, groups_from, default_jaargroep))
+    return participants
