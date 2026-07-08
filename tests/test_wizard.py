@@ -12,6 +12,7 @@ import pandas as pd
 from werkzeug.datastructures import MultiDict
 
 import aliexpress.web.routes.wizard as wizard_module
+import aliexpress.web.tasks as tasks_module
 from aliexpress.errors import ValidationError
 from aliexpress.web.extensions import db
 from aliexpress.web.models import LogLine, Process, Run
@@ -579,7 +580,7 @@ class TestStartDistribution:
         """
         monkeypatch.setattr(wizard_module, "Thread", immediate_thread)
         solver = MagicMock(side_effect=exc) if exc else MagicMock(return_value=result)
-        monkeypatch.setattr(wizard_module, "distribute_students_from_data", solver)
+        monkeypatch.setattr(tasks_module, "distribute_students_from_data", solver)
         monkeypatch.setattr(
             wizard_module.datareader,
             "read_groups_excel",
@@ -591,12 +592,12 @@ class TestStartDistribution:
         mock_sociogram_cls.return_value = maker
         mock_sociogram_cls.from_preference_data.return_value = maker
         monkeypatch.setattr(
-            wizard_module.sociogram, "SociogramMaker", mock_sociogram_cls
+            tasks_module.sociogram, "SociogramMaker", mock_sociogram_cls
         )
         fig = MagicMock()
         fig.to_html.return_value = "<div>socio</div>"
         monkeypatch.setattr(
-            wizard_module.sociogram, "networkx_to_plotly", lambda *a, **k: fig
+            tasks_module.sociogram, "networkx_to_plotly", lambda *a, **k: fig
         )
         return solver
 
