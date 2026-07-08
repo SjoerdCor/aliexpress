@@ -49,11 +49,10 @@ def login():
     if current_user.is_authenticated and current_user.is_admin:
         return redirect(url_for("admin.dashboard"))
     if request.method == "POST":
-        username = request.form.get("username", "").strip()
         password = request.form.get("wachtwoord", "")
-        admin = Admin.query.filter_by(username=username).first()
+        admin = Admin.query.first()
         if admin is None or not check_password_hash(admin.password_hash, password):
-            flash("Ongeldige gebruikersnaam of wachtwoord.", "error")
+            flash("Ongeldig wachtwoord.", "error")
             return render_template("admin_login.html")
         session.clear()
         login_user(admin, remember=False)
@@ -88,11 +87,7 @@ def impersonate(schoolcode):
     if school is None:
         abort(404)
     session["impersonating_school"] = schoolcode
-    logger.info(
-        "Admin '%s' started impersonating school '%s'",
-        current_user.username,
-        schoolcode,
-    )
+    logger.info("Admin started impersonating school '%s'", schoolcode)
     return redirect(url_for("processes.index"))
 
 
