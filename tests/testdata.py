@@ -9,11 +9,14 @@ Produces the files a process needs to run the solver and navigate the wizard UI:
   input_method.json   — records that the form path was used
 
 Call ``main(n_groups, n_students, n_rules)`` to write a doorzetten scenario to
-``testdata/``, or ``main_herindelen(...)`` for a herindelen (redistribute) scenario
-(adds ``mode.json``; groups start empty and double as origin groups).
+``testdata/``, ``main_herindelen(...)`` for a herindelen (redistribute) scenario
+(adds ``mode.json``; groups start empty and double as origin groups), or
+``main_redistribute_and_forward(...)`` for a herindelen-met-doorzetten scenario (adds
+``mode.json``; groups start empty but origin groups are distinct from the destination
+groups, as students come from their own lower-grade groups).
 
-CLI: ``uv run python -m tests.testdata SCHOOL PROCES [herindelen]`` creates a ready-made
-process in the running app instance for manual browser testing.
+CLI: ``uv run python -m tests.testdata SCHOOL PROCES [herindelen|herindelen_met_doorzetten]``
+creates a ready-made process in the running app instance for manual browser testing.
 """
 
 import json
@@ -591,6 +594,83 @@ def main_herindelen(
     _write_common_process_files(folder, entries, n_groups, n_rules)
 
 
+def main_redistribute_and_forward(
+    n_groups: int = 3,
+    n_students: int = 35,
+    n_rules: int = 5,
+    folder: str = None,
+    jaargroepen: tuple[int, ...] = (6, 7, 8),
+):
+    """Generate a full set of process files for a redistribute_and_forward
+    ("Herindelen met doorzetten") process.
+
+    Differences from ``main_herindelen()`` (plain herindelen), mirroring
+    ``handle_edexml_upload_redistribute_and_forward``:
+      - ``mode.json`` marks the process as "redistribute_and_forward".
+      - Origin groups do *not* coincide with the destination groups: students sit in their
+        own current groups (letters A, B, C, ... via ``GeneratorScenario``'s default
+        ``groups_from``), while the destination groups are separately named (from
+        ``SAMPLE_GROUP_NAMES``), exactly as they are only settled on a later wizard step.
+      - Otherwise identical to herindelen: students spread over multiple jaargroepen, no
+        achterblijvers, and ``groups.xlsx`` has zero occupancy per destination group.
+
+    Parameters
+    ----------
+    n_groups : int
+        Number of destination groups to redistribute into (2–10).
+    n_students : int
+        Number of students to redistribute (1–39).
+    n_rules : int
+        Number of not-together rules to generate.
+    folder : str or None
+        Output directory; defaults to ``testdata/``.
+    jaargroepen : tuple[int, ...]
+        The jaargroepen students are spread over.
+    """
+    if folder is None:
+        folder = FOLDER
+    os.makedirs(folder, exist_ok=True)
+
+    group_names = SAMPLE_GROUP_NAMES[:n_groups]
+    generator = NativePreferenceGenerator(
+        groups_to=group_names,
+        scenario=GeneratorScenario(
+            allow_min_satisfaction=False,
+            jaargroepen=list(jaargroepen),
+        ),
+    )
+    entries = generator.generate(
+        num_students=n_students,
+        fname=os.path.join(folder, "voorkeuren.json"),
+    )
+
+    # mode.json — marks this process as redistribute_and_forward
+    with open(os.path.join(folder, "mode.json"), "w", encoding="utf-8") as fh:
+        json.dump({"mode": "redistribute_and_forward"}, fh)
+
+    # groups.xlsx — zero occupancy, same format _groups_to_auto_redistribute produces
+    distribution = {g: {"Jongens": 0, "Meisjes": 0} for g in group_names}
+    pd.DataFrame(distribution).transpose().to_excel(
+        os.path.join(folder, "groups.xlsx"), index_label="Groepen"
+    )
+
+    # relevant_students_and_groups.json — mirrors handle_edexml_upload_redistribute_and_forward:
+    # groups_from are the students' actual (distinct) current groups, groups_to are the
+    # separately chosen destination groups.
+    relevant = {
+        "candidates": _generate_candidates(entries),
+        "groups_from": generator.groups_from + ["Anders"],
+        "groups_to": {g: [] for g in group_names},
+        "jaargroepen": sorted(jaargroepen),
+    }
+    with open(
+        os.path.join(folder, "relevant_students_and_groups.json"), "w", encoding="utf-8"
+    ) as fh:
+        json.dump(relevant, fh, ensure_ascii=False)
+
+    _write_common_process_files(folder, entries, n_groups, n_rules)
+
+
 # ---------------------------------------------------------------------------
 # Public: create a process in the running app instance
 # ---------------------------------------------------------------------------
@@ -622,7 +702,8 @@ def setup_test_process(
     size : ScenarioSize
         Passed to ``main()`` / ``main_herindelen()``; see their docstrings.
     mode : str
-        "forward" for a doorzetten process, "redistribute" for herindelen.
+        "forward" for a doorzetten process, "redistribute" for herindelen, or
+        "redistribute_and_forward" for herindelen met doorzetten.
 
     Returns
     -------
@@ -646,7 +727,10 @@ def setup_test_process(
             db.session.commit()
         folder = get_process_path(school_id, process_name)
     os.makedirs(folder, exist_ok=True)
-    generate = main_herindelen if mode == "redistribute" else main
+    generate = {
+        "redistribute": main_herindelen,
+        "redistribute_and_forward": main_redistribute_and_forward,
+    }.get(mode, main)
     generate(
         n_groups=size.n_groups,
         n_students=size.n_students,
@@ -702,11 +786,20 @@ def {function_name}():
     return code
 
 
+def _mode_from_cli_args(args: list[str]) -> str:
+    """Map trailing CLI args to a process mode."""
+    if "herindelen_met_doorzetten" in args:
+        return "redistribute_and_forward"
+    if "herindelen" in args:
+        return "redistribute"
+    return "forward"
+
+
 def _run_cli(argv: list[str]) -> None:
-    """Handle ``python -m tests.testdata SCHOOL PROCES [herindelen]``."""
+    """Handle ``python -m tests.testdata SCHOOL PROCES [herindelen|herindelen_met_doorzetten]``."""
     if len(argv) >= 3:
         school, process = argv[1], argv[2]
-        mode = "redistribute" if "herindelen" in argv[3:] else "forward"
+        mode = _mode_from_cli_args(argv[3:])
         path = setup_test_process(school, process, mode=mode)
         print(f"Testproces aangemaakt ({mode}): {path}")
     else:
