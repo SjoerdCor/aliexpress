@@ -6,7 +6,7 @@ from pathlib import Path
 from aliexpress.data import datareader
 from aliexpress.web.extensions import db as flask_db
 from aliexpress.web.models import Process
-from aliexpress.web.routes.wizard import _write_voorkeuren_json
+from aliexpress.web.process_files import save_voorkeuren
 from app import app as flask_app
 
 _INTEGRATION = Path(__file__).parent / "integration"
@@ -25,13 +25,10 @@ def test_no_student_names_logged_on_not_together_get(
     groups_to, _ = datareader.read_groups_excel(str(proc_dir / "groups.xlsx"))
     processor = datareader.VoorkeurenProcessor(_INTEGRATION / "voorkeuren_small.xlsx")
     processor.process(all_to_groups=list(groups_to.keys()))
-    _write_voorkeuren_json(
-        str(proc_dir / "voorkeuren.json"),
-        processor.to_preference_data(),
-        source="excel",
-    )
-
     with flask_app.app_context():
+        save_voorkeuren(
+            "test-school", "pii-test", processor.to_preference_data(), source="excel"
+        )
         flask_db.session.add(Process(school_id="test-school", name="pii-test"))
         flask_db.session.commit()
 

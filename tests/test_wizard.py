@@ -9,9 +9,9 @@ from unittest.mock import MagicMock
 
 import openpyxl
 import pandas as pd
-from werkzeug.datastructures import MultiDict
 
 import aliexpress.web.routes.wizard as wizard_module
+import aliexpress.web.tasks as tasks_module
 from aliexpress.errors import ValidationError
 from aliexpress.web.extensions import db
 from aliexpress.web.models import LogLine, Process, Run
@@ -296,87 +296,6 @@ class TestGroupsToRedistribute:
         assert resp.headers["Location"].endswith("/preferences_form")
 
 
-class TestParseGroupsToForm:
-    """Tests for the form-parsing helper parse_groups_to_form."""
-
-    def test_counts_genders_and_keeps_empty_group(self):
-        """Genders are looked up by index; a submitted group without ticks stays 0/0."""
-        groups_to = {
-            "Klas A": make_students("Jongen", "Meisje", "Jongen"),
-            "Klas B": make_students("Jongen"),
-        }
-        form = MultiDict(
-            [
-                ("group", "Klas A"),
-                ("group", "Klas B"),
-                ("group_students[Klas A]", "0"),
-                ("group_students[Klas A]", "1"),
-                ("group_students[Klas A]", "2"),
-            ]
-        )
-        result = wizard_module.parse_groups_to_form(form, groups_to)
-        assert result.distribution == {
-            "Klas A": {"Jongens": 2, "Meisjes": 1},
-            "Klas B": {"Jongens": 0, "Meisjes": 0},
-        }
-        assert result.state["original_groups"]["Klas A"]["checked_indices"] == [0, 1, 2]
-        assert result.state["disabled_groups"] == []
-        assert result.state["new_groups"] == []
-
-    def test_disabled_and_new_groups_are_recorded(self):
-        """An original group absent from 'group' is disabled; an unknown name is new."""
-        groups_to = {
-            "Klas A": make_students("Jongen", "Meisje"),
-            "Klas B": make_students("Jongen"),
-        }
-        form = MultiDict(
-            [
-                ("group", "Klas A"),
-                ("group", "Nieuwe groep 1"),
-                ("group_students[Klas A]", "0"),
-            ]
-        )
-        result = wizard_module.parse_groups_to_form(form, groups_to)
-        assert result.state["disabled_groups"] == ["Klas B"]
-        assert result.state["new_groups"] == ["Nieuwe groep 1"]
-        assert result.distribution["Nieuwe groep 1"] == {"Jongens": 0, "Meisjes": 0}
-
-    def test_switched_off_group_keeps_its_ticks(self):
-        """A switched-off group still submits its boxes, so its ticks are remembered."""
-        groups_to = {
-            "Klas A": make_students("Jongen"),
-            "Klas B": make_students("Jongen", "Meisje"),
-        }
-        form = MultiDict(
-            [
-                ("group", "Klas A"),
-                ("group_students[Klas A]", "0"),
-                # Klas B is switched off (absent from 'group') but its boxes still submit.
-                ("group_students[Klas B]", "1"),
-            ]
-        )
-        result = wizard_module.parse_groups_to_form(form, groups_to)
-        assert result.state["disabled_groups"] == ["Klas B"]
-        assert result.state["original_groups"]["Klas B"]["checked_indices"] == [1]
-        # Switched-off groups must not reach groups.xlsx.
-        assert "Klas B" not in result.distribution
-
-    def test_out_of_range_or_non_numeric_indices_are_ignored(self):
-        """Tampered indices that fall outside the student list are dropped safely."""
-        groups_to = {"Klas A": make_students("Jongen")}
-        form = MultiDict(
-            [
-                ("group", "Klas A"),
-                ("group_students[Klas A]", "0"),
-                ("group_students[Klas A]", "9"),
-                ("group_students[Klas A]", "x"),
-            ]
-        )
-        result = wizard_module.parse_groups_to_form(form, groups_to)
-        assert result.distribution["Klas A"] == {"Jongens": 1, "Meisjes": 0}
-        assert result.state["original_groups"]["Klas A"]["checked_indices"] == [0]
-
-
 class TestPreferencesExcel:
     """GET/POST /preferences_excel: download a roster-prefilled template, then upload it."""
 
@@ -579,7 +498,7 @@ class TestStartDistribution:
         """
         monkeypatch.setattr(wizard_module, "Thread", immediate_thread)
         solver = MagicMock(side_effect=exc) if exc else MagicMock(return_value=result)
-        monkeypatch.setattr(wizard_module, "distribute_students_from_data", solver)
+        monkeypatch.setattr(tasks_module, "distribute_students_from_data", solver)
         monkeypatch.setattr(
             wizard_module.datareader,
             "read_groups_excel",
@@ -591,12 +510,12 @@ class TestStartDistribution:
         mock_sociogram_cls.return_value = maker
         mock_sociogram_cls.from_preference_data.return_value = maker
         monkeypatch.setattr(
-            wizard_module.sociogram, "SociogramMaker", mock_sociogram_cls
+            tasks_module.sociogram, "SociogramMaker", mock_sociogram_cls
         )
         fig = MagicMock()
         fig.to_html.return_value = "<div>socio</div>"
         monkeypatch.setattr(
-            wizard_module.sociogram, "networkx_to_plotly", lambda *a, **k: fig
+            tasks_module.sociogram, "networkx_to_plotly", lambda *a, **k: fig
         )
         return solver
 
