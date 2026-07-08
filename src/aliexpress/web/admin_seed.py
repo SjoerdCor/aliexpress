@@ -43,11 +43,7 @@ def seed_admin_from_env(flask_app):
     password = flask_app.config["ADMIN_PASSWORD"]
     admin = Admin.query.first()
     if admin is None:
-        # note: username is still a required column at this point in the migration;
-        # it is dropped (and this argument removed) in a later commit.
-        admin = Admin(
-            username="beheerder", password_hash=generate_password_hash(password)
-        )
+        admin = Admin(password_hash=generate_password_hash(password))
         db.session.add(admin)
         db.session.commit()
     elif not check_password_hash(admin.password_hash, password):

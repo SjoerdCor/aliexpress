@@ -1,13 +1,12 @@
 """Tests for Flask CLI commands in src/aliexpress/cli.py.
 
-The ``schools`` and ``admins`` command groups manage school accounts and admin
-accounts directly from the command line — operations that bypass the normal HTTP
-layer and act on the database and filesystem without a confirmation from the web
-UI.  Because the commands are destructive (deletes wipe both DB rows and stored
-files) and security-sensitive (admin creation), wrong behaviour here can cause
-permanent data loss or allow weak credentials.  These tests use Flask's
-``test_cli_runner`` to exercise the commands against an isolated in-memory DB and
-a temporary filesystem, so no real data is touched.
+The ``schools`` command group manages school accounts directly from the command
+line — operations that bypass the normal HTTP layer and act on the database and
+filesystem without a confirmation from the web UI.  Because the commands are
+destructive (deletes wipe both DB rows and stored files), wrong behaviour here
+can cause permanent data loss.  These tests use Flask's ``test_cli_runner`` to
+exercise the commands against an isolated in-memory DB and a temporary
+filesystem, so no real data is touched.
 """
 
 # pylint: disable=redefined-outer-name  # standard pytest fixture pattern
@@ -16,7 +15,7 @@ import pytest
 from werkzeug.security import generate_password_hash
 
 from aliexpress.web.extensions import db, limiter
-from aliexpress.web.models import Admin, School
+from aliexpress.web.models import School
 from app import app as flask_app
 
 
@@ -122,54 +121,6 @@ class TestSchoolsAddCommand:
         _create_school(schoolcode="obs-dup")
         result = runner.invoke(
             args=["schools", "add", "obs-dup", "--naam", "Duplicaat School"]
-        )
-
-        assert result.exit_code != 0
-        assert "bestaat al" in result.output
-
-
-class TestAdminsAddCommand:
-    """Guards the ``admins add`` command: weak-password rejection and DB row creation."""
-
-    def test_weak_password_is_rejected_and_no_admin_row_created(self, runner):
-        """A trivially weak password (zxcvbn score < 3) must be rejected with a
-        non-zero exit and a Dutch error message.  No Admin row must be written to the
-        DB: if the row were written before the score check, a buggy implementation
-        could let a weak password slip through and leave a permanent low-security
-        admin account behind."""
-        result = runner.invoke(
-            args=["admins", "add", "newadmin"], input="weakpw\nweakpw\n"
-        )
-
-        assert result.exit_code != 0
-        assert "zwak" in result.output.lower() or "Wachtwoord" in result.output
-        with flask_app.app_context():
-            assert Admin.query.filter_by(username="newadmin").first() is None
-
-    def test_strong_password_creates_admin_row(self, runner):
-        """A strong passphrase (zxcvbn score >= 3) must create an Admin row and exit
-        cleanly.  This is the happy path; without it the command is useless and the
-        application can never have an admin account."""
-        strong = "PaardenBloem!Fiets42Oost"
-        result = runner.invoke(
-            args=["admins", "add", "superadmin"], input=f"{strong}\n{strong}\n"
-        )
-
-        assert result.exit_code == 0, result.output
-        with flask_app.app_context():
-            admin = Admin.query.filter_by(username="superadmin").first()
-            assert admin is not None
-
-    def test_duplicate_username_raises_error(self, runner):
-        """Adding an admin whose username already exists must fail with a non-zero exit
-        and a Dutch 'bestaat al' message.  Without this check a second invocation would
-        silently overwrite the hash of an existing admin account."""
-        strong = "PaardenBloem!Fiets42Oost"
-        runner.invoke(
-            args=["admins", "add", "bestaande"], input=f"{strong}\n{strong}\n"
-        )
-        result = runner.invoke(
-            args=["admins", "add", "bestaande"], input=f"{strong}\n{strong}\n"
         )
 
         assert result.exit_code != 0

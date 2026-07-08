@@ -19,7 +19,6 @@ from aliexpress.logging_config import (
 )
 from aliexpress.web.admin_seed import ensure_admin_password, seed_admin_from_env
 from aliexpress.web.appconfig import DevelopmentConfig, ProductionConfig
-from aliexpress.web.cli import admins as admins_cli
 from aliexpress.web.cli import schools as schools_cli
 from aliexpress.web.extensions import db, limiter, login_manager
 from aliexpress.web.http_errors import register_error_handlers
@@ -117,7 +116,6 @@ def create_app(test_config=None):
     login_manager.user_loader(load_user)
 
     app.cli.add_command(schools_cli, "schools")
-    app.cli.add_command(admins_cli, "admins")
 
     app.register_blueprint(admin_bp)
     app.register_blueprint(auth_bp)
