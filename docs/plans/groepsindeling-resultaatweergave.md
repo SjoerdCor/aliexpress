@@ -1,13 +1,13 @@
 # Plan: nieuwe Groepsindeling-resultaatweergave (kaarten + chips + klassenoverzicht)
 
-**Status:** concept, ter goedkeuring. Geschreven als zelfstandige hand-off naar een verse
-implementatiesessie. Start een nieuwe branch vanaf `master` (bijv.
-`feature/groepsindeling-weergave`), niet direct op master.
+**Status:** goedgekeurd; in uitvoering op branch `feature/groepsindeling-weergave` (vanaf `master`).
+Stap 0 is afgerond (uitkomsten hieronder verwerkt). Geschreven als zelfstandige hand-off naar een verse
+implementatiesessie.
 
 **Leesvolgorde voor de verse sessie:** dit plan + `CLAUDE.md` + [ADR-0016](../adr/0016-groepsindeling-gestructureerde-viewmodel.md).
 Het uiterlijke ontwerp staat als open-baar-in-de-browser referentie naast dit plan:
 [`groepsindeling-resultaatweergave-poc.html`](./groepsindeling-resultaatweergave-poc.html) — open
-dat bestand in een browser; dat ís het doelontwerp (op twee kleine deltas na, zie §Ontwerp).
+dat bestand in een browser; dat ís het doelontwerp (op drie kleine deltas na, zie §Ontwerp).
 
 ## Waarom
 
@@ -43,8 +43,12 @@ Open de POC-referentie voor het beeld. In woorden:
     - Zonder bezetting (Herindelen): `Jongens (5)`.
     - Met bezetting (Doorzetten): `Jongens: 8 nieuw`. "nieuw" = de
       chips (bewegende leerlingen),
-  - **Chip:** gebruik de display_name + de oude groep als **3-letterafkorting** (bijv. `Kik`). Geen
-    kleur op de chip in ruststand.
+  - **Chip:** toon de **unieke korte naam** (roepnaam + minimaal aantal achternaam-letters om te
+    differentiëren) + de oude groep als **3-letterafkorting** (bijv. `Kik`). Hergebruik de bestaande
+    `candidatedetermination.unique_display_names(participants)`; die korte naam bestaat alleen in het
+    webpad — bij **Excel/CLI valt de chip terug op de volledige naam** (er is dan geen losse
+    roepnaam/achternaam). Geen kleur op de chip in ruststand. De **popover toont altijd de volledige
+    naam**.
 - **Klik-popover per chip** (zie §Interactie), met: volledige naam, volledige oude klasnaam +
   jaarlaag, een **tevredenheids-bolletje** (rood→groen schaal, geclampt op [−100%, +100%], `—`
   als de leerling geen voorkeuren heeft), de **wensen** (graag-met/liever-niet als groen ✓ /
@@ -74,11 +78,16 @@ Open de POC-referentie voor het beeld. In woorden:
 - **Tevredenheid**: `student_satisfaction` (0..1 voor puur-positief; kan negatief bij geschonden
   vermij-voorkeuren). Toon als percentage, **geclampt op [−100%, +100%]**. Een leerling **zonder
   voorkeuren** toont `—` (niet "100%"), ook al is die intern 100% tevreden.
-- **Extra zekerheid**: koppel de badge aan de bestaande vormtaal `.badge-zeker--partial` (lichte
-  outline) / `.badge-zeker--full` (goud gevuld) en gebruik de **bestaande UI-teksten uit het
-  voorkeuren-formulier** (niveaus *minstens één voorkeur* / *belangrijkste voorkeur*), **niet** de
-  POC-placeholder "minstens zo tevreden als X%". Bron: `MinimaleTevredenheid` in `students_info`
-  (`NaN` = geen badge). Stap 0 stelt de exacte mapping naar de twee niveaus vast.
+- **Extra zekerheid** (Stap 0 vastgesteld): koppel de badge aan de bestaande vormtaal
+  `.badge-zeker--partial` (lichte outline) / `.badge-zeker--full` (goud gevuld) en gebruik de
+  **letterlijke bestaande formulierteksten**, **niet** de POC-placeholder "minstens zo tevreden als
+  X%". Bron: `MinimaleTevredenheid` in `students_info`. Mapping (geverifieerd in
+  `templates/preferences_form.html:131-136` + `form_parsers.py:129-132`):
+  - `NaN` → **geen badge**.
+  - `0.5` (formulierwaarde `50`) → `--partial`, tekst **"Minstens tevreden"** (badge-titel:
+    *"Extra zekerheid: minstens tevreden"*).
+  - `1.0` (formulierwaarde `100`) → `--full`, tekst **"Alle voorkeuren gehonoreerd"** (badge-titel:
+    *"Extra zekerheid: alle voorkeuren gehonoreerd"*).
 - **Niet-in** is een harde eis en dus altijd gerespecteerd; toon grijs met "gerespecteerd".
 
 ## Datastroom en waar het view-model wordt gebouwd
@@ -101,6 +110,11 @@ Alles wat nodig is, is al aanwezig in `SolutionAnalyzer` (display-space, namen z
 - **Herkomst:** `students_info[student]["Stamgroep"]` (vol) en `[:3]` (afkorting).
 - **Jaarlaag/sekse/zekerheid:** `students_info[student]` (`Jaarlaag`, `Jongen/meisje`,
   `MinimaleTevredenheid`).
+- **Unieke korte naam (chip-label):** een nieuwe display-map `unique_name` (matching-key → korte naam),
+  **parallel aan `student_display`** op `PreferenceData`. Gevuld in het webpad met
+  `candidatedetermination.unique_display_names(participants)`; **leeg bij Excel/CLI** → dan valt de chip
+  terug op de volledige naam. `_export` relabelt 'm mee (net als de andere display-maps) en geeft 'm door
+  aan `SolutionAnalyzer`; de builder leest `unique_name.get(full_name, full_name)` voor het chip-label.
 
 **Plaats van de builder (besloten):** de dataclasses komen in een nieuwe, Flask-vrije module
 `src/aliexpress/solver/groepsindeling_view.py`; de **builder is een methode op `SolutionAnalyzer`**,
@@ -126,7 +140,7 @@ Voorgesteld dataclass-skelet (platte waarden, `dataclasses.asdict`-baar):
 class Preference:              kind: str; target: str; fulfilled: bool      # kind: "graag_met"|"liever_niet_met"
 @dataclass(frozen=True)
 class StudentChip:
-    first_name: str; full_name: str; origin_abbrev: str; origin_full: str
+    chip_name: str; full_name: str; origin_abbrev: str; origin_full: str   # chip_name = unique_name of val terug op full_name
     year_group: int | None; satisfaction: float | None               # None -> toon "—"
     preferences: list[Preference]; not_in: list[str]; min_satisfaction: str | None      # None|"partial"|"full"
 @dataclass(frozen=True)
@@ -157,41 +171,52 @@ class GroepsindelingView: group_order: list[str]; groups: list[GroupCard]; balan
 
 ## Stappen (TDD, één commit per stap)
 
-**Stap 0 — empirische verificatie (geen productiecode).** Stel vast en noteer in de PR-tekst:
-1. **Voornaam vs. volledige naam:** hoe is de leerlingnaam ingevoerd/opgeslagen, en hoe leid je de
-   voornaam voor de chip af (eerste token?) versus de volledige naam voor de popover? Controleer
-   `preferences_form.StudentEntry` / de roster-invoer en de display-namen.
-2. **"Geen voorkeuren" → `—`:** hoe detecteer je dat een leerling geen (positieve) voorkeuren heeft
-   (bijv. geen `Graag met`-rijen / alle `weights ≤ 0`), zodat je `satisfaction=None` zet i.p.v. 100%.
-   Let op: geen voorkeuren = `—`. Bij geen negatieve voorkeuren moet wel 100% worden getoond.
-3. **Liever-niet & Niet-in vervuld-status:** `result.satisfied` dekt alleen `Graag met`. Leid de
-   vervuld-status van `Liever niet met` en `Niet in` af uit `assignment` (doel in dezelfde groep?
-   voor Niet-in: leerling niet in de uitgesloten groep — altijd waar want harde eis). Bevestig de
-   bron van die rijen (`input_sheet` / `preferences`). Let op: negatieve wensen zijn Liever niet met
-4. **Extra-zekerheid-niveaus:** welke `MinimaleTevredenheid`-waarden horen bij `.badge-zeker--partial`
-   vs `--full`, en wat zijn de exacte bestaande UI-teksten? Zoek in het voorkeuren-formulier
-   (`templates/preferences_form.html` / `preferences_form.py`) en hergebruik die.
-5. **Bezetting alleen bij Doorzetten:** bevestig dat `occupancy > 0` samenvalt met één jaarlaag
-   (Doorzetten) en dat Herindelen bezetting 0 heeft — de kolomkop-regel "nieuw + zittend" geldt dan
-   alleen bij één jaarlaag.
-*Succescriterium:* de vijf antwoorden staan in de commit-/PR-tekst; onduidelijkheden zijn opgelost
-vóór stap 1.
+**Stap 0 — empirische verificatie (AFGEROND; geen productiecode).** Uitkomsten, geverifieerd tegen de
+bron:
+1. **Chip-naam:** in display-space bestaat géén los voornaam-veld; de volledige naam is
+   `roepnaam achternaam` (webformulier, `form_parsers.py:121`) of een vrij "Leerling"-veld (Excel). De
+   chip toont daarom de **unieke korte naam** uit `candidatedetermination.unique_display_names`
+   (roepnaam + minimaal aantal achternaam-letters), via de nieuwe `unique_name`-map op `PreferenceData`;
+   **Excel/CLI vallen terug op de volledige naam**. De popover toont altijd de volledige naam.
+2. **"Geen voorkeuren" → `—`:** `satisfaction=None` precies wanneer de leerling niet voorkomt in
+   `get_graag_met(preferences)` (geen positieve én geen negatieve tevredenheid-wens). Een leerling met
+   alléén "Liever niet met" (of alléén "Niet in") staat daar wél/niet in: liever-niet vouwt onder
+   "Graag met" met negatief gewicht → toont `student_satisfaction` (100% als niets geschonden); een
+   pure "Niet in" telt als géén voorkeur → `—`.
+3. **Liever-niet & Niet-in vervuld-status:** afleiden uit `assignment` + `preferences.loc[(s,"Graag
+   met",Nr),"Waarde"]` (doel = groepsleutel in `group_composition` óf klasgenoot in `assignment`).
+   Graag-met vervuld = doel in dezelfde groep; liever-niet vervuld = doel NIET in dezelfde groep;
+   Niet-in (bron: `input_sheet` kolom `("Niet in", k, "Waarde")`) is een harde eis → altijd
+   "gerespecteerd".
+4. **Extra-zekerheid-niveaus:** `NaN`=geen badge, `0.5`→`--partial` ("Minstens tevreden"),
+   `1.0`→`--full` ("Alle voorkeuren gehonoreerd") — zie §Inhoudelijke regels voor de letterlijke teksten.
+5. **Bezetting alleen bij Doorzetten:** bevestigd — beide Herindelen-modi forceren occupancy 0
+   (`candidatedetermination.py:111,136`; `wizard.py:349-358`); alleen Doorzetten heeft bezetting > 0 met
+   precies één `per_year`-jaarlaag (movers). `occupancy_boys = boys_total − Σ per_year.boys`.
 
 **Stap 1 — view-model + builder (unit).** Nieuwe module + rode test (`tests/test_groepsindeling_view.py`):
-bouw uit een handgemaakte `SolutionResult` + `students_info` + `preferences` een `GroepsindelingView`
-en assert: groepskaarten met totalen; jaarlaag-secties met de juiste `size`; `SexColumn` met
-`new_count`/`occupancy_count`/`total_count`; chips met voornaam/volledige naam/herkomst; `satisfaction`
+bouw uit een handgemaakte `SolutionResult` + `students_info` + `preferences` (+ optionele `unique_name`)
+een `GroepsindelingView` en assert: groepskaarten met totalen; jaarlaag-secties met de juiste `size`;
+`SexColumn` met `new_count`/`occupancy_count`/`total_count`; chips met korte naam (unique_name én de
+volledige-naam-fallback bij ontbrekende map)/volledige naam/herkomst; `satisfaction`
 geclampt en `None` bij geen voorkeuren; `wishes` met correcte `fulfilled` (incl. liever-niet/niet-in);
 `zekerheid` partial/full/None; en `balance_rows` met kloppende `size_diff`/`sex_imbalance` en rijvolgorde
 (Totaal, dan jaarlagen numeriek, `None`-jaarlaag als "Jaarlaag" na Totaal). Dek het Doorzetten-geval
 (bezetting > 0, één jaarlaag) én het Herindelen-geval (meerdere jaarlagen, bezetting 0).
 *Succescriterium:* nieuwe test groen; quick suite groen; `uv run pylint` schoon.
 
-**Stap 2 — serialisatie + pijplijn.** `main.py:_export` geeft `view` terug; `tasks.py` schrijft
-`groepsindeling_view.json`; `dataframes` bevat nog slechts de drie analyse-tabellen. Pas de tests aan
-die de `dataframes`-sleutels toetsen (`tests/integration/test_integration_main.py` rond regel 219/364,
-`tests/test_wizard.py` rond de `result_tables.json`-assert) én `tests/browser/test_distribution_browser.py`
-(dat `result_tables.json` verwacht — voeg de `groepsindeling_view.json`-assert toe).
+**Stap 2 — serialisatie + pijplijn (incl. `unique_name`-naad).**
+- **`unique_name`-map:** voeg een veld `unique_name: dict` toe aan `PreferenceData` (parallel aan
+  `student_display`), met round-trip in `to_json`/`from_json`. Vul het in het webpad waar `PreferenceData`
+  uit de roster/voorkeuren wordt gebouwd, via `candidatedetermination.unique_display_names(participants)`;
+  laat het leeg in het Excel-pad. Relabel het mee in `solutions.to_display_names` (net als de andere
+  maps) en geef het door aan `SolutionAnalyzer`.
+- **Pijplijn:** `main.py:_export` bouwt `view = sa.groepsindeling_view()` en geeft het terug; `tasks.py`
+  schrijft `groepsindeling_view.json`; `dataframes` bevat nog slechts de drie analyse-tabellen.
+- **Tests:** pas de tests aan die de `dataframes`-sleutels toetsen
+  (`tests/integration/test_integration_main.py` rond regel 219/364, `tests/test_wizard.py` rond de
+  `result_tables.json`-assert) én `tests/browser/test_distribution_browser.py` (voeg de
+  `groepsindeling_view.json`-assert toe); dek de `PreferenceData`-JSON-round-trip mét `unique_name`.
 *Succescriterium:* quick + `uv run pytest tests/integration` groen; het view-JSON bestaat na een run.
 
 **Stap 3 — template-macro + CSS + JS.** Nieuwe partial `templates/partials/groepsindeling.html` met de
