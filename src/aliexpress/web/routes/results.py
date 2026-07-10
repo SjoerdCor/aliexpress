@@ -102,7 +102,16 @@ def result_page():
         return redirect(url_for("processes.index"))
     with open(path, encoding="utf-8") as fh:
         dataframes = json.load(fh)
-    return render_template("result.html", dataframes=dataframes)
+    view_path = get_file_path(school_id, process_id, "groepsindeling_view.json")
+    groepsindeling_view = None
+    if os.path.exists(view_path):
+        with open(view_path, encoding="utf-8") as fh:
+            groepsindeling_view = json.load(fh)
+    return render_template(
+        "result.html",
+        dataframes=dataframes,
+        groepsindeling_view=groepsindeling_view,
+    )
 
 
 @results_bp.route("/download")

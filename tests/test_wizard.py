@@ -1,6 +1,7 @@
 """Tests for routes/wizard.py (wizard blueprint)."""
 
 # pylint: disable=redefined-outer-name  # standard pytest fixture pattern
+# pylint: disable=too-many-lines  # large route-test suite; splitting it is separate work
 
 import json
 import re
@@ -13,6 +14,7 @@ import pandas as pd
 import aliexpress.web.routes.wizard as wizard_module
 import aliexpress.web.tasks as tasks_module
 from aliexpress.errors import ValidationError
+from aliexpress.solver.groepsindeling_view import GroepsindelingView
 from aliexpress.web.extensions import db
 from aliexpress.web.models import LogLine, Process, Run
 from app import app as flask_app
@@ -536,6 +538,9 @@ class TestStartDistribution:
         result = {
             "download": BytesIO(b"excel-bytes"),
             "dataframes": {"Groepsindeling": pd.DataFrame({"A": [1]})},
+            "groepsindeling_view": GroepsindelingView(
+                group_order=[], groups=[], balance_rows=[]
+            ),
         }
         self._patch_pipeline(monkeypatch, result=result)
 
@@ -545,6 +550,8 @@ class TestStartDistribution:
         assert (proc_dir / "results.xlsx").read_bytes() == b"excel-bytes"
         tables = json.loads((proc_dir / "result_tables.json").read_text("utf-8"))
         assert "Groepsindeling" in tables
+        view = json.loads((proc_dir / "groepsindeling_view.json").read_text("utf-8"))
+        assert view == {"group_order": [], "groups": [], "balance_rows": []}
         assert (proc_dir / "sociogram.html").read_text("utf-8") == "<div>socio</div>"
         assert self._read_run().status == "done"
 
@@ -574,7 +581,13 @@ class TestStartDistribution:
         (proc_dir / "not_together.json").write_text(
             '[{"group": ["Alice", "Bob"], "Max_aantal_samen": 1}]', encoding="utf-8"
         )
-        result = {"download": BytesIO(b"x"), "dataframes": {}}
+        result = {
+            "download": BytesIO(b"x"),
+            "dataframes": {},
+            "groepsindeling_view": GroepsindelingView(
+                group_order=[], groups=[], balance_rows=[]
+            ),
+        }
         solver = self._patch_pipeline(monkeypatch, result=result)
 
         response = client.get("/start_distribution")
@@ -593,6 +606,9 @@ class TestStartDistribution:
         result = {
             "download": BytesIO(b"form-excel"),
             "dataframes": {"Groepsindeling": pd.DataFrame({"A": [1]})},
+            "groepsindeling_view": GroepsindelingView(
+                group_order=[], groups=[], balance_rows=[]
+            ),
         }
         self._patch_pipeline(monkeypatch, result=result)
 
