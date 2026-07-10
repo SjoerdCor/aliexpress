@@ -1,0 +1,141 @@
+{# Groepsindeling view: group cards with name chips + click-popover, a compact
+   klassenoverzicht (counts + balance), and a collapsible legend. Rendered from the
+   structured `GroepsindelingView` (dataclasses -> dict); see
+   docs/plans/groepsindeling-resultaatweergave.md. All selectors are scoped under
+   `.gi` so they never collide with the existing `.chip*`/`.tab*`/`.card*` styles. #}
+
+{# Map a satisfaction fraction in [-1, 1] to a red->green colour (RdYlGn steps). #}
+{% macro _satcolor(sat) -%}
+{%- set p = (sat * 100) | round | int -%}
+{%- if p >= 90 -%}#1a9850
+{%- elif p >= 75 -%}#66bd63
+{%- elif p >= 60 -%}#a6d96a
+{%- elif p >= 50 -%}#fee08b
+{%- elif p >= 40 -%}#fdae61
+{%- elif p >= 20 -%}#f46d43
+{%- else -%}#d73027
+{%- endif -%}
+{%- endmacro %}
+
+{% macro _chip(chip) %}
+<span class="gi-chip" tabindex="0">{{ chip.chip_name }} <span class="gi-from">{{ chip.origin_abbrev }}</span>
+  <span class="gi-pop">
+    <span class="gi-pop-top">
+      <span class="gi-pop-name">{{ chip.full_name }}</span>
+      {% if chip.satisfaction is none %}
+      <span class="gi-satdot gi-satdot--none" title="Geen wensen">—</span>
+      {% else %}
+      {% set pct = (chip.satisfaction * 100) | round | int %}
+      <span class="gi-satdot" style="--c:{{ _satcolor(chip.satisfaction) | trim }}" title="Tevredenheid {{ pct }}%">{{ pct }}%</span>
+      {% endif %}
+    </span>
+    <span class="gi-pop-meta">Uit klas {{ chip.origin_full }}{% if chip.year_group is not none %}, jaarlaag {{ chip.year_group }}{% endif %}</span>
+    {% if chip.preferences or chip.not_in %}
+    <span class="gi-pop-h">Wensen</span>
+    {% for pref in chip.preferences %}
+    <span class="gi-pref {{ 'gi-pref--ok' if pref.fulfilled else 'gi-pref--no' }}"><span class="gi-g">{{ '✓' if pref.fulfilled else '✗' }}</span> {{ 'Graag met' if pref.kind == 'graag_met' else 'Liever niet met' }} {{ pref.target }}</span>
+    {% endfor %}
+    {% for target in chip.not_in %}
+    <span class="gi-pref gi-pref--nietin"><span class="gi-g">⊘</span> Niet in {{ target }} <span class="gi-nietin-note">gerespecteerd</span></span>
+    {% endfor %}
+    {% else %}
+    <span class="gi-none">Geen wensen opgegeven.</span>
+    {% endif %}
+    {% if chip.min_satisfaction == 'partial' %}
+    <span class="gi-badge badge-zeker--partial" title="Extra zekerheid: minstens tevreden">🛡 Minstens tevreden</span>
+    {% elif chip.min_satisfaction == 'full' %}
+    <span class="gi-badge badge-zeker--full" title="Extra zekerheid: alle voorkeuren gehonoreerd">🛡 Alle voorkeuren gehonoreerd</span>
+    {% endif %}
+  </span>
+</span>
+{% endmacro %}
+
+{% macro _sexcol(col, label) %}
+<div class="gi-col">
+  <div class="gi-caption">
+    {% if col.occupancy_count > 0 %}
+    <span class="gi-lbl">{{ label }}</span>: {{ col.new_count }} nieuw + {{ col.occupancy_count }} zittend <b>({{ col.total_count }} totaal)</b>
+    {% else %}
+    <span class="gi-lbl">{{ label }}</span> <b>({{ col.new_count }})</b>
+    {% endif %}
+  </div>
+  <div class="gi-chips-col">
+    {% for chip in col.students %}{{ _chip(chip) }}{% endfor %}
+  </div>
+</div>
+{% endmacro %}
+
+{% macro render(view) %}
+<div class="gi">
+  <div class="gi-cards">
+    {% for card in view.groups %}
+    <div class="gi-card">
+      <div class="gi-card-head">
+        <p class="gi-card-title">{{ card.name }}</p>
+        <p class="gi-card-totals">{{ card.total }} leerlingen · {{ card.boys_total }} jongens · {{ card.girls_total }} meisjes</p>
+      </div>
+      <div class="gi-card-body">
+        {% for section in card.year_sections %}
+        <div class="gi-jl">
+          <div class="gi-jl-label">{{ section.label }} <span class="gi-n">— {{ section.size }} leerlingen</span></div>
+          <div class="gi-jm-cols">
+            {{ _sexcol(section.boys, 'Jongens') }}
+            {{ _sexcol(section.girls, 'Meisjes') }}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="gi-balans">
+    <span class="gi-bal-cap">Klassenoverzicht — aantallen per groep. Rechts de balans: <b>grootteverschil</b> = verschil tussen de grootste en de kleinste groep; <b>onbalans ♂/♀</b> = het grootste verschil tussen jongens en meisjes binnen één groep.</span>
+    <table class="gi-baltable">
+      <thead>
+        <tr>
+          <th></th>
+          {% for group in view.group_order %}<th class="gi-grp">{{ group }}</th>{% endfor %}
+          <th class="gi-sep">Grootteverschil</th>
+          <th>Onbalans ♂/♀</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in view.balance_rows %}
+        <tr class="{{ 'gi-totaal' if row.is_total else 'gi-sub' }}">
+          <th>{{ row.label }}</th>
+          {% for group in view.group_order %}
+          {% set cell = row.per_group[group] %}
+          <td><span class="gi-cnt">{{ cell[0] }}</span><span class="gi-jm">♂{{ cell[1] }} ♀{{ cell[2] }}</span></td>
+          {% endfor %}
+          <td class="gi-vcol gi-sep">{{ row.size_diff }}</td>
+          <td class="gi-vcol">{{ row.sex_imbalance }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <details class="gi-legend-details" open>
+    <summary>Legenda</summary>
+    <div class="gi-legend">
+      <div class="gi-legend-col">
+        <h4>Op de chip</h4>
+        <span class="gi-chip gi-chip--static">Voornaam <span class="gi-from">Kik</span></span>
+        <div class="gi-legend-note">Voornaam + oude groep (3-letterafkorting).</div>
+      </div>
+      <div class="gi-legend-col">
+        <h4>Bij aanklikken van een chip</h4>
+        <span class="gi-pref gi-pref--ok"><span class="gi-g">✓</span> Wens vervuld</span>
+        <span class="gi-pref gi-pref--no"><span class="gi-g">✗</span> Wens niet vervuld</span>
+        <span class="gi-pref gi-pref--nietin"><span class="gi-g">⊘</span> Niet-in (gerespecteerd)</span>
+        <div class="gi-legend-badges">
+          <span class="gi-badge badge-zeker--partial">🛡 Minstens tevreden</span>
+          <span class="gi-badge badge-zeker--full">🛡 Alle voorkeuren gehonoreerd</span>
+        </div>
+        <div class="gi-legend-note"><span class="gi-satdot" style="--c:#1a9850">100%</span> tevredenheid (rood→groen); "—" = geen wensen</div>
+      </div>
+    </div>
+  </details>
+</div>
+{% endmacro %}

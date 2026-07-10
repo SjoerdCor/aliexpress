@@ -1387,3 +1387,93 @@ body.modal-open { overflow: hidden; }
 /* Pupil with nothing set: neutral de-emphasis, never a warning colour. */
 .candidate-row--empty .row-name { color: #9a9a9a; font-weight: 500; }
 .candidate-row .row-placeholder { color: #b0a99f; font-style: italic; font-size: 0.86rem; }
+
+/* ============================================================================
+   Groepsindeling result view: group cards + name chips + click-popover, the
+   klassenoverzicht (counts + balance) and a collapsible legend. All selectors
+   are prefixed `.gi` so they never collide with the existing `.chip*`/`.tab*`/
+   `.card*`/`.pref*` styles above. Colours are literal, matching the brand
+   orange (#e69900 / #ff9933) already used across this file; the extra-zekerheid
+   badges reuse the existing `.badge-zeker--partial`/`--full` colour classes.
+   ============================================================================ */
+
+/* group cards — the main event */
+.gi-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; align-items: start; margin: 18px 0; }
+.gi-card { background: #fff; border: 1px solid #dcdcdc; border-radius: 14px; box-shadow: 0 3px 14px rgba(0, 0, 0, .10); }
+.gi-card-head { padding: 11px 14px; border-bottom: 1px solid #dcdcdc; }
+.gi-card-title { font-size: 17px; font-weight: bold; margin: 0; color: #333; }
+.gi-card-totals { font-size: 12.5px; color: #555; margin: 3px 0 0; }
+.gi-card-body { padding: 11px 13px 14px; display: flex; flex-direction: column; gap: 12px; }
+
+.gi-jm-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.gi-col { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.gi-caption { font-size: 11px; color: #555; }
+.gi-caption b { color: #333; font-variant-numeric: tabular-nums; }
+.gi-lbl { text-transform: uppercase; letter-spacing: .04em; font-weight: bold; color: #333; }
+.gi-chips-col { display: flex; flex-direction: column; gap: 4px; }
+
+.gi-jl { display: flex; flex-direction: column; gap: 8px; }
+.gi-jl + .gi-jl { border-top: 1px dashed #dcdcdc; padding-top: 11px; }
+.gi-jl-label { font-size: 13px; font-weight: bold; color: #e69900; }
+.gi-jl-label .gi-n { color: #555; font-weight: normal; }
+
+.gi-chip { position: relative; display: flex; align-items: baseline; justify-content: space-between; gap: 6px; background: #f7f7f7; border: 1px solid #cccccc; border-radius: 7px; padding: 3px 9px; font-size: 13.5px; color: #333; cursor: pointer; }
+.gi-chip:hover { border-color: #e69900; }
+.gi-chip.is-open { border-color: #e69900; box-shadow: 0 0 0 2px rgba(230, 153, 0, .2); }
+.gi-chip--static { cursor: default; width: 140px; }
+.gi-chip .gi-from { font-size: 10.5px; color: #7d7d7d; flex: none; }
+
+/* click popover, positioned beside the chip */
+.gi-pop { position: absolute; top: 50%; left: calc(100% + 12px); transform: translateY(-50%) scale(.98); transform-origin: left center; width: 250px; background: #fff; border: 1px solid #dcdcdc; border-radius: 12px; box-shadow: 0 8px 26px rgba(0, 0, 0, .22); padding: 12px 13px; z-index: 30; opacity: 0; visibility: hidden; transition: opacity .12s ease, transform .12s ease; text-align: left; cursor: default; }
+.gi-chip.is-open .gi-pop { opacity: 1; visibility: visible; transform: translateY(-50%) scale(1); }
+.gi-pop.gi-pop--left { left: auto; right: calc(100% + 12px); transform-origin: right center; }
+.gi-pop::before { content: ""; position: absolute; top: 50%; left: -6px; width: 11px; height: 11px; background: #fff; border-left: 1px solid #dcdcdc; border-bottom: 1px solid #dcdcdc; transform: translateY(-50%) rotate(45deg); }
+.gi-pop.gi-pop--left::before { left: auto; right: -6px; border-left: none; border-bottom: none; border-right: 1px solid #dcdcdc; border-top: 1px solid #dcdcdc; }
+.gi-pop-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.gi-pop-name { font-size: 15px; font-weight: bold; margin: 0; }
+.gi-satdot { flex: none; font-size: 11.5px; font-weight: bold; color: #fff; background: var(--c, #999); border-radius: 999px; padding: 2px 8px; font-variant-numeric: tabular-nums; }
+.gi-satdot--none { background: #c4c0bb; }
+.gi-pop-meta { display: block; font-size: 12px; color: #555; margin: 2px 0 9px; }
+.gi-pop-h { display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; color: #7d7d7d; margin: 9px 0 5px; }
+.gi-pref { display: flex; align-items: center; gap: 6px; font-size: 12.5px; border-radius: 7px; padding: 3px 7px; margin-bottom: 4px; }
+.gi-pref .gi-g { font-weight: bold; width: 12px; text-align: center; flex: none; }
+.gi-pref--ok { background: #bfe6c4; border: 1px solid #7bbd83; color: #143a1a; }
+.gi-pref--no { background: #f1c4ba; border: 1px solid #cf8a7b; color: #551a11; }
+.gi-pref--nietin { background: #e4e4e4; border: 1px solid #bdbdbd; color: #333; }
+.gi-nietin-note { margin-left: auto; font-size: 11px; opacity: .7; }
+.gi-none { display: block; font-size: 12px; color: #7d7d7d; font-style: italic; margin: 0; }
+
+/* extra-zekerheid badge in the popover: pill shape here (the base `.badge-zeker`
+   is a round icon used in the preferences form); colours reused from
+   `.badge-zeker--partial`/`--full`. */
+.gi-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; border-radius: 999px; padding: 2px 9px; margin-top: 7px; color: #6b4e00; }
+.gi-badge.badge-zeker--full { color: #4d3600; }
+
+/* klassenoverzicht (counts + balance) */
+.gi-balans { display: inline-block; max-width: 100%; overflow-x: auto; background: #fcfaf7; border: 1px solid #dcdcdc; border-radius: 12px; padding: 9px 6px 6px; margin: 18px 0 4px; box-shadow: 0 3px 14px rgba(0, 0, 0, .10); }
+.gi-bal-cap { display: block; text-align: left; font-size: 12px; color: #555; padding: 2px 12px 9px; max-width: 560px; }
+.gi-bal-cap b { color: #333; }
+.gi-baltable { border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.gi-baltable th, .gi-baltable td { padding: 5px 15px; text-align: center; white-space: nowrap; }
+.gi-baltable thead th { font-size: 11px; text-transform: uppercase; letter-spacing: .02em; color: #555; font-weight: bold; }
+.gi-baltable thead th.gi-grp { color: #333; }
+.gi-baltable thead th:first-child, .gi-baltable tbody th { text-align: left; }
+.gi-baltable tbody th { font-weight: bold; color: #333; }
+.gi-baltable tbody tr.gi-sub th { font-weight: normal; color: #555; padding-left: 14px; }
+.gi-baltable tbody tr.gi-totaal td, .gi-baltable tbody tr.gi-totaal th { border-bottom: 1px solid #dcdcdc; }
+.gi-baltable .gi-cnt { font-weight: bold; color: #333; }
+.gi-baltable .gi-jm { color: #7d7d7d; margin-left: 5px; }
+.gi-baltable .gi-vcol { color: #333; font-weight: bold; }
+.gi-baltable .gi-sep { border-left: 1px solid #dcdcdc; }
+
+/* collapsible legend */
+.gi-legend-details { margin-top: 22px; border: 1px solid #dcdcdc; border-radius: 12px; background: #fff; }
+.gi-legend-details > summary { cursor: pointer; padding: 11px 16px; font-weight: bold; color: #333; font-size: 14px; list-style: none; }
+.gi-legend-details > summary::-webkit-details-marker { display: none; }
+.gi-legend-details > summary::before { content: "▸ "; color: #e69900; }
+.gi-legend-details[open] > summary::before { content: "▾ "; }
+.gi-legend { padding: 4px 18px 16px; display: flex; flex-wrap: wrap; gap: 26px; align-items: flex-start; }
+.gi-legend-col { font-size: 13px; max-width: 320px; }
+.gi-legend-col h4 { margin: 0 0 8px; font-size: 12.5px; text-transform: uppercase; letter-spacing: .04em; color: #555; }
+.gi-legend-note { margin-top: 8px; color: #555; font-size: 12.5px; }
+.gi-legend-badges { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
