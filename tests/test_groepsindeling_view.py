@@ -170,13 +170,13 @@ def test_doorzetten_single_year_section_size_is_movers_only():
     assert section.size == 3  # 2 boys + 1 girl movers, not the 5 sitting
 
 
-def test_doorzetten_sex_columns_split_new_and_occupancy():
-    """SexColumn separates movers (new_count) from occupancy, only on the single section."""
+def test_doorzetten_sex_columns_count_movers_only():
+    """SexColumn.new_count counts the movers of that sex (occupancy is not shown here)."""
     section = _doorzetten_analyzer().groepsindeling_view().groups[0].year_sections[0]
-    assert (section.boys.new_count, section.boys.occupancy_count) == (2, 3)
-    assert section.boys.total_count == 5
-    assert (section.girls.new_count, section.girls.occupancy_count) == (1, 2)
-    assert section.girls.total_count == 3
+    assert section.boys.new_count == 2  # movers, not the 3 sitting boys
+    assert len(section.boys.students) == 2
+    assert section.girls.new_count == 1
+    assert len(section.girls.students) == 1
 
 
 def test_doorzetten_chip_name_uses_unique_name_with_fallback():
@@ -208,12 +208,66 @@ def test_doorzetten_liever_niet_preference_and_fulfilled():
     boys = view.groups[0].year_sections[0].boys
     bram = next(c for c in boys.students if c.full_name == "Bram")
     assert bram.preferences == [
-        Preference(kind="liever_niet_met", target="Cas", fulfilled=True)
+        Preference(
+            kind="liever_niet_met", target="Cas", fulfilled=True, target_is_group=False
+        )
     ]
     cas = next(c for c in boys.students if c.full_name == "Cas")
     assert cas.preferences == [
-        Preference(kind="graag_met", target="Bram", fulfilled=True)
+        Preference(
+            kind="graag_met", target="Bram", fulfilled=True, target_is_group=False
+        )
     ]
+
+
+def test_preference_target_group_uses_in_and_classmate_uses_short_name():
+    """A group target is flagged (rendered "Graag in"); a classmate shows their short name."""
+    result = SolutionResult(
+        assignment={"Tess de Wit": "A", "Tim de Vries": "A"},
+        student_satisfaction={"Tess de Wit": 1.0, "Tim de Vries": 1.0},
+        # Tess: graag met classmate Tim (nr 1) and graag in group A (nr 2).
+        satisfied={("Tess de Wit", 1): True, ("Tess de Wit", 2): True},
+        weighted_satisfied={("Tess de Wit", 1): 1.0, ("Tess de Wit", 2): 1.0},
+        weights={("Tess de Wit", 1): 1.0, ("Tess de Wit", 2): 1.0},
+        group_composition={
+            "A": GroupComposition(2, 0, {5: SexCounts(boys=2, girls=0)}),
+        },
+    )
+    students_info = {
+        "Tess de Wit": {
+            "Stamgroep": "Kikkers",
+            "Jongen/meisje": "Jongen",
+            "Jaarlaag": 5,
+        },
+        "Tim de Vries": {
+            "Stamgroep": "Bevers",
+            "Jongen/meisje": "Jongen",
+            "Jaarlaag": 5,
+        },
+    }
+    preferences = _preferences(
+        [
+            ("Tess de Wit", 1, "Tim de Vries", 1.0),  # classmate
+            ("Tess de Wit", 2, "A", 1.0),  # group
+        ]
+    )
+    analyzer = SolutionAnalyzer(result, preferences, _input_sheet({}), students_info)
+    view = analyzer.groepsindeling_view(unique_name={"Tim de Vries": "Tim d"})
+    tess = next(
+        c
+        for c in view.groups[0].year_sections[0].boys.students
+        if c.full_name == "Tess de Wit"
+    )
+    assert (
+        Preference(
+            kind="graag_met", target="Tim d", fulfilled=True, target_is_group=False
+        )
+        in tess.preferences
+    )
+    assert (
+        Preference(kind="graag_met", target="A", fulfilled=True, target_is_group=True)
+        in tess.preferences
+    )
 
 
 def test_doorzetten_not_in_targets_and_min_satisfaction_levels():
@@ -307,8 +361,8 @@ def _herindelen_analyzer() -> SolutionAnalyzer:
     return SolutionAnalyzer(result, _preferences([]), _input_sheet({}), students_info)
 
 
-def test_herindelen_multiple_year_sections_zero_occupancy():
-    """Each card gets several YearSections and every occupancy_count is 0."""
+def test_herindelen_multiple_year_sections():
+    """Each card gets several YearSections; the section size counts its movers."""
     view = _herindelen_analyzer().groepsindeling_view()
     card_a = view.groups[0]
     # None cohort first (sort key), then jaarlaag 6, 7.
@@ -320,9 +374,8 @@ def test_herindelen_multiple_year_sections_zero_occupancy():
     ]
     for card in view.groups:
         for section in card.year_sections:
-            assert section.boys.occupancy_count == 0
-            assert section.girls.occupancy_count == 0
-            assert section.boys.total_count == section.boys.new_count
+            assert section.size == section.boys.new_count + section.girls.new_count
+            assert section.boys.new_count == len(section.boys.students)
 
 
 def test_herindelen_balance_rows_total_then_year_rows():

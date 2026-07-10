@@ -103,7 +103,7 @@ the counts and the balance (size difference and boy/girl imbalance) per group, f
 analysis tables (transition matrix, per-student satisfaction, fulfilled preferences). This
 structured view is built in the reporting layer as a plain, JSON-serialisable view-model — see
 [ADR-0016](docs/adr/0016-groepsindeling-gestructureerde-viewmodel.md). Download the full Excel
-workbook (all sheets, unchanged) for the school administration.
+workbook for the school administration.
 
 ## Distribution modes
 

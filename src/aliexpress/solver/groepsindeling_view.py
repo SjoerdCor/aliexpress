@@ -39,12 +39,15 @@ class Preference:
 
     ``kind`` is ``"graag_met"`` (positive weight) or ``"liever_niet_met"`` (a folded
     negative-weight preference). ``fulfilled`` True means the preference was honoured: the
-    target sits together for "graag_met", or was kept apart for "liever_niet_met".
+    target sits together for "graag_met", or was kept apart for "liever_niet_met". ``target``
+    is the display label — a classmate's short unique name, or a group name when
+    ``target_is_group`` (then the template phrases it as "Graag/Liever niet *in*").
     """
 
     kind: str
     target: str
     fulfilled: bool
+    target_is_group: bool
 
 
 # A flat DTO: every field is a distinct datum the chip/popover renders, and the view stays
@@ -72,17 +75,15 @@ class StudentChip:  # pylint: disable=too-many-instance-attributes
 
 @dataclass(frozen=True)
 class SexColumn:
-    """One sex column within a jaarlaag section: mover count, occupancy and its chips.
+    """One sex column within a jaarlaag section: the newly assigned movers of this sex.
 
-    ``new_count`` are the newly assigned movers of this sex; ``occupancy_count`` is the
-    group's sitting occupancy of this sex (only ever non-zero on a single-section card,
-    where it coincides with the one mover jaarlaag); ``total_count`` is their sum.
+    ``new_count`` counts them (``== len(students)``); the sitting occupancy is not shown per
+    section — it only feeds the card's totals (``GroupCard.boys_total``/``girls_total``) and
+    the Klassenoverzicht Totaal row.
     """
 
     sex: str
     new_count: int
-    occupancy_count: int
-    total_count: int
     students: list[StudentChip]
 
 
@@ -196,7 +197,7 @@ class _ViewBuilder:
             if len(graag_met)
             else set()
         )
-        preferences_by_student = self._preferences_by_student(graag_met)
+        preferences_by_student = self._preferences_by_student(graag_met, unique_name)
 
         grouped: dict[tuple[str, int | None, str], list[StudentChip]] = {}
         for student, group in self.result.assignment.items():
@@ -211,20 +212,30 @@ class _ViewBuilder:
         return grouped
 
     def _preferences_by_student(
-        self, graag_met: pd.DataFrame
+        self, graag_met: pd.DataFrame, unique_name: dict[str, str]
     ) -> dict[str, list[Preference]]:
         """Per student, the folded "Graag met" preferences with their fulfilled flag.
 
         A positive weight is a "graag_met" preference, a negative one a folded
         "liever_niet_met"; ``satisfied`` True means honoured in both cases (sat together /
-        kept apart).
+        kept apart). The target is a group when it names a destination group; otherwise it is
+        a classmate, shown by their short unique name (``unique_name``, else the full name).
         """
+        groups = set(self.result.group_composition)
         by_student: dict[str, list[Preference]] = {}
         for (student, nr), row in graag_met.iterrows():
             kind = "graag_met" if row["Gewicht"] > 0 else "liever_niet_met"
             fulfilled = bool(self.result.satisfied[(student, nr)])
+            target = row["Waarde"]
+            is_group = target in groups
+            label = target if is_group else unique_name.get(target, target)
             by_student.setdefault(student, []).append(
-                Preference(kind=kind, target=row["Waarde"], fulfilled=fulfilled)
+                Preference(
+                    kind=kind,
+                    target=label,
+                    fulfilled=fulfilled,
+                    target_is_group=is_group,
+                )
             )
         return by_student
 
@@ -292,26 +303,15 @@ class _ViewBuilder:
         """One target group's card: totals plus a section per jaarlaag cohort."""
         comp = self.result.group_composition[group]
         years = sorted(comp.per_year, key=year_sort_key)
-        occupancy_boys = comp.boys_total - sum(c.boys for c in comp.per_year.values())
-        occupancy_girls = comp.girls_total - sum(
-            c.girls for c in comp.per_year.values()
-        )
-        single_section = len(years) == 1
 
         sections = []
         for year in years:
             counts = comp.per_year[year]
             boys = self._sex_column(
-                chips.get((group, year, "Jongen"), []),
-                "Jongen",
-                counts.boys,
-                occupancy_boys if single_section else 0,
+                chips.get((group, year, "Jongen"), []), "Jongen", counts.boys
             )
             girls = self._sex_column(
-                chips.get((group, year, "Meisje"), []),
-                "Meisje",
-                counts.girls,
-                occupancy_girls if single_section else 0,
+                chips.get((group, year, "Meisje"), []), "Meisje", counts.girls
             )
             sections.append(
                 YearSection(
@@ -331,17 +331,9 @@ class _ViewBuilder:
         )
 
     @staticmethod
-    def _sex_column(
-        students: list[StudentChip], sex: str, new_count: int, occupancy_count: int
-    ) -> SexColumn:
-        """One sex column of a section: movers, sitting occupancy and their total."""
-        return SexColumn(
-            sex=sex,
-            new_count=new_count,
-            occupancy_count=occupancy_count,
-            total_count=new_count + occupancy_count,
-            students=students,
-        )
+    def _sex_column(students: list[StudentChip], sex: str, new_count: int) -> SexColumn:
+        """One sex column of a section: the newly assigned movers of this sex."""
+        return SexColumn(sex=sex, new_count=new_count, students=students)
 
     def _build_balance_rows(self, group_order: list[str]) -> list[BalanceRow]:
         """The Klassenoverzicht rows: Totaal first, then one row per jaarlaag cohort."""
