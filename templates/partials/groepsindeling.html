@@ -17,6 +17,23 @@
 {%- endif -%}
 {%- endmacro %}
 
+{# One preference chip: colour shows the outcome (green = honoured, red = not); the trailing
+   glyph shows the weight/importance (~ a little, ↑ strong, ♥ best-friend), mirroring the
+   weight glyphs in preferences_form.html. No strike-through, no kind colour. #}
+{% macro _pref(pref) %}
+{%- set is_graag = pref.kind == 'graag_met' -%}
+{%- set w = pref.weight -%}
+{%- if is_graag and w <= 0.5 -%}{%- set glyph = '~' -%}
+{%- elif is_graag and w >= 5 -%}{%- set glyph = '♥' -%}
+{%- elif w >= 2 -%}{%- set glyph = '↑' -%}
+{%- else -%}{%- set glyph = '' -%}
+{%- endif -%}
+<span class="gi-pref gi-pref--{{ 'ok' if pref.fulfilled else 'no' }}" title="{{ 'Ingewilligd' if pref.fulfilled else 'Niet ingewilligd' }}">
+  <span class="gi-pref-name">{{ 'Graag' if is_graag else 'Liever niet' }} {{ 'in' if pref.target_is_group else 'met' }} {{ pref.target }}</span>
+  {% if glyph %}<span class="gi-slot">{{ glyph }}</span>{% endif %}
+</span>
+{% endmacro %}
+
 {% macro _chip(chip) %}
 <span class="gi-chip" tabindex="0">{{ chip.chip_name }} <span class="gi-from">{{ chip.origin_abbrev }}</span>
   <span class="gi-pop">
@@ -32,11 +49,9 @@
     <span class="gi-pop-meta">Uit klas {{ chip.origin_full }}{% if chip.year_group is not none %}, jaarlaag {{ chip.year_group }}{% endif %}</span>
     {% if chip.preferences or chip.not_in %}
     <span class="gi-pop-h">Wensen</span>
-    {% for pref in chip.preferences %}
-    <span class="gi-pref {{ 'gi-pref--ok' if pref.fulfilled else 'gi-pref--no' }}"><span class="gi-g">{{ '✓' if pref.fulfilled else '✗' }}</span> {{ 'Graag' if pref.kind == 'graag_met' else 'Liever niet' }} {{ 'in' if pref.target_is_group else 'met' }} {{ pref.target }}</span>
-    {% endfor %}
+    {% for pref in chip.preferences %}{{ _pref(pref) }}{% endfor %}
     {% for target in chip.not_in %}
-    <span class="gi-pref gi-pref--nietin"><span class="gi-g">⊘</span> Niet in {{ target }} <span class="gi-nietin-note">gerespecteerd</span></span>
+    <span class="gi-pref gi-pref--nietin"><span class="gi-sign">⊘</span> Niet in {{ target }} <span class="gi-nietin-note">gerespecteerd</span></span>
     {% endfor %}
     {% else %}
     <span class="gi-none">Geen wensen opgegeven.</span>
@@ -121,10 +136,11 @@
         <div class="gi-legend-note">Voornaam + oude groep (3-letterafkorting).</div>
       </div>
       <div class="gi-legend-col">
-        <h4>Bij aanklikken van een chip</h4>
-        <span class="gi-pref gi-pref--ok"><span class="gi-g">✓</span> Wens vervuld</span>
-        <span class="gi-pref gi-pref--no"><span class="gi-g">✗</span> Wens niet vervuld</span>
-        <span class="gi-pref gi-pref--nietin"><span class="gi-g">⊘</span> Niet-in (gerespecteerd)</span>
+        <h4>Wensen (bij aanklikken)</h4>
+        <span class="gi-pref gi-pref--ok"><span class="gi-pref-name">Wens ingewilligd</span></span>
+        <span class="gi-pref gi-pref--no"><span class="gi-pref-name">Wens niet ingewilligd</span></span>
+        <span class="gi-pref gi-pref--nietin"><span class="gi-sign">⊘</span> Niet-in (gerespecteerd)</span>
+        <div class="gi-legend-note">Het teken toont het belang: <b>~</b> een beetje, <b>↑</b> heel graag / echt niet, <b>♥</b> hartsvriend.</div>
         <div class="gi-legend-badges">
           <span class="gi-badge badge-zeker--partial">🛡 Minstens tevreden</span>
           <span class="gi-badge badge-zeker--full">🛡 Alle voorkeuren gehonoreerd</span>
