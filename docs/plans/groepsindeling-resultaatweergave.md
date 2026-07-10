@@ -205,28 +205,49 @@ geclampt en `None` bij geen voorkeuren; `wishes` met correcte `fulfilled` (incl.
 (bezetting > 0, één jaarlaag) én het Herindelen-geval (meerdere jaarlagen, bezetting 0).
 *Succescriterium:* nieuwe test groen; quick suite groen; `uv run pylint` schoon.
 
-**Stap 2 — serialisatie + pijplijn (incl. `unique_name`-naad).**
-- **`unique_name`-map:** voeg een veld `unique_name: dict` toe aan `PreferenceData` (parallel aan
-  `student_display`), met round-trip in `to_json`/`from_json`. Vul het in het webpad waar `PreferenceData`
-  uit de roster/voorkeuren wordt gebouwd, via `candidatedetermination.unique_display_names(participants)`;
-  laat het leeg in het Excel-pad. Relabel het mee in `solutions.to_display_names` (net als de andere
-  maps) en geef het door aan `SolutionAnalyzer`.
-- **Pijplijn:** `main.py:_export` bouwt `view = sa.groepsindeling_view()` en geeft het terug; `tasks.py`
-  schrijft `groepsindeling_view.json`; `dataframes` bevat nog slechts de drie analyse-tabellen.
-- **Tests:** pas de tests aan die de `dataframes`-sleutels toetsen
-  (`tests/integration/test_integration_main.py` rond regel 219/364, `tests/test_wizard.py` rond de
-  `result_tables.json`-assert) én `tests/browser/test_distribution_browser.py` (voeg de
-  `groepsindeling_view.json`-assert toe); dek de `PreferenceData`-JSON-round-trip mét `unique_name`.
-*Succescriterium:* quick + `uv run pytest tests/integration` groen; het view-JSON bestaat na een run.
+**Stap 2a — `unique_name`-datacontract (AF, commit 929a9f3).** Veld `unique_name: dict` op
+`PreferenceData` (matching-key → korte naam, parallel aan `student_display`), round-trip in
+`to_json`/`from_json` (`.get`-fallback voor oude JSON); gevuld in het webpad via
+`candidatedetermination.unique_display_names(participants)` (her-gesleuteld met `matching_key`), leeg in
+het Excel-pad. Pure datacontract-uitbreiding, geen consumptie.
 
-**Stap 3 — template-macro + CSS + JS.** Nieuwe partial `templates/partials/groepsindeling.html` met de
-macro; `result.html` gebruikt die en houdt de drie analyse-tabellen. CSS achter in `static/style.css`
-(hergebruik de bestaande tokens/kleuren; geen nieuwe donkere variant). Popover-JS zoals in de POC
-(klik-toggle, plaatsing rechts/links, sluiten via klik-buiten/Escape). Nieuwe browsertest
-(`tests/browser/`): kaarten renderen, popover opent op klik en sluit op Escape/buiten-klik, legenda is
-inklapbaar, klassenoverzicht is aanwezig met de balans-kolommen.
-*Succescriterium:* `uv run pytest tests/browser` groen (incl. de nieuwe test); handmatige controle
-tegen de POC-referentie.
+**Stap 2b — pijplijn, puur additief (breekt niets).** Bewuste resequencing t.o.v. het oorspronkelijke
+plan: het *inkorten* van `dataframes` en de integratietest-migratie verhuizen naar Stap 3, waar ze
+atomair samenvallen met de nieuwe rendering; 2b voegt alleen toe.
+- `main.py:_export` bouwt `view = sa.groepsindeling_view(unique_display)` waarbij
+  `unique_display = {student_display[k]: short for k, short in preference_data.unique_name.items()}`
+  (matching-key → volledige naam → korte naam, dus display-space), en geeft het terug:
+  `{"download":…, "dataframes":… (ongewijzigd, alle vijf), "groepsindeling_view": view}`.
+- `tasks.py:_write_result_files` schrijft naast `result_tables.json` een `groepsindeling_view.json`
+  (`json.dump(dataclasses.asdict(view), …, ensure_ascii=False)`).
+- `results.py:result_page` laadt `groepsindeling_view.json` **als het bestaat** (optioneel; de macro komt
+  pas in Stap 3) en geeft het aan de template.
+- **Tests:** `tests/test_wizard.py` — de `_write_result_files`-mocks een `groepsindeling_view` meegeven en
+  asserten dat het JSON-bestand wordt geschreven; `result_page` moet een ontbrekend view-JSON tolereren.
+  `tests/browser/test_distribution_browser.py` — assert dat `groepsindeling_view.json` bestaat.
+*Succescriterium:* quick + `uv run pytest tests/integration` + `tests/browser` groen; het view-JSON
+bestaat na een run. **De integratietests blijven ongewijzigd** (dataframes nog vijf).
+
+**Stap 3 — template-macro + CSS + JS + het inkorten.** Nieuwe partial
+`templates/partials/groepsindeling.html` met de macro; `result.html` rendert het view-model (kaarten +
+klassenoverzicht + legenda) en houdt de drie analyse-tabellen. **Nu pas** verdwijnen "Groepsindeling" en
+"Klassenoverzicht" uit `dataframes`/`result_tables.json` (ze zitten in het view-model). CSS achter in
+`static/style.css` (hergebruik de bestaande tokens/kleuren; geen nieuwe donkere variant). Popover-JS zoals
+in de POC (klik-toggle, plaatsing rechts/links, sluiten via klik-buiten/Escape).
+- **Test-migratie (nu de dataframes inkorten):** in `tests/integration/test_integration_main.py`
+  `_EXPECTED_KEYS` terug naar de drie analyse-tabellen; de balans/structuur-invarianten uit
+  `_assert_consistency` + de per-test balans-asserts herformuleren op `result["groepsindeling_view"]`:
+  `totaal`-metriek = de `is_total`-`BalanceRow` (`sex_imbalance` ⇒ `VerschilJongensMeisjes.max()`,
+  `size_diff` ⇒ `Groepsgrootte.max()−min()`), jaarlaag-metriek = max over de jaarlaag-`BalanceRow`s; groep-
+  en jaarlaagstructuur uit `view.groups`; `jaar Groepsgrootte.sum() == n_students` = som van de
+  jaarlaag-rijen. **Behoud exact dezelfde drempels en de gepinde tevredenheid** (die blijft in
+  `Leerlingtevredenheid`). `test_distribute_students_from_json_matches_xlsx` ook de view vergelijken.
+  `tests/test_wizard.py` + `tests/browser/test_distribution_browser.py` bijwerken (geen Groepsindeling-tab
+  meer; kaarten i.p.v.).
+- **Nieuwe browsertest** (`tests/browser/`): kaarten renderen, popover opent op klik en sluit op
+  Escape/buiten-klik, legenda is inklapbaar, klassenoverzicht aanwezig met de balans-kolommen.
+*Succescriterium:* `uv run pytest tests/browser` + `tests/integration` groen (incl. de nieuwe test);
+handmatige controle tegen de POC-referentie.
 
 **Stap 4 — documentatie + smoke.** Werk de README (uitvoer-weergave) en de docstrings van
 `main.py`/`tasks.py`/`results.py` bij. Draai de app één keer echt (run-aliexpress-skill) met een

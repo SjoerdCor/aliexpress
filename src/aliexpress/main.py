@@ -87,7 +87,11 @@ def _log_initial_state(groups_to, students_info, on_update, stamgroep_display=No
 
 
 def _export(result, preference_data, target_groups):
-    """Build the download workbook and result tables from the already-solved result."""
+    """Build the download workbook, result tables and the structured Groepsindeling view.
+
+    Returns ``(output, dfs, view)``: the download workbook, the five result tables (all of
+    them, unchanged), and the Flask-free :class:`GroepsindelingView` for the result page.
+    """
     display_names = solutions.DisplayNames(
         student=preference_data.student_display,
         group=target_groups.display,
@@ -115,7 +119,16 @@ def _export(result, preference_data, target_groups):
         "VervuldeVoorkeuren": sa.display_satisfied_preferences(),
     }
 
-    return output, dfs
+    # unique_name is a matching-key -> short-name map; relabel it to display space
+    # (full name -> short name) so the chip builder can key it by the display name.
+    # Empty in the Excel/CLI path -> chips fall back to the full name.
+    unique_display = {
+        preference_data.student_display.get(k, k): short
+        for k, short in preference_data.unique_name.items()
+    }
+    view = sa.groepsindeling_view(unique_display)
+
+    return output, dfs, view
 
 
 def _log_solve_summary(
@@ -250,10 +263,10 @@ def distribute_students_from_data(
         )
         _log_solve_summary(result, groupbalance)
 
-    output, dfs = _export(result, preference_data, target_groups)
+    output, dfs, view = _export(result, preference_data, target_groups)
     logger.info("Done!")
     on_update("Klaar!")
-    return {"download": output, "dataframes": dfs}
+    return {"download": output, "dataframes": dfs, "groepsindeling_view": view}
 
 
 def distribute_students_once(

@@ -56,6 +56,7 @@ def test_processing_to_result_to_download(live_server, tmp_path, page):
     # The artifacts were written to the process dir before "done".
     assert (proc / "results.xlsx").exists()
     assert (proc / "result_tables.json").exists()
+    assert (proc / "groepsindeling_view.json").exists()
 
     with page.expect_download() as download_info:
         page.click("text=Download groepsindeling")

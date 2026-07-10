@@ -7,7 +7,7 @@ determines *what* they do).
 
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Any
 
 import pandera as pa
@@ -59,6 +59,12 @@ def _write_result_files(school_id, process_name, result):
         encoding="utf-8",
     ) as fh:
         json.dump(tables, fh, ensure_ascii=False)
+    with open(
+        get_file_path(school_id, process_name, "groepsindeling_view.json"),
+        "w",
+        encoding="utf-8",
+    ) as fh:
+        json.dump(asdict(result["groepsindeling_view"]), fh, ensure_ascii=False)
 
 
 def _handle_failure(exc, school_id, process_name):
