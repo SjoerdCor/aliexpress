@@ -61,3 +61,42 @@ def test_processing_to_result_to_download(live_server, tmp_path, page):
     with page.expect_download() as download_info:
         page.click("text=Download groepsindeling")
     assert download_info.value.suggested_filename == "results.xlsx"
+
+
+@pytest.mark.usefixtures("login")
+def test_result_group_cards_and_popover(live_server, tmp_path, page):
+    """The structured group-card view renders: cards, click-popover, legend, overview."""
+    _make_process(live_server, tmp_path, page, name="cardsrun")
+
+    page.goto(f"{live_server}/start_distribution")
+    page.wait_for_url("**/result", timeout=60000)
+
+    # Group cards render with at least one chip.
+    assert page.locator(".gi-card").count() >= 1
+    first_chip = page.locator(".gi-chip").first
+    first_chip.wait_for()
+
+    # Popover opens on click and is visible.
+    first_chip.click()
+    pop = first_chip.locator(".gi-pop")
+    assert pop.is_visible()
+
+    # ...and closes on Escape.
+    page.keyboard.press("Escape")
+    assert not pop.is_visible()
+
+    # ...opens again and closes on an outside click.
+    first_chip.click()
+    assert pop.is_visible()
+    page.locator("h1").click()
+    assert not pop.is_visible()
+
+    # The legend is a collapsible <details> that starts open.
+    legend = page.locator("details.gi-legend-details")
+    assert legend.count() == 1
+    assert legend.evaluate("el => el.open") is True
+
+    # The klassenoverzicht is present with both balance columns.
+    assert page.locator(".gi-baltable").count() == 1
+    assert page.locator(".gi-baltable th", has_text="Grootteverschil").count() == 1
+    assert page.locator(".gi-baltable th", has_text="Onbalans").count() == 1
