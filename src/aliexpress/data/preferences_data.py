@@ -8,7 +8,7 @@ serialises losslessly to/from JSON so it can be persisted as ``voorkeuren.json``
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
@@ -28,6 +28,11 @@ class PreferenceData:
         ``Stamgroep``), as produced by ``VoorkeurenProcessor.get_students_meta_info``.
     student_display:
         Maps each student matching-key to the name as the user entered it.
+    unique_name:
+        Maps each student matching-key to a short *unique* display name (roepnaam plus the
+        minimal surname letters needed to disambiguate), parallel to ``student_display``.
+        Filled only in the web-form path; empty in the Excel path, which has no separate
+        roepnaam/achternaam. Consumers fall back to the full name when a key is absent.
     stamgroep_display:
         Maps each stamgroep matching-key to the label as the user entered it.
     input_sheet:
@@ -42,6 +47,7 @@ class PreferenceData:
     student_display: dict
     stamgroep_display: dict
     input_sheet: pd.DataFrame
+    unique_name: dict = field(default_factory=dict)
 
     def to_json(self) -> str:
         """Serialise to a JSON string, preserving the frame's index names and dtypes."""
@@ -55,6 +61,7 @@ class PreferenceData:
             },
             "students_info": self.students_info,
             "student_display": self.student_display,
+            "unique_name": self.unique_name,
             "stamgroep_display": self.stamgroep_display,
             "input_sheet": _wide_sheet_to_payload(self.input_sheet),
         }
@@ -81,6 +88,7 @@ class PreferenceData:
             preferences=frame,
             students_info=payload["students_info"],
             student_display=payload["student_display"],
+            unique_name=payload.get("unique_name", {}),
             stamgroep_display=payload["stamgroep_display"],
             input_sheet=_wide_sheet_from_payload(payload["input_sheet"]),
         )
