@@ -209,13 +209,21 @@ def test_doorzetten_liever_niet_preference_and_fulfilled():
     bram = next(c for c in boys.students if c.full_name == "Bram")
     assert bram.preferences == [
         Preference(
-            kind="liever_niet_met", target="Cas", fulfilled=True, target_is_group=False
+            kind="liever_niet_met",
+            target="Cas",
+            fulfilled=True,
+            target_is_group=False,
+            weight=2.0,
         )
     ]
     cas = next(c for c in boys.students if c.full_name == "Cas")
     assert cas.preferences == [
         Preference(
-            kind="graag_met", target="Bram", fulfilled=True, target_is_group=False
+            kind="graag_met",
+            target="Bram",
+            fulfilled=True,
+            target_is_group=False,
+            weight=1.0,
         )
     ]
 
@@ -260,14 +268,57 @@ def test_preference_target_group_uses_in_and_classmate_uses_short_name():
     )
     assert (
         Preference(
-            kind="graag_met", target="Tim d", fulfilled=True, target_is_group=False
+            kind="graag_met",
+            target="Tim d",
+            fulfilled=True,
+            target_is_group=False,
+            weight=1.0,
         )
         in tess.preferences
     )
     assert (
-        Preference(kind="graag_met", target="A", fulfilled=True, target_is_group=True)
+        Preference(
+            kind="graag_met",
+            target="A",
+            fulfilled=True,
+            target_is_group=True,
+            weight=1.0,
+        )
         in tess.preferences
     )
+
+
+def test_preferences_sorted_graag_then_liever_heaviest_first():
+    """Within a chip, graag-met comes before liever-niet-met, each heaviest weight first."""
+    result = SolutionResult(
+        assignment={"Sam": "A"},
+        student_satisfaction={"Sam": 1.0},
+        satisfied={("Sam", nr): True for nr in range(1, 5)},
+        weighted_satisfied={("Sam", nr): 1.0 for nr in range(1, 5)},
+        weights={("Sam", 1): 1.0, ("Sam", 2): 5.0, ("Sam", 3): -1.0, ("Sam", 4): -2.0},
+        group_composition={
+            "A": GroupComposition(1, 0, {5: SexCounts(boys=1, girls=0)})
+        },
+    )
+    students_info = {
+        "Sam": {"Stamgroep": "Kikkers", "Jongen/meisje": "Jongen", "Jaarlaag": 5}
+    }
+    preferences = _preferences(
+        [
+            ("Sam", 1, "Anna", 1.0),  # graag, light
+            ("Sam", 2, "Bob", 5.0),  # graag, hartsvriend
+            ("Sam", 3, "Cor", -1.0),  # liever niet, light
+            ("Sam", 4, "Dex", -2.0),  # liever niet, strong
+        ]
+    )
+    analyzer = SolutionAnalyzer(result, preferences, _input_sheet({}), students_info)
+    sam = analyzer.groepsindeling_view().groups[0].year_sections[0].boys.students[0]
+    assert [(p.kind, p.target, p.weight) for p in sam.preferences] == [
+        ("graag_met", "Bob", 5.0),
+        ("graag_met", "Anna", 1.0),
+        ("liever_niet_met", "Dex", 2.0),
+        ("liever_niet_met", "Cor", 1.0),
+    ]
 
 
 def test_doorzetten_not_in_targets_and_min_satisfaction_levels():

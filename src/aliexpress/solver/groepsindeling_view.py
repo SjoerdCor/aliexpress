@@ -42,12 +42,15 @@ class Preference:
     target sits together for "graag_met", or was kept apart for "liever_niet_met". ``target``
     is the display label — a classmate's short unique name, or a group name when
     ``target_is_group`` (then the template phrases it as "Graag/Liever niet *in*").
+    ``weight`` is the preference's magnitude (``abs`` of the signed weight): the template maps
+    it to the same colour/glyph the preferences form uses, and lists the heaviest first.
     """
 
     kind: str
     target: str
     fulfilled: bool
     target_is_group: bool
+    weight: float
 
 
 # A flat DTO: every field is a distinct datum the chip/popover renders, and the view stays
@@ -220,6 +223,7 @@ class _ViewBuilder:
         "liever_niet_met"; ``satisfied`` True means honoured in both cases (sat together /
         kept apart). The target is a group when it names a destination group; otherwise it is
         a classmate, shown by their short unique name (``unique_name``, else the full name).
+        Each student's list is ordered graag-met before liever-niet-met, heaviest first.
         """
         groups = set(self.result.group_composition)
         by_student: dict[str, list[Preference]] = {}
@@ -235,8 +239,11 @@ class _ViewBuilder:
                     target=label,
                     fulfilled=fulfilled,
                     target_is_group=is_group,
+                    weight=abs(row["Gewicht"]),
                 )
             )
+        for prefs in by_student.values():
+            prefs.sort(key=lambda p: (p.kind != "graag_met", -p.weight))
         return by_student
 
     def _build_chip(
