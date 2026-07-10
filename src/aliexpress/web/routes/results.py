@@ -91,7 +91,12 @@ def show_sociogram():
 @login_required
 @require_process
 def result_page():
-    """Display result for the current process"""
+    """Display the result: the group-card view-model plus the three analysis tables.
+
+    Loads the analysis tables from ``result_tables.json`` and the structured group cards +
+    klassenoverzicht from ``groepsindeling_view.json`` (when present); the template renders the
+    cards from the view-model and the three tables as tabs.
+    """
     school_id = effective_school_id()
     if school_id is None:
         return redirect(url_for("admin.dashboard"))

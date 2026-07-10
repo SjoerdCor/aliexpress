@@ -45,10 +45,12 @@ class ThreadContext:
 
 
 def _write_result_files(school_id, process_name, result):
-    """Persist the solver output as files in the process dir (download + rendered tables).
+    """Persist the solver output as files in the process dir.
 
-    Written before the status flips to "done" so the result page never polls ahead of the
-    files it needs.
+    Writes the download workbook (``results.xlsx``), the three analysis tables as HTML
+    (``result_tables.json``) and the structured group-card view-model
+    (``groepsindeling_view.json``, from :class:`GroepsindelingView`). Written before the status
+    flips to "done" so the result page never polls ahead of the files it needs.
     """
     with open(get_file_path(school_id, process_name, "results.xlsx"), "wb") as fh:
         fh.write(result["download"].getbuffer())
