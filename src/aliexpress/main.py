@@ -89,8 +89,11 @@ def _log_initial_state(groups_to, students_info, on_update, stamgroep_display=No
 def _export(result, preference_data, target_groups):
     """Build the download workbook, result tables and the structured Groepsindeling view.
 
-    Returns ``(output, dfs, view)``: the download workbook, the five result tables (all of
-    them, unchanged), and the Flask-free :class:`GroepsindelingView` for the result page.
+    Returns ``(output, dfs, view)``: the download workbook, the three analysis tables
+    (Overgangsmatrix, Leerlingtevredenheid, VervuldeVoorkeuren), and the Flask-free
+    :class:`GroepsindelingView` for the result page. The Groepsindeling and Klassenoverzicht
+    now live in the view-model, not in ``dfs``; the full workbook (``to_excel``) still writes
+    every sheet.
     """
     display_names = solutions.DisplayNames(
         student=preference_data.student_display,
@@ -112,8 +115,6 @@ def _export(result, preference_data, target_groups):
     output.seek(0)
 
     dfs = {
-        "Groepsindeling": sa.display_groepsindeling(),
-        "Klassenoverzicht": sa.group_report,
         "Overgangsmatrix": sa.display_transition_matrix(),
         "Leerlingtevredenheid": sa.display_student_performance(),
         "VervuldeVoorkeuren": sa.display_satisfied_preferences(),

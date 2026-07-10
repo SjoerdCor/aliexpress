@@ -49,9 +49,8 @@ def test_processing_to_result_to_download(live_server, tmp_path, page):
     # The processing page polls /status and redirects here once the solve is done.
     page.wait_for_url("**/result", timeout=60000)
 
-    # All five result tables are rendered as tabs.
-    assert page.locator(".tab").count() == 5
-    assert page.locator(".tab", has_text="Groepsindeling").is_visible()
+    # The three analysis tables are rendered as tabs.
+    assert page.locator(".tab").count() == 3
 
     # The artifacts were written to the process dir before "done".
     assert (proc / "results.xlsx").exists()
