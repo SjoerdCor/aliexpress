@@ -86,7 +86,12 @@ def _relabel_result(result, display_names: DisplayNames):
 def _relabel_preferences(
     preferences: pd.DataFrame, display_names: DisplayNames
 ) -> pd.DataFrame:
-    """Relabel the Leerling index level so it matches the display-keyed result."""
+    """Relabel to names as entered: the Leerling index *and* the Waarde targets.
+
+    A preference target is a classmate or a group, so it is mapped through both the student
+    and the group display maps (a group name never collides with a student name in matching
+    space). Without this the target would surface as its lower-cased matching key.
+    """
     if "Leerling" not in preferences.index.names:
         return preferences
     new = preferences.copy()
@@ -100,6 +105,9 @@ def _relabel_preferences(
         ],
         names=["Leerling", "TypeWens", "Nr"],
     )
+    if "Waarde" in new.columns:
+        student_or_group = {**display_names.group, **display_names.student}
+        new["Waarde"] = new["Waarde"].map(lambda v: student_or_group.get(v, v))
     return new
 
 

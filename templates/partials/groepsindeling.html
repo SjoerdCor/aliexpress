@@ -33,7 +33,7 @@
     {% if chip.preferences or chip.not_in %}
     <span class="gi-pop-h">Wensen</span>
     {% for pref in chip.preferences %}
-    <span class="gi-pref {{ 'gi-pref--ok' if pref.fulfilled else 'gi-pref--no' }}"><span class="gi-g">{{ '✓' if pref.fulfilled else '✗' }}</span> {{ 'Graag met' if pref.kind == 'graag_met' else 'Liever niet met' }} {{ pref.target }}</span>
+    <span class="gi-pref {{ 'gi-pref--ok' if pref.fulfilled else 'gi-pref--no' }}"><span class="gi-g">{{ '✓' if pref.fulfilled else '✗' }}</span> {{ 'Graag' if pref.kind == 'graag_met' else 'Liever niet' }} {{ 'in' if pref.target_is_group else 'met' }} {{ pref.target }}</span>
     {% endfor %}
     {% for target in chip.not_in %}
     <span class="gi-pref gi-pref--nietin"><span class="gi-g">⊘</span> Niet in {{ target }} <span class="gi-nietin-note">gerespecteerd</span></span>
@@ -53,11 +53,7 @@
 {% macro _sexcol(col, label) %}
 <div class="gi-col">
   <div class="gi-caption">
-    {% if col.occupancy_count > 0 %}
-    <span class="gi-lbl">{{ label }}</span>: {{ col.new_count }} nieuw + {{ col.occupancy_count }} zittend <b>({{ col.total_count }} totaal)</b>
-    {% else %}
     <span class="gi-lbl">{{ label }}</span> <b>({{ col.new_count }})</b>
-    {% endif %}
   </div>
   <div class="gi-chips-col">
     {% for chip in col.students %}{{ _chip(chip) }}{% endfor %}
