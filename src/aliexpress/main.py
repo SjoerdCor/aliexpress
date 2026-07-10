@@ -202,6 +202,14 @@ def distribute_students_from_data(
         :func:`~.solver.engine.solve_within_minimal_relaxation`). Pass a
         GroupBalance to override this with fixed manual limits instead (see
         :func:`~.solver.engine.solve_with_fixed_balance`).
+
+    Returns
+    -------
+    dict
+        ``{"download": <xlsx BytesIO>, "dataframes": {<3 analysis tables>},
+        "groepsindeling_view": GroepsindelingView}`` — the workbook, the three analysis tables
+        (Overgangsmatrix, Leerlingtevredenheid, VervuldeVoorkeuren) and the structured
+        group-card view-model for the result page.
     """
     preferences = preference_data.preferences
     students_info = preference_data.students_info
