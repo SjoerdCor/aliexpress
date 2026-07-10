@@ -297,12 +297,13 @@ def test_full_redistribute_flow_to_result(live_server, page):
     page.click("button:has-text('Opslaan & Indeling starten')")
     page.wait_for_url("**/result", timeout=60000)
 
-    klassenoverzicht_tab = page.locator(".tab", has_text="Klassenoverzicht")
-    assert klassenoverzicht_tab.count() == 1
-    klassenoverzicht_tab.click()
-    pane_text = page.locator("#tab1").inner_text()
-    assert pane_text.count("Jaarlaag 6") == 3, "Expected one 'Jaarlaag 6' row per group"
-    assert pane_text.count("Jaarlaag 7") == 3, "Expected one 'Jaarlaag 7' row per group"
+    # The klassenoverzicht now renders as the structured balance table: one row per
+    # jaarlaag, with the three groups as columns.
+    baltable = page.locator(".gi-baltable")
+    assert baltable.count() == 1
+    assert baltable.locator("th.gi-grp").count() == 3  # one column per group
+    assert baltable.locator("tbody th", has_text="Jaarlaag 6").count() == 1
+    assert baltable.locator("tbody th", has_text="Jaarlaag 7").count() == 1
 
 
 @pytest.mark.usefixtures("login")

@@ -492,7 +492,12 @@ def main(n_groups: int = 4, n_students: int = 35, n_rules: int = 5, folder: str 
     groups_df = generate_groups(n_groups)
     group_names = groups_df["Groepen"].tolist()
 
-    generator = NativePreferenceGenerator(groups_to=group_names)
+    # Doorzetten moves one incoming year layer; give it a jaargroep (like a real EDEXML
+    # upload) so the Klassenoverzicht shows "Jaarlaag 5" rather than a bare "Jaarlaag".
+    generator = NativePreferenceGenerator(
+        groups_to=group_names,
+        scenario=GeneratorScenario(jaargroepen=[5]),
+    )
     entries = generator.generate(
         num_students=n_students,
         fname=os.path.join(folder, "voorkeuren.json"),

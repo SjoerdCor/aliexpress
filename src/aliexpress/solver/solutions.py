@@ -8,6 +8,7 @@ from openpyxl.styles import Alignment, numbers
 from openpyxl.utils import get_column_letter
 
 from ..data import datareader
+from .groepsindeling_view import GroepsindelingView, build, year_label, year_sort_key
 
 TABLE_STYLES = styles = [
     {
@@ -85,7 +86,12 @@ def _relabel_result(result, display_names: DisplayNames):
 def _relabel_preferences(
     preferences: pd.DataFrame, display_names: DisplayNames
 ) -> pd.DataFrame:
-    """Relabel the Leerling index level so it matches the display-keyed result."""
+    """Relabel to names as entered: the Leerling index *and* the Waarde targets.
+
+    A preference target is a classmate or a group, so it is mapped through both the student
+    and the group display maps (a group name never collides with a student name in matching
+    space). Without this the target would surface as its lower-cased matching key.
+    """
     if "Leerling" not in preferences.index.names:
         return preferences
     new = preferences.copy()
@@ -99,6 +105,9 @@ def _relabel_preferences(
         ],
         names=["Leerling", "TypeWens", "Nr"],
     )
+    if "Waarde" in new.columns:
+        student_or_group = {**display_names.group, **display_names.student}
+        new["Waarde"] = new["Waarde"].map(lambda v: student_or_group.get(v, v))
     return new
 
 
@@ -157,16 +166,6 @@ def to_display_names(
         _relabel_input_sheet(input_sheet, display_names),
         _relabel_students_info(students_info, display_names),
     )
-
-
-def _year_label(year: int | None) -> str:
-    """Row label for a jaarlaag cohort: bare "Jaarlaag" for the None cohort."""
-    return "Jaarlaag" if year is None else f"Jaarlaag {year}"
-
-
-def _year_sort_key(year: int | None) -> tuple:
-    """Sort key placing the None cohort right after "Totaal", then years numerically."""
-    return (0,) if year is None else (1, year)
 
 
 # pylint: disable-next=too-many-instance-attributes  # ten computed views of one solution; each is a distinct output table
@@ -283,8 +282,8 @@ class SolutionAnalyzer:
             distribution[(group, "Totaal", "Jongen")] = comp.boys_total
             distribution[(group, "Totaal", "Meisje")] = comp.girls_total
             for year, counts in comp.per_year.items():
-                distribution[(group, _year_label(year), "Jongen")] = counts.boys
-                distribution[(group, _year_label(year), "Meisje")] = counts.girls
+                distribution[(group, year_label(year), "Jongen")] = counts.boys
+                distribution[(group, year_label(year), "Meisje")] = counts.girls
             years.update(comp.per_year)
 
         # unstack() sorts row labels alphabetically ("Jaarlaag 10" before "Jaarlaag 6"),
@@ -293,7 +292,7 @@ class SolutionAnalyzer:
         # reindex also fills in a 0 row for a group missing one of the other groups'
         # cohorts (e.g. nobody from jaarlaag 7 assigned to this particular group).
         row_order = ["Totaal"] + [
-            _year_label(year) for year in sorted(years, key=_year_sort_key)
+            year_label(year) for year in sorted(years, key=year_sort_key)
         ]
         full_index = pd.MultiIndex.from_product(
             [sorted(self.result.group_composition), row_order]
@@ -312,6 +311,25 @@ class SolutionAnalyzer:
         )
 
         return df_group_report
+
+    def groepsindeling_view(
+        self, unique_name: dict[str, str] | None = None
+    ) -> GroepsindelingView:
+        """Build the structured Groepsindeling view-model for the result page.
+
+        Thin delegator to :func:`.groepsindeling_view.build`, which owns both the dataclasses
+        and the derivation. ``unique_name`` maps a full name to a short chip label (web path);
+        an absent entry falls back to the full name (Excel/CLI). Everything is read from the
+        already display-keyed ``self.result`` / ``self.students_info`` / ``self.preferences`` /
+        ``self.input_sheet``.
+        """
+        return build(
+            self.result,
+            self.students_info,
+            self.preferences,
+            self.input_sheet,
+            unique_name,
+        )
 
     def _calculate_satisfied_constraints(self) -> pd.DataFrame:
         """Per (student, Nr): whether the wish is satisfied and its weighted value.

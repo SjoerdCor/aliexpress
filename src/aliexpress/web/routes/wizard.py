@@ -95,7 +95,15 @@ def _write_pref_form_state(school_id, process_id, form, participants):
 def _pref_form_post_data(school_id, process_id, form, participants, all_groups_to):
     """Parse + save the draft, then validate and return the resulting PreferenceData."""
     entries = _write_pref_form_state(school_id, process_id, form, participants)
-    return build_preference_data(entries, all_groups_to)
+    # Short unique chip labels, re-keyed from full name -> short name to the same
+    # matching keys used everywhere else on PreferenceData (student_display etc.).
+    unique_name = {
+        datareader.matching_key(full): short
+        for full, short in candidatedetermination.unique_display_names(
+            participants
+        ).items()
+    }
+    return build_preference_data(entries, all_groups_to, unique_name)
 
 
 def _not_together_get_context(school_id, process_id):

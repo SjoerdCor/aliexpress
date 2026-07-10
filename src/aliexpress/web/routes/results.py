@@ -91,7 +91,12 @@ def show_sociogram():
 @login_required
 @require_process
 def result_page():
-    """Display result for the current process"""
+    """Display the result: the group-card view-model plus the three analysis tables.
+
+    Loads the analysis tables from ``result_tables.json`` and the structured group cards +
+    klassenoverzicht from ``groepsindeling_view.json`` (when present); the template renders the
+    cards from the view-model and the three tables as tabs.
+    """
     school_id = effective_school_id()
     if school_id is None:
         return redirect(url_for("admin.dashboard"))
@@ -102,7 +107,16 @@ def result_page():
         return redirect(url_for("processes.index"))
     with open(path, encoding="utf-8") as fh:
         dataframes = json.load(fh)
-    return render_template("result.html", dataframes=dataframes)
+    view_path = get_file_path(school_id, process_id, "groepsindeling_view.json")
+    groepsindeling_view = None
+    if os.path.exists(view_path):
+        with open(view_path, encoding="utf-8") as fh:
+            groepsindeling_view = json.load(fh)
+    return render_template(
+        "result.html",
+        dataframes=dataframes,
+        groepsindeling_view=groepsindeling_view,
+    )
 
 
 @results_bp.route("/download")
