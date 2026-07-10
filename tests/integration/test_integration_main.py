@@ -24,6 +24,7 @@ from aliexpress.data.preferences_form import (
 )
 from aliexpress.main import distribute_students_from_data, distribute_students_once
 from aliexpress.solver._balance import GroupBalance
+from aliexpress.solver.groepsindeling_view import GroepsindelingView
 
 _NOT_TOGETHER_SMALL = [
     {"group": {"Claire", "Bram", "Eva", "Daan"}, "Max_aantal_samen": 2},
@@ -40,8 +41,6 @@ _NOT_TOGETHER_FULL = [
 
 
 _EXPECTED_KEYS = {
-    "Groepsindeling",
-    "Klassenoverzicht",
     "Overgangsmatrix",
     "Leerlingtevredenheid",
     "VervuldeVoorkeuren",
@@ -211,7 +210,7 @@ _FULL_SATISFACTION = {
 
 
 def _tables(result):
-    """Assert the result shape and return the five output tables."""
+    """Assert the result shape and return the three analysis tables plus the view."""
     assert isinstance(result, dict)
     assert "download" in result
     pd.read_excel(result["download"])  # download must be a readable Excel file
@@ -221,31 +220,23 @@ def _tables(result):
     assert isinstance(dfs, dict)
     assert _EXPECTED_KEYS.issubset(dfs.keys())
 
-    assert isinstance(dfs["Groepsindeling"], pd.DataFrame)
-    assert isinstance(dfs["Klassenoverzicht"], pd.DataFrame)
     assert isinstance(dfs["Overgangsmatrix"], pd.DataFrame)
     assert isinstance(dfs["Leerlingtevredenheid"], pd.io.formats.style.Styler)
     assert isinstance(dfs["VervuldeVoorkeuren"], pd.io.formats.style.Styler)
-    return dfs
+    assert isinstance(result["groepsindeling_view"], GroepsindelingView)
+    return dfs, result["groepsindeling_view"]
 
 
-def _assert_consistency(dfs, groups, stamgroepen):
+def _assert_consistency(dfs, view, groups, stamgroepen):
     """Structural + counting invariants that hold for any optimal assignment."""
-    groep = dfs["Groepsindeling"]
-    assert groep.columns.names == ["Groep", "Jongen/meisje"]
-    assert set(groep.columns.get_level_values("Groep")) == groups
+    assert set(view.group_order) == groups
+    assert {c.name for c in view.groups} == groups
 
-    klas = dfs["Klassenoverzicht"]
-    assert list(klas.columns) == [
-        "Jongen",
-        "Meisje",
-        "VerschilJongensMeisjes",
-        "Groepsgrootte",
-    ]
-    assert (klas["Jongen"] + klas["Meisje"] == klas["Groepsgrootte"]).all()
-    assert (
-        (klas["Jongen"] - klas["Meisje"]).abs() == klas["VerschilJongensMeisjes"]
-    ).all()
+    # Each balance-row cell splits into boys + girls that sum to its count.
+    for row in view.balance_rows:
+        for group in view.group_order:
+            count, boys, girls = row.per_group[group]
+            assert count == boys + girls
 
     trans = dfs["Overgangsmatrix"]
     assert trans.index.name == "Stamgroep"
@@ -258,9 +249,14 @@ def _assert_consistency(dfs, groups, stamgroepen):
     n_students = len(tevr)
     assert set(voorkeuren.index) == set(tevr.index)
     assert trans.to_numpy().sum() == n_students
-    jaar = klas[klas.index.get_level_values(1) == "Jaarlaag"]
-    assert jaar["Groepsgrootte"].sum() == n_students
-    return tevr, klas, trans
+    movers = sum(
+        cnt
+        for r in view.balance_rows
+        if not r.is_total
+        for (cnt, _, _) in r.per_group.values()
+    )
+    assert movers == n_students
+    return tevr, view
 
 
 def _assert_satisfaction(tevr, expected):
@@ -281,18 +277,19 @@ def test_distribute_students_once_happy_flow_small():
         on_update=lambda msg: None,
         groupbalance=GroupBalance(max_imbalance_boys_girls_total=7),
     )
-    dfs = _tables(result)
-    tevr, klas, trans = _assert_consistency(dfs, {"Beren", "Otters"}, {"A", "B", "D"})
+    dfs, view = _tables(result)
+    tevr, view = _assert_consistency(dfs, view, {"Beren", "Otters"}, {"A", "B", "D"})
     _assert_satisfaction(tevr, _SMALL_SATISFACTION)
 
-    totaal = klas[klas.index.get_level_values(1) == "Totaal"]
-    jaar = klas[klas.index.get_level_values(1) == "Jaarlaag"]
+    trans = dfs["Overgangsmatrix"]
+    total_row = next(r for r in view.balance_rows if r.is_total)
+    year_rows = [r for r in view.balance_rows if not r.is_total]
     # Manual balance: GroupBalance(max_imbalance_boys_girls_total=7) + loose defaults.
     assert trans.to_numpy().max() <= 5  # max_clique
-    assert totaal["VerschilJongensMeisjes"].max() <= 7  # max_imbalance_boys_girls_total
-    assert jaar["VerschilJongensMeisjes"].max() <= 2  # max_imbalance_boys_girls_year
-    assert totaal["Groepsgrootte"].max() - totaal["Groepsgrootte"].min() <= 3
-    assert jaar["Groepsgrootte"].max() - jaar["Groepsgrootte"].min() <= 2
+    assert total_row.sex_imbalance <= 7  # max_imbalance_boys_girls_total
+    assert max(r.sex_imbalance for r in year_rows) <= 2  # max_imbalance_boys_girls_year
+    assert total_row.size_diff <= 3
+    assert max(r.size_diff for r in year_rows) <= 2
 
 
 def test_distribute_students_once_happy_flow_full():
@@ -304,23 +301,25 @@ def test_distribute_students_once_happy_flow_full():
         not_together=_NOT_TOGETHER_FULL,
         on_update=lambda msg: None,
     )
-    dfs = _tables(result)
-    tevr, klas, trans = _assert_consistency(
+    dfs, view = _tables(result)
+    tevr, view = _assert_consistency(
         dfs,
+        view,
         {"Blauw", "Geel", "Groen", "Oranje"},
         {"Kaboutertuin", "Torteltuin", "Tovertuin", "Vlindertuin"},
     )
     _assert_satisfaction(tevr, _FULL_SATISFACTION)
     assert (tevr["Tevredenheid"] > 0).all()  # the goal: every student ends up positive
 
-    totaal = klas[klas.index.get_level_values(1) == "Totaal"]
-    jaar = klas[klas.index.get_level_values(1) == "Jaarlaag"]
+    trans = dfs["Overgangsmatrix"]
+    total_row = next(r for r in view.balance_rows if r.is_total)
+    year_rows = [r for r in view.balance_rows if not r.is_total]
     # Class balance realized within the auto-determined minimal relaxation.
     assert trans.to_numpy().max() <= 3  # max students from one stamgroep in a group
-    assert totaal["VerschilJongensMeisjes"].max() <= 2
-    assert jaar["VerschilJongensMeisjes"].max() <= 3
-    assert totaal["Groepsgrootte"].max() - totaal["Groepsgrootte"].min() <= 2
-    assert jaar["Groepsgrootte"].max() - jaar["Groepsgrootte"].min() <= 1
+    assert total_row.sex_imbalance <= 2
+    assert max(r.sex_imbalance for r in year_rows) <= 3
+    assert total_row.size_diff <= 2
+    assert max(r.size_diff for r in year_rows) <= 1
 
 
 def _dataframe(table):
@@ -367,6 +366,9 @@ def test_distribute_students_from_json_matches_xlsx():
             _dataframe(from_xlsx["dataframes"][key]),
             _dataframe(from_json["dataframes"][key]),
         )
+    # The structured view is identical too: both paths have an empty unique_name map,
+    # so the frozen dataclasses compare equal.
+    assert from_xlsx["groepsindeling_view"] == from_json["groepsindeling_view"]
 
 
 def _load_native_scenario(json_path, groups_path, not_together_path):
@@ -410,8 +412,8 @@ def test_distribute_from_native_files_small():
         groupbalance=GroupBalance(max_imbalance_boys_girls_total=7),
     )
 
-    dfs = _tables(result)
-    tevr, _, _ = _assert_consistency(dfs, {"Beren", "Otters"}, {"A", "B", "D"})
+    dfs, view = _tables(result)
+    tevr, _ = _assert_consistency(dfs, view, {"Beren", "Otters"}, {"A", "B", "D"})
     _assert_satisfaction(tevr, _SMALL_SATISFACTION)
 
 
@@ -434,9 +436,10 @@ def test_distribute_from_native_files_full():
         on_update=lambda msg: None,
     )
 
-    dfs = _tables(result)
-    tevr, _, _ = _assert_consistency(
+    dfs, view = _tables(result)
+    tevr, _ = _assert_consistency(
         dfs,
+        view,
         {"Blauw", "Geel", "Groen", "Oranje"},
         {"Kaboutertuin", "Torteltuin", "Tovertuin", "Vlindertuin"},
     )
@@ -480,7 +483,7 @@ def test_solver_stacks_duplicate_group_preferences():
         preference_data, target_groups, on_update=lambda msg: None
     )
 
-    dfs = _tables(result)  # solver ran and produced the full, downloadable report
+    dfs, _ = _tables(result)  # solver ran and produced the full, downloadable report
     tevr = dfs["Leerlingtevredenheid"].data
     assert tevr.loc["John", "Tevredenheid"] == 1.0
     assert (
