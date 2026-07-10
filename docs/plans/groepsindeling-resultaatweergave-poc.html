@@ -1,0 +1,432 @@
+<title>Groepsindeling — ontwerp-POC</title>
+<style>
+  :root {
+    --bg:#ffe6cc; --page:#ffffff; --ink:#333333; --muted:#555555; --muted2:#7d7d7d;
+    --brand:#e69900; --brand-2:#ff9933;
+    --line:#dcdcdc; --line-soft:#ededed; --chip-bg:#f7f7f7; --chip-line:#cccccc;
+    --panel:#fcfaf7; --shadow:0 3px 14px rgba(0,0,0,.10);
+    --ok-bg:#bfe6c4; --ok-line:#7bbd83; --ok-ink:#143a1a;
+    --no-bg:#f1c4ba; --no-line:#cf8a7b; --no-ink:#551a11;
+    --nietin-bg:#e4e4e4; --nietin-line:#bdbdbd; --nietin-ink:#333;
+  }
+  * { box-sizing:border-box; }
+  body { font-family:'Comic Sans MS','Segoe UI',cursive,sans-serif; background:var(--bg); color:var(--ink); margin:0; padding:22px 16px 60px; line-height:1.4; }
+  .page { background:var(--page); max-width:1200px; margin:0 auto; padding:26px 34px 36px; border-radius:20px; box-shadow:0 4px 20px rgba(0,0,0,.2); }
+
+  /* stepper (from the app) */
+  .stepper { display:flex; margin:.5rem 0 1.5rem; gap:.5rem; counter-reset:step; }
+  .step { position:relative; text-align:center; flex:1; }
+  .step::before { counter-increment:step; content:counter(step); width:24px; height:24px; line-height:24px; font-size:.8rem; display:block; margin:0 auto 8px; border-radius:50%; background:#ddd; color:#fff; position:relative; z-index:2; }
+  .step.active::before { background:var(--brand-2); }
+  .step.done::before { background:#c2a17a; }
+  .step:not(:last-child)::after { content:""; position:absolute; top:11px; left:50%; width:calc(100% + .5rem); height:2px; background:#eee; z-index:1; }
+  .step.done:not(:last-child)::after { background:#c2a17a; }
+  .step span { font-size:.72rem; line-height:1.2; color:#757575; display:block; }
+  .step.done span { color:#8a6d3f; }
+  .step.active span { color:#444; font-weight:bold; }
+
+  h1 { font-size:28px; font-weight:bold; color:var(--brand); margin:.2rem 0 .4rem; }
+  .intro { color:var(--muted); font-size:14.5px; margin:0 0 16px; }
+
+  /* buttons (from the app) */
+  .button { display:inline-block; font-family:inherit; padding:.6rem 1.2rem; background:var(--brand-2); color:#fff; border:none; border-radius:.4rem; text-decoration:none; cursor:pointer; transition:background-color .2s ease; font-size:14px; }
+  .button:hover { background:#cc8000; }
+  .button--cancel { background:#e0e0e0; color:#333; }
+  .button--cancel:hover { background:#c8c8c8; }
+  .step-navigation { display:flex; justify-content:space-between; align-items:center; margin-top:2rem; gap:12px; }
+
+  .poc-note { background:#fff; border:1px dashed var(--brand); border-radius:12px; padding:10px 15px; font-size:13px; color:var(--muted); margin:14px 0 22px; }
+  .poc-note strong { color:var(--ink); }
+
+  .section-head { display:flex; align-items:baseline; gap:11px; flex-wrap:wrap; margin:26px 0 12px; }
+  .section-head h2 { font-size:19px; margin:0; color:var(--ink); }
+  .section-head .tag { font-size:11.5px; letter-spacing:.04em; text-transform:uppercase; color:#fff; background:var(--brand); padding:3px 9px; border-radius:999px; }
+
+  /* group cards — the main event */
+  .cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px,1fr)); gap:16px; align-items:start; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow); }
+  .card-head { padding:11px 14px; border-bottom:1px solid var(--line); }
+  .card-title { font-size:17px; font-weight:bold; margin:0; color:var(--ink); }
+  .card-body { padding:11px 13px 14px; display:flex; flex-direction:column; gap:12px; }
+
+  .jm-cols { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .jm-col { display:flex; flex-direction:column; gap:6px; min-width:0; }
+  .caption { font-size:11px; color:var(--muted); }
+  .caption b { color:var(--ink); font-variant-numeric:tabular-nums; }
+  .caption .lbl { text-transform:uppercase; letter-spacing:.04em; font-weight:bold; color:var(--ink); }
+  .chips-col { display:flex; flex-direction:column; gap:4px; }
+
+  .jl { display:flex; flex-direction:column; gap:8px; }
+  .jl + .jl { border-top:1px dashed var(--line); padding-top:11px; }
+  .jl-label { font-size:13px; font-weight:bold; color:var(--brand); }
+  .jl-label .n { color:var(--muted); font-weight:normal; }
+
+  .chip { position:relative; display:flex; align-items:baseline; justify-content:space-between; gap:6px; background:var(--chip-bg); border:1px solid var(--chip-line); border-radius:7px; padding:3px 9px; font-size:13.5px; color:var(--ink); cursor:pointer; }
+  .chip:hover { border-color:var(--brand); }
+  .chip.is-open { border-color:var(--brand); box-shadow:0 0 0 2px rgba(230,153,0,.2); }
+  .chip .from { font-size:10.5px; color:var(--muted2); flex:none; }
+
+  /* click popover, positioned beside the chip */
+  .pop { position:absolute; top:50%; left:calc(100% + 12px); transform:translateY(-50%) scale(.98); transform-origin:left center; width:250px; background:#fff; border:1px solid var(--line); border-radius:12px; box-shadow:0 8px 26px rgba(0,0,0,.22); padding:12px 13px; z-index:30; opacity:0; visibility:hidden; transition:opacity .12s ease, transform .12s ease; text-align:left; cursor:default; }
+  .chip.is-open .pop { opacity:1; visibility:visible; transform:translateY(-50%) scale(1); }
+  .pop.pop--left { left:auto; right:calc(100% + 12px); transform-origin:right center; }
+  .pop::before { content:""; position:absolute; top:50%; left:-6px; width:11px; height:11px; background:#fff; border-left:1px solid var(--line); border-bottom:1px solid var(--line); transform:translateY(-50%) rotate(45deg); }
+  .pop.pop--left::before { left:auto; right:-6px; border-left:none; border-bottom:none; border-right:1px solid var(--line); border-top:1px solid var(--line); }
+  .pop-top { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .pop-name { font-size:15px; font-weight:bold; margin:0; }
+  .satdot { flex:none; font-size:11.5px; font-weight:bold; color:#fff; background:var(--c,#999); border-radius:999px; padding:2px 8px; font-variant-numeric:tabular-nums; }
+  .satdot--none { background:#c4c0bb; }
+  .pop-meta { font-size:12px; color:var(--muted); margin:2px 0 9px; }
+  .pop-h { font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted2); margin:9px 0 5px; }
+  .pref { display:flex; align-items:center; gap:6px; font-size:12.5px; border-radius:7px; padding:3px 7px; margin-bottom:4px; }
+  .pref .g { font-weight:bold; width:12px; text-align:center; flex:none; }
+  .pref--ok { background:var(--ok-bg); border:1px solid var(--ok-line); color:var(--ok-ink); }
+  .pref--no { background:var(--no-bg); border:1px solid var(--no-line); color:var(--no-ink); }
+  .pref--nietin { background:var(--nietin-bg); border:1px solid var(--nietin-line); color:var(--nietin-ink); }
+  .pop .none { font-size:12px; color:var(--muted2); font-style:italic; margin:0; }
+  /* extra-zekerheid badges — base + two levels, matching the app */
+  .badge-zeker { display:inline-flex; align-items:center; gap:5px; font-size:12px; border-radius:999px; padding:2px 9px; margin-top:7px; }
+  .badge-zeker--partial { background:#fff; border:1px solid #e3b85a; color:#6b4e00; }
+  .badge-zeker--full { background:#f1c40f; border:1px solid #c79a08; color:#4d3600; }
+
+  /* klassenoverzicht (counts + balance) */
+  .balans { display:inline-block; max-width:100%; overflow-x:auto; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:9px 6px 6px; margin:14px 0 4px; box-shadow:var(--shadow); }
+  .bal-cap { display:block; text-align:left; font-size:12px; color:var(--muted); padding:2px 12px 9px; max-width:560px; }
+  .bal-cap b { color:var(--ink); }
+  .baltable { border-collapse:collapse; font-size:12.5px; font-variant-numeric:tabular-nums; }
+  .baltable th, .baltable td { padding:5px 15px; text-align:center; white-space:nowrap; }
+  .baltable thead th { font-size:11px; text-transform:uppercase; letter-spacing:.02em; color:var(--muted); font-weight:bold; }
+  .baltable thead th.grp { color:var(--ink); }
+  .baltable thead th:first-child, .baltable tbody th { text-align:left; }
+  .baltable tbody th { font-weight:bold; color:var(--ink); }
+  .baltable tbody tr.sub th { font-weight:normal; color:var(--muted); padding-left:14px; }
+  .baltable tbody tr.totaal td, .baltable tbody tr.totaal th { border-bottom:1px solid var(--line); }
+  .baltable .cnt { font-weight:bold; color:var(--ink); }
+  .baltable .jm { color:var(--muted2); margin-left:5px; }
+  .baltable .vcol { color:var(--ink); font-weight:bold; }
+  .baltable .sep { border-left:1px solid var(--line); }
+
+  /* collapsible legend */
+  .legend-details { margin-top:22px; border:1px solid var(--line); border-radius:12px; background:#fff; }
+  .legend-details > summary { cursor:pointer; padding:11px 16px; font-weight:bold; color:var(--ink); font-size:14px; list-style:none; }
+  .legend-details > summary::-webkit-details-marker { display:none; }
+  .legend-details > summary::before { content:"▸ "; color:var(--brand); }
+  .legend-details[open] > summary::before { content:"▾ "; }
+  .legend { padding:4px 18px 16px; display:flex; flex-wrap:wrap; gap:26px; align-items:flex-start; }
+  .legend .col h4 { margin:0 0 8px; font-size:12.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+  .legend .col { font-size:13px; }
+</style>
+
+<div class="page">
+  <!-- wizard stepper: result page = step 7 active -->
+  <div class="stepper">
+    <div class="step done"><span>Schoolinformatie</span></div>
+    <div class="step done"><span>Wie gaat mee</span></div>
+    <div class="step done"><span>Groepen naartoe</span></div>
+    <div class="step done"><span>Voorkeuren doorgeven</span></div>
+    <div class="step done"><span>Niet samen</span></div>
+    <div class="step done"><span>Leerlingen indelen</span></div>
+    <div class="step active"><span>Resultaat bekijken</span></div>
+    <div class="step"><span>Klaar!</span></div>
+  </div>
+
+  <h1>Groepsindeling klaar!</h1>
+  <p class="intro">Onderzoek de groepsindeling goed en bekijk samen of je er tevreden mee bent.</p>
+  <a href="#" class="button">Bekijk sociogram</a>
+
+  <div class="poc-note">
+    Ontwerp-POC — deze toelichting hoort <strong>niet</strong> in de eindversie. Hieronder staan
+    twee voorbeeldsituaties (doorzetten en herindelen). <strong>Klik</strong> op een chip voor de
+    details van een leerling; klik nogmaals, ernaast of Escape om te sluiten.
+  </div>
+
+  <!-- ============ DOORZETTEN ============ -->
+  <div class="section-head"><h2>Doorzetten</h2><span class="tag">één bewegende jaarlaag</span></div>
+
+  <div class="cards">
+    <!-- Groep 5A (with example popovers) -->
+    <div class="card">
+      <div class="card-head"><p class="card-title">Groep 5A</p></div>
+      <div class="card-body">
+        <div class="jm-cols">
+          <div class="jm-col">
+            <div class="caption"><span class="lbl">Jongens</span>: 8 nieuw + 4 zittend <b>(12 totaal)</b></div>
+            <div class="chips-col">
+              <span class="chip is-open" tabindex="0">Daan <span class="from">Kik</span>
+                <span class="pop">
+                  <div class="pop-top"><p class="pop-name">Daan Bakker</p><span class="satdot" style="--c:#1a9850" title="Tevredenheid 100%">100%</span></div>
+                  <p class="pop-meta">Uit klas Kikkers · jaargroep 5</p>
+                  <div class="pop-h">Wensen</div>
+                  <div class="pref pref--ok"><span class="g">✓</span> Graag met Sem</div>
+                  <div class="pref pref--ok"><span class="g">✓</span> Graag met Finn</div>
+                  <div class="pref pref--ok"><span class="g">✓</span> Liever niet met Bram</div>
+                  <div class="pref pref--nietin"><span class="g">⊘</span> Niet in Groep 5B <span style="margin-left:auto;font-size:11px;opacity:.7">gerespecteerd</span></div>
+                  <span class="badge-zeker badge-zeker--full">🛡 Alle voorkeuren gehonoreerd</span>
+                </span>
+              </span>
+              <span class="chip" tabindex="0">Sem <span class="from">Kik</span><span class="pop"><div class="pop-top"><p class="pop-name">Sem de Vries</p><span class="satdot" style="--c:#1a9850">100%</span></div><p class="pop-meta">Uit klas Kikkers · jaargroep 5</p><div class="pop-h">Wensen</div><div class="pref pref--ok"><span class="g">✓</span> Graag met Daan</div><div class="pref pref--ok"><span class="g">✓</span> Graag met Tim</div></span></span>
+              <span class="chip" tabindex="0">Luuk <span class="from">Zon</span><span class="pop"><div class="pop-top"><p class="pop-name">Luuk Jansen</p><span class="satdot" style="--c:#fee08b">55%</span></div><p class="pop-meta">Uit klas Zonnebloem · jaargroep 5</p><div class="pop-h">Wensen</div><div class="pref pref--ok"><span class="g">✓</span> Graag met Finn</div><div class="pref pref--no"><span class="g">✗</span> Graag met Bram</div></span></span>
+              <span class="chip" tabindex="0">Finn <span class="from">Maa</span><span class="pop"><div class="pop-top"><p class="pop-name">Finn Willems</p><span class="satdot" style="--c:#1a9850">100%</span></div><p class="pop-meta">Uit klas Maantje · jaargroep 5</p><div class="pop-h">Wensen</div><div class="pref pref--ok"><span class="g">✓</span> Graag met Daan</div></span></span>
+              <span class="chip" tabindex="0">Joep <span class="from">Zon</span><span class="pop"><div class="pop-top"><p class="pop-name">Joep Mulder</p><span class="satdot satdot--none" title="Geen wensen">—</span></div><p class="pop-meta">Uit klas Zonnebloem · jaargroep 5</p><p class="none">Geen wensen opgegeven.</p></span></span>
+              <span class="chip" tabindex="0">Noud <span class="from">Maa</span><span class="pop"><div class="pop-top"><p class="pop-name">Noud Peters</p><span class="satdot satdot--none" title="Geen wensen">—</span></div><p class="pop-meta">Uit klas Maantje · jaargroep 5</p><p class="none">Geen wensen opgegeven.</p></span></span>
+              <span class="chip" tabindex="0">Tim <span class="from">Kik</span><span class="pop"><div class="pop-top"><p class="pop-name">Tim Bos</p><span class="satdot" style="--c:#a6d96a">72%</span></div><p class="pop-meta">Uit klas Kikkers · jaargroep 5</p><div class="pop-h">Wensen</div><div class="pref pref--ok"><span class="g">✓</span> Graag met Sem</div><div class="pref pref--no"><span class="g">✗</span> Graag met Milan</div><span class="badge-zeker badge-zeker--partial">🛡 Minstens zo tevreden als 60%</span></span></span>
+              <span class="chip" tabindex="0">Jesse <span class="from">Zon</span><span class="pop"><div class="pop-top"><p class="pop-name">Jesse Mol</p><span class="satdot" style="--c:#f46d43">25%</span></div><p class="pop-meta">Uit klas Zonnebloem · jaargroep 5</p><div class="pop-h">Wensen</div><div class="pref pref--no"><span class="g">✗</span> Graag met Bram</div></span></span>
+            </div>
+          </div>
+          <div class="jm-col">
+            <div class="caption"><span class="lbl">Meisjes</span>: 8 nieuw + 4 zittend <b>(12 totaal)</b></div>
+            <div class="chips-col">
+              <span class="chip" tabindex="0">Sanne <span class="from">Kik</span><span class="pop"><div class="pop-top"><p class="pop-name">Sanne Vos</p><span class="satdot" style="--c:#1a9850">100%</span></div><p class="pop-meta">Uit klas Kikkers · jaargroep 5</p><div class="pop-h">Wensen</div><div class="pref pref--ok"><span class="g">✓</span> Graag met Nora</div><div class="pref pref--ok"><span class="g">✓</span> Graag met Julia</div></span></span>
+              <span class="chip" tabindex="0">Fenna <span class="from">Maa</span><span class="pop"><div class="pop-top"><p class="pop-name">Fenna Dijk</p><span class="satdot" style="--c:#66bd63">78%</span></div><p class="pop-meta">Uit klas Maantje · jaargroep 5</p><div class="pop-h">Wensen</div><div class="pref pref--ok"><span class="g">✓</span> Graag met Roos</div><div class="pref pref--no"><span class="g">✗</span> Graag met Mila</div></span></span>
+              <span class="chip" tabindex="0">Lotte <span class="from">Zon</span><span class="pop"><div class="pop-top"><p class="pop-name">Lotte Groen</p><span class="satdot" style="--c:#fee08b">55%</span></div><p class="pop-meta">Uit klas Zonnebloem · jaargroep 5</p><div class="pop-h">Wensen</div><div class="pref pref--ok"><span class="g">✓</span> Graag met Eva</div><div class="pref pref--no"><span class="g">✗</span> Graag met Anna</div></span></span>
+              <span class="chip" tabindex="0">Julia <span class="from">Kik</span><span class="pop"><div class="pop-top"><p class="pop-name">Julia Maas</p><span class="satdot" style="--c:#1a9850">100%</span></div><p class="pop-meta">Uit klas Kikkers · jaargroep 5</p><div class="pop-h">Wensen</div><div class="pref pref--ok"><span class="g">✓</span> Graag met Sanne</div></span></span>
+              <span class="chip" tabindex="0">Roos <span class="from">Maa</span><span class="pop"><div class="pop-top"><p class="pop-name">Roos Bakker</p><span class="satdot" style="--c:#1a9850">100%</span></div><p class="pop-meta">Uit klas Maantje · jaargroep 5</p><div class="pop-h">Wensen</div><div class="pref pref--ok"><span class="g">✓</span> Graag met Fenna</div></span></span>
+              <span class="chip" tabindex="0">Eva <span class="from">Zon</span><span class="pop"><div class="pop-top"><p class="pop-name">Eva Hendriks</p><span class="satdot" style="--c:#fdae61">48%</span></div><p class="pop-meta">Uit klas Zonnebloem · jaargroep 5</p><div class="pop-h">Wensen</div><div class="pref pref--ok"><span class="g">✓</span> Graag met Lotte</div><div class="pref pref--no"><span class="g">✗</span> Graag met Isa</div><div class="pref pref--nietin"><span class="g">⊘</span> Niet in Groep 5C <span style="margin-left:auto;font-size:11px;opacity:.7">gerespecteerd</span></div></span></span>
+              <span class="chip" tabindex="0">Nora <span class="from">Kik</span><span class="pop"><div class="pop-top"><p class="pop-name">Nora Klein</p><span class="satdot" style="--c:#1a9850">100%</span></div><p class="pop-meta">Uit klas Kikkers · jaargroep 5</p><div class="pop-h">Wensen</div><div class="pref pref--ok"><span class="g">✓</span> Graag met Sanne</div></span></span>
+              <span class="chip" tabindex="0">Saar <span class="from">Maa</span><span class="pop"><div class="pop-top"><p class="pop-name">Saar Visser</p><span class="satdot satdot--none" title="Geen wensen">—</span></div><p class="pop-meta">Uit klas Maantje · jaargroep 5</p><p class="none">Geen wensen opgegeven.</p></span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Groep 5B -->
+    <div class="card">
+      <div class="card-head"><p class="card-title">Groep 5B</p></div>
+      <div class="card-body">
+        <div class="jm-cols">
+          <div class="jm-col">
+            <div class="caption"><span class="lbl">Jongens</span>: 9 nieuw + 4 zittend <b>(13 totaal)</b></div>
+            <div class="chips-col">
+              <span class="chip">Stan <span class="from">Kik</span></span><span class="chip">Gijs <span class="from">Zon</span></span><span class="chip">Cas <span class="from">Maa</span></span><span class="chip">Ruben <span class="from">Kik</span></span><span class="chip">Thijs <span class="from">Zon</span></span><span class="chip">Milan <span class="from">Maa</span></span><span class="chip">Sven <span class="from">Kik</span></span><span class="chip">Teun <span class="from">Zon</span></span><span class="chip">Bram <span class="from">Maa</span></span>
+            </div>
+          </div>
+          <div class="jm-col">
+            <div class="caption"><span class="lbl">Meisjes</span>: 7 nieuw + 4 zittend <b>(11 totaal)</b></div>
+            <div class="chips-col">
+              <span class="chip">Tess <span class="from">Kik</span></span><span class="chip">Anna <span class="from">Zon</span></span><span class="chip">Isa <span class="from">Maa</span></span><span class="chip">Zoë <span class="from">Kik</span></span><span class="chip">Liv <span class="from">Zon</span></span><span class="chip">Mila <span class="from">Maa</span></span><span class="chip">Noor <span class="from">Kik</span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Groep 5C -->
+    <div class="card">
+      <div class="card-head"><p class="card-title">Groep 5C</p></div>
+      <div class="card-body">
+        <div class="jm-cols">
+          <div class="jm-col">
+            <div class="caption"><span class="lbl">Jongens</span>: 7 nieuw + 4 zittend <b>(11 totaal)</b></div>
+            <div class="chips-col">
+              <span class="chip">Lars <span class="from">Zon</span></span><span class="chip">Guus <span class="from">Kik</span></span><span class="chip">Boaz <span class="from">Maa</span></span><span class="chip">Mees <span class="from">Zon</span></span><span class="chip">Job <span class="from">Kik</span></span><span class="chip">Riley <span class="from">Maa</span></span><span class="chip">Dex <span class="from">Zon</span></span>
+            </div>
+          </div>
+          <div class="jm-col">
+            <div class="caption"><span class="lbl">Meisjes</span>: 8 nieuw + 4 zittend <b>(12 totaal)</b></div>
+            <div class="chips-col">
+              <span class="chip">Yara <span class="from">Zon</span></span><span class="chip">Loïs <span class="from">Kik</span></span><span class="chip">Femke <span class="from">Maa</span></span><span class="chip">Elin <span class="from">Zon</span></span><span class="chip">Puck <span class="from">Kik</span></span><span class="chip">Fleur <span class="from">Maa</span></span><span class="chip">Benthe <span class="from">Zon</span></span><span class="chip">Fien <span class="from">Kik</span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="balans">
+    <span class="bal-cap">Klassenoverzicht — aantallen per groep. Rechts de balans: <b>grootteverschil</b> = verschil tussen de grootste en de kleinste groep; <b>onbalans ♂/♀</b> = het grootste verschil tussen jongens en meisjes binnen één groep.</span>
+    <table class="baltable">
+      <thead>
+        <tr><th></th><th class="grp">Groep 5A</th><th class="grp">Groep 5B</th><th class="grp">Groep 5C</th><th class="sep">Grootteverschil</th><th>Onbalans ♂/♀</th></tr>
+      </thead>
+      <tbody>
+        <tr class="totaal"><th>Totaal</th>
+          <td><span class="cnt">24</span><span class="jm">♂12 ♀12</span></td>
+          <td><span class="cnt">24</span><span class="jm">♂13 ♀11</span></td>
+          <td><span class="cnt">23</span><span class="jm">♂11 ♀12</span></td>
+          <td class="vcol sep">1</td><td class="vcol">2</td></tr>
+        <tr class="sub"><th>Jaarlaag 5</th>
+          <td><span class="cnt">16</span><span class="jm">♂8 ♀8</span></td>
+          <td><span class="cnt">16</span><span class="jm">♂9 ♀7</span></td>
+          <td><span class="cnt">15</span><span class="jm">♂7 ♀8</span></td>
+          <td class="vcol sep">1</td><td class="vcol">2</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ============ HERINDELEN ============ -->
+  <div class="section-head"><h2>Herindelen</h2><span class="tag">meerdere jaarlagen</span></div>
+
+  <div class="cards">
+    <!-- Groep Regenboog -->
+    <div class="card">
+      <div class="card-head"><p class="card-title">Groep Regenboog</p></div>
+      <div class="card-body">
+        <div class="jl">
+          <div class="jl-label">Jaarlaag 6 <span class="n">— 9 leerlingen</span></div>
+          <div class="jm-cols">
+            <div class="jm-col"><div class="caption"><span class="lbl">Jongens</span> <b>(5)</b></div>
+              <div class="chips-col"><span class="chip">Daan <span class="from">Kik</span></span><span class="chip">Sem <span class="from">Zon</span></span><span class="chip">Luuk <span class="from">Kik</span></span><span class="chip">Finn <span class="from">Maa</span></span><span class="chip">Bram <span class="from">Zon</span></span></div>
+            </div>
+            <div class="jm-col"><div class="caption"><span class="lbl">Meisjes</span> <b>(4)</b></div>
+              <div class="chips-col"><span class="chip">Sanne <span class="from">Kik</span></span><span class="chip">Eva <span class="from">Zon</span></span><span class="chip">Fenna <span class="from">Maa</span></span><span class="chip">Roos <span class="from">Kik</span></span></div>
+            </div>
+          </div>
+        </div>
+        <div class="jl">
+          <div class="jl-label">Jaarlaag 7 <span class="n">— 10 leerlingen</span></div>
+          <div class="jm-cols">
+            <div class="jm-col"><div class="caption"><span class="lbl">Jongens</span> <b>(5)</b></div>
+              <div class="chips-col"><span class="chip">Tim <span class="from">Dui</span></span><span class="chip">Noud <span class="from">Mus</span></span><span class="chip">Jesse <span class="from">Mus</span></span><span class="chip">Stan <span class="from">Dui</span></span><span class="chip">Gijs <span class="from">Dui</span></span></div>
+            </div>
+            <div class="jm-col"><div class="caption"><span class="lbl">Meisjes</span> <b>(5)</b></div>
+              <div class="chips-col"><span class="chip">Julia <span class="from">Dui</span></span><span class="chip">Nora <span class="from">Mus</span></span><span class="chip">Saar <span class="from">Mus</span></span><span class="chip">Liv <span class="from">Dui</span></span><span class="chip">Mila <span class="from">Mus</span></span></div>
+            </div>
+          </div>
+        </div>
+        <div class="jl">
+          <div class="jl-label">Jaarlaag 8 <span class="n">— 8 leerlingen</span></div>
+          <div class="jm-cols">
+            <div class="jm-col"><div class="caption"><span class="lbl">Jongens</span> <b>(4)</b></div>
+              <div class="chips-col"><span class="chip">Thijs <span class="from">Val</span></span><span class="chip">Ruben <span class="from">Val</span></span><span class="chip">Cas <span class="from">Uil</span></span><span class="chip">Gijs <span class="from">Uil</span></span></div>
+            </div>
+            <div class="jm-col"><div class="caption"><span class="lbl">Meisjes</span> <b>(4)</b></div>
+              <div class="chips-col"><span class="chip">Tess <span class="from">Val</span></span><span class="chip">Anna <span class="from">Uil</span></span><span class="chip">Isa <span class="from">Val</span></span><span class="chip">Zoë <span class="from">Uil</span></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Groep Zonnestraal -->
+    <div class="card">
+      <div class="card-head"><p class="card-title">Groep Zonnestraal</p></div>
+      <div class="card-body">
+        <div class="jl">
+          <div class="jl-label">Jaarlaag 6 <span class="n">— 8 leerlingen</span></div>
+          <div class="jm-cols">
+            <div class="jm-col"><div class="caption"><span class="lbl">Jongens</span> <b>(4)</b></div>
+              <div class="chips-col"><span class="chip">Mees <span class="from">Kik</span></span><span class="chip">Job <span class="from">Zon</span></span><span class="chip">Guus <span class="from">Maa</span></span><span class="chip">Boaz <span class="from">Kik</span></span></div>
+            </div>
+            <div class="jm-col"><div class="caption"><span class="lbl">Meisjes</span> <b>(4)</b></div>
+              <div class="chips-col"><span class="chip">Lotte <span class="from">Zon</span></span><span class="chip">Nora <span class="from">Kik</span></span><span class="chip">Saar <span class="from">Maa</span></span><span class="chip">Puck <span class="from">Zon</span></span></div>
+            </div>
+          </div>
+        </div>
+        <div class="jl">
+          <div class="jl-label">Jaarlaag 7 <span class="n">— 9 leerlingen</span></div>
+          <div class="jm-cols">
+            <div class="jm-col"><div class="caption"><span class="lbl">Jongens</span> <b>(5)</b></div>
+              <div class="chips-col"><span class="chip">Lars <span class="from">Dui</span></span><span class="chip">Sven <span class="from">Mus</span></span><span class="chip">Teun <span class="from">Dui</span></span><span class="chip">Milan <span class="from">Mus</span></span><span class="chip">Dex <span class="from">Dui</span></span></div>
+            </div>
+            <div class="jm-col"><div class="caption"><span class="lbl">Meisjes</span> <b>(4)</b></div>
+              <div class="chips-col"><span class="chip">Yara <span class="from">Dui</span></span><span class="chip">Elin <span class="from">Mus</span></span><span class="chip">Fleur <span class="from">Dui</span></span><span class="chip">Noor <span class="from">Mus</span></span></div>
+            </div>
+          </div>
+        </div>
+        <div class="jl">
+          <div class="jl-label">Jaarlaag 8 <span class="n">— 9 leerlingen</span></div>
+          <div class="jm-cols">
+            <div class="jm-col"><div class="caption"><span class="lbl">Jongens</span> <b>(4)</b></div>
+              <div class="chips-col"><span class="chip">Riley <span class="from">Val</span></span><span class="chip">Cas <span class="from">Uil</span></span><span class="chip">Gijs <span class="from">Val</span></span><span class="chip">Mick <span class="from">Uil</span></span></div>
+            </div>
+            <div class="jm-col"><div class="caption"><span class="lbl">Meisjes</span> <b>(5)</b></div>
+              <div class="chips-col"><span class="chip">Femke <span class="from">Val</span></span><span class="chip">Loïs <span class="from">Uil</span></span><span class="chip">Benthe <span class="from">Val</span></span><span class="chip">Liv <span class="from">Uil</span></span><span class="chip">Isa <span class="from">Val</span></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="balans">
+    <span class="bal-cap">Klassenoverzicht — aantallen per groep en jaarlaag. Rechts de balans: <b>grootteverschil</b> = verschil tussen de grootste en de kleinste groep; <b>onbalans ♂/♀</b> = het grootste verschil tussen jongens en meisjes binnen één groep.</span>
+    <table class="baltable">
+      <thead>
+        <tr><th></th><th class="grp">Regenboog</th><th class="grp">Zonnestraal</th><th class="sep">Grootteverschil</th><th>Onbalans ♂/♀</th></tr>
+      </thead>
+      <tbody>
+        <tr class="totaal"><th>Totaal</th>
+          <td><span class="cnt">27</span><span class="jm">♂14 ♀13</span></td>
+          <td><span class="cnt">26</span><span class="jm">♂13 ♀13</span></td>
+          <td class="vcol sep">1</td><td class="vcol">1</td></tr>
+        <tr class="sub"><th>Jaarlaag 6</th>
+          <td><span class="cnt">9</span><span class="jm">♂5 ♀4</span></td>
+          <td><span class="cnt">8</span><span class="jm">♂4 ♀4</span></td>
+          <td class="vcol sep">1</td><td class="vcol">1</td></tr>
+        <tr class="sub"><th>Jaarlaag 7</th>
+          <td><span class="cnt">10</span><span class="jm">♂5 ♀5</span></td>
+          <td><span class="cnt">9</span><span class="jm">♂5 ♀4</span></td>
+          <td class="vcol sep">1</td><td class="vcol">1</td></tr>
+        <tr class="sub"><th>Jaarlaag 8</th>
+          <td><span class="cnt">8</span><span class="jm">♂4 ♀4</span></td>
+          <td><span class="cnt">9</span><span class="jm">♂4 ♀5</span></td>
+          <td class="vcol sep">1</td><td class="vcol">1</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p style="margin:22px 0 6px;color:var(--muted);font-size:13.5px;">Je kunt de groepsindeling ook downloaden:</p>
+  <a href="#" class="button">Download groepsindeling</a>
+
+  <!-- collapsible legend -->
+  <details class="legend-details">
+    <summary>Legenda</summary>
+    <div class="legend">
+      <div class="col">
+        <h4>Op de chip</h4>
+        <span class="chip" style="cursor:default; width:140px;">Voornaam <span class="from">Kik</span></span>
+        <div style="margin-top:8px; color:var(--muted); font-size:12.5px;">Voornaam + oude groep (3-letterafkorting).</div>
+      </div>
+      <div class="col" style="max-width:300px;">
+        <h4>Bij aanklikken van een chip</h4>
+        <div class="pref pref--ok"><span class="g">✓</span> Wens vervuld</div>
+        <div class="pref pref--no"><span class="g">✗</span> Wens niet vervuld</div>
+        <div class="pref pref--nietin"><span class="g">⊘</span> Niet-in (gerespecteerd)</div>
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
+          <span class="badge-zeker badge-zeker--partial">🛡 Minstens zo tevreden als…</span>
+          <span class="badge-zeker badge-zeker--full">🛡 Alle voorkeuren gehonoreerd</span>
+        </div>
+        <div style="margin-top:8px;"><span class="satdot" style="--c:#1a9850">100%</span> <span style="color:var(--muted);font-size:12.5px">tevredenheid (rood→groen); "—" = geen wensen</span></div>
+      </div>
+    </div>
+  </details>
+
+  <!-- navigation -->
+  <div class="step-navigation">
+    <a href="#" class="button button--cancel">← Nog niet helemaal… opnieuw invoeren</a>
+    <a href="#" class="button">Ja, ik ben tevreden! →</a>
+  </div>
+</div>
+
+<script>
+(function () {
+  var POP_W = 250, openChip = null;
+  function place(chip) {
+    var pop = chip.querySelector('.pop'); if (!pop) return;
+    var r = chip.getBoundingClientRect();
+    if (window.innerWidth - r.right < POP_W + 28) pop.classList.add('pop--left');
+    else pop.classList.remove('pop--left');
+  }
+  function open(chip) { close(); chip.classList.add('is-open'); openChip = chip; place(chip); }
+  function close() { if (openChip) { openChip.classList.remove('is-open'); openChip = null; } }
+  function toggle(chip) { if (chip === openChip) close(); else open(chip); }
+  document.addEventListener('click', function (e) {
+    var chip = e.target.closest('.chip');
+    if (chip && chip.querySelector('.pop')) {
+      if (e.target.closest('.pop')) return;   // clicks inside an open popover do nothing
+      e.stopPropagation(); toggle(chip);
+    } else if (!e.target.closest('.pop')) { close(); }
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { close(); return; }
+    if (e.key === 'Enter' || e.key === ' ') {
+      var chip = document.activeElement && document.activeElement.closest && document.activeElement.closest('.chip');
+      if (chip && chip.querySelector('.pop')) { e.preventDefault(); toggle(chip); }
+    }
+  });
+  window.addEventListener('resize', function () { if (openChip) place(openChip); });
+  var init = document.querySelector('.chip.is-open');
+  if (init) { openChip = init; place(init); }
+})();
+</script>

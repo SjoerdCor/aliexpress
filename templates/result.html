@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "partials/groepsindeling.html" as gi %}
 {% set current_step = 7 %}
 
 {% block header %}Groepsindeling klaar!{% endblock %}
@@ -8,6 +9,9 @@
 <a href="{{ url_for('results.show_sociogram') }}" target="_blank" class="button primary">Bekijk sociogram</a>
 
 <p>Onderzoek de groepsindeling goed en bekijk samen of je er tevreden mee bent </p>
+
+{% if groepsindeling_view %}{{ gi.render(groepsindeling_view) }}{% endif %}
+
 <div class="tabs-wrapper">
     <div class="tabs">
         {% for name in dataframes.keys() %}
@@ -47,6 +51,39 @@
             pane.classList.toggle('active', i === index);
         });
     }
+</script>
+
+<script>
+    // Click-toggle popover for the group-card chips: opens beside the chip (left when
+    // there's no room on the right), closes on a second click, an outside click, or Escape,
+    // and is keyboard-operable (chip is focusable; Enter/space toggles).
+    (function () {
+        var POP_W = 250, openChip = null;
+        function place(chip) {
+            var pop = chip.querySelector('.gi-pop'); if (!pop) return;
+            var r = chip.getBoundingClientRect();
+            if (window.innerWidth - r.right < POP_W + 28) pop.classList.add('gi-pop--left');
+            else pop.classList.remove('gi-pop--left');
+        }
+        function open(chip) { close(); chip.classList.add('is-open'); openChip = chip; place(chip); }
+        function close() { if (openChip) { openChip.classList.remove('is-open'); openChip = null; } }
+        function toggle(chip) { if (chip === openChip) close(); else open(chip); }
+        document.addEventListener('click', function (e) {
+            var chip = e.target.closest('.gi-chip');
+            if (chip && chip.querySelector('.gi-pop')) {
+                if (e.target.closest('.gi-pop')) return;   // clicks inside an open popover do nothing
+                e.stopPropagation(); toggle(chip);
+            } else if (!e.target.closest('.gi-pop')) { close(); }
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') { close(); return; }
+            if (e.key === 'Enter' || e.key === ' ') {
+                var chip = document.activeElement && document.activeElement.closest && document.activeElement.closest('.gi-chip');
+                if (chip && chip.querySelector('.gi-pop')) { e.preventDefault(); toggle(chip); }
+            }
+        });
+        window.addEventListener('resize', function () { if (openChip) place(openChip); });
+    })();
 </script>
 
 {% endblock %}

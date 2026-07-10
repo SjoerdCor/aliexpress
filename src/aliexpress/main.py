@@ -87,7 +87,14 @@ def _log_initial_state(groups_to, students_info, on_update, stamgroep_display=No
 
 
 def _export(result, preference_data, target_groups):
-    """Build the download workbook and result tables from the already-solved result."""
+    """Build the download workbook, result tables and the structured Groepsindeling view.
+
+    Returns ``(output, dfs, view)``: the download workbook, the three analysis tables
+    (Overgangsmatrix, Leerlingtevredenheid, VervuldeVoorkeuren), and the Flask-free
+    :class:`GroepsindelingView` for the result page. The Groepsindeling and Klassenoverzicht
+    now live in the view-model, not in ``dfs``; the full workbook (``to_excel``) still writes
+    every sheet.
+    """
     display_names = solutions.DisplayNames(
         student=preference_data.student_display,
         group=target_groups.display,
@@ -108,14 +115,21 @@ def _export(result, preference_data, target_groups):
     output.seek(0)
 
     dfs = {
-        "Groepsindeling": sa.display_groepsindeling(),
-        "Klassenoverzicht": sa.group_report,
         "Overgangsmatrix": sa.display_transition_matrix(),
         "Leerlingtevredenheid": sa.display_student_performance(),
         "VervuldeVoorkeuren": sa.display_satisfied_preferences(),
     }
 
-    return output, dfs
+    # unique_name is a matching-key -> short-name map; relabel it to display space
+    # (full name -> short name) so the chip builder can key it by the display name.
+    # Empty in the Excel/CLI path -> chips fall back to the full name.
+    unique_display = {
+        preference_data.student_display.get(k, k): short
+        for k, short in preference_data.unique_name.items()
+    }
+    view = sa.groepsindeling_view(unique_display)
+
+    return output, dfs, view
 
 
 def _log_solve_summary(
@@ -188,6 +202,14 @@ def distribute_students_from_data(
         :func:`~.solver.engine.solve_within_minimal_relaxation`). Pass a
         GroupBalance to override this with fixed manual limits instead (see
         :func:`~.solver.engine.solve_with_fixed_balance`).
+
+    Returns
+    -------
+    dict
+        ``{"download": <xlsx BytesIO>, "dataframes": {<3 analysis tables>},
+        "groepsindeling_view": GroepsindelingView}`` — the workbook, the three analysis tables
+        (Overgangsmatrix, Leerlingtevredenheid, VervuldeVoorkeuren) and the structured
+        group-card view-model for the result page.
     """
     preferences = preference_data.preferences
     students_info = preference_data.students_info
@@ -250,10 +272,10 @@ def distribute_students_from_data(
         )
         _log_solve_summary(result, groupbalance)
 
-    output, dfs = _export(result, preference_data, target_groups)
+    output, dfs, view = _export(result, preference_data, target_groups)
     logger.info("Done!")
     on_update("Klaar!")
-    return {"download": output, "dataframes": dfs}
+    return {"download": output, "dataframes": dfs, "groepsindeling_view": view}
 
 
 def distribute_students_once(

@@ -1,5 +1,6 @@
 """Tests for the PreferenceData datacontract and its lossless JSON round-trip."""
 
+import json
 import math
 
 import numpy as np
@@ -99,6 +100,7 @@ def test_preference_data_round_trips_through_json():
         preferences=_sample_preferences(),
         students_info=_sample_students_info(),
         student_display={"aap": "Aap", "noot": "Noot", "mies": "Mies"},
+        unique_name={"aap": "Aap K", "noot": "Noot"},
         stamgroep_display={"rood": "Rood", "blauw": "Blauw"},
         input_sheet=_sample_input_sheet(),
     )
@@ -108,5 +110,27 @@ def test_preference_data_round_trips_through_json():
     assert_frame_equal(restored.preferences, original.preferences)
     _assert_students_info_equal(restored.students_info, original.students_info)
     assert restored.student_display == original.student_display
+    assert restored.unique_name == original.unique_name
     assert restored.stamgroep_display == original.stamgroep_display
     assert_frame_equal(restored.input_sheet, original.input_sheet)
+
+
+def test_from_json_without_unique_name_defaults_to_empty():
+    """Older voorkeuren.json (no ``unique_name`` key) still loads, with an empty map.
+
+    The field was added after the first releases, so ``from_json`` must tolerate its
+    absence rather than KeyError on a persisted file written before it existed.
+    """
+    original = PreferenceData(
+        preferences=_sample_preferences(),
+        students_info=_sample_students_info(),
+        student_display={"aap": "Aap", "noot": "Noot", "mies": "Mies"},
+        stamgroep_display={"rood": "Rood", "blauw": "Blauw"},
+        input_sheet=_sample_input_sheet(),
+    )
+    payload = json.loads(original.to_json())
+    del payload["unique_name"]
+
+    restored = PreferenceData.from_json(json.dumps(payload))
+
+    assert not restored.unique_name
