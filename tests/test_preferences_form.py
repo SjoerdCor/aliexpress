@@ -13,6 +13,8 @@ import pandas as pd
 import pandera.pandas as pa
 import pytest
 
+from aliexpress.data.candidatedetermination import unique_display_names
+from aliexpress.data.datareader import matching_key
 from aliexpress.data.preferences_data import PreferenceData
 from aliexpress.data.preferences_form import (
     Preference,
@@ -92,6 +94,42 @@ def test_valid_preferences_build_preference_data():
     assert sheet.loc["john", info_col] == "Jongen"
     assert isinstance(sheet.columns, pd.MultiIndex)
     assert sheet.columns.names == ["TypeWens", "Nr", "TypeWaarde"]
+
+
+def test_unique_name_defaults_to_empty_map():
+    """Without a unique_name argument (Excel/CLI shape) the map stays empty."""
+    data = build_preference_data([_student(student="John")], all_to_groups=["rood"])
+    assert not data.unique_name
+
+
+def test_unique_name_is_populated_by_matching_key():
+    """The web path fills unique_name keyed by matching_key -> short unique name.
+
+    Two students share the roepnaam "Jan", so ``unique_display_names`` disambiguates with
+    surname letters; the builder stores it re-keyed to the same matching keys as
+    ``student_display`` (full name, lower-cased/edge-stripped).
+    """
+    participants = [
+        {"roepnaam": "Jan", "achternaam": "Jansen"},
+        {"roepnaam": "Jan", "achternaam": "Pietersen"},
+    ]
+    short = unique_display_names(participants)
+    unique_name = {matching_key(full): name for full, name in short.items()}
+
+    students = [
+        _student(student="Jan Jansen"),
+        _student(student="Jan Pietersen"),
+    ]
+    data = build_preference_data(
+        students, all_to_groups=["rood"], unique_name=unique_name
+    )
+
+    assert data.unique_name[matching_key("Jan Jansen")] == short["Jan Jansen"]
+    assert data.unique_name[matching_key("Jan Pietersen")] == short["Jan Pietersen"]
+    # The short names differ (surname letters were needed to disambiguate).
+    assert short["Jan Jansen"] != short["Jan Pietersen"]
+    # And they key onto the same students as student_display.
+    assert data.unique_name.keys() == data.student_display.keys()
 
 
 def test_excluded_groups_up_to_groups_minus_one_is_allowed():

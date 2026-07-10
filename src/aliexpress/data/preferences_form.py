@@ -84,7 +84,9 @@ class StudentEntry:
 
 
 def build_preference_data(
-    students: list[StudentEntry], all_to_groups: list[str]
+    students: list[StudentEntry],
+    all_to_groups: list[str],
+    unique_name: dict | None = None,
 ) -> PreferenceData:
     """Turn submitted form preferences into the canonical ``PreferenceData`` contract.
 
@@ -95,6 +97,10 @@ def build_preference_data(
     all_to_groups : list[str]
         Matching keys of the destination groups (the route passes
         ``list(target_groups.counts.keys())``).
+    unique_name : dict | None
+        Optional matching-key -> short unique display name map (from
+        ``candidatedetermination.unique_display_names``, re-keyed to matching keys). Stored
+        as-is on the result; ``None`` becomes an empty dict (Excel/CLI have no short names).
 
     Returns
     -------
@@ -131,6 +137,7 @@ def build_preference_data(
         student_display=student_display,
         stamgroep_display=origin_group_display,
         input_sheet=input_sheet,
+        unique_name=unique_name or {},
     )
 
 
