@@ -95,16 +95,11 @@ def run_solve_thread(ctx: ThreadContext, not_together):
     """Background thread: run the solver and write result artifacts.
 
     Each call creates its own app context and DB session. ``ctx.run_id`` is the integer
-    PK of the Run row so log lines can be appended without a school+name query per line.
-    Reads preferences from ``voorkeuren.json`` (written by both input paths) so that the
-    solver is independent of the original file format. Likewise loads the destination
-    groups itself via ``process_files.load_groups`` rather than taking a file path.
+    PK of the Run row identifying this run for logging. Reads preferences from
+    ``voorkeuren.json`` (written by both input paths) so that the solver is independent
+    of the original file format. Likewise loads the destination groups itself via
+    ``process_files.load_groups`` rather than taking a file path.
     """
-
-    def on_update(message):
-        db.session.add(LogLine(run_id=ctx.run_id, text=message))
-        db.session.commit()
-
     with ctx.app_obj.app_context():
         with bind_log_context(
             school=ctx.school_id,
@@ -128,7 +123,6 @@ def run_solve_thread(ctx: ThreadContext, not_together):
                     preference_data,
                     target_groups,
                     not_together,
-                    on_update=on_update,
                     year_offset=year_offset,
                     listener=writer,
                 )
