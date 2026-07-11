@@ -2,7 +2,9 @@
 
 import json
 import os
+from dataclasses import asdict
 
+from aliexpress.solver.groepsindeling_view import GroepsindelingView
 from aliexpress.web.progress_writer import ProgressWriter
 
 
@@ -58,3 +60,39 @@ def test_no_leftover_temp_file(tmp_path):
 
     remaining = set(os.listdir(tmp_path))
     assert remaining == {"progress.json"}
+
+
+def test_interim_result_view_writes_separate_file_and_timestamp(tmp_path):
+    """interim_result_view writes interim_result.json and sets a timestamp in progress.json."""
+    progress_path = tmp_path / "progress.json"
+    interim_path = tmp_path / "interim_result.json"
+    writer = ProgressWriter(str(progress_path), str(interim_path))
+    data = _assert_parsable(progress_path)
+    assert data["interim_result_updated_at"] is None
+
+    view = GroepsindelingView(group_order=["A"], groups=[], balance_rows=[])
+    writer.interim_result_view(view)
+
+    with open(interim_path, encoding="utf-8") as fh:
+        stored = json.load(fh)
+    assert stored == asdict(view)
+
+    data = _assert_parsable(progress_path)
+    assert data["interim_result_updated_at"] is not None
+
+    remaining = set(os.listdir(tmp_path))
+    assert remaining == {"progress.json", "interim_result.json"}
+
+
+def test_interim_result_view_updated_at_changes_on_every_call(tmp_path):
+    """No damping: interim_result_updated_at is refreshed on every call."""
+    progress_path = tmp_path / "progress.json"
+    interim_path = tmp_path / "interim_result.json"
+    writer = ProgressWriter(str(progress_path), str(interim_path))
+
+    view = GroepsindelingView(group_order=[], groups=[], balance_rows=[])
+    writer.interim_result_view(view)
+    first = _assert_parsable(progress_path)["interim_result_updated_at"]
+    writer.interim_result_view(view)
+    second = _assert_parsable(progress_path)["interim_result_updated_at"]
+    assert second >= first

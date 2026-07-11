@@ -254,6 +254,7 @@ def reset_result_files(school_id, process_id) -> None:
         "result_tables.json",
         "sociogram.html",
         "progress.json",
+        "interim_result.json",
     ):
         path = get_file_path(school_id, process_id, name)
         if os.path.exists(path):

@@ -7,6 +7,7 @@ tables render and the workbook downloads. This is the automated end-to-end check
 
 import json
 import shutil
+from dataclasses import asdict
 from pathlib import Path
 
 import pytest
@@ -18,6 +19,7 @@ from aliexpress.web.models import Process
 from aliexpress.web.process_files import save_voorkeuren
 from app import app
 from tests.browser.conftest import TEST_SCHOOLCODE
+from tests.helpers import make_interim_view
 
 _INTEGRATION = Path(__file__).parents[1] / "integration"
 
@@ -244,3 +246,35 @@ def test_result_group_cards_and_popover(live_server, tmp_path, page):
     assert page.locator(".gi-baltable").count() == 1
     assert page.locator(".gi-baltable th", has_text="Grootteverschil").count() == 1
     assert page.locator(".gi-baltable th", has_text="Onbalans").count() == 1
+
+
+@pytest.mark.usefixtures("login")
+def test_processing_shows_interim_result(live_server, tmp_path, page):
+    """The processing page fetches and renders /interim_result once /status reports a
+    fresh interim_result_updated_at.
+
+    Stubs only /status (like test_processing_shows_input_overview): the real
+    /interim_result route is exercised for real, reading a real interim_result.json
+    written directly into the process dir, so this covers the real route + real
+    partial rendering the group cards. The end-to-end path (real solver ->
+    ProgressWriter.interim_result_view -> interim_result.json) is covered at the unit
+    level by test_progress_writer.py.
+    """
+    proc = _make_process(live_server, tmp_path, page, name="interimrun")
+    view = make_interim_view()
+    (proc / "interim_result.json").write_text(
+        json.dumps(asdict(view)), encoding="utf-8"
+    )
+
+    fake_status = {
+        "status_studentdistribution": "running",
+        "steps": {"floor": "done", "balance": "busy", "satisfaction": "pending"},
+        "interim_result_updated_at": "2026-07-11T12:00:00+00:00",
+    }
+    page.route("**/status", lambda route: route.fulfill(json=fake_status))
+    page.goto(f"{live_server}/processing")
+
+    cards = page.locator("#interim-result .gi-card")
+    expect(cards).to_have_count(1)
+    caption = page.locator("#interim-result .interim-result-caption")
+    expect(caption).to_have_text("voorlopig — dit kan nog veranderen (ook verbeteren)")

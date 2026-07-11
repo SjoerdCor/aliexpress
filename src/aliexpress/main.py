@@ -216,10 +216,9 @@ class _InterimResultAdapter(ProgressListener):
     :func:`_build_groepsindeling_view` — the same path :func:`_export` uses for the final
     result — before forwarding it as ``downstream.interim_result_view(view)``.
 
-    Used by :func:`distribute_students_from_data`, which wraps the web writer in this
-    adapter before handing it to the solver (wired up in the web+UI step; until then it is
-    exercised only by its unit test). No damping/throttling: every stage boundary the
-    solver emits is translated and forwarded as-is.
+    Used by :func:`distribute_students_from_data`, which wraps the caller-supplied
+    listener in this adapter before handing it to the solver. No damping/throttling:
+    every stage boundary the solver emits is translated and forwarded as-is.
     """
 
     def __init__(
@@ -375,6 +374,9 @@ def distribute_students_from_data(  # pylint: disable=too-many-arguments,too-man
     logger.info("All files read")
 
     if listener is not None:
+        listener = _InterimResultAdapter(
+            listener, preference_data, target_groups, year_offset
+        )
         listener.input_summary(
             _build_input_summary(
                 target_groups.counts, students_info, preference_data.stamgroep_display

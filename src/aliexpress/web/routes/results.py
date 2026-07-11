@@ -93,6 +93,29 @@ def show_sociogram():
     return render_template("sociogram.html", plotly_div=plotly_div)
 
 
+@results_bp.route("/interim_result")
+@login_required
+@require_process
+def interim_result():
+    """Render the current interim group-card view while the solve is still running.
+
+    Loads ``interim_result.json`` (written by :class:`~..progress_writer.ProgressWriter`
+    on every solved stage boundary); returns 204 when none exists yet (nothing solved
+    far enough to report). The processing page fetches this whenever ``/status`` reports
+    a new ``interim_result_updated_at``.
+    """
+    school_id = effective_school_id()
+    if school_id is None:
+        return redirect(url_for("admin.dashboard"))
+    process_id = session["process_id"]
+    path = get_file_path(school_id, process_id, "interim_result.json")
+    if not os.path.exists(path):
+        return "", 204
+    with open(path, encoding="utf-8") as fh:
+        view = json.load(fh)
+    return render_template("partials/interim_result.html", view=view)
+
+
 @results_bp.route("/result")
 @login_required
 @require_process

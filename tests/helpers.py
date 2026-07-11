@@ -12,6 +12,14 @@ from aliexpress.data.preferences_form import (
     StudentEntry,
     build_preference_data,
 )
+from aliexpress.solver.groepsindeling_view import (
+    BalanceRow,
+    GroepsindelingView,
+    GroupCard,
+    SexColumn,
+    StudentChip,
+    YearSection,
+)
 from aliexpress.web.extensions import db
 from aliexpress.web.models import Process
 from app import app as flask_app
@@ -76,6 +84,41 @@ TWO_STUDENTS_GROEN = [
         "geslacht": "Jongen",
     },
 ]
+
+
+def make_interim_view():
+    """A minimal but real GroepsindelingView: one group, one jaarlaag, one chip.
+
+    Shared by the /interim_result route test and the processing-page browser test so the
+    fixture doesn't drift (and pylint's duplicate-code check stays quiet).
+    """
+    chip = StudentChip(
+        chip_name="Anna",
+        full_name="Anna Jansen",
+        origin_abbrev="Kla",
+        origin_full="Klas A",
+        year_group=6,
+        satisfaction=1.0,
+        preferences=[],
+        not_in=[],
+        min_satisfaction=None,
+    )
+    boys = SexColumn(sex="jongen", new_count=0, students=[])
+    girls = SexColumn(sex="meisje", new_count=1, students=[chip])
+    section = YearSection(year=6, label="Jaarlaag 6", size=1, boys=boys, girls=girls)
+    card = GroupCard(
+        name="Groep 1", total=1, boys_total=0, girls_total=1, year_sections=[section]
+    )
+    balance_row = BalanceRow(
+        label="Totaal",
+        is_total=True,
+        per_group={"Groep 1": (1, 0, 1)},
+        size_diff=0,
+        sex_imbalance=1,
+    )
+    return GroepsindelingView(
+        group_order=["Groep 1"], groups=[card], balance_rows=[balance_row]
+    )
 
 
 def write_groups_to_json(proc_dir, groups_to):

@@ -25,52 +25,73 @@ class ProgressWriter(ProgressListener):
     if it polls mid-write.
     """
 
-    def __init__(self, path: str):
+    def __init__(self, path: str, interim_result_path: str | None = None):
         self.path = path
-        self.started_at = datetime.now(timezone.utc).isoformat()
-        self.steps = {stage: "pending" for stage in _PENDING_STEPS}
-        self.stage_seconds: list[dict] = []
-        self.input_summary_data: dict | None = None
-        self.plateaus: list[dict] = []
-        self.tiebreak_busy = False
+        # Separate file (mirroring groepsindeling_view.json): the interim view is much
+        # larger than the rest of progress.json, and it changes on a different cadence
+        # (once per stage boundary vs. every solver event), so it is kept out of the
+        # lean progress.json payload — only its timestamp goes there.
+        self.interim_result_path = interim_result_path
+        # The exact progress.json payload, built once and mutated in place by each
+        # event; keeping it as one dict (rather than one attribute per field) is what
+        # keeps this class's state small regardless of how many fields progress.json
+        # grows to carry.
+        self._state = {
+            "input_summary": None,
+            "steps": {stage: "pending" for stage in _PENDING_STEPS},
+            "plateaus": [],
+            "tiebreak_busy": False,
+            "stage_seconds": [],
+            "started_at": datetime.now(timezone.utc).isoformat(),
+            "interim_result_updated_at": None,
+        }
         self._write()
 
     def stage_started(self, stage: str) -> None:
-        self.steps[stage] = "busy"
+        self._state["steps"][stage] = "busy"
         self._write()
 
     def stage_finished(self, stage: str, seconds: float) -> None:
-        self.steps[stage] = "done"
-        self.stage_seconds.append({"label": stage, "seconds": seconds})
+        self._state["steps"][stage] = "done"
+        self._state["stage_seconds"].append({"label": stage, "seconds": seconds})
         self._write()
 
     def input_summary(self, summary: InputSummary) -> None:
-        self.input_summary_data = asdict(summary)
+        self._state["input_summary"] = asdict(summary)
         self._write()
 
     def plateau_finished(self, min_satisfaction: float, n_can_improve: int) -> None:
         # Whole percents per the grilling decision; never clamped, since satisfaction
         # can be negative (ADR-0014). The list only ever grows, matching the "nothing
         # ever disappears" rustregel — the UI can safely re-render it in full each poll.
-        self.plateaus.append(
+        self._state["plateaus"].append(
             {"min_pct": round(min_satisfaction * 100), "n_can_improve": n_can_improve}
         )
         self._write()
 
     def tiebreak_started(self) -> None:
-        self.tiebreak_busy = True
+        self._state["tiebreak_busy"] = True
+        self._write()
+
+    def interim_result_view(self, view) -> None:
+        """Persist the translated interim view to ``interim_result.json``.
+
+        Written to a separate file (not into ``progress.json``) so the lean progress
+        payload every poll re-reads stays small; ``progress.json`` only records a fresh
+        timestamp, which the processing page uses to detect a new view is available. No
+        damping: called on every stage boundary the adapter forwards.
+        """
+        tmp_path = f"{self.interim_result_path}.tmp"
+        with open(tmp_path, "w", encoding="utf-8") as fh:
+            json.dump(asdict(view), fh, ensure_ascii=False)
+        os.replace(tmp_path, self.interim_result_path)
+        self._state["interim_result_updated_at"] = datetime.now(
+            timezone.utc
+        ).isoformat()
         self._write()
 
     def _write(self) -> None:
-        payload = {
-            "input_summary": self.input_summary_data,
-            "steps": self.steps,
-            "plateaus": self.plateaus,
-            "tiebreak_busy": self.tiebreak_busy,
-            "stage_seconds": self.stage_seconds,
-            "started_at": self.started_at,
-        }
         tmp_path = f"{self.path}.tmp"
         with open(tmp_path, "w", encoding="utf-8") as fh:
-            json.dump(payload, fh, ensure_ascii=False)
+            json.dump(self._state, fh, ensure_ascii=False)
         os.replace(tmp_path, self.path)

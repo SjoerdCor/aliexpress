@@ -472,6 +472,24 @@ input[type="submit"]:hover {
   color: #444;
 }
 
+/* The interim groepsindeling on the processing page: empty (and invisible) until the
+   first interim result arrives, then fades in and updates in place on every later
+   stage boundary — same appear-only rule as .input-overview / .sociogram-card. */
+.interim-result {
+  margin: 0 0 1rem;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.interim-result--visible {
+  opacity: 1;
+}
+
+.interim-result-caption {
+  color: #444;
+  font-style: italic;
+}
+
 .download-buttons a {
   display: block;
   width: 100%;

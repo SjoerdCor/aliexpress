@@ -116,7 +116,10 @@ def run_solve_thread(ctx: ThreadContext, not_together):
                     get_process_mode(get_process_path(ctx.school_id, ctx.process_name))
                 )
                 writer = ProgressWriter(
-                    get_file_path(ctx.school_id, ctx.process_name, "progress.json")
+                    get_file_path(ctx.school_id, ctx.process_name, "progress.json"),
+                    get_file_path(
+                        ctx.school_id, ctx.process_name, "interim_result.json"
+                    ),
                 )
                 result = distribute_students_from_data(
                     preference_data,
