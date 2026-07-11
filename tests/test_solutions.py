@@ -99,6 +99,31 @@ def test_group_report_multi_year_rows_numerically_ordered():
     assert report.loc[("A", "Jaarlaag 10"), "Groepsgrootte"] == 2
 
 
+def test_group_report_shifts_year_for_forward():
+    """year_offset shifts the Groepsindeling sheet's jaarlaag row labels (Overgang mode)."""
+    result = _result_with_composition(
+        {
+            "A": GroupComposition(
+                boys_total=1,
+                girls_total=0,
+                per_year={5: SexCounts(1, 0)},
+            ),
+        }
+    )
+    shifted = SolutionAnalyzer(
+        result, pd.DataFrame(), pd.DataFrame(), {}, year_offset=1
+    ).group_report
+    labels = list(shifted.loc["A"].index)
+    assert "Jaarlaag 6" in labels
+    assert "Jaarlaag 5" not in labels
+
+    unshifted = SolutionAnalyzer(
+        result, pd.DataFrame(), pd.DataFrame(), {}
+    ).group_report
+    labels_default = list(unshifted.loc["A"].index)
+    assert "Jaarlaag 5" in labels_default
+
+
 def test_group_report_mixed_none_and_numbered_cohorts():
     """A None cohort (no jaarlaag) can coexist with numbered ones and keeps its bare
     "Jaarlaag" label, positioned right after "Totaal"."""
