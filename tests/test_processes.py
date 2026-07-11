@@ -9,7 +9,11 @@ from werkzeug.security import generate_password_hash
 import aliexpress.web.routes.processes as proc_module
 from aliexpress.web.extensions import db
 from aliexpress.web.models import Process, Run, School
-from aliexpress.web.routes.processes import get_process_mode, is_redistribute_mode
+from aliexpress.web.routes.processes import (
+    get_process_mode,
+    is_redistribute_mode,
+    year_offset_for_mode,
+)
 from app import app as flask_app
 from tests.helpers import SCHOOL_ID, flashes, make_process_row
 
@@ -390,6 +394,13 @@ class TestIsRedistributeMode:
     def test_forward_is_not_redistribute(self):
         """'forward' does not count as a redistribute mode."""
         assert is_redistribute_mode("forward") is False
+
+
+def test_year_offset_for_mode():
+    """Forward modes shift students one year-layer up; 'redistribute' does not."""
+    assert year_offset_for_mode("forward") == 1
+    assert year_offset_for_mode("redistribute_and_forward") == 1
+    assert year_offset_for_mode("redistribute") == 0
 
 
 class TestSchoolIsolation:

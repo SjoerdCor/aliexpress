@@ -117,7 +117,7 @@ class TestSelectGroups:
         )
         resp = client.get("/select_groups")
         assert resp.status_code == 200
-        assert "komen deze jaargroepen volgend jaar".encode() in resp.data
+        assert "komen deze jaarlagen volgend jaar".encode() in resp.data
         assert b'href="/roster"' in resp.data
 
     def test_post_redistribute_and_forward_sets_groups_to_and_redirects_to_groups_to(
