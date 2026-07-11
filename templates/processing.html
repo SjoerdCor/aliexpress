@@ -28,6 +28,7 @@
     <a href="/sociogram" target="_blank" rel="noopener" class="button">Bekijk het sociogram</a>
 </div>
 <div class="loading-spinner" style="display: none;"></div>
+<div id="interim-result" class="interim-result"></div>
 
 <script>
     function updateStepper(steps) {
@@ -106,6 +107,25 @@
         document.getElementById("sociogram-card").classList.add("sociogram-card--visible");
     }
 
+    // Tracks the last interim_result_updated_at we fetched, so we only re-fetch and
+    // replace the container when a new interim result is actually available — no
+    // re-render on unchanged polls, avoiding layout churn.
+    let lastInterimResultUpdatedAt = null;
+
+    function updateInterimResult(updatedAt) {
+        if (!updatedAt || updatedAt === lastInterimResultUpdatedAt) {
+            return;
+        }
+        lastInterimResultUpdatedAt = updatedAt;
+        fetch("/interim_result")
+            .then(r => r.status === 204 ? "" : r.text())
+            .then(html => {
+                const el = document.getElementById("interim-result");
+                el.innerHTML = html;
+                el.classList.add("interim-result--visible");
+            });
+    }
+
     function poll() {
         fetch("/status")
             .then(r => r.json())
@@ -116,6 +136,7 @@
                 updatePlateaus(data.plateaus);
                 updateTiebreak(data.tiebreak_busy);
                 updateSociogram(data.sociogram_ready);
+                updateInterimResult(data.interim_result_updated_at);
                 if (data.status_studentdistribution === "running") {
                     document.querySelector('.loading-spinner').style.display = 'block';
 

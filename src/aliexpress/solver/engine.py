@@ -146,12 +146,12 @@ def solve_within_minimal_relaxation(  # pylint: disable=too-many-arguments
         :mod:`.strategies` for the trade-off between the two.
     listener : ProgressListener | None
         Notified of the three UI-facing stages (``"floor"``, ``"balance"``,
-        ``"satisfaction"``) as they start and finish, plus an interim result right
-        after the balance stage, each completed lexmaxmin plateau (with its own
-        interim result) and the tie-break starting during ``"satisfaction"`` (see
-        :func:`.strategies.optimize`). ``None`` (the default) means no one is
-        watching; every emit site guards on it, so callers that don't care about
-        progress need not pass one and pay nothing for the payloads.
+        ``"satisfaction"``) as they start and finish, an interim result after each
+        solved stage (the floor and balance assignments, then one per completed
+        lexmaxmin level), each completed plateau, and the tie-break starting during
+        ``"satisfaction"`` (see :func:`.strategies.optimize`). ``None`` (the default)
+        means no one is watching; every emit site guards on it, so callers that don't
+        care about progress need not pass one and pay nothing for the payloads.
 
     Returns
     -------
@@ -198,6 +198,10 @@ def solve_within_minimal_relaxation(  # pylint: disable=too-many-arguments
         ) from exc
     if listener is not None:
         listener.stage_finished("floor", time.perf_counter() - t_start)
+        # Every solved stage yields a complete valid assignment; report it as an
+        # interim result. The floor stage's is not yet balance- or satisfaction-
+        # optimized, but it is the earliest candidate to show while the rest runs.
+        listener.interim_result(*problem.read_solution(solver))
     nonpositive_optimum = round(solver.ObjectiveValue())
     model.Add(sum(problem.nonpositive.values()) <= nonpositive_optimum)
 
@@ -213,14 +217,11 @@ def solve_within_minimal_relaxation(  # pylint: disable=too-many-arguments
     solver = strategies.solve_stage(model, "balance relaxation", minimize=weighted)
     if listener is not None:
         listener.stage_finished("balance", time.perf_counter() - t_start)
+        listener.interim_result(*problem.read_solution(solver))
     budget = round(solver.ObjectiveValue())
     model.Add(weighted <= budget)
 
     if listener is not None:
-        # An initial interim result so something shows early even if the first
-        # lexmaxmin level (below) is slow: the balance stage's own solved
-        # assignment, before any satisfaction optimization has run.
-        listener.interim_result(*problem.read_solution(solver))
         listener.stage_started("satisfaction")
     t_start = time.perf_counter()
     solver = strategies.optimize(problem, optimize, listener=listener)

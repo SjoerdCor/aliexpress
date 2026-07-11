@@ -73,9 +73,11 @@ class ProgressListener:
     def interim_result(self, assignment: dict, satisfied: dict) -> None:
         """Called with the best complete distribution at a solved stage boundary.
 
-        Fired once after the balance stage (:func:`~.engine.solve_within_minimal_relaxation`)
-        and once per completed lexmaxmin level (:func:`~.strategies._lexmaxmin`) — every
-        stage boundary, with no damping or throttling. The payload is preference-free,
+        Fired after each solved stage: the floor and balance assignments
+        (:func:`~.engine.solve_within_minimal_relaxation`) and once per completed lexmaxmin
+        level (:func:`~.strategies._lexmaxmin`) — with no damping or throttling. The
+        floor/balance ones are not yet satisfaction-optimized but are still valid complete
+        assignments. The payload is preference-free,
         read straight off that stage's ``CpSolver``: ``assignment`` maps each student to
         their assigned group, ``satisfied`` maps each ``(student, Nr)`` preference row to
         whether it was honored. A listener that needs the display-space view (chips,

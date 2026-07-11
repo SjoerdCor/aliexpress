@@ -5,6 +5,7 @@
 
 import json
 import re
+from dataclasses import asdict
 from io import BytesIO
 from unittest.mock import MagicMock
 
@@ -23,6 +24,7 @@ from tests.helpers import (
     TWO_STUDENTS_GROEN,
     flashes,
     immediate_thread,
+    make_interim_view,
     make_students,
     setup_process,
     write_groups_to_json,
@@ -693,6 +695,37 @@ class TestResultPage:
         html = client.get("/result").data.decode("utf-8")
         assert "Groepsindeling" in html
         assert "<table>indeling</table>" in html
+
+
+class TestInterimResult:
+    """Tests for GET /interim_result (process-scoped)."""
+
+    def test_no_session_redirects(self, client):
+        """Without an active process /interim_result redirects to /processes."""
+        response = client.get("/interim_result")
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/processes")
+
+    def test_no_file_returns_no_content(self, client, tmp_path):
+        """Before any interim result was written, the route returns 204."""
+        setup_process(client, tmp_path)
+        response = client.get("/interim_result")
+        assert response.status_code == 204
+
+    def test_renders_view_with_caption(self, client, tmp_path):
+        """A stored interim_result.json renders the caption and the group cards."""
+        proc_dir = setup_process(client, tmp_path)
+        view = make_interim_view()
+        (proc_dir / "interim_result.json").write_text(
+            json.dumps(asdict(view)), encoding="utf-8"
+        )
+
+        response = client.get("/interim_result")
+        assert response.status_code == 200
+        html = response.data.decode("utf-8")
+        assert "voorlopig — dit kan nog veranderen (ook verbeteren)" in html
+        assert "gi-card" in html
+        assert "gi-chip" in html
 
 
 class TestSociogramPage:

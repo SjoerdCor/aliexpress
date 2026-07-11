@@ -1,0 +1,10 @@
+{# Interim groepsindeling: a snapshot of the best distribution found so far while the
+   solver is still running. Rendered stand-alone (fetched by /interim_result and injected
+   into the processing page), reusing the same gi.render(view) macro the final result
+   page uses. Chips render statically here — no click-popover script in this slice, that
+   is shared with result.html in a later slice. #}
+{% import "partials/groepsindeling.html" as gi %}
+
+<h2>Tussenstand</h2>
+<p class="interim-result-caption">voorlopig — dit kan nog veranderen (ook verbeteren)</p>
+{{ gi.render(view) }}
