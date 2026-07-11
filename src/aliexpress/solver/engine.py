@@ -146,9 +146,10 @@ def solve_within_minimal_relaxation(  # pylint: disable=too-many-arguments
         :mod:`.strategies` for the trade-off between the two.
     listener : ProgressListener | None
         Notified of the three UI-facing stages (``"floor"``, ``"balance"``,
-        ``"satisfaction"``) as they start and finish. Defaults to the no-op
-        base class, so callers that don't care about progress need not pass
-        one.
+        ``"satisfaction"``) as they start and finish, plus each completed
+        lexmaxmin plateau and the tie-break starting during ``"satisfaction"``
+        (see :func:`.strategies.optimize`). Defaults to the no-op base class,
+        so callers that don't care about progress need not pass one.
 
     Returns
     -------
@@ -212,7 +213,7 @@ def solve_within_minimal_relaxation(  # pylint: disable=too-many-arguments
 
     listener.stage_started("satisfaction")
     t_start = time.perf_counter()
-    solver = strategies.optimize(problem, optimize)
+    solver = strategies.optimize(problem, optimize, listener=listener)
     listener.stage_finished("satisfaction", time.perf_counter() - t_start)
     return _extract(problem, solver, preferences)
 

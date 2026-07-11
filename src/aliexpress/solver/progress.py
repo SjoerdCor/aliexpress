@@ -48,3 +48,15 @@ class ProgressListener:
 
     def input_summary(self, summary: InputSummary) -> None:
         """Called once, early, with the headline counts of the problem being solved."""
+
+    def plateau_finished(self, min_satisfaction: float, n_can_improve: int) -> None:
+        """Called when a lexmaxmin level completes (``_lexmaxmin`` in strategies.py).
+
+        ``min_satisfaction`` is the pinned plateau, already divided by the satisfaction
+        scale (a fraction, e.g. 0.62); it can be negative (satisfaction can be negative,
+        see ADR-0014) and must not be clamped. ``n_can_improve`` is how many students
+        escaped this plateau and go on to the next level (0 on the terminal level).
+        """
+
+    def tiebreak_started(self) -> None:
+        """Called once all lexmaxmin plateaus are pinned and the final tie-break begins."""

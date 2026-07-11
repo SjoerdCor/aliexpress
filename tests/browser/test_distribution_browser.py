@@ -140,6 +140,42 @@ def test_processing_shows_sociogram_card_and_no_logs(live_server, tmp_path, page
 
 
 @pytest.mark.usefixtures("login")
+def test_processing_shows_plateaus_and_tiebreak(live_server, tmp_path, page):
+    """The satisfaction step lists each completed plateau and the tie-break line.
+
+    Stubs /status like test_processing_shows_input_overview does: the real solve on
+    the small dataset finishes too fast to reliably observe an intermediate plateau
+    list, so this asserts the JS rendering deterministically from a fixed payload.
+    The end-to-end path (real solver -> progress.json -> plateaus) is covered by
+    test_stages_fire_in_order_with_nonnegative_durations at the integration level.
+    """
+    _make_process(live_server, tmp_path, page, name="plateaurun")
+
+    fake_status = {
+        "status_studentdistribution": "running",
+        "steps": {"floor": "done", "balance": "done", "satisfaction": "busy"},
+        "stage_seconds": [],
+        "plateaus": [
+            {"min_pct": 62, "n_can_improve": 34},
+            {"min_pct": 78, "n_can_improve": 5},
+        ],
+        "tiebreak_busy": True,
+    }
+    page.route("**/status", lambda route: route.fulfill(json=fake_status))
+    page.goto(f"{live_server}/processing")
+
+    lines = page.locator("#plateaus li")
+    expect(lines).to_have_count(2)
+    expect(lines.nth(0)).to_have_text(
+        "Minst tevreden leerling: nu 62% — 34 leerlingen kunnen nog omhoog"
+    )
+    expect(lines.nth(1)).to_have_text(
+        "Minst tevreden leerling: nu 78% — 5 leerlingen kunnen nog omhoog"
+    )
+    expect(page.locator("#tiebreak-line")).to_be_visible()
+
+
+@pytest.mark.usefixtures("login")
 def test_processing_stepper_completes(live_server, tmp_path, page):
     """The processing page shows the three-step stepper and it all ends up 'done'."""
     proc = _make_process(live_server, tmp_path, page, name="stepperrun")
