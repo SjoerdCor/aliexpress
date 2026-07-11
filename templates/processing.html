@@ -5,6 +5,7 @@
 {% block header %}Groepsindeling aan het uitrekenen...{% endblock %}
 
 {% block content %}
+<p id="input-overview" class="input-overview"></p>
 <p>ALI Express werkt in drie stappen:</p>
 <ol class="solve-stepper">
     <li class="solve-step solve-step--pending" data-stage="floor">
@@ -37,7 +38,41 @@
         });
     }
 
-    setInterval(() => {
+    function jaarlaagLabel(years) {
+        // "" when unknown, "jaarlaag X" for one, "jaarlagen X en Y" / "X, Y en Z" for more.
+        if (!years || years.length === 0) {
+            return "";
+        }
+        if (years.length === 1) {
+            return `jaarlaag ${years[0]}`;
+        }
+        const laatste = years[years.length - 1];
+        const eerdere = years.slice(0, -1);
+        return `jaarlagen ${eerdere.join(", ")} en ${laatste}`;
+    }
+
+    function updateInputOverview(summary) {
+        if (!summary) {
+            return;
+        }
+        const label = jaarlaagLabel(summary.years);
+        let regel1 = `${summary.n_students} leerlingen ` +
+            `(${summary.n_boys} jongens, ${summary.n_girls} meisjes)`;
+        if (label) {
+            regel1 += `, ${label}`;
+        }
+        const bronnen = Object.entries(summary.source_groups)
+            .map(([naam, aantal]) => `${naam} (${aantal})`)
+            .join(", ");
+        const regel2 = `uit ${bronnen} → ${summary.n_target_groups} groepen`;
+        const el = document.getElementById("input-overview");
+        // textContent (not innerHTML) keeps user-entered group names out of the DOM as
+        // markup; the newline renders via the .input-overview white-space rule.
+        el.textContent = `${regel1}\n${regel2}`;
+        el.classList.add("input-overview--visible");
+    }
+
+    function poll() {
         fetch("/status")
             .then(r => r.json())
             .then(data => {
@@ -45,6 +80,7 @@
                 document.getElementById("logs").innerHTML =
                     data.logs.map(line => `<p>${line}</p>`).join("");
                 updateStepper(data.steps);
+                updateInputOverview(data.input_summary);
                 if (data.status_studentdistribution === "running") {
                     document.querySelector('.loading-spinner').style.display = 'block';
 
@@ -65,6 +101,11 @@
                 }
 
             });
-    }, 1000);
+    }
+
+    // Poll once immediately so the stepper and input overview appear right away,
+    // then keep refreshing — no blank first second while the solver starts up.
+    poll();
+    setInterval(poll, 1000);
 </script>
 {% endblock %}

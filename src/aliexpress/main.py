@@ -14,7 +14,7 @@ from .data.datareader import GroupCounts
 from .data.preferences_data import PreferenceData
 from .solver import engine, results, solutions
 from .solver._balance import GroupBalance
-from .solver.progress import ProgressListener
+from .solver.progress import InputSummary, ProgressListener
 from .solver.results import SolutionResult
 
 FILE_PREFERENCES = "voorkeuren.xlsx"
@@ -61,9 +61,9 @@ def _read_preferences(path, groups_to):
     )
 
 
-def _log_initial_state(groups_to, students_info, on_update, stamgroep_display=None):
+def _log_initial_state(groups_to, students_info, stamgroep_display=None):
     # students_info is keyed by matching key; map the Stamgroep back to the name as
-    # entered for the user-facing messages (logs may keep the internal keys).
+    # entered for the log messages.
     stamgroep_display = stamgroep_display or {}
     df_groups = pd.DataFrame.from_dict(groups_to, orient="index")
     logger.info(
@@ -73,18 +73,40 @@ def _log_initial_state(groups_to, students_info, on_update, stamgroep_display=No
 
     df_students = pd.DataFrame.from_dict(students_info, orient="index")
     sex_dist = df_students[["Jongen/meisje"]].value_counts()
-
-    on_update(
-        f"{len(df_students)} leerlingen te verdelen, "
-        f"waarvan {sex_dist.loc['Jongen'].squeeze()} jongens "
-        f"en {sex_dist.loc['Meisje'].squeeze()} meisjes"
-    )
     logger.info("Current boy/girl distribution:\n%s", sex_dist)
 
-    on_update("Komen uit de volgende groepen:")
     stamgroepen = df_students["Stamgroep"].map(lambda g: stamgroep_display.get(g, g))
-    for group, value in stamgroepen.value_counts().items():
-        on_update(f"{group}: {value}")
+    logger.info("Current stamgroep distribution:\n%s", stamgroepen.value_counts())
+
+
+def _build_input_summary(
+    groups_to, students_info, stamgroep_display=None
+) -> InputSummary:
+    """Derive the input-overview counts for the processing page.
+
+    Same derivation as ``_log_initial_state``: ``students_info`` is keyed by matching
+    key, so the Stamgroep is mapped to its display name before counting per source group
+    (never the internal matching keys).
+    """
+    stamgroep_display = stamgroep_display or {}
+    df_students = pd.DataFrame.from_dict(students_info, orient="index")
+    sex_dist = df_students[["Jongen/meisje"]].value_counts()
+    stamgroepen = df_students["Stamgroep"].map(lambda g: stamgroep_display.get(g, g))
+    # Native str/int so the summary serialises to JSON (value_counts yields numpy ints),
+    # ordered most students first.
+    source_groups = {
+        str(group): int(count) for group, count in stamgroepen.value_counts().items()
+    }
+    jaarlagen = df_students.get("Jaarlaag", pd.Series(dtype=object))
+    years = sorted({int(y) for y in jaarlagen if pd.notna(y)})
+    return InputSummary(
+        n_students=len(df_students),
+        n_boys=int(sex_dist.get("Jongen", 0)),
+        n_girls=int(sex_dist.get("Meisje", 0)),
+        source_groups=source_groups,
+        n_target_groups=len(groups_to),
+        years=years,
+    )
 
 
 def _export(result, preference_data, target_groups, year_offset: int = 0):
@@ -170,14 +192,13 @@ def _log_solve_summary(
 
 
 def distribute_students_from_data(  # pylint: disable=too-many-arguments,too-many-positional-arguments
-    # Seven independent inputs to the solve+export pipeline (data, rules, progress
-    # callback, balance override, display shift, structured progress listener);
-    # grouping them would obscure the constraints being modelled, matching the
-    # style of solutions.SolutionAnalyzer.__init__.
+    # Six independent inputs to the solve+export pipeline (data, rules, balance
+    # override, display shift, structured progress listener); grouping them would
+    # obscure the constraints being modelled, matching the style of
+    # solutions.SolutionAnalyzer.__init__.
     preference_data: PreferenceData,
     target_groups: GroupCounts,
     not_together: list[dict] | None = None,
-    on_update=lambda msg: None,
     groupbalance: GroupBalance | None = None,
     year_offset: int = 0,
     listener: ProgressListener | None = None,
@@ -202,9 +223,6 @@ def distribute_students_from_data(  # pylint: disable=too-many-arguments,too-man
     not_together : list[dict] | None
         Not-together rules built from web-form data or constructed in tests. Each dict has
         keys 'group' (set[str]) and 'Max_aantal_samen' (int). Pass None for no constraints.
-    on_update : func
-        Takes a user-friendly message and decides what to do with it for the calling
-        function. By default, ignores them.
     groupbalance : GroupBalance | None
         Class-balance constraints. When None (the default), the balance is determined
         automatically: satisfaction is maximized within the minimal relaxation that still
@@ -242,13 +260,17 @@ def distribute_students_from_data(  # pylint: disable=too-many-arguments,too-man
         {**rule, "group": {datareader.matching_key(s) for s in rule["group"]}}
         for rule in not_together
     ]
-    on_update("Alle bestanden zijn gevalideerd!")
     logger.info("All files read")
 
+    listener = listener or ProgressListener()
+    listener.input_summary(
+        _build_input_summary(
+            target_groups.counts, students_info, preference_data.stamgroep_display
+        )
+    )
     _log_initial_state(
         target_groups.counts,
         students_info,
-        on_update,
         preference_data.stamgroep_display,
     )
 
@@ -302,20 +324,19 @@ def distribute_students_once(
     path_preferences=FILE_PREFERENCES,
     path_groups_to=FILE_GROUPS_TO,
     not_together: list[dict] | None = None,
-    on_update=lambda msg: None,
     groupbalance: GroupBalance | None = None,
 ):
     """Convenience wrapper for the CLI and tests: read both Excel files, then distribute.
 
     Reads the preferences from ``path_preferences`` and the target groups from
     ``path_groups_to``, then delegates to :func:`distribute_students_from_data`, which is
-    the pure data core. See that function for the ``not_together``, ``on_update`` and
-    ``groupbalance`` parameters.
+    the pure data core. See that function for the ``not_together`` and ``groupbalance``
+    parameters.
     """
     target_groups = _read_groups(path_groups_to)
     preference_data = _read_preferences(path_preferences, target_groups.counts)
     return distribute_students_from_data(
-        preference_data, target_groups, not_together, on_update, groupbalance
+        preference_data, target_groups, not_together, groupbalance
     )
 
 

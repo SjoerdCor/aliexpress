@@ -10,6 +10,7 @@ import shutil
 from pathlib import Path
 
 import pytest
+from playwright.sync_api import expect
 
 from aliexpress.data import datareader
 from aliexpress.web.extensions import db as flask_db
@@ -64,6 +65,47 @@ def test_processing_to_result_to_download(live_server, tmp_path, page):
 
 
 @pytest.mark.usefixtures("login")
+def test_processing_shows_input_overview(live_server, tmp_path, page):
+    """The processing page renders the input overview from the /status payload.
+
+    The real solver on the small dataset finishes in about a second, so racing the DOM
+    against the redirect is flaky (and the small fixture has no Jaarlaag to show anyway).
+    Instead we stub /status with a fixed running payload so the JS rendering — including
+    the jaarlagen line and the per-source-group counts — is asserted deterministically.
+    The end-to-end path (real solver -> progress.json -> input_summary) is covered by
+    ``test_processing_stepper_completes``.
+    """
+    _make_process(live_server, tmp_path, page, name="overviewrun")
+
+    fake_status = {
+        "status_studentdistribution": "running",
+        "logs": [],
+        "steps": {"floor": "busy", "balance": "pending", "satisfaction": "pending"},
+        "stage_seconds": [],
+        "input_summary": {
+            "n_students": 87,
+            "n_boys": 44,
+            "n_girls": 43,
+            "source_groups": {"Klas A": 22, "Klas B": 21, "Klas C": 22, "Klas D": 22},
+            "n_target_groups": 4,
+            "years": [6, 7],
+        },
+    }
+    page.route("**/status", lambda route: route.fulfill(json=fake_status))
+    page.goto(f"{live_server}/processing")
+
+    overview = page.locator("#input-overview")
+    expect(overview).to_have_class("input-overview input-overview--visible")
+    text = overview.inner_text()
+    assert "87 leerlingen (44 jongens, 43 meisjes)" in text
+    assert "jaarlagen 6 en 7" in text
+    # Origin groups are listed with their counts; the target side drops "nieuwe".
+    assert "Klas A (22)" in text
+    assert "→ 4 groepen" in text
+    assert "nieuwe" not in text
+
+
+@pytest.mark.usefixtures("login")
 def test_processing_stepper_completes(live_server, tmp_path, page):
     """The processing page shows the three-step stepper and it all ends up 'done'."""
     proc = _make_process(live_server, tmp_path, page, name="stepperrun")
@@ -82,6 +124,16 @@ def test_processing_stepper_completes(live_server, tmp_path, page):
         "floor": "done",
         "balance": "done",
         "satisfaction": "done",
+    }
+    # ...and the real solver emitted the input overview (small fixture: 5 students,
+    # 2 boys, 3 girls, origin groups A/D/B, 2 target groups, no Jaarlaag).
+    assert progress["input_summary"] == {
+        "n_students": 5,
+        "n_boys": 2,
+        "n_girls": 3,
+        "source_groups": {"A": 3, "D": 1, "B": 1},
+        "n_target_groups": 2,
+        "years": [],
     }
 
 

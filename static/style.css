@@ -416,6 +416,23 @@ input[type="submit"]:hover {
   }
 }
 
+/* The input-overview line at the top of the processing page (progress.json
+   input_summary). It only ever appears once, then updates its text in place — never
+   disappears again — so a plain fade-in on first render is enough; no layout jump
+   because the container keeps its height once shown. */
+.input-overview {
+  margin: 0 0 1rem;
+  color: #444;
+  font-size: 0.95rem;
+  white-space: pre-line; /* render the \n between the totals line and the source groups */
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.input-overview--visible {
+  opacity: 1;
+}
+
 .download-buttons a {
   display: block;
   width: 100%;

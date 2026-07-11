@@ -274,7 +274,6 @@ def test_distribute_students_once_happy_flow_small():
         path_preferences="tests/integration/voorkeuren_small.xlsx",
         path_groups_to="tests/integration/groepen_small.xlsx",
         not_together=_NOT_TOGETHER_SMALL,
-        on_update=lambda msg: None,
         groupbalance=GroupBalance(max_imbalance_boys_girls_total=7),
     )
     dfs, view = _tables(result)
@@ -299,7 +298,6 @@ def test_distribute_students_once_happy_flow_full():
         path_preferences="tests/integration/voorkeuren.xlsx",
         path_groups_to="tests/integration/groepen.xlsx",
         not_together=_NOT_TOGETHER_FULL,
-        on_update=lambda msg: None,
     )
     dfs, view = _tables(result)
     tevr, view = _assert_consistency(
@@ -337,7 +335,6 @@ def test_distribute_students_from_json_matches_xlsx():
     common = {
         "path_groups_to": "tests/integration/groepen_small.xlsx",
         "not_together": _NOT_TOGETHER_SMALL,
-        "on_update": lambda msg: None,
         "groupbalance": GroupBalance(max_imbalance_boys_girls_total=7),
     }
 
@@ -356,7 +353,6 @@ def test_distribute_students_from_json_matches_xlsx():
         restored,
         target_groups,
         not_together=common["not_together"],
-        on_update=common["on_update"],
         groupbalance=common["groupbalance"],
     )
 
@@ -408,7 +404,6 @@ def test_distribute_from_native_files_small():
         preference_data,
         target_groups,
         not_together=not_together,
-        on_update=lambda msg: None,
         groupbalance=GroupBalance(max_imbalance_boys_girls_total=7),
     )
 
@@ -433,7 +428,6 @@ def test_distribute_from_native_files_full():
         preference_data,
         target_groups,
         not_together=not_together,
-        on_update=lambda msg: None,
     )
 
     dfs, view = _tables(result)
@@ -479,9 +473,7 @@ def test_solver_stacks_duplicate_group_preferences():
     )
     preference_data = build_preference_data(students, all_to_groups=["blauw", "rood"])
 
-    result = distribute_students_from_data(
-        preference_data, target_groups, on_update=lambda msg: None
-    )
+    result = distribute_students_from_data(preference_data, target_groups)
 
     dfs, _ = _tables(result)  # solver ran and produced the full, downloadable report
     tevr = dfs["Leerlingtevredenheid"].data
@@ -501,7 +493,6 @@ def test_distribute_students_once_happy_flow_infeasible():
             path_preferences="tests/integration/voorkeuren.xlsx",
             path_groups_to="tests/integration/groepen.xlsx",
             not_together=_NOT_TOGETHER_FULL,
-            on_update=lambda msg: None,
             groupbalance=GroupBalance(
                 max_clique=1,
                 max_clique_sex=1,

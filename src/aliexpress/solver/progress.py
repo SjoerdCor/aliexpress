@@ -15,6 +15,27 @@ JSON for the processing page to poll (see ``web/progress_writer.py``).
   and the tie-break) within the fixed balance.
 """
 
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class InputSummary:
+    """Headline counts for the input overview at the top of the processing page.
+
+    Built once, early in the solve (before stage 1), from the same data
+    ``main._log_initial_state`` already derives its logging from. ``source_groups`` maps
+    each origin group (display name as entered) to its student count, ordered most
+    students first. ``years`` lists the distinct Jaarlagen present (empty when the input
+    carries none).
+    """
+
+    n_students: int
+    n_boys: int
+    n_girls: int
+    source_groups: dict[str, int]
+    n_target_groups: int
+    years: list[int]
+
 
 class ProgressListener:
     """No-op default: subclass and override to observe solve progress."""
@@ -24,3 +45,6 @@ class ProgressListener:
 
     def stage_finished(self, stage: str, seconds: float) -> None:
         """Called when ``stage`` completes, after ``seconds`` seconds."""
+
+    def input_summary(self, summary: InputSummary) -> None:
+        """Called once, early, with the headline counts of the problem being solved."""

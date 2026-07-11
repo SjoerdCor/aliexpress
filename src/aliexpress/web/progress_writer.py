@@ -8,9 +8,10 @@ into its poll response for the processing page.
 
 import json
 import os
+from dataclasses import asdict
 from datetime import datetime, timezone
 
-from ..solver.progress import ProgressListener
+from ..solver.progress import InputSummary, ProgressListener
 
 _PENDING_STEPS = ("floor", "balance", "satisfaction")
 
@@ -29,6 +30,7 @@ class ProgressWriter(ProgressListener):
         self.started_at = datetime.now(timezone.utc).isoformat()
         self.steps = {stage: "pending" for stage in _PENDING_STEPS}
         self.stage_seconds: list[dict] = []
+        self.input_summary_data: dict | None = None
         self._write()
 
     def stage_started(self, stage: str) -> None:
@@ -40,8 +42,13 @@ class ProgressWriter(ProgressListener):
         self.stage_seconds.append({"label": stage, "seconds": seconds})
         self._write()
 
+    def input_summary(self, summary: InputSummary) -> None:
+        self.input_summary_data = asdict(summary)
+        self._write()
+
     def _write(self) -> None:
         payload = {
+            "input_summary": self.input_summary_data,
             "steps": self.steps,
             "stage_seconds": self.stage_seconds,
             "started_at": self.started_at,
