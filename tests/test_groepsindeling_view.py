@@ -11,7 +11,11 @@ import dataclasses
 
 import pandas as pd
 
-from aliexpress.solver.groepsindeling_view import GroepsindelingView, Preference
+from aliexpress.solver.groepsindeling_view import (
+    GroepsindelingView,
+    Preference,
+    year_label,
+)
 from aliexpress.solver.results import GroupComposition, SexCounts, SolutionResult
 from aliexpress.solver.solutions import SolutionAnalyzer
 
@@ -463,3 +467,10 @@ def test_herindelen_min_satisfaction_missing_key_is_none():
 def test_view_type_is_groepsindeling_view():
     """The builder returns the top-level dataclass."""
     assert isinstance(_herindelen_analyzer().groepsindeling_view(), GroepsindelingView)
+
+
+def test_year_label_offset():
+    """offset shifts a real jaarlaag number up; the None cohort stays offset-immune."""
+    assert year_label(5, offset=1) == "Jaarlaag 6"
+    assert year_label(5) == "Jaarlaag 5"
+    assert year_label(None, offset=1) == "Jaarlaag"

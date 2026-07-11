@@ -23,9 +23,27 @@ from ..data import preferences_data
 from .results import SolutionResult
 
 
-def year_label(year: int | None) -> str:
-    """Row label for a jaarlaag cohort: bare "Jaarlaag" for the None cohort."""
-    return "Jaarlaag" if year is None else f"Jaarlaag {year}"
+def shift_year(year: int | None, offset: int) -> int | None:
+    """Shift a jaarlaag number by ``offset``, the Nieuwe-jaarlaag display shift.
+
+    ``offset`` is 0 for distribution modes without an Overgang (the stored jaarlaag is
+    already the one to display) and 1 for forward modes (Doorzetten/Overgang), where
+    students move up one jaarlaag and the result should show that new jaarlaag, even
+    though the stored data still reflects the current one. ``None`` is passed through
+    unchanged: the None cohort only occurs in the bare-Excel/CLI path, which has no
+    Overgang and therefore always uses offset 0.
+    """
+    return None if year is None else year + offset
+
+
+def year_label(year: int | None, offset: int = 0) -> str:
+    """Row label for a jaarlaag cohort, shifted by ``offset``.
+
+    Bare "Jaarlaag" for the None cohort; "Jaarlaag N" otherwise, where N is ``year``
+    shifted by ``offset`` (see :func:`shift_year`).
+    """
+    shifted = shift_year(year, offset)
+    return "Jaarlaag" if shifted is None else f"Jaarlaag {shifted}"
 
 
 def year_sort_key(year: int | None) -> tuple:
