@@ -5,6 +5,7 @@ distribution, lets the processing page poll /status until done, and checks that 
 tables render and the workbook downloads. This is the automated end-to-end check for Fase 1.
 """
 
+import json
 import shutil
 from pathlib import Path
 
@@ -60,6 +61,28 @@ def test_processing_to_result_to_download(live_server, tmp_path, page):
     with page.expect_download() as download_info:
         page.click("text=Download groepsindeling")
     assert download_info.value.suggested_filename == "results.xlsx"
+
+
+@pytest.mark.usefixtures("login")
+def test_processing_stepper_completes(live_server, tmp_path, page):
+    """The processing page shows the three-step stepper and it all ends up 'done'."""
+    proc = _make_process(live_server, tmp_path, page, name="stepperrun")
+
+    page.goto(f"{live_server}/start_distribution")
+    # The stepper renders all three steps immediately (they only ever refine in
+    # place, never appear/disappear — see the "rustregels" in the plan).
+    assert page.locator(".solve-step").count() == 3
+
+    page.wait_for_url("**/result", timeout=60000)
+
+    # progress.json was written throughout the solve and ended with every step done.
+    with open(proc / "progress.json", encoding="utf-8") as fh:
+        progress = json.load(fh)
+    assert progress["steps"] == {
+        "floor": "done",
+        "balance": "done",
+        "satisfaction": "done",
+    }
 
 
 @pytest.mark.usefixtures("login")

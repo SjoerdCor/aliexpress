@@ -53,6 +53,10 @@ def status():
         "status_studentdistribution": run.status,
         "logs": [line.text for line in run.log_lines],
     }
+    progress_path = get_file_path(school_id, process_name, "progress.json")
+    if os.path.exists(progress_path):
+        with open(progress_path, encoding="utf-8") as fh:
+            payload.update(json.load(fh))
     if run.status == "error" and run.message:
         payload["message"] = run.message
     return jsonify(payload)

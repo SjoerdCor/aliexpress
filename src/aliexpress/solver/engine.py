@@ -12,6 +12,7 @@ rounding can never leak into the report and the pinned integration values stay
 exact.
 """
 
+import time
 from dataclasses import dataclass
 
 from ortools.sat.python import cp_model
@@ -20,6 +21,7 @@ from .. import errors
 from ..data import preferences_data
 from . import feasibility, modelbuilder, strategies
 from ._balance_families import SLACK_WEIGHTS, max_slack_bound
+from .progress import ProgressListener
 from .satisfaction import _normalize_and_bound
 
 #: Weight of the max-slack spreading term in the relaxation objective below:
@@ -93,13 +95,18 @@ def solve_with_fixed_balance(  # pylint: disable=too-many-arguments
     return _extract(problem, solver, preferences)
 
 
-def solve_within_minimal_relaxation(
+def solve_within_minimal_relaxation(  # pylint: disable=too-many-arguments
+    # Each keyword-only argument is a distinct input to the model (raw data, rules,
+    # strategy choice, progress listener); grouping them would obscure the entry
+    # point's public interface rather than simplify it — matching the style of the
+    # sibling solve_with_fixed_balance above.
     *,
     preferences,
     students: dict,
     groups_to: dict,
     not_together: list,
     optimize: str = "lexmaxmin",
+    listener: ProgressListener | None = None,
 ) -> Solution:
     """Solve the distribution with the class balance relaxed only as far as needed.
 
@@ -137,6 +144,11 @@ def solve_within_minimal_relaxation(
         plateaud lexicographic max-min with a total-satisfaction tie-break) or
         ``"total"`` (maximize the total satisfaction directly). See
         :mod:`.strategies` for the trade-off between the two.
+    listener : ProgressListener | None
+        Notified of the three UI-facing stages (``"floor"``, ``"balance"``,
+        ``"satisfaction"``) as they start and finish. Defaults to the no-op
+        base class, so callers that don't care about progress need not pass
+        one.
 
     Returns
     -------
@@ -154,11 +166,14 @@ def solve_within_minimal_relaxation(
     SolverError
         If any other stage cannot be solved to proven optimality.
     """
+    listener = listener or ProgressListener()
     problem = modelbuilder.build_soft_problem(
         preferences, students, groups_to, not_together
     )
     model = problem.model
 
+    listener.stage_started("floor")
+    t_start = time.perf_counter()
     try:
         solver = strategies.solve_stage(
             model,
@@ -178,6 +193,7 @@ def solve_within_minimal_relaxation(
             },
             technical_message="Hard preference constraints are mutually infeasible",
         ) from exc
+    listener.stage_finished("floor", time.perf_counter() - t_start)
     nonpositive_optimum = round(solver.ObjectiveValue())
     model.Add(sum(problem.nonpositive.values()) <= nonpositive_optimum)
 
@@ -187,11 +203,17 @@ def solve_within_minimal_relaxation(
         sum(SLACK_WEIGHTS[name] * slack for name, slack in problem.slacks.items())
         + MAX_SLACK_WEIGHT * max_slack
     )
+    listener.stage_started("balance")
+    t_start = time.perf_counter()
     solver = strategies.solve_stage(model, "balance relaxation", minimize=weighted)
+    listener.stage_finished("balance", time.perf_counter() - t_start)
     budget = round(solver.ObjectiveValue())
     model.Add(weighted <= budget)
 
+    listener.stage_started("satisfaction")
+    t_start = time.perf_counter()
     solver = strategies.optimize(problem, optimize)
+    listener.stage_finished("satisfaction", time.perf_counter() - t_start)
     return _extract(problem, solver, preferences)
 
 

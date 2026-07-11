@@ -24,6 +24,7 @@ from ..main import distribute_students_from_data
 from .extensions import db
 from .models import LogLine, Process
 from .process_files import load_groups, load_voorkeuren
+from .progress_writer import ProgressWriter
 from .routes.processes import get_process_mode, year_offset_for_mode
 from .storage import get_file_path, get_process_path
 from .validation_messages import to_validation_message
@@ -120,12 +121,16 @@ def run_solve_thread(ctx: ThreadContext, not_together):
                 year_offset = year_offset_for_mode(
                     get_process_mode(get_process_path(ctx.school_id, ctx.process_name))
                 )
+                writer = ProgressWriter(
+                    get_file_path(ctx.school_id, ctx.process_name, "progress.json")
+                )
                 result = distribute_students_from_data(
                     preference_data,
                     target_groups,
                     not_together,
                     on_update=on_update,
                     year_offset=year_offset,
+                    listener=writer,
                 )
                 logger.info("Distributing students finished successfully")
                 # Write artifacts before flipping to "done" so the result page never

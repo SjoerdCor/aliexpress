@@ -6,15 +6,37 @@
 
 {% block content %}
 <p>ALI Express werkt in drie stappen:</p>
-<ol>
-    <li>Bepalen hoeveel balansruimte nodig is zodat elke leerling minstens één voorkeur gehonoreerd krijgt</li>
-    <li>De groepsbalans zo strak mogelijk instellen binnen die ruimte</li>
-    <li>De leerlingtevredenheid maximaliseren</li>
+<ol class="solve-stepper">
+    <li class="solve-step solve-step--pending" data-stage="floor">
+        <span class="solve-step-icon" aria-hidden="true"></span>
+        <span class="solve-step-label">Bepalen hoeveel leerlingen ten minste één voorkeur krijgen</span>
+    </li>
+    <li class="solve-step solve-step--pending" data-stage="balance">
+        <span class="solve-step-icon" aria-hidden="true"></span>
+        <span class="solve-step-label">Optimaal haalbare groepsbalans bepalen</span>
+    </li>
+    <li class="solve-step solve-step--pending" data-stage="satisfaction">
+        <span class="solve-step-icon" aria-hidden="true"></span>
+        <span class="solve-step-label">Leerlingtevredenheid maximaliseren</span>
+    </li>
 </ol>
 <div id="logs"></div>
 <div class="loading-spinner" style="display: none;"></div>
 
 <script>
+    function updateStepper(steps) {
+        if (!steps) {
+            return;
+        }
+        Object.entries(steps).forEach(([stage, state]) => {
+            const step = document.querySelector(`.solve-step[data-stage="${stage}"]`);
+            if (step) {
+                step.classList.remove("solve-step--pending", "solve-step--busy", "solve-step--done");
+                step.classList.add(`solve-step--${state}`);
+            }
+        });
+    }
+
     setInterval(() => {
         fetch("/status")
             .then(r => r.json())
@@ -22,6 +44,7 @@
                 console.log(data.status_studentdistribution)
                 document.getElementById("logs").innerHTML =
                     data.logs.map(line => `<p>${line}</p>`).join("");
+                updateStepper(data.steps);
                 if (data.status_studentdistribution === "running") {
                     document.querySelector('.loading-spinner').style.display = 'block';
 
