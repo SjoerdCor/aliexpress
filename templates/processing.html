@@ -19,6 +19,8 @@
     <li class="solve-step solve-step--pending" data-stage="satisfaction">
         <span class="solve-step-icon" aria-hidden="true"></span>
         <span class="solve-step-label">Leerlingtevredenheid maximaliseren</span>
+        <ul id="plateaus" class="plateau-list"></ul>
+        <p id="tiebreak-line" class="tiebreak-line" style="display: none;">De puntjes op de i zetten&hellip;</p>
     </li>
 </ol>
 <div id="sociogram-card" class="sociogram-card">
@@ -75,6 +77,28 @@
         el.classList.add("input-overview--visible");
     }
 
+    function updatePlateaus(plateaus) {
+        if (!plateaus) {
+            return;
+        }
+        // The list only ever grows (one entry per completed lexmaxmin level), so
+        // re-rendering it in full each poll is fine — it never shrinks or reorders.
+        const list = document.getElementById("plateaus");
+        list.innerHTML = "";
+        plateaus.forEach(p => {
+            const li = document.createElement("li");
+            li.textContent = `Minst tevreden leerling: nu ${p.min_pct}% — ` +
+                `${p.n_can_improve} leerlingen kunnen nog omhoog`;
+            list.appendChild(li);
+        });
+    }
+
+    function updateTiebreak(busy) {
+        if (busy) {
+            document.getElementById("tiebreak-line").style.display = "block";
+        }
+    }
+
     function updateSociogram(ready) {
         if (!ready) {
             return;
@@ -89,6 +113,8 @@
                 console.log(data.status_studentdistribution)
                 updateStepper(data.steps);
                 updateInputOverview(data.input_summary);
+                updatePlateaus(data.plateaus);
+                updateTiebreak(data.tiebreak_busy);
                 updateSociogram(data.sociogram_ready);
                 if (data.status_studentdistribution === "running") {
                     document.querySelector('.loading-spinner').style.display = 'block';

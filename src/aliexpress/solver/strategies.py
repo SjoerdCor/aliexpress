@@ -33,6 +33,7 @@ from ortools.sat.python import cp_model
 
 from ..errors import SolverError, StageInfeasible
 from . import modelbuilder
+from .progress import ProgressListener
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +47,9 @@ SATISFACTION_MAX = 0.8
 NUM_WORKERS = 8
 
 
-def optimize(problem, strategy: str) -> cp_model.CpSolver:
+def optimize(
+    problem, strategy: str, listener: ProgressListener | None = None
+) -> cp_model.CpSolver:
     """Run the chosen aggregate objective and return the final-stage solver.
 
     Parameters
@@ -56,6 +59,10 @@ def optimize(problem, strategy: str) -> cp_model.CpSolver:
     strategy : str
         The strategy to run: ``"lexmaxmin"`` or ``"total"`` (see the module
         docstring).
+    listener : ProgressListener | None
+        Notified of each completed lexmaxmin plateau and of the tie-break
+        starting; not consulted by the ``"total"`` strategy, which has neither.
+        Defaults to the no-op base class.
 
     Returns
     -------
@@ -67,8 +74,10 @@ def optimize(problem, strategy: str) -> cp_model.CpSolver:
     ValueError
         If ``strategy`` is not one of the two known strategies.
     """
+    listener = listener or ProgressListener()
     if strategy == "lexmaxmin":
-        _lexmaxmin(problem)
+        _lexmaxmin(problem, listener)
+        listener.tiebreak_started()
         return solve_stage(
             problem.model, "tie-break", maximize=sum(problem.satisfaction.values())
         )
@@ -79,18 +88,24 @@ def optimize(problem, strategy: str) -> cp_model.CpSolver:
     raise ValueError(f"unknown optimize strategy {strategy!r}")
 
 
-def _lexmaxmin(problem) -> None:
+def _lexmaxmin(problem, listener: ProgressListener) -> None:
     """Raise the minimal satisfaction level by level, pinning each plateau.
 
     Per level: (1) maximize the minimal satisfaction over the students above the
     previous plateau, (2) maximize how many students escape the new plateau, and
     pin that count. Stops at :data:`SATISFACTION_MAX` or when nobody escapes.
-    Integer satisfaction makes both steps exact.
+    Integer satisfaction makes both steps exact. ``listener.plateau_finished`` fires
+    once per completed level (both stages solved), including the terminal level
+    where nobody escapes — but not on the early :data:`SATISFACTION_MAX` return,
+    which stops before the count stage runs.
 
     Parameters
     ----------
     problem : modelbuilder.Problem | modelbuilder.SoftProblem
         The built model; mutated in place with the plateau constraints.
+    listener : ProgressListener
+        Notified via ``plateau_finished(min_satisfaction, n_can_improve)`` after
+        each completed level.
     """
     model = problem.model
     scale = modelbuilder.SATISFACTION_SCALE
@@ -152,6 +167,7 @@ def _lexmaxmin(problem) -> None:
             count,
             time.perf_counter() - t_start,
         )
+        listener.plateau_finished(plateau / scale, count)
         if count == 0:
             return
         model.Add(sum(above_plateau.values()) == count)

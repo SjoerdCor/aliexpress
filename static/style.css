@@ -416,6 +416,26 @@ input[type="submit"]:hover {
   }
 }
 
+/* Per-plateau lines under the "satisfaction" solve step (progress.json plateaus):
+   the list only ever grows, one line per completed lexmaxmin level, so no
+   appear/disappear transition is needed — new lines simply show up at the end. The
+   tie-break line appears once, when tiebreak_busy flips true, and then stays. */
+.plateau-list {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0 0 0 1.85rem; /* aligns under the step label, past the icon column */
+  font-size: 0.85rem;
+  color: #757575;
+}
+
+.tiebreak-line {
+  margin: 0.4rem 0 0;
+  padding: 0 0 0 1.85rem;
+  font-size: 0.85rem;
+  color: #757575;
+  font-style: italic;
+}
+
 /* The input-overview line at the top of the processing page (progress.json
    input_summary). It only ever appears once, then updates its text in place — never
    disappears again — so a plain fade-in on first render is enough; no layout jump

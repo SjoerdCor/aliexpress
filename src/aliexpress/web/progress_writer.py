@@ -31,6 +31,8 @@ class ProgressWriter(ProgressListener):
         self.steps = {stage: "pending" for stage in _PENDING_STEPS}
         self.stage_seconds: list[dict] = []
         self.input_summary_data: dict | None = None
+        self.plateaus: list[dict] = []
+        self.tiebreak_busy = False
         self._write()
 
     def stage_started(self, stage: str) -> None:
@@ -46,10 +48,25 @@ class ProgressWriter(ProgressListener):
         self.input_summary_data = asdict(summary)
         self._write()
 
+    def plateau_finished(self, min_satisfaction: float, n_can_improve: int) -> None:
+        # Whole percents per the grilling decision; never clamped, since satisfaction
+        # can be negative (ADR-0014). The list only ever grows, matching the "nothing
+        # ever disappears" rustregel — the UI can safely re-render it in full each poll.
+        self.plateaus.append(
+            {"min_pct": round(min_satisfaction * 100), "n_can_improve": n_can_improve}
+        )
+        self._write()
+
+    def tiebreak_started(self) -> None:
+        self.tiebreak_busy = True
+        self._write()
+
     def _write(self) -> None:
         payload = {
             "input_summary": self.input_summary_data,
             "steps": self.steps,
+            "plateaus": self.plateaus,
+            "tiebreak_busy": self.tiebreak_busy,
             "stage_seconds": self.stage_seconds,
             "started_at": self.started_at,
         }
