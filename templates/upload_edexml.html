@@ -14,7 +14,7 @@ In het volgende scherm kun je dan controleren of het allemaal klopt.
     <label for="edexml">EDEXML:</label><br>
     <input type="file" name="edexml" accept=".xml" required><br><br>
     {% if mode == "forward" %}
-    <label for="jaargroep"> jaargroep die moet worden ingedeeld</label>
+    <label for="jaargroep">Jaarlaag (huidig) die moet worden ingedeeld</label>
     <select name="jaargroep" required>
         {% for year in range(1, 9) %}
         <option value="{{ year }}">{{ year }}</option>
@@ -22,7 +22,7 @@ In het volgende scherm kun je dan controleren of het allemaal klopt.
     </select>
     {% elif mode == "redistribute_and_forward" %}
     <fieldset>
-        <legend>Welke jaargroepen deel je opnieuw in? (bijv. 5, 6 en 7)</legend>
+        <legend>Welke jaarlagen (huidig) deel je opnieuw in? (bijv. 5, 6 en 7)</legend>
         {% for year in range(1, 9) %}
         <label>
             <input type="checkbox" name="jaargroepen" value="{{ year }}">

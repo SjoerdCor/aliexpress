@@ -23,9 +23,27 @@ from ..data import preferences_data
 from .results import SolutionResult
 
 
-def year_label(year: int | None) -> str:
-    """Row label for a jaarlaag cohort: bare "Jaarlaag" for the None cohort."""
-    return "Jaarlaag" if year is None else f"Jaarlaag {year}"
+def shift_year(year: int | None, offset: int) -> int | None:
+    """Shift a jaarlaag number by ``offset``, the Nieuwe-jaarlaag display shift.
+
+    ``offset`` is 0 for distribution modes without an Overgang (the stored jaarlaag is
+    already the one to display) and 1 for forward modes (Doorzetten/Overgang), where
+    students move up one jaarlaag and the result should show that new jaarlaag, even
+    though the stored data still reflects the current one. ``None`` is passed through
+    unchanged: the None cohort only occurs in the bare-Excel/CLI path, which has no
+    Overgang and therefore always uses offset 0.
+    """
+    return None if year is None else year + offset
+
+
+def year_label(year: int | None, offset: int = 0) -> str:
+    """Row label for a jaarlaag cohort, shifted by ``offset``.
+
+    Bare "Jaarlaag" for the None cohort; "Jaarlaag N" otherwise, where N is ``year``
+    shifted by ``offset`` (see :func:`shift_year`).
+    """
+    shifted = shift_year(year, offset)
+    return "Jaarlaag" if shifted is None else f"Jaarlaag {shifted}"
 
 
 def year_sort_key(year: int | None) -> tuple:
@@ -142,12 +160,16 @@ class GroepsindelingView:
     balance_rows: list[BalanceRow]
 
 
-def build(
+def build(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    # Four required display-space artefacts plus two optional display options
+    # (unique_name, year_offset); they do not bundle into one object without a one-off
+    # dataclass, so the wide-but-flat signature is the readable choice here.
     result: SolutionResult,
     students_info: dict,
     preferences: pd.DataFrame,
     input_sheet: pd.DataFrame,
     unique_name: dict[str, str] | None = None,
+    year_offset: int = 0,
 ) -> GroepsindelingView:
     """Build the structured Groepsindeling view-model from a display-keyed solution.
 
@@ -155,11 +177,13 @@ def build(
     and student chips, plus the Klassenoverzicht balance rows. ``unique_name`` maps a full
     name to a short chip label (web path); an absent entry falls back to the full name
     (Excel/CLI). Everything is read from the already display-keyed ``result`` /
-    ``students_info`` / ``preferences`` / ``input_sheet``.
+    ``students_info`` / ``preferences`` / ``input_sheet``. ``year_offset`` shifts only the
+    *displayed* jaarlaag (section/label/chip year, see :func:`shift_year`) for forward modes
+    (Doorzetten/Overgang); grouping and sorting stay keyed on the raw, current jaarlaag.
     """
-    return _ViewBuilder(result, students_info, preferences, input_sheet).build(
-        unique_name
-    )
+    return _ViewBuilder(
+        result, students_info, preferences, input_sheet, year_offset
+    ).build(unique_name)
 
 
 @dataclass(frozen=True)
@@ -167,13 +191,15 @@ class _ViewBuilder:
     """Turns one display-keyed solution into a :class:`GroepsindelingView`.
 
     Groups the derivation into focused helpers; it holds the four display-space artefacts a
-    :class:`~aliexpress.solver.solutions.SolutionAnalyzer` already owns.
+    :class:`~aliexpress.solver.solutions.SolutionAnalyzer` already owns, plus the display-only
+    ``year_offset`` (0 unless a forward mode is shifting the shown jaarlaag).
     """
 
     result: SolutionResult
     students_info: dict
     preferences: pd.DataFrame
     input_sheet: pd.DataFrame
+    year_offset: int = 0
 
     def build(self, unique_name: dict[str, str] | None = None) -> GroepsindelingView:
         """Assemble the cards and the Klassenoverzicht rows."""
@@ -266,7 +292,7 @@ class _ViewBuilder:
             full_name=full_name,
             origin_abbrev=origin_full[:3],
             origin_full=origin_full,
-            year_group=info.get("Jaarlaag"),
+            year_group=shift_year(info.get("Jaarlaag"), self.year_offset),
             satisfaction=satisfaction,
             preferences=preferences_by_student.get(full_name, []),
             not_in=self._not_in_targets(full_name),
@@ -322,8 +348,8 @@ class _ViewBuilder:
             )
             sections.append(
                 YearSection(
-                    year=year,
-                    label=year_label(year),
+                    year=shift_year(year, self.year_offset),
+                    label=year_label(year, self.year_offset),
                     size=boys.new_count + girls.new_count,
                     boys=boys,
                     girls=girls,
@@ -380,7 +406,7 @@ class _ViewBuilder:
                     counts.boys,
                     counts.girls,
                 )
-        return self._balance_row(year_label(year), False, per_group)
+        return self._balance_row(year_label(year, self.year_offset), False, per_group)
 
     @staticmethod
     def _balance_row(

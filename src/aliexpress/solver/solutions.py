@@ -177,17 +177,25 @@ class SolutionAnalyzer:
     :func:`to_display_names` for the translation from solver matching keys.
     """
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+        # Four required display-space artefacts plus the optional year_offset display
+        # option; they do not bundle into one object without a one-off dataclass, so
+        # the wide-but-flat signature is the readable choice here (mirrors
+        # groepsindeling_view.build).
         self,
         result,
         preferences: pd.DataFrame,
         input_sheet: pd.DataFrame,
         students_info: dict,
+        year_offset: int = 0,
     ):
         self.result = result
         self.preferences = preferences
         self.input_sheet = input_sheet
         self.students_info = students_info
+        # Display-only shift of the Nieuwe-jaarlaag shown to the user (Overgang modes);
+        # 0 for modes without an Overgang, where the raw jaarlaag is shown as-is.
+        self.year_offset = year_offset
 
         self.groepsindeling = self._get_outcome()
         self.group_report = self._calculate_group_report()
@@ -282,8 +290,9 @@ class SolutionAnalyzer:
             distribution[(group, "Totaal", "Jongen")] = comp.boys_total
             distribution[(group, "Totaal", "Meisje")] = comp.girls_total
             for year, counts in comp.per_year.items():
-                distribution[(group, year_label(year), "Jongen")] = counts.boys
-                distribution[(group, year_label(year), "Meisje")] = counts.girls
+                label = year_label(year, self.year_offset)
+                distribution[(group, label, "Jongen")] = counts.boys
+                distribution[(group, label, "Meisje")] = counts.girls
             years.update(comp.per_year)
 
         # unstack() sorts row labels alphabetically ("Jaarlaag 10" before "Jaarlaag 6"),
@@ -292,7 +301,8 @@ class SolutionAnalyzer:
         # reindex also fills in a 0 row for a group missing one of the other groups'
         # cohorts (e.g. nobody from jaarlaag 7 assigned to this particular group).
         row_order = ["Totaal"] + [
-            year_label(year) for year in sorted(years, key=year_sort_key)
+            year_label(year, self.year_offset)
+            for year in sorted(years, key=year_sort_key)
         ]
         full_index = pd.MultiIndex.from_product(
             [sorted(self.result.group_composition), row_order]
@@ -329,6 +339,7 @@ class SolutionAnalyzer:
             self.preferences,
             self.input_sheet,
             unique_name,
+            year_offset=self.year_offset,
         )
 
     def _calculate_satisfied_constraints(self) -> pd.DataFrame:

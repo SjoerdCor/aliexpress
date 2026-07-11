@@ -86,14 +86,15 @@ def _log_initial_state(groups_to, students_info, on_update, stamgroep_display=No
         on_update(f"{group}: {value}")
 
 
-def _export(result, preference_data, target_groups):
+def _export(result, preference_data, target_groups, year_offset: int = 0):
     """Build the download workbook, result tables and the structured Groepsindeling view.
 
     Returns ``(output, dfs, view)``: the download workbook, the three analysis tables
     (Overgangsmatrix, Leerlingtevredenheid, VervuldeVoorkeuren), and the Flask-free
     :class:`GroepsindelingView` for the result page. The Groepsindeling and Klassenoverzicht
     now live in the view-model, not in ``dfs``; the full workbook (``to_excel``) still writes
-    every sheet.
+    every sheet. ``year_offset`` shifts the displayed Nieuwe jaarlaag (see
+    :class:`~.solver.solutions.SolutionAnalyzer`); 0 leaves it unchanged.
     """
     display_names = solutions.DisplayNames(
         student=preference_data.student_display,
@@ -108,7 +109,9 @@ def _export(result, preference_data, target_groups):
         preference_data.students_info,
         display_names,
     )
-    sa = solutions.SolutionAnalyzer(result, preferences, input_sheet, students_info)
+    sa = solutions.SolutionAnalyzer(
+        result, preferences, input_sheet, students_info, year_offset=year_offset
+    )
 
     output = BytesIO()
     sa.to_excel(output)
@@ -165,12 +168,16 @@ def _log_solve_summary(
     )
 
 
-def distribute_students_from_data(
+def distribute_students_from_data(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    # Six independent inputs to the solve+export pipeline (data, rules, progress
+    # callback, balance override, display shift); grouping them would obscure the
+    # constraints being modelled, matching the style of solutions.SolutionAnalyzer.__init__.
     preference_data: PreferenceData,
     target_groups: GroupCounts,
     not_together: list[dict] | None = None,
     on_update=lambda msg: None,
     groupbalance: GroupBalance | None = None,
+    year_offset: int = 0,
 ):
     """Distribute all students over all groups with lexmaxmin — the pure data core.
 
@@ -202,6 +209,10 @@ def distribute_students_from_data(
         :func:`~.solver.engine.solve_within_minimal_relaxation`). Pass a
         GroupBalance to override this with fixed manual limits instead (see
         :func:`~.solver.engine.solve_with_fixed_balance`).
+    year_offset : int
+        Shifts the displayed Nieuwe jaarlaag in the result view and export (see
+        :class:`~.solver.solutions.SolutionAnalyzer`). 0 (the default) for modes without
+        an Overgang; 1 for the "forward"/"redistribute_and_forward" modes.
 
     Returns
     -------
@@ -272,7 +283,9 @@ def distribute_students_from_data(
         )
         _log_solve_summary(result, groupbalance)
 
-    output, dfs, view = _export(result, preference_data, target_groups)
+    output, dfs, view = _export(
+        result, preference_data, target_groups, year_offset=year_offset
+    )
     logger.info("Done!")
     on_update("Klaar!")
     return {"download": output, "dataframes": dfs, "groepsindeling_view": view}

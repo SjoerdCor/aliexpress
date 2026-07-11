@@ -11,7 +11,12 @@ import dataclasses
 
 import pandas as pd
 
-from aliexpress.solver.groepsindeling_view import GroepsindelingView, Preference
+from aliexpress.solver.groepsindeling_view import (
+    GroepsindelingView,
+    Preference,
+    build,
+    year_label,
+)
 from aliexpress.solver.results import GroupComposition, SexCounts, SolutionResult
 from aliexpress.solver.solutions import SolutionAnalyzer
 
@@ -226,6 +231,29 @@ def test_doorzetten_liever_niet_preference_and_fulfilled():
             weight=1.0,
         )
     ]
+
+
+def test_build_shifts_year_for_forward():
+    """``year_offset`` shifts the displayed jaarlaag, not the grouping/sort keys."""
+    sa = _doorzetten_analyzer()
+    view = build(
+        sa.result, sa.students_info, sa.preferences, sa.input_sheet, year_offset=1
+    )
+    card_a = view.groups[0]
+    section = card_a.year_sections[0]
+    assert section.year == 6
+    assert section.label == "Jaarlaag 6"
+
+    year_row = next(row for row in view.balance_rows if not row.is_total)
+    assert year_row.label == "Jaarlaag 6"
+
+    chip = section.boys.students[0]
+    assert chip.year_group == 6
+
+    # Regression: default (no Overgang) still shows the raw jaarlaag.
+    view_default = build(sa.result, sa.students_info, sa.preferences, sa.input_sheet)
+    assert view_default.groups[0].year_sections[0].year == 5
+    assert view_default.groups[0].year_sections[0].label == "Jaarlaag 5"
 
 
 def test_preference_target_group_uses_in_and_classmate_uses_short_name():
@@ -463,3 +491,10 @@ def test_herindelen_min_satisfaction_missing_key_is_none():
 def test_view_type_is_groepsindeling_view():
     """The builder returns the top-level dataclass."""
     assert isinstance(_herindelen_analyzer().groepsindeling_view(), GroepsindelingView)
+
+
+def test_year_label_offset():
+    """offset shifts a real jaarlaag number up; the None cohort stays offset-immune."""
+    assert year_label(5, offset=1) == "Jaarlaag 6"
+    assert year_label(5) == "Jaarlaag 5"
+    assert year_label(None, offset=1) == "Jaarlaag"

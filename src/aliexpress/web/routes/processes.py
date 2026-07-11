@@ -83,6 +83,18 @@ def is_redistribute_mode(mode: str) -> bool:
     return mode in ("redistribute", "redistribute_and_forward")
 
 
+def year_offset_for_mode(mode: str) -> int:
+    """Return the year-layer offset (0 or 1) that results for this mode should be shown at.
+
+    This is the "shifts-by-a-year" axis: forward modes move students to the Overgang
+    (they land in the Nieuwe jaarlaag, one year up), so results should be displayed
+    one year-layer higher. It is orthogonal to `is_redistribute_mode`, which groups
+    modes by wizard branch instead: "forward" IS a forward mode (offset 1) but is NOT
+    a redistribute mode, while "redistribute_and_forward" is both.
+    """
+    return 1 if mode in ("forward", "redistribute_and_forward") else 0
+
+
 def _is_valid_process_name(name):
     """True when the name is a safe single path segment (no separators, no traversal)."""
     return bool(re.match(r"^[\w\- ]+$", name))
