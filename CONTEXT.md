@@ -13,8 +13,16 @@ Een leerling die niet meegaat in deze verdeling maar nog een jaar in dezelfde (k
 _Avoid_: blijver, zittenblijver
 
 **Jaarlaag**:
-Het leerjaar van een leerling (bijv. 6, 7 of 8), los van de Groep waarin die zit: één gecombineerde groep bevat meerdere jaarlagen. Bij Herindelen wordt de balans per jaarlaag over de groepen bewaakt, zodat niet de ene groep vooral jaarlaag 6 krijgt en de andere vooral 7.
+Het leerjaar van een leerling (bijv. 6, 7 of 8), los van de Groep waarin die zit: één gecombineerde groep bevat meerdere jaarlagen. Bij Herindelen wordt de balans per jaarlaag over de groepen bewaakt, zodat niet de ene groep vooral jaarlaag 6 krijgt en de andere vooral 7. Rond een Overgang is "de jaarlaag" van een leerling dubbelzinnig: de invoer vraagt de Huidige jaarlaag, de resultaten tonen de Nieuwe jaarlaag.
 _Avoid_: jaargroep, leerjaar, cohort
+
+**Huidige jaarlaag**:
+De Jaarlaag waarin een leerling nú zit — wat de leerkracht bij de invoer opgeeft en wat door de hele verwerking als de identiteit van de leerling geldt. Tegenhanger van de Nieuwe jaarlaag.
+_Avoid_: bron-jaarlaag, oude jaarlaag
+
+**Nieuwe jaarlaag**:
+De Jaarlaag waarin een leerling ná de Overgang zit: één hoger dan de Huidige jaarlaag. De resultaten en de Excel-export tonen bij Doorzetten en Herindelen met doorzetten (beide rond een Overgang) de nieuwe jaarlaag, want dáárin zit de leerling in de nieuwe indeling. Bij Herindelen met dezelfde groepen is er geen Overgang en vallen huidige en nieuwe jaarlaag samen.
+_Avoid_: doeljaarlaag, bestemmingsjaarlaag, volgende jaarlaag
 
 **Verdeelmodus**:
 Waarvoor een Proces dient: Doorzetten, Herindelen met dezelfde groepen of Herindelen met doorzetten. Gekozen bij het aanmaken van het proces (drie gelijkwaardige opties) en bepaalt de wizard-stappen en welke balans-eisen gelden.
