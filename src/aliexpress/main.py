@@ -14,6 +14,7 @@ from .data.datareader import GroupCounts
 from .data.preferences_data import PreferenceData
 from .solver import engine, results, solutions
 from .solver._balance import GroupBalance
+from .solver.progress import ProgressListener
 from .solver.results import SolutionResult
 
 FILE_PREFERENCES = "voorkeuren.xlsx"
@@ -169,15 +170,17 @@ def _log_solve_summary(
 
 
 def distribute_students_from_data(  # pylint: disable=too-many-arguments,too-many-positional-arguments
-    # Six independent inputs to the solve+export pipeline (data, rules, progress
-    # callback, balance override, display shift); grouping them would obscure the
-    # constraints being modelled, matching the style of solutions.SolutionAnalyzer.__init__.
+    # Seven independent inputs to the solve+export pipeline (data, rules, progress
+    # callback, balance override, display shift, structured progress listener);
+    # grouping them would obscure the constraints being modelled, matching the
+    # style of solutions.SolutionAnalyzer.__init__.
     preference_data: PreferenceData,
     target_groups: GroupCounts,
     not_together: list[dict] | None = None,
     on_update=lambda msg: None,
     groupbalance: GroupBalance | None = None,
     year_offset: int = 0,
+    listener: ProgressListener | None = None,
 ):
     """Distribute all students over all groups with lexmaxmin — the pure data core.
 
@@ -213,6 +216,11 @@ def distribute_students_from_data(  # pylint: disable=too-many-arguments,too-man
         Shifts the displayed Nieuwe jaarlaag in the result view and export (see
         :class:`~.solver.solutions.SolutionAnalyzer`). 0 (the default) for modes without
         an Overgang; 1 for the "forward"/"redistribute_and_forward" modes.
+    listener : ProgressListener | None
+        Notified of the three solve stages (see
+        :func:`~.solver.engine.solve_within_minimal_relaxation`) when the balance is
+        determined automatically. Not consulted on the fixed-balance path, which has
+        no stepper. Defaults to the no-op base class.
 
     Returns
     -------
@@ -244,7 +252,6 @@ def distribute_students_from_data(  # pylint: disable=too-many-arguments,too-man
         preference_data.stamgroep_display,
     )
 
-    on_update("Aan de slag! Groepen indelen...")
     if groupbalance is None:
         logger.info("Solving within the minimal class-balance relaxation")
         solution = engine.solve_within_minimal_relaxation(
@@ -253,6 +260,7 @@ def distribute_students_from_data(  # pylint: disable=too-many-arguments,too-man
             groups_to=target_groups.counts,
             not_together=not_together,
             optimize="lexmaxmin",
+            listener=listener,
         )
         result = results.to_solution_result(
             solution, preferences, students_info, target_groups.counts
@@ -287,7 +295,6 @@ def distribute_students_from_data(  # pylint: disable=too-many-arguments,too-man
         result, preference_data, target_groups, year_offset=year_offset
     )
     logger.info("Done!")
-    on_update("Klaar!")
     return {"download": output, "dataframes": dfs, "groepsindeling_view": view}
 
 
