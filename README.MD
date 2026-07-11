@@ -96,7 +96,10 @@ ALI Express then solves the problem in three steps:
 3. **Optimise student satisfaction.** Within the balance envelope from step 2, satisfaction is maximised using *plateaued lexicographic max-min*: the least satisfied student is raised as high as possible first, then the second least satisfied, and so on. The outcome is as fair as possible, not just good on average.
 
 The result is shown in the browser as **group cards**: each destination group is a card with
-its totals, split per jaarlaag into a Jongens and a Meisjes column of name chips. Clicking a chip
+its totals, split per jaarlaag into a Jongens and a Meisjes column of name chips. For the two
+forward modes (Doorzetten and Herindelen met doorzetten) the jaarlaag shown on the cards, in the
+klassenoverzicht and in the Excel is the *new* one — the year-layer the students move up to after
+the transition — while the input asks for their current jaarlaag. Clicking a chip
 opens a popover with the student's full name, origin class, satisfaction, honored/violated
 preferences and any extra-certainty guarantee. Below the cards a compact **klassenoverzicht** shows
 the counts and the balance (size difference and boy/girl imbalance) per group, followed by three
