@@ -164,7 +164,7 @@ def test_mode_info_popover_shows_explanation(live_server, page):
     doorzetten_label.locator("button.info-pop").click()
     popover = page.locator(".info-popover")
     assert popover.count() == 1
-    assert "jaargroepen" in popover.inner_text()
+    assert "jaarlagen" in popover.inner_text()
 
 
 @pytest.mark.usefixtures("login")
@@ -216,7 +216,7 @@ def test_roster_new_student_jaargroep_dropdown(live_server, page):
     row = page.locator(".new-student-row").last
     jaargroep_select = row.locator("[name='new_jaargroep[]']")
     option_labels = jaargroep_select.locator("option").all_inner_texts()
-    assert option_labels == ["— jaargroep —", "Jaargroep 6", "Jaargroep 7"]
+    assert option_labels == ["— jaarlaag —", "Jaarlaag 6", "Jaarlaag 7"]
 
     # Error path: confirming without a jaargroep is rejected, the row stays unconfirmed.
     row.locator("[name='new_voornaam[]']").fill("Mila")
@@ -224,13 +224,13 @@ def test_roster_new_student_jaargroep_dropdown(live_server, page):
     row.locator("[name='new_geslacht[]']").select_option("Meisje")
     row.locator("button.ns-confirm").click()
     assert row.get_attribute("data-confirmed") == "0"
-    assert "jaargroep" in row.locator(".ns-error").inner_text().lower()
+    assert "jaarlaag" in row.locator(".ns-error").inner_text().lower()
 
     # Happy path: picking a jaargroep and confirming turns the row into a chip.
     jaargroep_select.select_option("6")
     row.locator("button.ns-confirm").click()
     assert row.get_attribute("data-confirmed") == "1"
-    assert "jaargroep 6" in row.locator(".ns-chip").inner_text().lower()
+    assert "jaarlaag 6" in row.locator(".ns-chip").inner_text().lower()
 
 
 @pytest.mark.usefixtures("login")

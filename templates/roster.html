@@ -102,8 +102,8 @@ function addNewStudentRow(prefill) {
   // has only one jaargroep for the whole process, so it is assumed server-side instead.
   const jaargroepField = MODE === "redistribute" ? `
       <select name="new_jaargroep[]" title="Jaargroep">
-        <option value="">— jaargroep —</option>
-        ${JAARGROEP_OPTIONS.map(j => `<option value="${j}">Jaargroep ${j}</option>`).join("")}
+        <option value="">— jaarlaag —</option>
+        ${JAARGROEP_OPTIONS.map(j => `<option value="${j}">Jaarlaag ${j}</option>`).join("")}
       </select>` : "";
   const li = document.createElement("div");
   li.className = "new-student-row";
@@ -164,7 +164,7 @@ function confirmRow(li) {
     return;
   }
   if (MODE === "redistribute" && !jaargroep) {
-    err.textContent = "Geef ook de jaargroep aan.";
+    err.textContent = "Geef ook de jaarlaag aan.";
     return;
   }
   const norm = normalizeName(name);
@@ -174,7 +174,7 @@ function confirmRow(li) {
   }
   err.textContent = "";
   const extra = (groep && groep !== "Anders") ? ` · uit ${groep}` : "";
-  const jaarExtra = jaargroep ? ` · jaargroep ${jaargroep}` : "";
+  const jaarExtra = jaargroep ? ` · jaarlaag ${jaargroep}` : "";
   li.querySelector(".ns-chip-label").textContent = `${name} · ${sex}${extra}${jaarExtra}`;
   li.querySelector(".ns-edit").hidden = true;
   li.querySelector(".ns-chip").hidden = false;
