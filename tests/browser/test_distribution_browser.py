@@ -79,7 +79,6 @@ def test_processing_shows_input_overview(live_server, tmp_path, page):
 
     fake_status = {
         "status_studentdistribution": "running",
-        "logs": [],
         "steps": {"floor": "busy", "balance": "pending", "satisfaction": "pending"},
         "stage_seconds": [],
         "input_summary": {
@@ -103,6 +102,41 @@ def test_processing_shows_input_overview(live_server, tmp_path, page):
     assert "Klas A (22)" in text
     assert "→ 4 groepen" in text
     assert "nieuwe" not in text
+
+
+@pytest.mark.usefixtures("login")
+def test_processing_shows_sociogram_card_and_no_logs(live_server, tmp_path, page):
+    """The sociogram card appears once /status reports sociogram_ready; no raw log block.
+
+    Stubs /status like ``test_processing_shows_input_overview`` does: the real
+    sociogram thread's readiness races the redirect on the small dataset, so the
+    deterministic assertion comes from a fixed stubbed payload rather than the real run.
+    """
+    _make_process(live_server, tmp_path, page, name="sociogramrun")
+
+    fake_status = {
+        "status_studentdistribution": "running",
+        "steps": {"floor": "busy", "balance": "pending", "satisfaction": "pending"},
+        "sociogram_ready": False,
+    }
+    # Route handler reads the mutable dict each request, so flipping sociogram_ready
+    # below is picked up by the next 1 s poll without re-registering the route.
+    page.route("**/status", lambda route: route.fulfill(json=fake_status))
+    page.goto(f"{live_server}/processing")
+
+    # No raw log stream anymore.
+    assert page.locator("#logs").count() == 0
+
+    card = page.locator("#sociogram-card")
+    expect(card).to_have_class("sociogram-card")
+
+    fake_status["sociogram_ready"] = True
+    page.wait_for_timeout(1200)  # let the next 1 s poll pick up the updated stub
+
+    expect(card).to_have_class("sociogram-card sociogram-card--visible")
+    link = card.locator("a")
+    expect(link).to_have_attribute("href", "/sociogram")
+    expect(link).to_have_attribute("target", "_blank")
 
 
 @pytest.mark.usefixtures("login")

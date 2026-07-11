@@ -21,7 +21,10 @@
         <span class="solve-step-label">Leerlingtevredenheid maximaliseren</span>
     </li>
 </ol>
-<div id="logs"></div>
+<div id="sociogram-card" class="sociogram-card">
+    <p class="sociogram-card-heading">Terwijl je wacht</p>
+    <a href="/sociogram" target="_blank" rel="noopener" class="button">Bekijk het sociogram</a>
+</div>
 <div class="loading-spinner" style="display: none;"></div>
 
 <script>
@@ -72,15 +75,21 @@
         el.classList.add("input-overview--visible");
     }
 
+    function updateSociogram(ready) {
+        if (!ready) {
+            return;
+        }
+        document.getElementById("sociogram-card").classList.add("sociogram-card--visible");
+    }
+
     function poll() {
         fetch("/status")
             .then(r => r.json())
             .then(data => {
                 console.log(data.status_studentdistribution)
-                document.getElementById("logs").innerHTML =
-                    data.logs.map(line => `<p>${line}</p>`).join("");
                 updateStepper(data.steps);
                 updateInputOverview(data.input_summary);
+                updateSociogram(data.sociogram_ready);
                 if (data.status_studentdistribution === "running") {
                     document.querySelector('.loading-spinner').style.display = 'block';
 

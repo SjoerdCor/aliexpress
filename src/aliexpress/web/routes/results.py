@@ -40,18 +40,20 @@ def processing():
 @login_required
 @require_process
 def status():
-    """Return the current process's run status and log lines as JSON."""
+    """Return the current process's run status and progress as JSON."""
     school_id = effective_school_id()
     if school_id is None:
         return redirect(url_for("admin.dashboard"))
     process_name = session["process_id"]
     proc = Process.by_name(school_id, process_name)
     if proc is None or proc.run is None:
-        return jsonify({"status_studentdistribution": "unknown", "logs": []})
+        return jsonify({"status_studentdistribution": "unknown"})
     run = proc.run
     payload = {
         "status_studentdistribution": run.status,
-        "logs": [line.text for line in run.log_lines],
+        "sociogram_ready": os.path.exists(
+            get_file_path(school_id, process_name, "sociogram.html")
+        ),
     }
     progress_path = get_file_path(school_id, process_name, "progress.json")
     if os.path.exists(progress_path):

@@ -433,6 +433,25 @@ input[type="submit"]:hover {
   opacity: 1;
 }
 
+/* The sociogram card on the processing page: hidden until progress.json reports
+   sociogram_ready, then fades in and stays visible — same appear-only rule as
+   .input-overview, so it never causes a layout jump once shown. */
+.sociogram-card {
+  margin: 0 0 1rem;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.sociogram-card--visible {
+  opacity: 1;
+}
+
+.sociogram-card-heading {
+  margin: 0 0 0.5rem;
+  font-weight: bold;
+  color: #444;
+}
+
 .download-buttons a {
   display: block;
   width: 100%;

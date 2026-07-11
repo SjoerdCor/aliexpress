@@ -16,7 +16,7 @@ import aliexpress.web.tasks as tasks_module
 from aliexpress.errors import ValidationError
 from aliexpress.solver.groepsindeling_view import GroepsindelingView
 from aliexpress.web.extensions import db
-from aliexpress.web.models import LogLine, Process, Run
+from aliexpress.web.models import Process, Run
 from app import app as flask_app
 from tests.helpers import (
     SCHOOL_ID,
@@ -629,27 +629,28 @@ class TestStatus:
         assert response.headers["Location"].endswith("/processes")
 
     def test_no_run_returns_unknown_status(self, client, tmp_path):
-        """A process without a run row reports status 'unknown' and empty logs."""
+        """A process without a run row reports status 'unknown'."""
         setup_process(client, tmp_path)
         data = client.get("/status").get_json()
         assert data["status_studentdistribution"] == "unknown"
-        assert data["logs"] == []
 
-    def test_running_run_returns_status_and_logs(self, client, tmp_path):
-        """A running run returns its status and log lines in insertion order."""
-        setup_process(client, tmp_path)
+    def test_running_run_reports_sociogram_ready(self, client, tmp_path):
+        """A running run reports sociogram_ready based on sociogram.html on disk."""
+        proc_dir = setup_process(client, tmp_path)
         with flask_app.app_context():
             proc = Process.query.filter_by(
                 school_id=SCHOOL_ID, name="testproces"
             ).first()
-            run = Run(process_id=proc.id, status="running")
-            db.session.add(run)
-            db.session.add(LogLine(run_id=proc.id, text="Eerste"))
-            db.session.add(LogLine(run_id=proc.id, text="Tweede"))
+            db.session.add(Run(process_id=proc.id, status="running"))
             db.session.commit()
+
         data = client.get("/status").get_json()
         assert data["status_studentdistribution"] == "running"
-        assert data["logs"] == ["Eerste", "Tweede"]
+        assert data["sociogram_ready"] is False
+
+        (proc_dir / "sociogram.html").write_text("<div>socio</div>", encoding="utf-8")
+        data = client.get("/status").get_json()
+        assert data["sociogram_ready"] is True
 
     def test_error_run_includes_message(self, client, tmp_path):
         """An errored run exposes its friendly message for the frontend to flash."""
