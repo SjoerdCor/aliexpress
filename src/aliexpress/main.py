@@ -12,8 +12,9 @@ from . import errors
 from .data import datareader
 from .data.datareader import GroupCounts
 from .data.preferences_data import PreferenceData
-from .solver import engine, results, solutions
+from .solver import engine, groepsindeling_view, results, solutions
 from .solver._balance import GroupBalance
+from .solver.groepsindeling_view import GroepsindelingView
 from .solver.progress import InputSummary, ProgressListener
 from .solver.results import SolutionResult
 
@@ -109,6 +110,46 @@ def _build_input_summary(
     )
 
 
+def _build_groepsindeling_view(
+    result: SolutionResult,
+    preference_data: PreferenceData,
+    target_groups: GroupCounts,
+    year_offset: int = 0,
+) -> GroepsindelingView:
+    """Translate a solver-space result to display space and build its structured view.
+
+    The single display-translation path from a matching-key-keyed :class:`SolutionResult`
+    to the Flask-free :class:`GroepsindelingView` the result page renders. Used both for
+    the final result (via :func:`_export`) and for each interim result reported during
+    solving (via :class:`_InterimResultAdapter`) — both hold exactly these three solver-
+    space artefacts. ``year_offset`` shifts only the displayed Nieuwe jaarlaag (see
+    :func:`~.solver.groepsindeling_view.build`); 0 leaves it unchanged.
+    """
+    display_names = solutions.DisplayNames(
+        student=preference_data.student_display,
+        group=target_groups.display,
+        stamgroep=preference_data.stamgroep_display,
+    )
+    # The solver works on matching keys; translate to names as entered before reporting.
+    result, preferences, input_sheet, students_info = solutions.to_display_names(
+        result,
+        preference_data.preferences,
+        preference_data.input_sheet,
+        preference_data.students_info,
+        display_names,
+    )
+    # unique_name is a matching-key -> short-name map; relabel it to display space
+    # (full name -> short name) so the chip builder can key it by the display name.
+    # Empty in the Excel/CLI path -> chips fall back to the full name.
+    unique_display = {
+        preference_data.student_display.get(k, k): short
+        for k, short in preference_data.unique_name.items()
+    }
+    return groepsindeling_view.build(
+        result, students_info, preferences, input_sheet, unique_display, year_offset
+    )
+
+
 def _export(result, preference_data, target_groups, year_offset: int = 0):
     """Build the download workbook, result tables and the structured Groepsindeling view.
 
@@ -125,7 +166,7 @@ def _export(result, preference_data, target_groups, year_offset: int = 0):
         stamgroep=preference_data.stamgroep_display,
     )
     # The solver works on matching keys; translate to names as entered before reporting.
-    result, preferences, input_sheet, students_info = solutions.to_display_names(
+    result_disp, preferences, input_sheet, students_info = solutions.to_display_names(
         result,
         preference_data.preferences,
         preference_data.input_sheet,
@@ -133,7 +174,7 @@ def _export(result, preference_data, target_groups, year_offset: int = 0):
         display_names,
     )
     sa = solutions.SolutionAnalyzer(
-        result, preferences, input_sheet, students_info, year_offset=year_offset
+        result_disp, preferences, input_sheet, students_info, year_offset=year_offset
     )
 
     output = BytesIO()
@@ -146,16 +187,86 @@ def _export(result, preference_data, target_groups, year_offset: int = 0):
         "VervuldeVoorkeuren": sa.display_satisfied_preferences(),
     }
 
-    # unique_name is a matching-key -> short-name map; relabel it to display space
-    # (full name -> short name) so the chip builder can key it by the display name.
-    # Empty in the Excel/CLI path -> chips fall back to the full name.
-    unique_display = {
-        preference_data.student_display.get(k, k): short
-        for k, short in preference_data.unique_name.items()
-    }
-    view = sa.groepsindeling_view(unique_display)
+    view = _build_groepsindeling_view(
+        result, preference_data, target_groups, year_offset=year_offset
+    )
 
     return output, dfs, view
+
+
+class _InterimResultAdapter(ProgressListener):
+    """Turns a solver-space ``interim_result`` into a display-space ``interim_result_view``.
+
+    Why this exists — it bridges a layer gap that neither side can close alone:
+
+    - The **solver** (``engine``/``strategies``) knows the assignment on *matching keys*
+      only, not the names as entered: it never receives the display maps (student/group/
+      Stamgroep display, ``unique_name``, ``input_sheet``), which live in
+      :class:`~.data.preferences_data.PreferenceData` / :class:`~.data.datareader.GroupCounts`
+      here in the main layer. So the solver can only emit a preference-free payload.
+    - The **web layer** (``progress_writer``) must not do the translation either: it is
+      pandas/display work above the web boundary, and the writer has no ``PreferenceData``.
+
+    So this adapter sits in the middle (the main layer, which *does* hold the display
+    maps): it wraps a ``downstream`` :class:`ProgressListener`, forwards every other event
+    verbatim, and completes each ``interim_result`` (a stage-boundary ``assignment`` +
+    honored-wish booleans, read straight off the solver) into a full
+    :class:`~.solver.engine.Solution` and then a display-space
+    :class:`~.solver.groepsindeling_view.GroepsindelingView` via
+    :func:`_build_groepsindeling_view` — the same path :func:`_export` uses for the final
+    result — before forwarding it as ``downstream.interim_result_view(view)``.
+
+    Used by :func:`distribute_students_from_data`, which wraps the web writer in this
+    adapter before handing it to the solver (wired up in the web+UI step; until then it is
+    exercised only by its unit test). No damping/throttling: every stage boundary the
+    solver emits is translated and forwarded as-is.
+    """
+
+    def __init__(
+        self,
+        downstream: ProgressListener,
+        preference_data: PreferenceData,
+        target_groups: GroupCounts,
+        year_offset: int = 0,
+    ):
+        self.downstream = downstream
+        self.preference_data = preference_data
+        self.target_groups = target_groups
+        self.year_offset = year_offset
+
+    def stage_started(self, stage: str) -> None:
+        self.downstream.stage_started(stage)
+
+    def stage_finished(self, stage: str, seconds: float) -> None:
+        self.downstream.stage_finished(stage, seconds)
+
+    def input_summary(self, summary: InputSummary) -> None:
+        self.downstream.input_summary(summary)
+
+    def plateau_finished(self, min_satisfaction: float, n_can_improve: int) -> None:
+        self.downstream.plateau_finished(min_satisfaction, n_can_improve)
+
+    def tiebreak_started(self) -> None:
+        self.downstream.tiebreak_started()
+
+    def interim_result(self, assignment: dict, satisfied: dict) -> None:
+        """Complete the preference-free payload into a view and forward it downstream."""
+        preferences = self.preference_data.preferences
+        students_info = self.preference_data.students_info
+        solution = engine.Solution(
+            assignment=assignment,
+            satisfied=satisfied,
+            student_satisfaction=engine.float_satisfaction(
+                preferences, satisfied, list(assignment)
+            ),
+        )
+        result = results.to_solution_result(
+            solution, preferences, students_info, self.target_groups.counts
+        )
+        view = _build_groepsindeling_view(
+            result, self.preference_data, self.target_groups, self.year_offset
+        )
+        self.downstream.interim_result_view(view)
 
 
 def _log_solve_summary(
@@ -238,7 +349,8 @@ def distribute_students_from_data(  # pylint: disable=too-many-arguments,too-man
         Notified of the three solve stages (see
         :func:`~.solver.engine.solve_within_minimal_relaxation`) when the balance is
         determined automatically. Not consulted on the fixed-balance path, which has
-        no stepper. Defaults to the no-op base class.
+        no stepper. ``None`` (the default) means no one is watching; the input summary
+        is then not even built.
 
     Returns
     -------
@@ -262,12 +374,12 @@ def distribute_students_from_data(  # pylint: disable=too-many-arguments,too-man
     ]
     logger.info("All files read")
 
-    listener = listener or ProgressListener()
-    listener.input_summary(
-        _build_input_summary(
-            target_groups.counts, students_info, preference_data.stamgroep_display
+    if listener is not None:
+        listener.input_summary(
+            _build_input_summary(
+                target_groups.counts, students_info, preference_data.stamgroep_display
+            )
         )
-    )
     _log_initial_state(
         target_groups.counts,
         students_info,

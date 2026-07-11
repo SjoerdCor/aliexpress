@@ -1,9 +1,10 @@
 """Flask-free progress-reporting seam for the solve pipeline.
 
-The solver package stays web-free: it only knows about a :class:`ProgressListener`
-with a no-op default, so callers that don't care about progress (the CLI, most
-tests) need pass nothing. The web layer subclasses it to persist progress as
-JSON for the processing page to poll (see ``web/progress_writer.py``).
+The solver package stays web-free: it only knows about the :class:`ProgressListener`
+interface below. Callers that don't care about progress (the CLI, most tests) pass
+``None``, and every emit site in the solver guards on ``if listener is not None``.
+The web layer subclasses it to persist progress as JSON for the processing page to
+poll (see ``web/progress_writer.py``).
 
 ``stage`` is one of the three UI steps shown on the processing page:
 
@@ -38,7 +39,15 @@ class InputSummary:
 
 
 class ProgressListener:
-    """No-op default: subclass and override to observe solve progress."""
+    """An observer interface for solve progress: override only what you care about.
+
+    Every method has a no-op default body, so a subclass need only override the events
+    it wants (e.g. only ``interim_result_view``). Call sites in the solver package hold
+    an ``Optional[ProgressListener]`` and guard each emit with ``if listener is not
+    None:`` — that guard, not this class, is what makes progress reporting optional:
+    it lets a caller that doesn't care skip building the (sometimes non-trivial) event
+    payload entirely, not just skip receiving it.
+    """
 
     def stage_started(self, stage: str) -> None:
         """Called when ``stage`` begins."""
@@ -60,3 +69,26 @@ class ProgressListener:
 
     def tiebreak_started(self) -> None:
         """Called once all lexmaxmin plateaus are pinned and the final tie-break begins."""
+
+    def interim_result(self, assignment: dict, satisfied: dict) -> None:
+        """Called with the best complete distribution at a solved stage boundary.
+
+        Fired once after the balance stage (:func:`~.engine.solve_within_minimal_relaxation`)
+        and once per completed lexmaxmin level (:func:`~.strategies._lexmaxmin`) — every
+        stage boundary, with no damping or throttling. The payload is preference-free,
+        read straight off that stage's ``CpSolver``: ``assignment`` maps each student to
+        their assigned group, ``satisfied`` maps each ``(student, Nr)`` preference row to
+        whether it was honored. A listener that needs the display-space view (chips,
+        satisfaction, ...) translates this itself — see
+        ``aliexpress.main._InterimResultAdapter``, which turns each call into an
+        ``interim_result_view`` call on its downstream listener.
+        """
+
+    def interim_result_view(self, view) -> None:
+        """Called by ``aliexpress.main._InterimResultAdapter`` with a translated interim view.
+
+        ``view`` is a :class:`~.groepsindeling_view.GroepsindelingView` (left unannotated
+        here so this module stays decoupled from the view package). Never called directly
+        by the solver: only that adapter emits it, wrapping a downstream listener and
+        turning each :meth:`interim_result` into a display-space view. Not fired on its own.
+        """

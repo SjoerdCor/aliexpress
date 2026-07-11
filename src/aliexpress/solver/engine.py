@@ -146,10 +146,12 @@ def solve_within_minimal_relaxation(  # pylint: disable=too-many-arguments
         :mod:`.strategies` for the trade-off between the two.
     listener : ProgressListener | None
         Notified of the three UI-facing stages (``"floor"``, ``"balance"``,
-        ``"satisfaction"``) as they start and finish, plus each completed
-        lexmaxmin plateau and the tie-break starting during ``"satisfaction"``
-        (see :func:`.strategies.optimize`). Defaults to the no-op base class,
-        so callers that don't care about progress need not pass one.
+        ``"satisfaction"``) as they start and finish, plus an interim result right
+        after the balance stage, each completed lexmaxmin plateau (with its own
+        interim result) and the tie-break starting during ``"satisfaction"`` (see
+        :func:`.strategies.optimize`). ``None`` (the default) means no one is
+        watching; every emit site guards on it, so callers that don't care about
+        progress need not pass one and pay nothing for the payloads.
 
     Returns
     -------
@@ -167,13 +169,13 @@ def solve_within_minimal_relaxation(  # pylint: disable=too-many-arguments
     SolverError
         If any other stage cannot be solved to proven optimality.
     """
-    listener = listener or ProgressListener()
     problem = modelbuilder.build_soft_problem(
         preferences, students, groups_to, not_together
     )
     model = problem.model
 
-    listener.stage_started("floor")
+    if listener is not None:
+        listener.stage_started("floor")
     t_start = time.perf_counter()
     try:
         solver = strategies.solve_stage(
@@ -194,7 +196,8 @@ def solve_within_minimal_relaxation(  # pylint: disable=too-many-arguments
             },
             technical_message="Hard preference constraints are mutually infeasible",
         ) from exc
-    listener.stage_finished("floor", time.perf_counter() - t_start)
+    if listener is not None:
+        listener.stage_finished("floor", time.perf_counter() - t_start)
     nonpositive_optimum = round(solver.ObjectiveValue())
     model.Add(sum(problem.nonpositive.values()) <= nonpositive_optimum)
 
@@ -204,17 +207,25 @@ def solve_within_minimal_relaxation(  # pylint: disable=too-many-arguments
         sum(SLACK_WEIGHTS[name] * slack for name, slack in problem.slacks.items())
         + MAX_SLACK_WEIGHT * max_slack
     )
-    listener.stage_started("balance")
+    if listener is not None:
+        listener.stage_started("balance")
     t_start = time.perf_counter()
     solver = strategies.solve_stage(model, "balance relaxation", minimize=weighted)
-    listener.stage_finished("balance", time.perf_counter() - t_start)
+    if listener is not None:
+        listener.stage_finished("balance", time.perf_counter() - t_start)
     budget = round(solver.ObjectiveValue())
     model.Add(weighted <= budget)
 
-    listener.stage_started("satisfaction")
+    if listener is not None:
+        # An initial interim result so something shows early even if the first
+        # lexmaxmin level (below) is slow: the balance stage's own solved
+        # assignment, before any satisfaction optimization has run.
+        listener.interim_result(*problem.read_solution(solver))
+        listener.stage_started("satisfaction")
     t_start = time.perf_counter()
     solver = strategies.optimize(problem, optimize, listener=listener)
-    listener.stage_finished("satisfaction", time.perf_counter() - t_start)
+    if listener is not None:
+        listener.stage_finished("satisfaction", time.perf_counter() - t_start)
     return _extract(problem, solver, preferences)
 
 
@@ -236,30 +247,27 @@ def _extract(problem, solver: cp_model.CpSolver, preferences) -> Solution:
     Solution
         The solved assignment, honored wishes and recomputed satisfaction.
     """
-    assignment = {
-        student: group
-        for (student, group), var in problem.in_group.items()
-        if solver.BooleanValue(var)
-    }
-    satisfied = {
-        key: solver.BooleanValue(literal) for key, literal in problem.satisfied.items()
-    }
+    assignment, satisfied = problem.read_solution(solver)
     return Solution(
         assignment=assignment,
         satisfied=satisfied,
-        student_satisfaction=_float_satisfaction(
+        student_satisfaction=float_satisfaction(
             preferences, satisfied, list(problem.satisfaction)
         ),
     )
 
 
-def _float_satisfaction(preferences, satisfied: dict, students: list) -> dict:
+def float_satisfaction(preferences, satisfied: dict, students: list) -> dict:
     """Per-student float satisfaction from the honored wishes.
 
     The float twin of the model's integer element table: computed via
     :func:`~.satisfaction._normalize_and_bound` from the weighted honored sum
     and the student's best/worst possible sums, so the model's optimized
-    integer table and this reported float agree by construction.
+    integer table and this reported float agree by construction. Public (not
+    underscore-prefixed) because :mod:`aliexpress.main`'s ``_InterimResultAdapter``
+    also calls it, to complete an interim ``Solution`` from the preference-free
+    ``assignment``/``satisfied`` a stage-boundary :meth:`~.progress.ProgressListener
+    .interim_result` event carries.
 
     Parameters
     ----------

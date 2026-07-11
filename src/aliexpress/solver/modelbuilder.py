@@ -53,6 +53,13 @@ class Problem:
     satisfaction: dict  # student -> IntVar, scaled by SATISFACTION_SCALE
     satisfaction_bounds: dict  # student -> (low, high), same scale
 
+    def read_solution(self, solver: cp_model.CpSolver) -> tuple[dict, dict]:
+        """This problem's ``(assignment, satisfied)`` read off a solved ``solver``.
+
+        See :func:`_read_solution`, the shared reader both problem types delegate to.
+        """
+        return _read_solution(self, solver)
+
 
 @dataclass
 class SoftProblem:
@@ -75,6 +82,47 @@ class SoftProblem:
     satisfaction_bounds: dict  # student -> (low, high), same scale
     slacks: dict  # family name -> IntVar
     nonpositive: dict  # student -> BoolVar
+
+    def read_solution(self, solver: cp_model.CpSolver) -> tuple[dict, dict]:
+        """This problem's ``(assignment, satisfied)`` read off a solved ``solver``.
+
+        See :func:`_read_solution`, the shared reader both problem types delegate to.
+        """
+        return _read_solution(self, solver)
+
+
+def _read_solution(problem, solver: cp_model.CpSolver) -> tuple[dict, dict]:
+    """Read the assignment and honored-wish booleans off a solved ``(problem, solver)`` pair.
+
+    The shared body behind :meth:`Problem.read_solution` / :meth:`SoftProblem.read_solution`
+    (a plain function so the two identical readers don't duplicate it). Preference-free: it
+    only reads the model's own ``in_group``/``satisfied`` variables, so it works from a
+    stage that has no ``preferences`` in scope (the lexmaxmin per-level loop in
+    :mod:`.strategies`) as well as from the final extraction in :mod:`.engine`.
+
+    Parameters
+    ----------
+    problem : Problem | SoftProblem
+        The built model, for its ``in_group``/``satisfied`` variables.
+    solver : cp_model.CpSolver
+        A solver holding a solved (not necessarily final-stage) assignment.
+
+    Returns
+    -------
+    tuple[dict, dict]
+        ``(assignment, satisfied)``: ``assignment`` maps each student to their assigned
+        group; ``satisfied`` maps each ``(student, Nr)`` preference row to whether it was
+        honored.
+    """
+    assignment = {
+        student: group
+        for (student, group), var in problem.in_group.items()
+        if solver.BooleanValue(var)
+    }
+    satisfied = {
+        key: solver.BooleanValue(literal) for key, literal in problem.satisfied.items()
+    }
+    return assignment, satisfied
 
 
 def build_problem(

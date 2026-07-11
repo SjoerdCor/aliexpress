@@ -62,7 +62,7 @@ def optimize(
     listener : ProgressListener | None
         Notified of each completed lexmaxmin plateau and of the tie-break
         starting; not consulted by the ``"total"`` strategy, which has neither.
-        Defaults to the no-op base class.
+        ``None`` (the default) means no one is watching — every emit site guards on it.
 
     Returns
     -------
@@ -74,10 +74,10 @@ def optimize(
     ValueError
         If ``strategy`` is not one of the two known strategies.
     """
-    listener = listener or ProgressListener()
     if strategy == "lexmaxmin":
         _lexmaxmin(problem, listener)
-        listener.tiebreak_started()
+        if listener is not None:
+            listener.tiebreak_started()
         return solve_stage(
             problem.model, "tie-break", maximize=sum(problem.satisfaction.values())
         )
@@ -88,7 +88,7 @@ def optimize(
     raise ValueError(f"unknown optimize strategy {strategy!r}")
 
 
-def _lexmaxmin(problem, listener: ProgressListener) -> None:
+def _lexmaxmin(problem, listener: ProgressListener | None) -> None:
     """Raise the minimal satisfaction level by level, pinning each plateau.
 
     Per level: (1) maximize the minimal satisfaction over the students above the
@@ -103,9 +103,10 @@ def _lexmaxmin(problem, listener: ProgressListener) -> None:
     ----------
     problem : modelbuilder.Problem | modelbuilder.SoftProblem
         The built model; mutated in place with the plateau constraints.
-    listener : ProgressListener
-        Notified via ``plateau_finished(min_satisfaction, n_can_improve)`` after
-        each completed level.
+    listener : ProgressListener | None
+        Notified via ``plateau_finished(min_satisfaction, n_can_improve)`` and
+        ``interim_result(assignment, satisfied)`` after each completed level.
+        ``None`` means no one is watching; both emits are guarded on it.
     """
     model = problem.model
     scale = modelbuilder.SATISFACTION_SCALE
@@ -167,11 +168,23 @@ def _lexmaxmin(problem, listener: ProgressListener) -> None:
             count,
             time.perf_counter() - t_start,
         )
-        listener.plateau_finished(plateau / scale, count)
+        _report_level(listener, problem, solver, plateau / scale, count)
         if count == 0:
             return
         model.Add(sum(above_plateau.values()) == count)
         level += 1
+
+
+def _report_level(listener, problem, solver, min_satisfaction, count) -> None:
+    """Emit the per-level progress events (guarded) — pure reporting, no model change.
+
+    Kept out of :func:`_lexmaxmin`'s loop body so that function stays a single
+    linear solve narrative: this touches only the listener, never the model, so it
+    cannot affect the delicate early-return-then-pin-floor ordering there.
+    """
+    if listener is not None:
+        listener.plateau_finished(min_satisfaction, count)
+        listener.interim_result(*problem.read_solution(solver))
 
 
 def solve_stage(
