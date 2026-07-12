@@ -116,12 +116,37 @@ webpad), met een opnemende `ProgressListener`. Ze bevestigen de bovenstaande con
 | (iv) gemiddelde levelduur tot nu toe | **Sterk (binnen de run)** | Eerste level 3,5 s (snel) vs 9,9 s (hard) onderscheidt al; volgende levels blijven in dezelfde band; stap 3 domineert. |
 
 **Owner-beslissing (2026-07-12):** grove **minuten**-schatting (niet alleen bandtekst).
-`resterend ≈ (typisch #rondes − rondes_klaar) × (langste rondeduur tot nu toe)`, waarbij de
-*langste* rondeduur i.p.v. het gemiddelde de overschatting levert zónder verzonnen
-ophoog-factor. `typisch #rondes ≈ 7` is de enige data-gedreven constante (uit de metingen
-hierboven; motiveren + "ongeveer" absorbeert de afwijking). Weergegeven als "naar verwachting
-nog ~X minuten (ruwe schatting)", bijgesteld na elke afgeronde ronde; vóór de eerste ronde de
-generieke regel. De schatting-/verstreken-tijd-regel is **altijd** zichtbaar (niet gegated).
+Fase A (vóór balance klaar): generieke regel. Fase B (balance klaar): `resterend = 12 ×
+balance-duur`. Fase C (≥1 ronde): `resterend = max(7 − rondes_klaar, 1) × langste rondeduur
+tot nu toe`. Weergegeven als "naar verwachting nog ~X (ruwe schatting)", afgerond (< 60 s op
+10 s, ≥ 60 s op minuten, naar boven). Altijd zichtbaar (niet gegated). Onthullen van
+plateaus + Tussenstand zodra `resterend > 45 s` of `verstreken > 45 s`. De constantes 12 en 7
+en de keuze *langste* i.p.v. *gemiddelde* rondeduur zijn onderbouwd op de bevestigingsbatch —
+zie hieronder.
+
+### Bevestigingsbatch (88 lln, oplopende niet-samen-tightness, 2026-07-12)
+
+| Config | totaal | balance | satisf | sat/balance | rondes | rondeduren |
+|---|---|---|---|---|---|---|
+| 0 regels | 8,6 s | 1,38 | 7,0 | 5,1 | 5 | 1,8 · 1,1 · 1,1 · 1,0 · 1,2 |
+| 1 regel | 23,1 s | 3,45 | 19,5 | 5,7 | 6 | 4,0 · 3,3 · 3,1 · 2,9 · 2,4 · 2,2 |
+| 2 regels | 22,7 s | 3,04 | 19,5 | 6,4 | 6 | 4,0 · 3,2 · 3,7 · 2,8 · 1,9 · 2,1 |
+| 3 regels | 221,0 s | 26,0 | 194,7 | 7,5 | 7 | **13 · 18 · 19 · 23,5 · 25 · 28 · 32** |
+
+Twee correcties op eerdere aannames, die de constantes bepaalden:
+
+1. **Factor 20 → 12.** De sat/balance-ratio is hier 5–7,5 (eerder een losse 16). Belangrijker:
+   de onthullingsregel "toon als factor × balance > 45 s" **mis-vuurt bij factor 20** op de
+   veelvoorkomende ~23 s-runs (`20 × 3,4 = 68 > 45`, terwijl de run 23 s duurt — precies de
+   flits die de gating moet voorkomen). Factor 12 houdt die runs net onder de drempel
+   (`12 × 3,4 = 41 < 45`) en laat de 221 s-run wél onthullen (`12 × 26 = 312`). Dunne marge op
+   de 23 s-runs, bewust aanvaard voor meer "liever te hoog" op het getal.
+2. **Gemiddelde → langste rondeduur.** De rondeduren zijn **niet vlak**: bij de lange run lopen
+   ze op van 13 → 32 s (2,5×). Het gemiddelde van de (korte) begin-rondes onderschat het
+   restant dan fors; de langste-tot-nu-toe zit dichter bij "liever te hoog". Restonzekerheid:
+   ook de langste onderschat vroeg in een harde run licht, omdat de rondes blíjven stijgen —
+   de schatting kan dan één keer omhoog bijgesteld worden. `typisch #rondes = 7` blijft
+   (gemeten 5–7; 7 is de bovengrens).
 
 ## Aanbevolen ETA-vorm (voorstel voor slice 8, ter beslissing owner)
 
