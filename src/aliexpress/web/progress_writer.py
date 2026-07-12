@@ -11,7 +11,7 @@ import os
 from dataclasses import asdict
 from datetime import datetime, timezone
 
-from ..solver.progress import InputSummary, ProgressListener
+from ..solver.progress import InputSummary, PlateauOutcome, ProgressListener
 
 _PENDING_STEPS = ("floor", "balance", "satisfaction")
 
@@ -60,12 +60,17 @@ class ProgressWriter(ProgressListener):
         self._state["input_summary"] = asdict(summary)
         self._write()
 
-    def plateau_finished(self, min_satisfaction: float, n_can_improve: int) -> None:
-        # Whole percents per the grilling decision; never clamped, since satisfaction
-        # can be negative (ADR-0014). The list only ever grows, matching the "nothing
-        # ever disappears" rustregel — the UI can safely re-render it in full each poll.
+    def plateau_finished(self, outcome: PlateauOutcome) -> None:
+        # Whole percents; never clamped, since satisfaction can be negative (ADR-0014).
+        # The list only ever grows, matching the "nothing ever disappears" rustregel —
+        # the UI can safely re-render it in full each poll. Each round's wall-clock
+        # ``seconds`` is kept per entry to feed the remaining-time estimator.
         self._state["plateaus"].append(
-            {"min_pct": round(min_satisfaction * 100), "n_can_improve": n_can_improve}
+            {
+                "min_pct": round(outcome.min_satisfaction * 100),
+                "n_can_improve": outcome.n_can_improve,
+                "seconds": outcome.seconds,
+            }
         )
         self._write()
 

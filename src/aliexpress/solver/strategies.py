@@ -33,7 +33,7 @@ from ortools.sat.python import cp_model
 
 from ..errors import SolverError, StageInfeasible
 from . import modelbuilder
-from .progress import ProgressListener
+from .progress import PlateauOutcome, ProgressListener
 
 logger = logging.getLogger(__name__)
 
@@ -104,25 +104,20 @@ def _lexmaxmin(problem, listener: ProgressListener | None) -> None:
     problem : modelbuilder.Problem | modelbuilder.SoftProblem
         The built model; mutated in place with the plateau constraints.
     listener : ProgressListener | None
-        Notified via ``plateau_finished(min_satisfaction, n_can_improve)`` and
+        Notified via ``plateau_finished(PlateauOutcome(...))`` and
         ``interim_result(assignment, satisfied)`` after each completed level.
         ``None`` means no one is watching; both emits are guarded on it.
     """
     model = problem.model
     scale = modelbuilder.SATISFACTION_SCALE
     students = list(problem.satisfaction)
-    # The minimum can only ever equal one student's satisfaction, so its domain
-    # is exactly the union of every satisfaction variable's own domain — data-
-    # driven, unlike a fixed constant: a student with only violated negative
-    # wishes can score far below any small fixed lower bound.
-    lower_bound = min(low for low, _ in problem.satisfaction_bounds.values())
-    upper_bound = max(high for _, high in problem.satisfaction_bounds.values())
+    minimum_domain = _running_minimum_domain(problem)
     above_plateau = {}  # students that escaped the previous plateau (empty at level 0)
     plateau = None
     level = 0
     while True:
         t_start = time.perf_counter()
-        minimum = model.NewIntVar(lower_bound, upper_bound, f"minimum_{level}")
+        minimum = model.NewIntVar(*minimum_domain, f"minimum_{level}")
         if level == 0:
             for student in students:
                 model.Add(minimum <= problem.satisfaction[student])
@@ -161,21 +156,34 @@ def _lexmaxmin(problem, listener: ProgressListener | None) -> None:
             model, f"level {level} count", maximize=sum(above_plateau.values())
         )
         count = round(solver.ObjectiveValue())
+        outcome = PlateauOutcome(plateau / scale, count, time.perf_counter() - t_start)
         logger.info(
             "lexmaxmin level %d: plateau=%.6f, %d above, %.2fs",
             level,
-            plateau / scale,
-            count,
-            time.perf_counter() - t_start,
+            outcome.min_satisfaction,
+            outcome.n_can_improve,
+            outcome.seconds,
         )
-        _report_level(listener, problem, solver, plateau / scale, count)
+        _report_level(listener, problem, solver, outcome)
         if count == 0:
             return
         model.Add(sum(above_plateau.values()) == count)
         level += 1
 
 
-def _report_level(listener, problem, solver, min_satisfaction, count) -> None:
+def _running_minimum_domain(problem) -> tuple[int, int]:
+    """Exact integer ``(low, high)`` domain the running minimum variable can take.
+
+    The minimum can only ever equal one student's satisfaction, so its domain is
+    exactly the union of every satisfaction variable's own domain — data-driven,
+    unlike a fixed constant: a student with only violated negative wishes can score
+    far below any small fixed lower bound.
+    """
+    bounds = problem.satisfaction_bounds.values()
+    return min(low for low, _ in bounds), max(high for _, high in bounds)
+
+
+def _report_level(listener, problem, solver, outcome: PlateauOutcome) -> None:
     """Emit the per-level progress events (guarded) — pure reporting, no model change.
 
     Kept out of :func:`_lexmaxmin`'s loop body so that function stays a single
@@ -183,7 +191,7 @@ def _report_level(listener, problem, solver, min_satisfaction, count) -> None:
     cannot affect the delicate early-return-then-pin-floor ordering there.
     """
     if listener is not None:
-        listener.plateau_finished(min_satisfaction, count)
+        listener.plateau_finished(outcome)
         listener.interim_result(*problem.read_solution(solver))
 
 

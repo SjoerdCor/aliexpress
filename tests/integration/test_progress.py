@@ -26,8 +26,8 @@ class _RecordingListener(ProgressListener):
     def stage_finished(self, stage, seconds):
         self.events.append(("finished", stage, seconds))
 
-    def plateau_finished(self, min_satisfaction, n_can_improve):
-        self.events.append(("plateau_finished", min_satisfaction, n_can_improve))
+    def plateau_finished(self, outcome):
+        self.events.append(("plateau_finished", outcome))
 
     def tiebreak_started(self):
         self.events.append(("tiebreak_started",))
@@ -107,11 +107,17 @@ def test_plateaus_fire_in_order_then_tiebreak():
     plateaus = [e for e in listener.events if e[0] == "plateau_finished"]
     tiebreaks = [e for e in listener.events if e[0] == "tiebreak_started"]
 
-    assert [e[1] for e in plateaus] == pytest.approx([0.516129], abs=1e-6)
-    assert [e[2] for e in plateaus] == [4]
+    outcomes = [e[1] for e in plateaus]
+    assert [o.min_satisfaction for o in outcomes] == pytest.approx([0.516129], abs=1e-6)
+    assert [o.n_can_improve for o in outcomes] == [4]
     assert tiebreaks == [("tiebreak_started",)]
     # The tie-break comes after every plateau is pinned.
     assert listener.events.index(tiebreaks[0]) > listener.events.index(plateaus[-1])
+    # Every plateau carries the wall-clock duration of that lexmaxmin round.
+    # On this small fixture a round can be sub-millisecond, so >= 0 rather than > 0.
+    for outcome in outcomes:
+        assert isinstance(outcome.seconds, float)
+        assert outcome.seconds >= 0
 
 
 def test_interim_result_fires_per_level_with_full_assignments():

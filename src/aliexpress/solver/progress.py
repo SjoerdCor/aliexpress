@@ -38,6 +38,25 @@ class InputSummary:
     years: list[int]
 
 
+@dataclass(frozen=True)
+class PlateauOutcome:
+    """One completed lexmaxmin level, the payload of :meth:`ProgressListener.plateau_finished`.
+
+    Mirrors :class:`InputSummary`: a named payload for one event, so the listener
+    contract carries explicit fields rather than a widening tuple of positional
+    arguments. ``min_satisfaction`` is the pinned plateau, already divided by the
+    satisfaction scale (a fraction, e.g. 0.62); it can be negative (satisfaction can be
+    negative, see ADR-0014) and must not be clamped. ``n_can_improve`` is how many
+    students escaped this plateau and go on to the next level (0 on the terminal level).
+    ``seconds`` is the wall-clock duration of this level's solve (both stages: the
+    minimum and the escape count) — the per-round timing the ETA estimator reads.
+    """
+
+    min_satisfaction: float
+    n_can_improve: int
+    seconds: float
+
+
 class ProgressListener:
     """An observer interface for solve progress: override only what you care about.
 
@@ -58,13 +77,11 @@ class ProgressListener:
     def input_summary(self, summary: InputSummary) -> None:
         """Called once, early, with the headline counts of the problem being solved."""
 
-    def plateau_finished(self, min_satisfaction: float, n_can_improve: int) -> None:
+    def plateau_finished(self, outcome: PlateauOutcome) -> None:
         """Called when a lexmaxmin level completes (``_lexmaxmin`` in strategies.py).
 
-        ``min_satisfaction`` is the pinned plateau, already divided by the satisfaction
-        scale (a fraction, e.g. 0.62); it can be negative (satisfaction can be negative,
-        see ADR-0014) and must not be clamped. ``n_can_improve`` is how many students
-        escaped this plateau and go on to the next level (0 on the terminal level).
+        ``outcome`` bundles the pinned plateau, how many students escaped it, and this
+        level's solve duration — see :class:`PlateauOutcome`.
         """
 
     def tiebreak_started(self) -> None:
