@@ -278,3 +278,32 @@ def test_processing_shows_interim_result(live_server, tmp_path, page):
     expect(cards).to_have_count(1)
     caption = page.locator("#interim-result .interim-result-caption")
     expect(caption).to_have_text("voorlopig — dit kan nog veranderen (ook verbeteren)")
+
+
+@pytest.mark.usefixtures("login")
+def test_processing_interim_result_chip_popover(live_server, tmp_path, page):
+    """The shared gi-popover.js is loaded on the processing page too, so a chip in the
+    dynamically-injected interim result is click-toggleable just like on /result."""
+    proc = _make_process(live_server, tmp_path, page, name="interimpopoverrun")
+    view = make_interim_view()
+    (proc / "interim_result.json").write_text(
+        json.dumps(asdict(view)), encoding="utf-8"
+    )
+
+    fake_status = {
+        "status_studentdistribution": "running",
+        "steps": {"floor": "done", "balance": "busy", "satisfaction": "pending"},
+        "interim_result_updated_at": "2026-07-11T12:00:00+00:00",
+    }
+    page.route("**/status", lambda route: route.fulfill(json=fake_status))
+    page.goto(f"{live_server}/processing")
+
+    first_chip = page.locator("#interim-result .gi-chip").first
+    first_chip.wait_for()
+
+    first_chip.click()
+    pop = first_chip.locator(".gi-pop")
+    assert pop.is_visible()
+
+    page.keyboard.press("Escape")
+    assert not pop.is_visible()
