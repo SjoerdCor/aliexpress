@@ -8,6 +8,7 @@ tables render and the workbook downloads. This is the automated end-to-end check
 import json
 import shutil
 from dataclasses import asdict
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -153,8 +154,12 @@ def test_processing_shows_plateaus_and_tiebreak(live_server, tmp_path, page):
     """
     _make_process(live_server, tmp_path, page, name="plateaurun")
 
+    # started_at 60s in the past clears the 45s reveal threshold, so the plateau
+    # list is expected to render (see the gating in templates/processing.html).
+    started_at = (datetime.now(timezone.utc) - timedelta(seconds=60)).isoformat()
     fake_status = {
         "status_studentdistribution": "running",
+        "started_at": started_at,
         "steps": {"floor": "done", "balance": "done", "satisfaction": "busy"},
         "stage_seconds": [],
         "plateaus": [
@@ -175,6 +180,132 @@ def test_processing_shows_plateaus_and_tiebreak(live_server, tmp_path, page):
         "Minst tevreden leerling: nu 78% — 5 leerlingen kunnen nog omhoog"
     )
     expect(page.locator("#tiebreak-line")).to_be_visible()
+
+
+@pytest.mark.usefixtures("login")
+def test_processing_hides_plateaus_before_reveal_threshold(live_server, tmp_path, page):
+    """Plateau updates stay hidden while the run is still young (< 45s elapsed).
+
+    Same stub shape as test_processing_shows_plateaus_and_tiebreak, but started_at
+    is "now" so the 45s reveal threshold has not been crossed yet: a short run
+    should not flash the plateau list in its last seconds before redirect.
+    """
+    _make_process(live_server, tmp_path, page, name="plateaugatedrun")
+
+    fake_status = {
+        "status_studentdistribution": "running",
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "steps": {"floor": "done", "balance": "done", "satisfaction": "busy"},
+        "stage_seconds": [],
+        "plateaus": [
+            {"min_pct": 62, "n_can_improve": 34},
+            {"min_pct": 78, "n_can_improve": 5},
+        ],
+        "tiebreak_busy": True,
+    }
+    page.route("**/status", lambda route: route.fulfill(json=fake_status))
+    page.goto(f"{live_server}/processing")
+    page.wait_for_timeout(1200)  # let a poll happen so hiding is a real assertion
+
+    expect(page.locator("#plateaus li")).to_have_count(0)
+
+
+@pytest.mark.usefixtures("login")
+def test_processing_shows_plateaus_after_reveal_threshold(live_server, tmp_path, page):
+    """Plateau updates render once elapsed time crosses the 45s reveal threshold."""
+    _make_process(live_server, tmp_path, page, name="plateaurevealedrun")
+
+    started_at = (datetime.now(timezone.utc) - timedelta(seconds=60)).isoformat()
+    fake_status = {
+        "status_studentdistribution": "running",
+        "started_at": started_at,
+        "steps": {"floor": "done", "balance": "done", "satisfaction": "busy"},
+        "stage_seconds": [],
+        "plateaus": [
+            {"min_pct": 62, "n_can_improve": 34},
+            {"min_pct": 78, "n_can_improve": 5},
+        ],
+        "tiebreak_busy": True,
+    }
+    page.route("**/status", lambda route: route.fulfill(json=fake_status))
+    page.goto(f"{live_server}/processing")
+
+    lines = page.locator("#plateaus li")
+    expect(lines).to_have_count(2)
+    expect(lines.nth(0)).to_have_text(
+        "Minst tevreden leerling: nu 62% — 34 leerlingen kunnen nog omhoog"
+    )
+    expect(lines.nth(1)).to_have_text(
+        "Minst tevreden leerling: nu 78% — 5 leerlingen kunnen nog omhoog"
+    )
+
+
+@pytest.mark.usefixtures("login")
+def test_processing_hides_tiebreak_before_reveal_threshold(live_server, tmp_path, page):
+    """The tie-break line stays hidden while the run is still young (< 45s elapsed)."""
+    _make_process(live_server, tmp_path, page, name="tiebreakgatedrun")
+
+    fake_status = {
+        "status_studentdistribution": "running",
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "steps": {"floor": "done", "balance": "done", "satisfaction": "busy"},
+        "stage_seconds": [],
+        "tiebreak_busy": True,
+    }
+    page.route("**/status", lambda route: route.fulfill(json=fake_status))
+    page.goto(f"{live_server}/processing")
+    page.wait_for_timeout(1200)  # let a poll happen so hiding is a real assertion
+
+    expect(page.locator("#tiebreak-line")).to_be_hidden()
+
+
+@pytest.mark.usefixtures("login")
+def test_processing_shows_tiebreak_after_reveal_threshold(live_server, tmp_path, page):
+    """The tie-break line renders once elapsed time crosses the 45s reveal threshold."""
+    _make_process(live_server, tmp_path, page, name="tiebreakrevealedrun")
+
+    started_at = (datetime.now(timezone.utc) - timedelta(seconds=60)).isoformat()
+    fake_status = {
+        "status_studentdistribution": "running",
+        "started_at": started_at,
+        "steps": {"floor": "done", "balance": "done", "satisfaction": "busy"},
+        "stage_seconds": [],
+        "tiebreak_busy": True,
+    }
+    page.route("**/status", lambda route: route.fulfill(json=fake_status))
+    page.goto(f"{live_server}/processing")
+
+    expect(page.locator("#tiebreak-line")).to_be_visible()
+
+
+@pytest.mark.usefixtures("login")
+def test_processing_shows_static_estimate_line_and_no_elapsed_clock(
+    live_server, tmp_path, page
+):
+    """The always-visible static estimate line replaces a ticking elapsed-time clock.
+
+    The page deliberately does not show elapsed time anywhere (a ticking clock draws
+    attention to the wait) — only the calm, static estimate text. Here started_at="now"
+    so no elapsed-time reveal could kick in either, isolating the static text.
+    """
+    _make_process(live_server, tmp_path, page, name="etalinerun")
+
+    fake_status = {
+        "status_studentdistribution": "running",
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "steps": {"floor": "done", "balance": "busy", "satisfaction": "pending"},
+        "stage_seconds": [],
+    }
+    page.route("**/status", lambda route: route.fulfill(json=fake_status))
+    page.goto(f"{live_server}/processing")
+
+    expect(page.locator("#eta-line")).to_contain_text(
+        "dit duurt meestal minder dan een minuut, soms enkele minuten"
+    )
+    # No ticking elapsed-time clock anywhere on the page: no element carries an
+    # id/class suggestive of a timer/elapsed-seconds display. This is a robust proxy
+    # for "we render no elapsed-time counter" without depending on exact wording.
+    expect(page.locator("#elapsed, .elapsed, #timer, .timer")).to_have_count(0)
 
 
 @pytest.mark.usefixtures("login")
@@ -268,6 +399,7 @@ def test_processing_shows_interim_result(live_server, tmp_path, page):
 
     fake_status = {
         "status_studentdistribution": "running",
+        "started_at": (datetime.now(timezone.utc) - timedelta(seconds=60)).isoformat(),
         "steps": {"floor": "done", "balance": "busy", "satisfaction": "pending"},
         "interim_result_updated_at": "2026-07-11T12:00:00+00:00",
     }
@@ -278,6 +410,58 @@ def test_processing_shows_interim_result(live_server, tmp_path, page):
     expect(cards).to_have_count(1)
     caption = page.locator("#interim-result .interim-result-caption")
     expect(caption).to_have_text("voorlopig — dit kan nog veranderen (ook verbeteren)")
+
+
+@pytest.mark.usefixtures("login")
+def test_processing_hides_interim_result_before_reveal_threshold(
+    live_server, tmp_path, page
+):
+    """The interim result stays hidden while the run is still young (< 45s elapsed).
+
+    Same stub shape as test_processing_shows_interim_result, but started_at is
+    "now" so the 45s reveal threshold has not been crossed yet.
+    """
+    proc = _make_process(live_server, tmp_path, page, name="interimgatedrun")
+    view = make_interim_view()
+    (proc / "interim_result.json").write_text(
+        json.dumps(asdict(view)), encoding="utf-8"
+    )
+
+    fake_status = {
+        "status_studentdistribution": "running",
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "steps": {"floor": "done", "balance": "busy", "satisfaction": "pending"},
+        "interim_result_updated_at": "2026-07-11T12:00:00+00:00",
+    }
+    page.route("**/status", lambda route: route.fulfill(json=fake_status))
+    page.goto(f"{live_server}/processing")
+    page.wait_for_timeout(1200)  # let a poll happen so hiding is a real assertion
+
+    expect(page.locator("#interim-result .gi-card")).to_have_count(0)
+
+
+@pytest.mark.usefixtures("login")
+def test_processing_shows_interim_result_after_reveal_threshold(
+    live_server, tmp_path, page
+):
+    """The interim result renders once elapsed time crosses the 45s reveal threshold."""
+    proc = _make_process(live_server, tmp_path, page, name="interimrevealedrun")
+    view = make_interim_view()
+    (proc / "interim_result.json").write_text(
+        json.dumps(asdict(view)), encoding="utf-8"
+    )
+
+    fake_status = {
+        "status_studentdistribution": "running",
+        "started_at": (datetime.now(timezone.utc) - timedelta(seconds=60)).isoformat(),
+        "steps": {"floor": "done", "balance": "busy", "satisfaction": "pending"},
+        "interim_result_updated_at": "2026-07-11T12:00:00+00:00",
+    }
+    page.route("**/status", lambda route: route.fulfill(json=fake_status))
+    page.goto(f"{live_server}/processing")
+
+    cards = page.locator("#interim-result .gi-card")
+    expect(cards).to_have_count(1)
 
 
 @pytest.mark.usefixtures("login")
@@ -292,6 +476,7 @@ def test_processing_interim_result_chip_popover(live_server, tmp_path, page):
 
     fake_status = {
         "status_studentdistribution": "running",
+        "started_at": (datetime.now(timezone.utc) - timedelta(seconds=60)).isoformat(),
         "steps": {"floor": "done", "balance": "busy", "satisfaction": "pending"},
         "interim_result_updated_at": "2026-07-11T12:00:00+00:00",
     }
