@@ -100,6 +100,102 @@ def test_plateau_finished_records_round_seconds(tmp_path):
     ]
 
 
+def test_estimate_phase_a_before_balance_finishes(tmp_path):
+    """Before stage_finished("balance", ...), the estimate is the static phase-A line."""
+    path = tmp_path / "progress.json"
+    ProgressWriter(str(path))  # constructor seeds the initial phase-A estimate
+
+    data = _assert_parsable(path)
+    assert data["estimate"]["phase"] == "a"
+    assert data["estimate"]["seconds"] is None
+    assert data["estimate"]["text"] == (
+        "Aan het rekenen… dit duurt meestal minder dan een minuut, soms enkele minuten."
+    )
+
+
+def test_estimate_phase_b_after_balance_before_any_plateau(tmp_path):
+    """Phase B: 12x the balance duration, no plateau finished yet."""
+    path = tmp_path / "progress.json"
+    writer = ProgressWriter(str(path))
+
+    writer.stage_finished("balance", 2.0)
+
+    data = _assert_parsable(path)
+    assert data["estimate"]["phase"] == "b"
+    assert data["estimate"]["seconds"] == 24.0
+
+
+def test_estimate_phase_c_uses_longest_round_not_average(tmp_path):
+    """Phase C: max(TYPICAL_ROUNDS - rounds_done, 1) * the longest round so far (not average)."""
+    path = tmp_path / "progress.json"
+    writer = ProgressWriter(str(path))
+
+    writer.stage_finished("balance", 2.0)
+    writer.plateau_finished(PlateauOutcome(0.5, 10, 8.0))
+    writer.plateau_finished(PlateauOutcome(0.6, 5, 12.0))
+
+    data = _assert_parsable(path)
+    assert data["estimate"]["phase"] == "c"
+    # max(7 - 2, 1) * 12.0 == 60.0; if it used the average (10.0) this would be 50.0.
+    assert data["estimate"]["seconds"] == 60.0
+
+
+def test_estimate_phase_c_tail_floor_never_zero_or_negative(tmp_path):
+    """After more plateaus than TYPICAL_ROUNDS, the estimate floors at 1 round, not 0."""
+    path = tmp_path / "progress.json"
+    writer = ProgressWriter(str(path))
+
+    writer.stage_finished("balance", 2.0)
+    for _ in range(8):
+        writer.plateau_finished(PlateauOutcome(0.5, 10, 10.0))
+
+    data = _assert_parsable(path)
+    assert data["estimate"]["phase"] == "c"
+    assert data["estimate"]["seconds"] == 10.0
+
+
+def test_estimate_text_rounding_seconds_under_a_minute(tmp_path):
+    """Under 60s, the text rounds up to the nearest 10 seconds, plural 'seconden'."""
+    path = tmp_path / "progress.json"
+    writer = ProgressWriter(str(path))
+
+    writer.stage_finished("balance", 4.0)  # 12 * 4.0 = 48.0 -> rounds up to 50
+
+    data = _assert_parsable(path)
+    assert (
+        data["estimate"]["text"] == "naar verwachting nog ~50 seconden (ruwe schatting)"
+    )
+
+
+def test_estimate_text_rounding_130_seconds_to_3_minutes(tmp_path):
+    """130 seconds rounds up to the nearest whole minute: 3 minutes."""
+    path = tmp_path / "progress.json"
+    writer = ProgressWriter(str(path))
+
+    writer.stage_finished("balance", 2.0)
+    writer.plateau_finished(PlateauOutcome(0.5, 10, 26.0))
+
+    data = _assert_parsable(path)
+    # phase c: max(7 - 1, 1) * 26.0 == 156.0, rounds up to 3 minutes.
+    assert data["estimate"]["seconds"] == 156.0
+    assert (
+        data["estimate"]["text"] == "naar verwachting nog ~3 minuten (ruwe schatting)"
+    )
+
+
+def test_estimate_text_singular_minute(tmp_path):
+    """An estimate that rounds to exactly one minute uses the singular 'minuut'."""
+    path = tmp_path / "progress.json"
+    writer = ProgressWriter(str(path))
+
+    writer.stage_finished("balance", 2.0)
+    writer.plateau_finished(PlateauOutcome(0.5, 10, 10.0))
+    # phase c: max(7 - 1, 1) * 10.0 == 60.0 -> exactly one minute after rounding up.
+    data = _assert_parsable(path)
+    assert data["estimate"]["seconds"] == 60.0
+    assert data["estimate"]["text"] == "naar verwachting nog ~1 minuut (ruwe schatting)"
+
+
 def test_interim_result_view_updated_at_changes_on_every_call(tmp_path):
     """No damping: interim_result_updated_at is refreshed on every call."""
     progress_path = tmp_path / "progress.json"
