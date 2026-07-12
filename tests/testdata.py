@@ -15,8 +15,11 @@ Call ``main(n_groups, n_students, n_rules)`` to write a doorzetten scenario to
 ``mode.json``; groups start empty but origin groups are distinct from the destination
 groups, as students come from their own lower-grade groups).
 
-CLI: ``uv run python -m tests.testdata SCHOOL PROCES [herindelen|herindelen_met_doorzetten]``
+CLI: ``uv run python -m tests.testdata SCHOOL PROCES [MODE] [AANTAL]``
+(MODE is ``herindelen`` or ``herindelen_met_doorzetten``; omit for doorzetten)
 creates a ready-made process in the running app instance for manual browser testing.
+The optional trailing integer sets the number of students (e.g. ``70``); it defaults
+to ``ScenarioSize``'s 35.
 """
 
 import json
@@ -190,6 +193,42 @@ class NativePreferenceGenerator:
         ("Xavi", "Jongen"),
         ("Yentl", "Meisje"),
         ("Zion", "Jongen"),
+        ("Aron", "Jongen"),
+        ("Amber", "Meisje"),
+        ("Bas", "Jongen"),
+        ("Britt", "Meisje"),
+        ("Cees", "Jongen"),
+        ("Cato", "Meisje"),
+        ("Dave", "Jongen"),
+        ("Dana", "Meisje"),
+        ("Emiel", "Jongen"),
+        ("Esmee", "Meisje"),
+        ("Freek", "Jongen"),
+        ("Fenna", "Meisje"),
+        ("Gijs", "Jongen"),
+        ("Guusje", "Meisje"),
+        ("Hidde", "Jongen"),
+        ("Hanna", "Meisje"),
+        ("Ivan", "Jongen"),
+        ("Imke", "Meisje"),
+        ("Joris", "Jongen"),
+        ("Julia", "Meisje"),
+        ("Koen", "Jongen"),
+        ("Loes", "Meisje"),
+        ("Luuk", "Jongen"),
+        ("Maud", "Meisje"),
+        ("Milan", "Jongen"),
+        ("Noor", "Meisje"),
+        ("Nout", "Jongen"),
+        ("Roos", "Meisje"),
+        ("Olaf", "Jongen"),
+        ("Saar", "Meisje"),
+        ("Pepijn", "Jongen"),
+        ("Tessa", "Meisje"),
+        ("Sander", "Jongen"),
+        ("Femke", "Meisje"),
+        ("Teun", "Jongen"),
+        ("Puck", "Meisje"),
     ]
 
     def __init__(
@@ -441,11 +480,20 @@ def _build_pref_form_state(
 
 
 def _write_common_process_files(
-    folder: str, entries: list[StudentEntry], n_groups: int, n_rules: int
+    folder: str,
+    entries: list[StudentEntry],
+    n_groups: int,
+    n_rules: int,
+    not_together: list[dict] | None = None,
 ) -> None:
-    """Write the files shared by both modes: not_together, roster, form state, input method."""
-    leerlingen = [e.student for e in entries]
-    not_together = generate_not_together(leerlingen, n_groups, n_rules)
+    """Write the files shared by all modes: not_together, roster, form state, input method.
+
+    ``not_together`` lets a caller supply fixed rules (e.g. the realistic hard scenario);
+    when None, random rules are generated from the students via ``generate_not_together``.
+    """
+    if not_together is None:
+        leerlingen = [e.student for e in entries]
+        not_together = generate_not_together(leerlingen, n_groups, n_rules)
     with open(os.path.join(folder, "not_together.json"), "w", encoding="utf-8") as fh:
         json.dump(not_together, fh, ensure_ascii=False)
 
@@ -599,54 +647,170 @@ def main_herindelen(
     _write_common_process_files(folder, entries, n_groups, n_rules)
 
 
+# ---------------------------------------------------------------------------
+# Realistic hard redistribute_and_forward scenario
+# ---------------------------------------------------------------------------
+#
+# Unlike the random NativePreferenceGenerator (trivial instances), this structured variant
+# mirrors the realistic integration test — cohorts of equal boy/girl stamgroepen plus a
+# fixed cross-stamgroep Niet-samen coupling — so the browser solve takes a stable ~30 s.
+# See ``_forward_hard_rules`` for why Max=2 (stable) beats the Max=1 cliff.
+
+_FORWARD_STAMGROEP_LETTERS = ("A", "B")
+
+# Default cohort size: 6 stamgroepen (3 jaargroepen × 2) of 6 boys + 6 girls, benchmarked
+# at a stable ~30 second solve (see ``_forward_hard_rules`` for the coupling choice).
+_FORWARD_DEFAULT_STUDENTS = 72
+
+
+def _forward_roster(per_gender: int, jaargroepen: tuple[int, ...]) -> list[tuple]:
+    """Assign real names to ``per_gender`` boys + ``per_gender`` girls per stamgroep.
+
+    Two stamgroepen per jaargroep (e.g. ``6A``, ``6B``). Returns ``(name, sex, stamgroep,
+    year)`` tuples; the first boy and girl of each stamgroep are its Niet-samen anchors.
+    """
+    boys = iter(
+        n for n, s in NativePreferenceGenerator.possible_students if s == "Jongen"
+    )
+    girls = iter(
+        n for n, s in NativePreferenceGenerator.possible_students if s == "Meisje"
+    )
+    roster = []
+    for year in jaargroepen:
+        for letter in _FORWARD_STAMGROEP_LETTERS:
+            stamgroep = f"{year}{letter}"
+            for _ in range(per_gender):
+                roster.append((next(boys), "Jongen", stamgroep, year))
+                roster.append((next(girls), "Meisje", stamgroep, year))
+    return roster
+
+
+def _forward_anchors(roster: list[tuple]) -> dict:
+    """Map each stamgroep to its first boy and girl (the Niet-samen anchor students)."""
+    anchors: dict = {}
+    for name, sex, stamgroep, _ in roster:
+        anchors.setdefault(stamgroep, {}).setdefault(sex, name)
+    return anchors
+
+
+def _forward_entries(roster: list[tuple], group_names: list[str]) -> list[StudentEntry]:
+    """Build StudentEntry objects with realistic preferences over the roster.
+
+    Mirrors ``_build_realistic_prefs``: each student gets 1–5 "graag met" wishes on nearby
+    roster neighbours, ~20% a "liever niet met", ~12% a "niet in" for one destination group.
+    """
+    names = [r[0] for r in roster]
+    n = len(names)
+    entries = []
+    for idx, (name, sex, stamgroep, year) in enumerate(roster):
+        n_pos = (idx % 5) + 1
+        prefs = [
+            Preference(names[(idx + k + 1) % n], 1.0, PreferenceKind.TOGETHER)
+            for k in range(n_pos)
+        ]
+        if idx % 5 == 2:
+            apart = names[(idx + n // 3) % n]
+            if apart != name and apart not in {p.target for p in prefs}:
+                prefs.append(Preference(apart, 1.0, PreferenceKind.APART))
+        excluded = [group_names[idx % len(group_names)]] if not idx % 8 else []
+        entries.append(
+            StudentEntry(
+                student=name,
+                sex=sex,
+                origin_group=stamgroep,
+                min_satisfaction=None,
+                year_group=year,
+                preferences=prefs,
+                excluded_groups=excluded,
+            )
+        )
+    return entries
+
+
+def _forward_hard_rules(anchors: dict, jaargroepen: tuple[int, ...]) -> list[dict]:
+    """Fixed cross-stamgroep Niet-samen coupling mirroring ``_NOT_TOGETHER_REALISTIC``.
+
+    Couples index-0 anchors of stamgroepen across different jaargroepen. ``Max_aantal_samen``
+    is deliberately 2, not 1: Max=1 makes the solve an expensive CP-SAT proof of several
+    minutes with high run-to-run variance (a cliff — measured 18s at 60 students vs 432s at
+    72), whereas Max=2 gives a stable, watchable ~30 second solve. Needs >= 3 jaargroepen.
+    """
+    y0, y1, y2 = sorted(jaargroepen)[:3]
+    return [
+        {
+            "group": [
+                anchors[f"{y0}A"]["Jongen"],
+                anchors[f"{y0}B"]["Jongen"],
+                anchors[f"{y1}A"]["Jongen"],
+            ],
+            "Max_aantal_samen": 2,
+        },
+        {
+            "group": [
+                anchors[f"{y1}A"]["Meisje"],
+                anchors[f"{y1}B"]["Meisje"],
+                anchors[f"{y2}A"]["Meisje"],
+            ],
+            "Max_aantal_samen": 2,
+        },
+        {
+            "group": [
+                anchors[f"{y2}A"]["Jongen"],
+                anchors[f"{y2}B"]["Jongen"],
+                anchors[f"{y2}A"]["Meisje"],
+            ],
+            "Max_aantal_samen": 2,
+        },
+    ]
+
+
 def main_redistribute_and_forward(
-    n_groups: int = 3,
-    n_students: int = 35,
+    n_groups: int = 4,
+    n_students: int = _FORWARD_DEFAULT_STUDENTS,
     n_rules: int = 5,
     folder: str = None,
     jaargroepen: tuple[int, ...] = (6, 7, 8),
 ):
-    """Generate a full set of process files for a redistribute_and_forward
-    ("Herindelen met doorzetten") process.
+    """Generate a redistribute_and_forward ("Herindelen met doorzetten") process.
 
-    Differences from ``main_herindelen()`` (plain herindelen), mirroring
-    ``handle_edexml_upload_redistribute_and_forward``:
-      - ``mode.json`` marks the process as "redistribute_and_forward".
-      - Origin groups do *not* coincide with the destination groups: students sit in their
-        own current groups (letters A, B, C, ... via ``GeneratorScenario``'s default
-        ``groups_from``), while the destination groups are separately named (from
-        ``SAMPLE_GROUP_NAMES``), exactly as they are only settled on a later wizard step.
-      - Otherwise identical to herindelen: students spread over multiple jaargroepen, no
-        achterblijvers, and ``groups.xlsx`` has zero occupancy per destination group.
+    Unlike ``main()`` and ``main_herindelen()``, this uses the structured builder above
+    (real-name cohorts + fixed cross-stamgroep Niet-samen coupling) so the browser solve
+    takes ~30 seconds — long enough to watch the progress page, and stable across runs.
+    Mirrors ``handle_edexml_upload_redistribute_and_forward``: origin groups are the
+    students' own stamgroepen (``6A``, ``6B``, …), distinct from the separately named
+    destination groups; ``groups.xlsx`` has zero occupancy; ``mode.json`` records the mode.
 
     Parameters
     ----------
     n_groups : int
         Number of destination groups to redistribute into (2–10).
     n_students : int
-        Number of students to redistribute (1–39).
+        Target number of students; rounded to a whole ``per_gender`` per stamgroep
+        (``2 × len(jaargroepen)`` stamgroepen, boys + girls each). The default 72 gives a
+        stable ~30 second solve; lower it for a faster one.
     n_rules : int
-        Number of not-together rules to generate.
+        Unused here (the not-together rules are fixed); kept for signature parity.
     folder : str or None
         Output directory; defaults to ``testdata/``.
     jaargroepen : tuple[int, ...]
-        The jaargroepen students are spread over.
+        The jaargroepen students are spread over (at least three).
     """
     if folder is None:
         folder = FOLDER
     os.makedirs(folder, exist_ok=True)
 
     group_names = SAMPLE_GROUP_NAMES[:n_groups]
-    generator = NativePreferenceGenerator(
-        groups_to=group_names,
-        scenario=GeneratorScenario(
-            allow_min_satisfaction=False,
-            jaargroepen=list(jaargroepen),
-        ),
-    )
-    entries = generator.generate(
-        num_students=n_students,
-        fname=os.path.join(folder, "voorkeuren.json"),
+    per_stamgroep = len(jaargroepen) * len(_FORWARD_STAMGROEP_LETTERS) * 2
+    per_gender = max(1, round(n_students / per_stamgroep))
+    roster = _forward_roster(per_gender, jaargroepen)
+    entries = _forward_entries(roster, group_names)
+    not_together = _forward_hard_rules(_forward_anchors(roster), jaargroepen)
+
+    # voorkeuren.json — built from the structured StudentEntry list
+    all_to_groups = [matching_key(g) for g in group_names]
+    _write_voorkeuren_json(
+        os.path.join(folder, "voorkeuren.json"),
+        build_preference_data(entries, all_to_groups),
     )
 
     # mode.json — marks this process as redistribute_and_forward
@@ -659,12 +823,11 @@ def main_redistribute_and_forward(
         os.path.join(folder, "groups.xlsx"), index_label="Groepen"
     )
 
-    # relevant_students_and_groups.json — mirrors handle_edexml_upload_redistribute_and_forward:
-    # groups_from are the students' actual (distinct) current groups, groups_to are the
-    # separately chosen destination groups.
+    # relevant_students_and_groups.json — groups_from are the students' distinct current
+    # stamgroepen; groups_to are the separately chosen (empty) destination groups.
     relevant = {
         "candidates": _generate_candidates(entries),
-        "groups_from": generator.groups_from + ["Anders"],
+        "groups_from": sorted({e.origin_group for e in entries}) + ["Anders"],
         "groups_to": {g: [] for g in group_names},
         "jaargroepen": sorted(jaargroepen),
     }
@@ -673,7 +836,9 @@ def main_redistribute_and_forward(
     ) as fh:
         json.dump(relevant, fh, ensure_ascii=False)
 
-    _write_common_process_files(folder, entries, n_groups, n_rules)
+    _write_common_process_files(
+        folder, entries, n_groups, n_rules, not_together=not_together
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -800,13 +965,31 @@ def _mode_from_cli_args(args: list[str]) -> str:
     return "forward"
 
 
+def _student_count_from_cli_args(args: list[str]) -> int | None:
+    """Return the first integer among the trailing CLI args, or None if there is none."""
+    for arg in args:
+        if arg.isdigit():
+            return int(arg)
+    return None
+
+
 def _run_cli(argv: list[str]) -> None:
-    """Handle ``python -m tests.testdata SCHOOL PROCES [herindelen|herindelen_met_doorzetten]``."""
+    """Handle ``python -m tests.testdata SCHOOL PROCES [MODE] [AANTAL]``."""
     if len(argv) >= 3:
         school, process = argv[1], argv[2]
         mode = _mode_from_cli_args(argv[3:])
-        path = setup_test_process(school, process, mode=mode)
-        print(f"Testproces aangemaakt ({mode}): {path}")
+        n_students = _student_count_from_cli_args(argv[3:])
+        if n_students is None and mode == "redistribute_and_forward":
+            # This mode ships a fixed hard scenario tuned at its full cohort size; the
+            # generic ScenarioSize default (35) would scale it down to a trivial solve.
+            n_students = _FORWARD_DEFAULT_STUDENTS
+        size = (
+            ScenarioSize()
+            if n_students is None
+            else ScenarioSize(n_students=n_students)
+        )
+        path = setup_test_process(school, process, size=size, mode=mode)
+        print(f"Testproces aangemaakt ({mode}, {size.n_students} lln.): {path}")
     else:
         main(3, 8, 1)
 
