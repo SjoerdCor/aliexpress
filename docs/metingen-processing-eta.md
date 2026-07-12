@@ -115,6 +115,14 @@ webpad), met een opnemende `ProgressListener`. Ze bevestigen de bovenstaande con
 | (iii) duur van stage 2 (balance) | **Zwak** | 1,8 vs 8,5 s: enig signaal, maar klein absoluut en klein t.o.v. stap 3. |
 | (iv) gemiddelde levelduur tot nu toe | **Sterk (binnen de run)** | Eerste level 3,5 s (snel) vs 9,9 s (hard) onderscheidt al; volgende levels blijven in dezelfde band; stap 3 domineert. |
 
+**Owner-beslissing (2026-07-12):** grove **minuten**-schatting (niet alleen bandtekst).
+`resterend ≈ (typisch #rondes − rondes_klaar) × (langste rondeduur tot nu toe)`, waarbij de
+*langste* rondeduur i.p.v. het gemiddelde de overschatting levert zónder verzonnen
+ophoog-factor. `typisch #rondes ≈ 7` is de enige data-gedreven constante (uit de metingen
+hierboven; motiveren + "ongeveer" absorbeert de afwijking). Weergegeven als "naar verwachting
+nog ~X minuten (ruwe schatting)", bijgesteld na elke afgeronde ronde; vóór de eerste ronde de
+generieke regel. De schatting-/verstreken-tijd-regel is **altijd** zichtbaar (niet gegated).
+
 ## Aanbevolen ETA-vorm (voorstel voor slice 8, ter beslissing owner)
 
 - **Vóór de eerste level** (stap 1/2 lopen nog): alleen een **statische verwachting** op
