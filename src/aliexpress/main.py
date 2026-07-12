@@ -15,7 +15,7 @@ from .data.preferences_data import PreferenceData
 from .solver import engine, groepsindeling_view, results, solutions
 from .solver._balance import GroupBalance
 from .solver.groepsindeling_view import GroepsindelingView
-from .solver.progress import InputSummary, ProgressListener
+from .solver.progress import InputSummary, PlateauOutcome, ProgressListener
 from .solver.results import SolutionResult
 
 FILE_PREFERENCES = "voorkeuren.xlsx"
@@ -242,8 +242,8 @@ class _InterimResultAdapter(ProgressListener):
     def input_summary(self, summary: InputSummary) -> None:
         self.downstream.input_summary(summary)
 
-    def plateau_finished(self, min_satisfaction: float, n_can_improve: int) -> None:
-        self.downstream.plateau_finished(min_satisfaction, n_can_improve)
+    def plateau_finished(self, outcome: PlateauOutcome) -> None:
+        self.downstream.plateau_finished(outcome)
 
     def tiebreak_started(self) -> None:
         self.downstream.tiebreak_started()

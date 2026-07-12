@@ -5,6 +5,7 @@ import os
 from dataclasses import asdict
 
 from aliexpress.solver.groepsindeling_view import GroepsindelingView
+from aliexpress.solver.progress import PlateauOutcome
 from aliexpress.web.progress_writer import ProgressWriter
 
 
@@ -82,6 +83,21 @@ def test_interim_result_view_writes_separate_file_and_timestamp(tmp_path):
 
     remaining = set(os.listdir(tmp_path))
     assert remaining == {"progress.json", "interim_result.json"}
+
+
+def test_plateau_finished_records_round_seconds(tmp_path):
+    """Each plateaus entry carries the per-round wall-clock seconds it was called with."""
+    path = tmp_path / "progress.json"
+    writer = ProgressWriter(str(path))
+
+    writer.plateau_finished(PlateauOutcome(0.62, 34, 8.0))
+    writer.plateau_finished(PlateauOutcome(0.78, 5, 12.0))
+
+    data = _assert_parsable(path)
+    assert data["plateaus"] == [
+        {"min_pct": 62, "n_can_improve": 34, "seconds": 8.0},
+        {"min_pct": 78, "n_can_improve": 5, "seconds": 12.0},
+    ]
 
 
 def test_interim_result_view_updated_at_changes_on_every_call(tmp_path):
