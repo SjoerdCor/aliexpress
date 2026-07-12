@@ -23,6 +23,9 @@
         <p id="tiebreak-line" class="tiebreak-line" style="display: none;">De puntjes op de i zetten&hellip;</p>
     </li>
 </ol>
+<!-- Static estimate text: always visible, deliberately no ticking elapsed-time
+     clock (a counter only draws attention to the waiting). -->
+<p id="eta-line" class="tiebreak-line">Aan het rekenen&hellip; dit duurt meestal minder dan een minuut, soms enkele minuten.</p>
 <div id="sociogram-card" class="sociogram-card">
     <p class="sociogram-card-heading">Terwijl je wacht</p>
     <a href="/sociogram" target="_blank" rel="noopener" class="button">Bekijk het sociogram</a>
@@ -32,6 +35,21 @@
 
 <script src="{{ url_for('static', filename='gi-popover.js') }}"></script>
 <script>
+    // A short solve (often 10-30s) should show only the calm core (stepper, input
+    // overview, sociogram); the "rich" progress components (plateaus, tie-break
+    // line, interim result) only appear once the run looks long enough to be worth
+    // the detail. The 45s threshold is a deliberate, if somewhat arbitrary, cut-off.
+    const REVEAL_THRESHOLD_MS = 45000;
+
+    // Single source of truth for the disclosure gate: true once the run looks
+    // long enough to be worth the rich detail (plateaus, tie-break line, interim
+    // result). started_at is a server-UTC ISO timestamp; a few seconds of clock
+    // skew between server and browser is negligible against a 45s threshold.
+    function revealed(data) {
+        const elapsedMs = Date.now() - Date.parse(data.started_at);
+        return elapsedMs >= REVEAL_THRESHOLD_MS;
+    }
+
     function updateStepper(steps) {
         if (!steps) {
             return;
@@ -134,10 +152,16 @@
                 console.log(data.status_studentdistribution)
                 updateStepper(data.steps);
                 updateInputOverview(data.input_summary);
-                updatePlateaus(data.plateaus);
-                updateTiebreak(data.tiebreak_busy);
+                if (revealed(data)) {
+                    updatePlateaus(data.plateaus);
+                }
+                if (revealed(data)) {
+                    updateTiebreak(data.tiebreak_busy);
+                }
                 updateSociogram(data.sociogram_ready);
-                updateInterimResult(data.interim_result_updated_at);
+                if (revealed(data)) {
+                    updateInterimResult(data.interim_result_updated_at);
+                }
                 if (data.status_studentdistribution === "running") {
                     document.querySelector('.loading-spinner').style.display = 'block';
 
