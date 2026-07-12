@@ -43,11 +43,15 @@
 
     // Single source of truth for the disclosure gate: true once the run looks
     // long enough to be worth the rich detail (plateaus, tie-break line, interim
-    // result). started_at is a server-UTC ISO timestamp; a few seconds of clock
-    // skew between server and browser is negligible against a 45s threshold.
+    // result). Two routes reveal it: an elapsed-time fallback (started_at is a
+    // server-UTC ISO timestamp; a few seconds of clock skew between server and
+    // browser is negligible against a 45s threshold), and an earlier reveal driven
+    // by the estimate itself once it predicts a run longer than the threshold —
+    // no need to wait out the 45s if the estimate already says so.
     function revealed(data) {
         const elapsedMs = Date.now() - Date.parse(data.started_at);
-        return elapsedMs >= REVEAL_THRESHOLD_MS;
+        return elapsedMs >= REVEAL_THRESHOLD_MS ||
+            (data.estimate && data.estimate.seconds > 45);
     }
 
     function updateStepper(steps) {
@@ -119,6 +123,17 @@
         }
     }
 
+    // The estimate line starts on the static phase-A text baked into the HTML
+    // (see the <p id="eta-line"> above); once the writer has a dynamic estimate
+    // (phase "b" or "c") this swaps in its text. Phases only move forward (a -> b
+    // -> c), so falling back to phase "a" never needs handling here.
+    function updateEstimate(estimate) {
+        if (!estimate || estimate.phase === "a") {
+            return;
+        }
+        document.getElementById("eta-line").textContent = estimate.text;
+    }
+
     function updateSociogram(ready) {
         if (!ready) {
             return;
@@ -152,6 +167,7 @@
                 console.log(data.status_studentdistribution)
                 updateStepper(data.steps);
                 updateInputOverview(data.input_summary);
+                updateEstimate(data.estimate);
                 if (revealed(data)) {
                     updatePlateaus(data.plateaus);
                 }

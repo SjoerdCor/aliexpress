@@ -309,6 +309,103 @@ def test_processing_shows_static_estimate_line_and_no_elapsed_clock(
 
 
 @pytest.mark.usefixtures("login")
+def test_processing_shows_dynamic_estimate_text(live_server, tmp_path, page):
+    """The estimate line switches to the dynamic ETA text once /status reports one.
+
+    started_at="now" so the elapsed-time reveal cannot explain the change; the text
+    change must come from data.estimate alone (see updateEstimate in processing.html).
+    """
+    _make_process(live_server, tmp_path, page, name="etadynamicrun")
+
+    fake_status = {
+        "status_studentdistribution": "running",
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "steps": {"floor": "done", "balance": "done", "satisfaction": "busy"},
+        "stage_seconds": [],
+        "estimate": {
+            "phase": "c",
+            "seconds": 120,
+            "text": "naar verwachting nog ~2 minuten (ruwe schatting)",
+        },
+    }
+    page.route("**/status", lambda route: route.fulfill(json=fake_status))
+    page.goto(f"{live_server}/processing")
+
+    expect(page.locator("#eta-line")).to_have_text(
+        "naar verwachting nog ~2 minuten (ruwe schatting)"
+    )
+
+
+@pytest.mark.usefixtures("login")
+def test_processing_reveals_early_when_estimate_predicts_a_long_run(
+    live_server, tmp_path, page
+):
+    """A high estimate reveals the rich components even before 45s have elapsed.
+
+    started_at="now" (elapsed < 45s) but estimate.seconds=120 (> 45): the reveal is
+    driven by the estimate, not just elapsed time (see revealed() in processing.html).
+    """
+    proc = _make_process(live_server, tmp_path, page, name="etaearlyrevealrun")
+    view = make_interim_view()
+    (proc / "interim_result.json").write_text(
+        json.dumps(asdict(view)), encoding="utf-8"
+    )
+
+    fake_status = {
+        "status_studentdistribution": "running",
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "steps": {"floor": "done", "balance": "done", "satisfaction": "busy"},
+        "stage_seconds": [],
+        "plateaus": [{"min_pct": 62, "n_can_improve": 34}],
+        "tiebreak_busy": True,
+        "interim_result_updated_at": "2026-07-11T12:00:00+00:00",
+        "estimate": {
+            "phase": "c",
+            "seconds": 120,
+            "text": "naar verwachting nog ~2 minuten (ruwe schatting)",
+        },
+    }
+    page.route("**/status", lambda route: route.fulfill(json=fake_status))
+    page.goto(f"{live_server}/processing")
+
+    expect(page.locator("#plateaus li")).to_have_count(1)
+    expect(page.locator("#tiebreak-line")).to_be_visible()
+    expect(page.locator("#interim-result .gi-card")).to_have_count(1)
+
+
+@pytest.mark.usefixtures("login")
+def test_processing_stays_gated_when_estimate_predicts_a_short_run(
+    live_server, tmp_path, page
+):
+    """A low estimate does not trigger the early reveal (mirror of the case above).
+
+    started_at="now" (elapsed < 45s) and estimate.seconds=20 (< 45): the rich
+    components stay hidden, same as with no estimate at all.
+    """
+    _make_process(live_server, tmp_path, page, name="etanorevealrun")
+
+    fake_status = {
+        "status_studentdistribution": "running",
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "steps": {"floor": "done", "balance": "done", "satisfaction": "busy"},
+        "stage_seconds": [],
+        "plateaus": [{"min_pct": 62, "n_can_improve": 34}],
+        "tiebreak_busy": True,
+        "estimate": {
+            "phase": "b",
+            "seconds": 20,
+            "text": "naar verwachting nog ~20 seconden (ruwe schatting)",
+        },
+    }
+    page.route("**/status", lambda route: route.fulfill(json=fake_status))
+    page.goto(f"{live_server}/processing")
+    page.wait_for_timeout(1200)  # let a poll happen so hiding is a real assertion
+
+    expect(page.locator("#plateaus li")).to_have_count(0)
+    expect(page.locator("#tiebreak-line")).to_be_hidden()
+
+
+@pytest.mark.usefixtures("login")
 def test_processing_stepper_completes(live_server, tmp_path, page):
     """The processing page shows the three-step stepper and it all ends up 'done'."""
     proc = _make_process(live_server, tmp_path, page, name="stepperrun")
