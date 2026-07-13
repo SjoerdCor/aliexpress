@@ -80,6 +80,10 @@ _Avoid_: niet in, verbod
 De minimale Tevredenheid die de verdeling voor iedere leerling probeert te halen voordat ze de balans-eisen per groep gaat versoepelen. De balans wordt alleen zover gebroken als nodig om zoveel mogelijk leerlingen boven die vloer te krijgen, en daarna zo strak mogelijk gehouden. De vloer is strikt positieve tevredenheid: een puur-positieve leerling haalt hem met minstens één ingewilligde voorkeur, een leerling met vermij-voorkeuren alleen als geen ervan geschonden wordt.
 _Avoid_: ondergrens (dat is Extra zekerheid), minimale relaxatie
 
+**Balansgrens**:
+Een maximum dat de school per proces kan zetten op één balans-criterium — hoeveel de groepen op dat criterium maximaal mogen verschillen (groepsgrootte, jongens/meisjes en samen-uit-dezelfde-stamgroep, elk per Jaarlaag en over de hele groep). Anders dan de Relaxatievloer, die de balans juist *breekt* om Tevredenheid te halen, *begrenst* een Balansgrens dat breken. Hard: hij wint van de Relaxatievloer, waardoor een leerling onder de vloer kan komen. Standaard staat er een ruime, uit de invoer berekende waarde; de school kan strakker zetten of op Onbeperkt (geen grens). Staat los van een vaste balans, die élke waarde vastpint i.p.v. alleen de bovenkant te begrenzen. Alleen de maxima bestaan nu; minima kunnen later symmetrisch volgen.
+_Avoid_: klassenbalans-limiet, vaste balans, cap
+
 **Verdeling**:
 Het resultaat van de optimalisatie: de toewijzing van alle leerlingen aan groepen.
 _Avoid_: indeling, uitkomst
