@@ -192,6 +192,7 @@ input[type="submit"]:hover {
 	height: 40px;
 	animation: spin 1s linear infinite;
 	margin-bottom: 10px;
+	margin-left: 1.85rem; /* aligns with the .tiebreak-line text, which has the same left padding */
 }
 
 @keyframes spin {
@@ -339,6 +340,180 @@ input[type="submit"]:hover {
 .step.active span {
   color: #444;
   font-weight: bold;
+}
+
+/* The processing-page stepper (progress.json steps: pending/busy/done). Distinct
+   from .stepper/.step above (the wizard's page-navigation strip, always rendered
+   in base.html) — a name collision there would make both trackers fight over the
+   same classes. States only ever refine in place (pending -> busy -> done); the
+   colour/scale transition is the "soft change", never an appear/disappear. */
+.solve-stepper {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.solve-step {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: #757575; /* pending — quiet, matches .step span above */
+}
+
+.solve-step-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid #ddd;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.3s ease, border-color 0.3s ease, transform 0.3s ease;
+}
+
+.solve-step-label {
+  font-size: 0.9rem;
+  transition: color 0.3s ease;
+}
+
+.solve-step--busy .solve-step-icon {
+  border-color: #ff9933;
+  background-color: #ff9933;
+  animation: solve-step-pulse 1.2s ease-in-out infinite;
+}
+
+.solve-step--busy .solve-step-label {
+  color: #444;
+  font-weight: bold;
+}
+
+.solve-step--done .solve-step-icon {
+  border-color: #c2a17a;
+  background-color: #c2a17a;
+}
+
+.solve-step--done .solve-step-icon::after {
+  content: "\2713"; /* checkmark */
+  color: #fff;
+  font-size: 0.8rem;
+  line-height: 1;
+}
+
+.solve-step--done .solve-step-label {
+  color: #8a6d3f; /* done — tan family of the dot, matches .step.done span */
+}
+
+@keyframes solve-step-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* Per-plateau lines under the "satisfaction" solve step (progress.json plateaus):
+   the list only ever grows, one line per completed lexmaxmin level, so no
+   appear/disappear transition is needed — new lines simply show up at the end. The
+   tie-break line appears once, when tiebreak_busy flips true, and then stays. */
+.plateau-list {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0 0 0 1.85rem; /* aligns under the step label, past the icon column */
+  font-size: 0.85rem;
+  color: #757575;
+}
+
+.tiebreak-line {
+  margin: 0.4rem 0 0;
+  padding: 0 0 0 1.85rem;
+  font-size: 0.85rem;
+  color: #757575;
+  font-style: italic;
+}
+
+/* The input-overview line at the top of the processing page (progress.json
+   input_summary). It only ever appears once, then updates its text in place — never
+   disappears again — so a plain fade-in on first render is enough; no layout jump
+   because the container keeps its height once shown. */
+.input-overview {
+  margin: 0 0 1rem;
+  color: #444;
+  font-size: 0.95rem;
+  white-space: pre-line; /* render the \n between the totals line and the source groups */
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.input-overview--visible {
+  opacity: 1;
+}
+
+/* The sociogram button on the processing page, a child of #wait-activities: carries
+   the HTML `hidden` attribute until progress.json reports sociogram_ready, then it is
+   unhidden and stays visible. Using `hidden` (not an opacity fade) means it reserves
+   no layout space while waiting, so it never leaves a blank gap above the interim
+   result when that arrives first. */
+.sociogram-card {
+  margin: 0 0 1rem;
+}
+
+/* The "Terwijl je wacht" section groups the sociogram button and the interim result.
+   It carries the HTML `hidden` attribute in the template and only becomes visible once
+   the first wait activity is ready (sociogram or interim result) — never a heading with
+   nothing underneath. Its children carry their own `hidden` attribute and reveal in a
+   fixed order (sociogram button, then interim result) with no layout jump. */
+.wait-activities {
+  margin-top: 1.5rem;
+}
+
+.wait-activities-heading {
+  margin: 0 0 0.75rem;
+  font-weight: bold;
+  color: #222;
+}
+
+/* Indents the wait-activity items under the "Terwijl je wacht" heading, so it reads
+   visually as a heading with items below it rather than competing blocks. */
+.wait-activities-items {
+  margin-left: 1.5rem;
+}
+
+/* The interim groepsindeling on the processing page: carries the HTML `hidden`
+   attribute (via its <details> wrapper, #interim-details) until the first interim
+   result arrives, then is unhidden and updates in place on every later stage boundary
+   — same appear-only rule as .input-overview / .sociogram-card, without the opacity
+   fade since `hidden` already avoids reserving layout space while waiting. */
+.interim-result {
+  margin: 0 0 1rem;
+}
+
+/* Collapsible wrapper around the interim result: starts closed so the tentative
+   distribution doesn't compete with the solve-stepper for attention; the user opens it
+   to check progress, and it stays open across updates (only #interim-result's inner
+   HTML is replaced, never the <details> open state). */
+.interim-details {
+  margin: 0.5rem 0 1rem;
+}
+
+.interim-summary {
+  cursor: pointer;
+}
+
+.interim-summary-title {
+  font-weight: 600;
+  color: #333;
+}
+
+.interim-summary-subtext {
+  display: block;
+  color: #757575;
+  font-size: 0.85rem;
 }
 
 .download-buttons a {

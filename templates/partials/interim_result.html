@@ -1,0 +1,8 @@
+{# Interim groepsindeling: the best distribution found so far while the solver is still
+   running. Rendered stand-alone (fetched by /interim_result) and injected into the
+   <details id="interim-details"> on the processing page, whose summary carries the
+   "Voorlopige indeling / Wordt nog verbeterd…" caption. Reuses the same gi.render(view)
+   macro the final result page uses; chips are click-toggleable via the shared
+   gi-popover.js loaded on the processing page. #}
+{% import "partials/groepsindeling.html" as gi %}
+{{ gi.render(view) }}

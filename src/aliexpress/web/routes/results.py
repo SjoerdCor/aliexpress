@@ -40,19 +40,25 @@ def processing():
 @login_required
 @require_process
 def status():
-    """Return the current process's run status and log lines as JSON."""
+    """Return the current process's run status and progress as JSON."""
     school_id = effective_school_id()
     if school_id is None:
         return redirect(url_for("admin.dashboard"))
     process_name = session["process_id"]
     proc = Process.by_name(school_id, process_name)
     if proc is None or proc.run is None:
-        return jsonify({"status_studentdistribution": "unknown", "logs": []})
+        return jsonify({"status_studentdistribution": "unknown"})
     run = proc.run
     payload = {
         "status_studentdistribution": run.status,
-        "logs": [line.text for line in run.log_lines],
+        "sociogram_ready": os.path.exists(
+            get_file_path(school_id, process_name, "sociogram.html")
+        ),
     }
+    progress_path = get_file_path(school_id, process_name, "progress.json")
+    if os.path.exists(progress_path):
+        with open(progress_path, encoding="utf-8") as fh:
+            payload.update(json.load(fh))
     if run.status == "error" and run.message:
         payload["message"] = run.message
     return jsonify(payload)
@@ -85,6 +91,29 @@ def show_sociogram():
     with open(path, encoding="utf-8") as fh:
         plotly_div = fh.read()
     return render_template("sociogram.html", plotly_div=plotly_div)
+
+
+@results_bp.route("/interim_result")
+@login_required
+@require_process
+def interim_result():
+    """Render the current interim group-card view while the solve is still running.
+
+    Loads ``interim_result.json`` (written by :class:`~..progress_writer.ProgressWriter`
+    on every solved stage boundary); returns 204 when none exists yet (nothing solved
+    far enough to report). The processing page fetches this whenever ``/status`` reports
+    a new ``interim_result_updated_at``.
+    """
+    school_id = effective_school_id()
+    if school_id is None:
+        return redirect(url_for("admin.dashboard"))
+    process_id = session["process_id"]
+    path = get_file_path(school_id, process_id, "interim_result.json")
+    if not os.path.exists(path):
+        return "", 204
+    with open(path, encoding="utf-8") as fh:
+        view = json.load(fh)
+    return render_template("partials/interim_result.html", view=view)
 
 
 @results_bp.route("/result")

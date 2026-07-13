@@ -108,6 +108,30 @@ structured view is built in the reporting layer as a plain, JSON-serialisable vi
 [ADR-0016](docs/adr/0016-groepsindeling-gestructureerde-viewmodel.md). Download the full Excel
 workbook for the school administration.
 
+### While it solves
+
+The processing page shown during a run always displays a calm core: a three-step stepper for
+the stages above, the input overview (student/group counts), the sociogram link, and a rough
+progress line ("expected to take another ~X, rough estimate"). The estimate starts as a static
+sentence while step 2 (balance) is still running, then turns into a concrete number once the
+solver has enough data: a first estimate after the balance step finishes, refined after every
+completed satisfaction round to the longest round duration seen so far. It is deliberately an
+overestimate rather than an underestimate.
+
+Richer progress detail — plateau messages ("least satisfied student: now at X%"), the
+tie-break notice, and a live preview of the interim group allocation — only appears once the
+run looks like it will take a while: either the estimate predicts more than 45 seconds
+remaining, or 45 seconds have actually elapsed. Most runs finish well within that window, so
+this detail never appears and the page stays quiet; longer runs get the full picture as soon
+as it is known to be worth showing.
+
+Once revealed, the sociogram link and the live preview are grouped under a "Terwijl je wacht"
+("While you wait") heading, appearing in that order as each becomes ready. The live preview
+sits behind a "Voorlopige indeling" ("Tentative distribution") disclosure that starts collapsed
+— with "wordt nog verbeterd..." ("still being improved...") as its subtext — so the tentative
+distribution doesn't compete for attention with the solve stepper above it; the teacher can open
+it to check progress, and it stays open across updates as the solver keeps refining the result.
+
 ## Distribution modes
 
 When creating a process, the teacher picks one of three modes. The choice shapes the wizard

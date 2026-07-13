@@ -249,7 +249,13 @@ def reset_downstream_wizard_files(school_id, process_id) -> None:
 
 def reset_result_files(school_id, process_id) -> None:
     """Remove stale solver output files before starting a new distribution run."""
-    for name in ("results.xlsx", "result_tables.json", "sociogram.html"):
+    for name in (
+        "results.xlsx",
+        "result_tables.json",
+        "sociogram.html",
+        "progress.json",
+        "interim_result.json",
+    ):
         path = get_file_path(school_id, process_id, name)
         if os.path.exists(path):
             os.remove(path)
