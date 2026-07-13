@@ -131,15 +131,57 @@ def test_processing_shows_sociogram_card_and_no_logs(live_server, tmp_path, page
     assert page.locator("#logs").count() == 0
 
     card = page.locator("#sociogram-card")
-    expect(card).to_have_class("sociogram-card")
+    expect(card).to_be_hidden()
 
     fake_status["sociogram_ready"] = True
     page.wait_for_timeout(1200)  # let the next 1 s poll pick up the updated stub
 
-    expect(card).to_have_class("sociogram-card sociogram-card--visible")
+    expect(card).to_be_visible()
     link = card.locator("a")
     expect(link).to_have_attribute("href", "/sociogram")
     expect(link).to_have_attribute("target", "_blank")
+
+
+@pytest.mark.usefixtures("login")
+def test_processing_wait_section_groups_sociogram_and_interim(
+    live_server, tmp_path, page
+):
+    """The sociogram button and interim result live in one "Terwijl je wacht" section.
+
+    The section stays hidden (via the HTML `hidden` attribute) until the first wait
+    activity is ready, so the heading never appears above an empty block. Stubs
+    /status like ``test_processing_shows_sociogram_card_and_no_logs`` does.
+    """
+    _make_process(live_server, tmp_path, page, name="waitsectionrun")
+
+    fake_status = {
+        "status_studentdistribution": "running",
+        "steps": {"floor": "busy", "balance": "pending", "satisfaction": "pending"},
+        "sociogram_ready": False,
+    }
+    page.route("**/status", lambda route: route.fulfill(json=fake_status))
+    page.goto(f"{live_server}/processing")
+
+    section = page.locator("#wait-activities")
+    expect(section).to_be_hidden()
+    assert page.locator("#wait-activities #sociogram-card").count() == 1
+    assert page.locator("#wait-activities #interim-result").count() == 1
+
+    # The spinner is the closing element of the progress block, so it must precede
+    # the wait section in document order (DOCUMENT_POSITION_FOLLOWING = 4).
+    position = page.evaluate(
+        """() => document.querySelector('.loading-spinner')
+            .compareDocumentPosition(document.getElementById('wait-activities'))"""
+    )
+    assert position & 4
+
+    fake_status["sociogram_ready"] = True
+    page.wait_for_timeout(1200)  # let the next 1 s poll pick up the updated stub
+
+    expect(section).not_to_be_hidden()
+    heading = page.locator(".wait-activities-heading")
+    expect(heading).to_be_visible()
+    expect(heading).to_have_text("Terwijl je wacht")
 
 
 @pytest.mark.usefixtures("login")
@@ -505,8 +547,10 @@ def test_processing_shows_interim_result(live_server, tmp_path, page):
 
     cards = page.locator("#interim-result .gi-card")
     expect(cards).to_have_count(1)
-    caption = page.locator("#interim-result .interim-result-caption")
-    expect(caption).to_have_text("voorlopig — dit kan nog veranderen (ook verbeteren)")
+    expect(page.locator(".interim-summary-title")).to_have_text("Voorlopige indeling")
+    expect(page.locator(".interim-summary-subtext")).to_have_text(
+        "Wordt nog verbeterd…"
+    )
 
 
 @pytest.mark.usefixtures("login")
@@ -580,6 +624,9 @@ def test_processing_interim_result_chip_popover(live_server, tmp_path, page):
     page.route("**/status", lambda route: route.fulfill(json=fake_status))
     page.goto(f"{live_server}/processing")
 
+    summary = page.locator("#interim-details > summary")
+    summary.wait_for()  # waits for the poll that unhides #interim-details
+    summary.click()  # open the collapsed <details> before the chip can be visible
     first_chip = page.locator("#interim-result .gi-chip").first
     first_chip.wait_for()
 
@@ -589,3 +636,45 @@ def test_processing_interim_result_chip_popover(live_server, tmp_path, page):
 
     page.keyboard.press("Escape")
     assert not pop.is_visible()
+
+
+@pytest.mark.usefixtures("login")
+def test_processing_interim_result_collapsed_by_default_and_stays_open(
+    live_server, tmp_path, page
+):
+    """The <details> starts closed and stays open across interim-result updates.
+
+    A closed-by-default disclosure keeps the tentative distribution from competing
+    with the solve-stepper for attention; once the user opens it, a later poll that
+    replaces #interim-result's inner HTML must not reset the open state.
+    """
+    proc = _make_process(live_server, tmp_path, page, name="interimcollapsedrun")
+    view = make_interim_view()
+    (proc / "interim_result.json").write_text(
+        json.dumps(asdict(view)), encoding="utf-8"
+    )
+
+    fake_status = {
+        "status_studentdistribution": "running",
+        "started_at": (datetime.now(timezone.utc) - timedelta(seconds=60)).isoformat(),
+        "steps": {"floor": "done", "balance": "busy", "satisfaction": "pending"},
+        "interim_result_updated_at": "2026-07-11T12:00:00+00:00",
+    }
+    page.route("**/status", lambda route: route.fulfill(json=fake_status))
+    page.goto(f"{live_server}/processing")
+
+    details = page.locator("#interim-details")
+    first_card = page.locator("#interim-result .gi-card").first
+    first_card.wait_for(state="attached")  # rendered but collapsed, so not visible
+    expect(first_card).not_to_be_visible()
+    assert details.evaluate("el => el.open") is False
+
+    details.locator("> summary").click()
+    expect(first_card).to_be_visible()
+    assert details.evaluate("el => el.open") is True
+
+    fake_status["interim_result_updated_at"] = "2026-07-11T12:00:05+00:00"
+    page.wait_for_timeout(1200)  # let the next poll pick up the updated stub
+
+    assert details.evaluate("el => el.open") is True
+    expect(first_card).to_be_visible()

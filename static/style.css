@@ -192,6 +192,7 @@ input[type="submit"]:hover {
 	height: 40px;
 	animation: spin 1s linear infinite;
 	margin-bottom: 10px;
+	margin-left: 1.85rem; /* aligns with the .tiebreak-line text, which has the same left padding */
 }
 
 @keyframes spin {
@@ -453,41 +454,66 @@ input[type="submit"]:hover {
   opacity: 1;
 }
 
-/* The sociogram card on the processing page: hidden until progress.json reports
-   sociogram_ready, then fades in and stays visible — same appear-only rule as
-   .input-overview, so it never causes a layout jump once shown. */
+/* The sociogram button on the processing page, a child of #wait-activities: carries
+   the HTML `hidden` attribute until progress.json reports sociogram_ready, then it is
+   unhidden and stays visible. Using `hidden` (not an opacity fade) means it reserves
+   no layout space while waiting, so it never leaves a blank gap above the interim
+   result when that arrives first. */
 .sociogram-card {
   margin: 0 0 1rem;
-  opacity: 0;
-  transition: opacity 0.4s ease;
 }
 
-.sociogram-card--visible {
-  opacity: 1;
+/* The "Terwijl je wacht" section groups the sociogram button and the interim result.
+   It carries the HTML `hidden` attribute in the template and only becomes visible once
+   the first wait activity is ready (sociogram or interim result) — never a heading with
+   nothing underneath. Its children carry their own `hidden` attribute and reveal in a
+   fixed order (sociogram button, then interim result) with no layout jump. */
+.wait-activities {
+  margin-top: 1.5rem;
 }
 
-.sociogram-card-heading {
-  margin: 0 0 0.5rem;
+.wait-activities-heading {
+  margin: 0 0 0.75rem;
   font-weight: bold;
-  color: #444;
+  color: #222;
 }
 
-/* The interim groepsindeling on the processing page: empty (and invisible) until the
-   first interim result arrives, then fades in and updates in place on every later
-   stage boundary — same appear-only rule as .input-overview / .sociogram-card. */
+/* Indents the wait-activity items under the "Terwijl je wacht" heading, so it reads
+   visually as a heading with items below it rather than competing blocks. */
+.wait-activities-items {
+  margin-left: 1.5rem;
+}
+
+/* The interim groepsindeling on the processing page: carries the HTML `hidden`
+   attribute (via its <details> wrapper, #interim-details) until the first interim
+   result arrives, then is unhidden and updates in place on every later stage boundary
+   — same appear-only rule as .input-overview / .sociogram-card, without the opacity
+   fade since `hidden` already avoids reserving layout space while waiting. */
 .interim-result {
   margin: 0 0 1rem;
-  opacity: 0;
-  transition: opacity 0.4s ease;
 }
 
-.interim-result--visible {
-  opacity: 1;
+/* Collapsible wrapper around the interim result: starts closed so the tentative
+   distribution doesn't compete with the solve-stepper for attention; the user opens it
+   to check progress, and it stays open across updates (only #interim-result's inner
+   HTML is replaced, never the <details> open state). */
+.interim-details {
+  margin: 0.5rem 0 1rem;
 }
 
-.interim-result-caption {
-  color: #444;
-  font-style: italic;
+.interim-summary {
+  cursor: pointer;
+}
+
+.interim-summary-title {
+  font-weight: 600;
+  color: #333;
+}
+
+.interim-summary-subtext {
+  display: block;
+  color: #757575;
+  font-size: 0.85rem;
 }
 
 .download-buttons a {
