@@ -9,10 +9,9 @@ integer primary key — so a logged-in school cannot reach another school's data
 
 Solve tracking
 --------------
-A process has at most one current run. Re-running a process resets that row and its
-log lines. Log lines are kept in insertion order via their autoincrement primary key,
-which is assigned atomically by the database and stays race-free under the two background
-threads (solve and sociogram) that append concurrently.
+A process has at most one current run. Re-running a process resets that row. Progress
+during a run is reported via ``progress.json`` in the process directory (written by the
+solve thread), not through the database.
 
 Authentication
 --------------
@@ -118,20 +117,13 @@ class Run(db.Model):
     created_at = db.Column(
         db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
     )
-    log_lines = db.relationship(
-        "LogLine",
-        backref="run",
-        cascade="all, delete-orphan",
-        order_by="LogLine.id",
-    )
 
     @classmethod
     def reset(cls, process_id):
         """Replace any existing run for this process with a fresh pending run.
 
-        Deletes the old row first (cascading to log lines) so the new run starts
-        clean. Commits when done; callers in background threads open their own
-        session and will see the new row.
+        Deletes the old row first so the new run starts clean. Commits when done;
+        callers in background threads open their own session and will see the new row.
         """
         existing = db.session.get(cls, process_id)
         if existing is not None:
@@ -145,13 +137,3 @@ class Run(db.Model):
         self.status = status
         self.message = message
         db.session.commit()
-
-
-class LogLine(db.Model):
-    """One user-facing progress line for a run, ordered by insertion (the primary key)."""
-
-    id = db.Column(db.Integer, primary_key=True)
-    run_id = db.Column(
-        db.Integer, db.ForeignKey("run.process_id"), nullable=False, index=True
-    )
-    text = db.Column(db.Text, nullable=False)

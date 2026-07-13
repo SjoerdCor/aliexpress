@@ -33,6 +33,7 @@ from ortools.sat.python import cp_model
 
 from ..errors import SolverError, StageInfeasible
 from . import modelbuilder
+from .progress import PlateauOutcome, ProgressListener
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +47,9 @@ SATISFACTION_MAX = 0.8
 NUM_WORKERS = 8
 
 
-def optimize(problem, strategy: str) -> cp_model.CpSolver:
+def optimize(
+    problem, strategy: str, listener: ProgressListener | None = None
+) -> cp_model.CpSolver:
     """Run the chosen aggregate objective and return the final-stage solver.
 
     Parameters
@@ -56,6 +59,10 @@ def optimize(problem, strategy: str) -> cp_model.CpSolver:
     strategy : str
         The strategy to run: ``"lexmaxmin"`` or ``"total"`` (see the module
         docstring).
+    listener : ProgressListener | None
+        Notified of each completed lexmaxmin plateau and of the tie-break
+        starting; not consulted by the ``"total"`` strategy, which has neither.
+        ``None`` (the default) means no one is watching — every emit site guards on it.
 
     Returns
     -------
@@ -68,7 +75,9 @@ def optimize(problem, strategy: str) -> cp_model.CpSolver:
         If ``strategy`` is not one of the two known strategies.
     """
     if strategy == "lexmaxmin":
-        _lexmaxmin(problem)
+        _lexmaxmin(problem, listener)
+        if listener is not None:
+            listener.tiebreak_started()
         return solve_stage(
             problem.model, "tie-break", maximize=sum(problem.satisfaction.values())
         )
@@ -79,34 +88,36 @@ def optimize(problem, strategy: str) -> cp_model.CpSolver:
     raise ValueError(f"unknown optimize strategy {strategy!r}")
 
 
-def _lexmaxmin(problem) -> None:
+def _lexmaxmin(problem, listener: ProgressListener | None) -> None:
     """Raise the minimal satisfaction level by level, pinning each plateau.
 
     Per level: (1) maximize the minimal satisfaction over the students above the
     previous plateau, (2) maximize how many students escape the new plateau, and
     pin that count. Stops at :data:`SATISFACTION_MAX` or when nobody escapes.
-    Integer satisfaction makes both steps exact.
+    Integer satisfaction makes both steps exact. ``listener.plateau_finished`` fires
+    once per completed level (both stages solved), including the terminal level
+    where nobody escapes — but not on the early :data:`SATISFACTION_MAX` return,
+    which stops before the count stage runs.
 
     Parameters
     ----------
     problem : modelbuilder.Problem | modelbuilder.SoftProblem
         The built model; mutated in place with the plateau constraints.
+    listener : ProgressListener | None
+        Notified via ``plateau_finished(PlateauOutcome(...))`` and
+        ``interim_result(assignment, satisfied)`` after each completed level.
+        ``None`` means no one is watching; both emits are guarded on it.
     """
     model = problem.model
     scale = modelbuilder.SATISFACTION_SCALE
     students = list(problem.satisfaction)
-    # The minimum can only ever equal one student's satisfaction, so its domain
-    # is exactly the union of every satisfaction variable's own domain — data-
-    # driven, unlike a fixed constant: a student with only violated negative
-    # wishes can score far below any small fixed lower bound.
-    lower_bound = min(low for low, _ in problem.satisfaction_bounds.values())
-    upper_bound = max(high for _, high in problem.satisfaction_bounds.values())
+    minimum_domain = _running_minimum_domain(problem)
     above_plateau = {}  # students that escaped the previous plateau (empty at level 0)
     plateau = None
     level = 0
     while True:
         t_start = time.perf_counter()
-        minimum = model.NewIntVar(lower_bound, upper_bound, f"minimum_{level}")
+        minimum = model.NewIntVar(*minimum_domain, f"minimum_{level}")
         if level == 0:
             for student in students:
                 model.Add(minimum <= problem.satisfaction[student])
@@ -145,17 +156,43 @@ def _lexmaxmin(problem) -> None:
             model, f"level {level} count", maximize=sum(above_plateau.values())
         )
         count = round(solver.ObjectiveValue())
+        outcome = PlateauOutcome(plateau / scale, count, time.perf_counter() - t_start)
         logger.info(
             "lexmaxmin level %d: plateau=%.6f, %d above, %.2fs",
             level,
-            plateau / scale,
-            count,
-            time.perf_counter() - t_start,
+            outcome.min_satisfaction,
+            outcome.n_can_improve,
+            outcome.seconds,
         )
+        _report_level(listener, problem, solver, outcome)
         if count == 0:
             return
         model.Add(sum(above_plateau.values()) == count)
         level += 1
+
+
+def _running_minimum_domain(problem) -> tuple[int, int]:
+    """Exact integer ``(low, high)`` domain the running minimum variable can take.
+
+    The minimum can only ever equal one student's satisfaction, so its domain is
+    exactly the union of every satisfaction variable's own domain — data-driven,
+    unlike a fixed constant: a student with only violated negative wishes can score
+    far below any small fixed lower bound.
+    """
+    bounds = problem.satisfaction_bounds.values()
+    return min(low for low, _ in bounds), max(high for _, high in bounds)
+
+
+def _report_level(listener, problem, solver, outcome: PlateauOutcome) -> None:
+    """Emit the per-level progress events (guarded) — pure reporting, no model change.
+
+    Kept out of :func:`_lexmaxmin`'s loop body so that function stays a single
+    linear solve narrative: this touches only the listener, never the model, so it
+    cannot affect the delicate early-return-then-pin-floor ordering there.
+    """
+    if listener is not None:
+        listener.plateau_finished(outcome)
+        listener.interim_result(*problem.read_solution(solver))
 
 
 def solve_stage(

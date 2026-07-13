@@ -106,3 +106,9 @@ Wat een verwijdering overleeft, moet per definitie *buiten* de procesmap leven â
   Bewust geen unificatie.
 - **Invariant voor toekomstige bijdragers: nooit een leerlingnaam naar de pakketlogger, op geen
   enkel niveau.**
+
+## Opvolging (2026-07-11)
+
+Het gebruikersgerichte `LogLine`-kanaal uit deze ADR is opgevolgd door `progress.json` in de
+procesmap (de voortgangsfeed van de verwerk-pagina, zie `docs/plan-processing-page-ux.md`) en is
+inmiddels verwijderd. Het app-brede naamloze technische event-log hierboven is ongewijzigd.

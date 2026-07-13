@@ -21,9 +21,9 @@ from ..errors import (
 )
 from ..logging_config import bind_log_context
 from ..main import distribute_students_from_data
-from .extensions import db
-from .models import LogLine, Process
+from .models import Process
 from .process_files import load_groups, load_voorkeuren
+from .progress_writer import ProgressWriter
 from .routes.processes import get_process_mode, year_offset_for_mode
 from .storage import get_file_path, get_process_path
 from .validation_messages import to_validation_message
@@ -36,7 +36,7 @@ class ThreadContext:
     """Shared context passed to background solver/sociogram threads.
 
     Bundles the Flask app object (needed to open a thread-local app context) with the
-    process identifiers required to locate files and append log lines.
+    process identifiers required to locate files and update the run's status.
     """
 
     app_obj: Any
@@ -94,16 +94,11 @@ def run_solve_thread(ctx: ThreadContext, not_together):
     """Background thread: run the solver and write result artifacts.
 
     Each call creates its own app context and DB session. ``ctx.run_id`` is the integer
-    PK of the Run row so log lines can be appended without a school+name query per line.
-    Reads preferences from ``voorkeuren.json`` (written by both input paths) so that the
-    solver is independent of the original file format. Likewise loads the destination
-    groups itself via ``process_files.load_groups`` rather than taking a file path.
+    PK of the Run row identifying this run for logging. Reads preferences from
+    ``voorkeuren.json`` (written by both input paths) so that the solver is independent
+    of the original file format. Likewise loads the destination groups itself via
+    ``process_files.load_groups`` rather than taking a file path.
     """
-
-    def on_update(message):
-        db.session.add(LogLine(run_id=ctx.run_id, text=message))
-        db.session.commit()
-
     with ctx.app_obj.app_context():
         with bind_log_context(
             school=ctx.school_id,
@@ -120,12 +115,18 @@ def run_solve_thread(ctx: ThreadContext, not_together):
                 year_offset = year_offset_for_mode(
                     get_process_mode(get_process_path(ctx.school_id, ctx.process_name))
                 )
+                writer = ProgressWriter(
+                    get_file_path(ctx.school_id, ctx.process_name, "progress.json"),
+                    get_file_path(
+                        ctx.school_id, ctx.process_name, "interim_result.json"
+                    ),
+                )
                 result = distribute_students_from_data(
                     preference_data,
                     target_groups,
                     not_together,
-                    on_update=on_update,
                     year_offset=year_offset,
+                    listener=writer,
                 )
                 logger.info("Distributing students finished successfully")
                 # Write artifacts before flipping to "done" so the result page never
@@ -139,16 +140,12 @@ def run_solve_thread(ctx: ThreadContext, not_together):
 def create_sociogram_thread(ctx: ThreadContext):
     """Background thread: build and write the Plotly sociogram HTML.
 
-    Runs concurrently with the solver; log lines are appended via ``ctx.run_id`` just
-    like the solver thread does. Reads preferences from ``voorkeuren.json`` (written by
-    both input paths) via ``SociogramMaker.from_preference_data``, so the sociogram is
-    available for both the Excel and web-form input paths.
+    Runs concurrently with the solver. Reads preferences from ``voorkeuren.json``
+    (written by both input paths) via ``SociogramMaker.from_preference_data``, so the
+    sociogram is available for both the Excel and web-form input paths. The processing
+    page detects completion by polling for ``sociogram.html`` on disk (via
+    ``sociogram_ready`` in ``/status``), so this thread does not report progress itself.
     """
-
-    def on_update(message):
-        db.session.add(LogLine(run_id=ctx.run_id, text=message))
-        db.session.commit()
-
     with ctx.app_obj.app_context():
         with bind_log_context(
             school=ctx.school_id,
@@ -157,7 +154,6 @@ def create_sociogram_thread(ctx: ThreadContext):
             phase="sociogram",
         ):
             try:  # pylint: disable=broad-exception-caught
-                on_update("Sociogram tekenen...")
                 preference_data, _ = load_voorkeuren(ctx.school_id, ctx.process_name)
                 sg = sociogram.SociogramMaker.from_preference_data(preference_data)
                 fig, g, pos = sg.plot_sociogram()
@@ -171,9 +167,5 @@ def create_sociogram_thread(ctx: ThreadContext):
                     encoding="utf-8",
                 ) as fh:
                     fh.write(html)
-                on_update(
-                    '<a href=/sociogram target="_blank" class="button">'
-                    "Bekijk het sociogram nu!</a>"
-                )
             except Exception:  # pylint: disable=broad-exception-caught
                 logger.exception("Could not create sociogram")
