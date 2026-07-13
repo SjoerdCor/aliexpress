@@ -26,12 +26,22 @@
 <!-- Static estimate text: always visible, deliberately no ticking elapsed-time
      clock (a counter only draws attention to the waiting). -->
 <p id="eta-line" class="tiebreak-line">Aan het rekenen&hellip; dit duurt meestal minder dan een minuut, soms enkele minuten.</p>
-<div id="sociogram-card" class="sociogram-card">
-    <p class="sociogram-card-heading">Terwijl je wacht</p>
-    <a href="/sociogram" target="_blank" rel="noopener" class="button">Bekijk het sociogram</a>
-</div>
 <div class="loading-spinner" style="display: none;"></div>
-<div id="interim-result" class="interim-result"></div>
+<section id="wait-activities" class="wait-activities" hidden>
+    <h2 class="wait-activities-heading">Terwijl je wacht</h2>
+    <div class="wait-activities-items">
+        <div id="sociogram-card" class="sociogram-card" hidden>
+            <a href="/sociogram" target="_blank" rel="noopener" class="button">Bekijk het sociogram</a>
+        </div>
+        <details id="interim-details" class="interim-details" hidden>
+            <summary class="interim-summary">
+                <span class="interim-summary-title">Voorlopige indeling</span>
+                <span class="interim-summary-subtext">Wordt nog verbeterd&hellip;</span>
+            </summary>
+            <div id="interim-result" class="interim-result"></div>
+        </details>
+    </div>
+</section>
 
 <script src="{{ url_for('static', filename='gi-popover.js') }}"></script>
 <script>
@@ -134,11 +144,19 @@
         document.getElementById("eta-line").textContent = estimate.text;
     }
 
+    // The "Terwijl je wacht" section stays hidden until the first wait activity is
+    // actually ready — a section with only its heading and nothing underneath would
+    // be a confusing, empty-looking block.
+    function showWaitActivities() {
+        document.getElementById("wait-activities").hidden = false;
+    }
+
     function updateSociogram(ready) {
         if (!ready) {
             return;
         }
-        document.getElementById("sociogram-card").classList.add("sociogram-card--visible");
+        showWaitActivities();
+        document.getElementById("sociogram-card").hidden = false;
     }
 
     // Tracks the last interim_result_updated_at we fetched, so we only re-fetch and
@@ -156,7 +174,8 @@
             .then(html => {
                 const el = document.getElementById("interim-result");
                 el.innerHTML = html;
-                el.classList.add("interim-result--visible");
+                document.getElementById("interim-details").hidden = false;
+                showWaitActivities();
             });
     }
 

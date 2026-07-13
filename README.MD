@@ -125,6 +125,13 @@ remaining, or 45 seconds have actually elapsed. Most runs finish well within tha
 this detail never appears and the page stays quiet; longer runs get the full picture as soon
 as it is known to be worth showing.
 
+Once revealed, the sociogram link and the live preview are grouped under a "Terwijl je wacht"
+("While you wait") heading, appearing in that order as each becomes ready. The live preview
+sits behind a "Voorlopige indeling" ("Tentative distribution") disclosure that starts collapsed
+— with "wordt nog verbeterd..." ("still being improved...") as its subtext — so the tentative
+distribution doesn't compete for attention with the solve stepper above it; the teacher can open
+it to check progress, and it stays open across updates as the solver keeps refining the result.
+
 ## Distribution modes
 
 When creating a process, the teacher picks one of three modes. The choice shapes the wizard

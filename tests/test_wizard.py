@@ -712,8 +712,12 @@ class TestInterimResult:
         response = client.get("/interim_result")
         assert response.status_code == 204
 
-    def test_renders_view_with_caption(self, client, tmp_path):
-        """A stored interim_result.json renders the caption and the group cards."""
+    def test_renders_view_with_cards(self, client, tmp_path):
+        """A stored interim_result.json renders the group cards.
+
+        The "voorlopige indeling / wordt nog verbeterd" caption lives in the
+        processing page's <summary> around this partial, not in the partial itself.
+        """
         proc_dir = setup_process(client, tmp_path)
         view = make_interim_view()
         (proc_dir / "interim_result.json").write_text(
@@ -723,7 +727,6 @@ class TestInterimResult:
         response = client.get("/interim_result")
         assert response.status_code == 200
         html = response.data.decode("utf-8")
-        assert "voorlopig — dit kan nog veranderen (ook verbeteren)" in html
         assert "gi-card" in html
         assert "gi-chip" in html
 
