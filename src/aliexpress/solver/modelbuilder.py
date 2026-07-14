@@ -172,7 +172,7 @@ def build_problem(
 
 
 def build_soft_problem(
-    preferences, students: dict, groups_to: dict, not_together: list
+    preferences, students: dict, groups_to: dict, not_together: list, maxima=None
 ) -> SoftProblem:
     """Build the CP-SAT model with class balance left relaxable.
 
@@ -196,6 +196,10 @@ def build_soft_problem(
         occupancy.
     not_together : list
         Rules of the form ``{"group": {student, ...}, "Max_aantal_samen": int}``.
+    maxima : aliexpress.solver._balance.BalanceMaxima | None
+        Per-family ceilings on the relaxation. A non-``None`` family maximum
+        bounds how far that family may relax; ``None`` leaves the balance fully
+        relaxable, as before.
 
     Returns
     -------
@@ -209,7 +213,9 @@ def build_soft_problem(
     _constrain_forbidden_groups(model, in_group, preferences)
     _constrain_not_together(model, in_group, not_together, groups_to)
     _constrain_minimal_satisfaction(model, satisfaction, students)
-    slacks = add_soft_balance_constraints(model, in_group, students, groups_to)
+    slacks = add_soft_balance_constraints(
+        model, in_group, students, groups_to, maxima=maxima
+    )
     nonpositive = _constrain_positive_satisfaction(
         model, satisfaction, satisfaction_bounds
     )
