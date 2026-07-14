@@ -8,6 +8,7 @@ than cell-by-cell. The per-student satisfaction - the actual optimization object
 uniquely determined and is asserted in full."""
 
 import json
+from collections import Counter
 
 import pandas as pd
 import pytest
@@ -23,7 +24,8 @@ from aliexpress.data.preferences_form import (
     build_preference_data,
 )
 from aliexpress.main import distribute_students_from_data, distribute_students_once
-from aliexpress.solver._balance import GroupBalance
+from aliexpress.solver import engine
+from aliexpress.solver._balance import BalanceMaxima, GroupBalance
 from aliexpress.solver.groepsindeling_view import GroepsindelingView
 
 _NOT_TOGETHER_SMALL = [
@@ -507,3 +509,148 @@ def test_distribute_students_once_happy_flow_infeasible():
     # redesign, see CLAUDE.md).
     assert exc.value.code == "infeasible_problem"
     assert "ruimere klassenbalans" in exc.value.context["possible_improvement"]
+
+
+def _one_stamgroep_scenario(n_students: int, groups: list[str]):
+    """A tiny automatic-path scenario: ``n_students`` from one Stamgroep.
+
+    Everyone shares Stamgroep "A", so the clique family binds. Each student has a
+    single mild group preference (towards ``groups[0]``) so the report tables are
+    non-empty; the preferences do not affect clique feasibility, which depends
+    only on the Stamgroep.
+    """
+    preferences = [
+        Preference(target=groups[0], weight=1.0, kind=PreferenceKind.TOGETHER)
+    ]
+    students = [
+        StudentEntry(
+            f"Kind{i}",
+            "Jongen" if i % 2 else "Meisje",
+            "A",
+            None,
+            preferences=preferences,
+        )
+        for i in range(n_students)
+    ]
+    keys = [g.lower() for g in groups]
+    target_groups = GroupCounts(
+        counts={key: {"Jongens": 0, "Meisjes": 0} for key in keys},
+        display=dict(zip(keys, groups)),
+    )
+    preference_data = build_preference_data(students, all_to_groups=keys)
+    return preference_data, target_groups
+
+
+def test_maxima_none_matches_no_maxima_on_automatic_path():
+    """maxima=None reproduces the automatic path's result exactly (backward-compat)."""
+    preference_data, target_groups = _one_stamgroep_scenario(
+        5, ["Rood", "Geel", "Blauw"]
+    )
+
+    baseline = distribute_students_from_data(preference_data, target_groups)
+    with_none = distribute_students_from_data(
+        preference_data, target_groups, maxima=None
+    )
+
+    pd.testing.assert_frame_equal(
+        baseline["dataframes"]["Leerlingtevredenheid"].data,
+        with_none["dataframes"]["Leerlingtevredenheid"].data,
+    )
+
+
+def test_too_tight_cap_raises_generic_feasibility_error():
+    """A cap that alone makes the instance infeasible raises the generic error.
+
+    Five students from one Stamgroep over three groups need a clique of at least
+    ceil(5/3) = 2 per group; capping ``max_clique`` at 1 is therefore impossible.
+    Uncapped the same instance solves, so the cap is the sole cause — and the
+    error must not misattribute it to the (empty) preferences.
+    """
+    preference_data, target_groups = _one_stamgroep_scenario(
+        5, ["Rood", "Geel", "Blauw"]
+    )
+
+    # Uncapped: solves fine.
+    distribute_students_from_data(
+        preference_data, target_groups, maxima=BalanceMaxima(max_clique=None)
+    )
+
+    with pytest.raises(errors.FeasibilityError) as exc:
+        distribute_students_from_data(
+            preference_data, target_groups, maxima=BalanceMaxima(max_clique=1)
+        )
+    assert exc.value.code == "balance_caps_infeasible"
+
+
+def _popular_student_scenario(n_students: int, groups: list[str]):
+    """Everyone wants the one popular classmate; each from their own Stamgroep.
+
+    ``Kind0`` is the popular student and has no preference of their own; every
+    other student's single preference is "Graag met Kind0". The only way to
+    honour all those preferences is to put everyone in Kind0's group, so the
+    minimal relaxation that lifts every student above the satisfaction floor is a
+    single giant group — the "everyone in one of four groups" pathology. Distinct
+    Stamgroepen keep the clique family out of it, so only the group-size families
+    govern the spread.
+    """
+    students = []
+    for i in range(n_students):
+        preferences = (
+            []
+            if i == 0
+            else [Preference(target="Kind0", weight=1.0, kind=PreferenceKind.TOGETHER)]
+        )
+        students.append(
+            StudentEntry(
+                f"Kind{i}",
+                "Jongen" if i % 2 else "Meisje",
+                f"sg{i}",
+                None,
+                preferences=preferences,
+            )
+        )
+    keys = [g.lower() for g in groups]
+    target_groups = GroupCounts(
+        counts={key: {"Jongens": 0, "Meisjes": 0} for key in keys},
+        display=dict(zip(keys, groups)),
+    )
+    preference_data = build_preference_data(students, all_to_groups=keys)
+    return preference_data, target_groups
+
+
+def _group_size_spread(solution, groups_to) -> int:
+    """Largest minus smallest realized group size in a solved assignment."""
+    sizes = Counter(solution.assignment.values())
+    for group in groups_to:
+        sizes.setdefault(group, 0)
+    return max(sizes.values()) - min(sizes.values())
+
+
+def test_diff_total_cap_shrinks_realized_group_size_spread():
+    """A diff_total cap reins in the automatic path's runaway group-size spread.
+
+    Uncapped, all twelve students pile into Kind0's group (spread 12) because that
+    is the minimal relaxation reaching the floor. Capping ``max_diff_n_students_total``
+    at 4 forbids that: the solve still succeeds (a few students drop below the floor,
+    a valid tier-2 outcome), but the realized spread is at most 4.
+    """
+    preference_data, target_groups = _popular_student_scenario(
+        12, ["Rood", "Geel", "Blauw", "Groen"]
+    )
+
+    uncapped = engine.solve_within_minimal_relaxation(
+        preferences=preference_data.preferences,
+        students=preference_data.students_info,
+        groups_to=target_groups.counts,
+        not_together=[],
+    )
+    assert _group_size_spread(uncapped, target_groups.counts) > 4
+
+    capped = engine.solve_within_minimal_relaxation(
+        preferences=preference_data.preferences,
+        students=preference_data.students_info,
+        groups_to=target_groups.counts,
+        not_together=[],
+        maxima=BalanceMaxima(max_diff_n_students_total=4),
+    )
+    assert _group_size_spread(capped, target_groups.counts) <= 4

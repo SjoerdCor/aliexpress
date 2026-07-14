@@ -22,6 +22,8 @@ requirement) demands, instead of fixing it upfront.
 
 from ortools.sat.python import cp_model
 
+from ._balance import BalanceMaxima
+
 #: The tightest possible value for every balance limit; the soft families
 #: relax outward from here via their slack.
 STRICTEST_LIMIT = 1
@@ -43,9 +45,41 @@ SLACK_WEIGHTS: dict[str, int] = {
 #: The six family names, in the order the slacks are created.
 FAMILY_NAMES: tuple[str, ...] = tuple(SLACK_WEIGHTS)
 
+#: Maps each family name to the ``BalanceMaxima`` field that caps its slack.
+#: The same family <-> limit correspondence as ``_BalanceFamilies.add_all``:
+#: a per-family maximum bounds how far *that* family may relax, so the soft
+#: path must translate a family name back to the matching ``BalanceMaxima``
+#: attribute.
+_MAXIMA_FIELD_BY_FAMILY: dict[str, str] = {
+    "diff_year": "max_diff_n_students_year",
+    "diff_total": "max_diff_n_students_total",
+    "clique": "max_clique",
+    "clique_sex": "max_clique_sex",
+    "gender_year": "max_imbalance_boys_girls_year",
+    "gender_total": "max_imbalance_boys_girls_total",
+}
 
-def max_slack_bound(students: dict, groups_to: dict) -> int:
-    """A safe upper bound for any balance slack, shared by every soft family.
+
+def _slack_upper(name: str, maxima: BalanceMaxima | None, uncapped_bound: int) -> int:
+    """The upper bound for family ``name``'s slack.
+
+    The ``uncapped_bound`` unless ``maxima`` caps this family, in which case the
+    slack tops out at ``cap - STRICTEST_LIMIT`` so the family's limit
+    (``STRICTEST_LIMIT + slack``) can reach ``cap`` but no further. A cap equal
+    to ``STRICTEST_LIMIT`` yields upper bound 0, pinning the family at its
+    strictest value.
+    """
+    if maxima is None:
+        return uncapped_bound
+    cap = getattr(maxima, _MAXIMA_FIELD_BY_FAMILY[name])
+    if cap is None:
+        return uncapped_bound
+    return cap - STRICTEST_LIMIT
+
+
+def uncapped_slack_bound(students: dict, groups_to: dict) -> int:
+    """Everyone who will ever sit in a group — every new student plus all
+    groups' current occupancy — as a safe upper bound for any balance slack.
 
     The whole-group families (``diff_total``, ``gender_total``) measure counts
     and imbalances that include current occupancy, not just the new students —
@@ -107,6 +141,7 @@ def add_soft_balance_constraints(
     in_group: dict[tuple[str, str], cp_model.IntVar],
     students: dict,
     groups_to: dict,
+    maxima: BalanceMaxima | None = None,
 ) -> dict[str, cp_model.IntVar]:
     """Add all six balance families with limit ``STRICTEST_LIMIT + slack``.
 
@@ -121,6 +156,12 @@ def add_soft_balance_constraints(
     groups_to : dict
         Target groups, keyed by group name, with current ``Jongens``/``Meisjes``
         occupancy.
+    maxima : BalanceMaxima | None
+        Per-family ceilings on the relaxation. For any family whose maximum is
+        not ``None``, its slack upper bound drops from the generous
+        :func:`uncapped_slack_bound` to ``cap - STRICTEST_LIMIT`` — so that family's
+        limit can never exceed ``cap``. ``None`` (whole object or a single
+        field) leaves that family uncapped, as before.
 
     Returns
     -------
@@ -128,7 +169,7 @@ def add_soft_balance_constraints(
         The six shared slacks, keyed by :data:`FAMILY_NAMES`, for the caller to
         weight into a relaxation objective (see :data:`SLACK_WEIGHTS`).
     """
-    return _BalanceFamilies(model, in_group, students, groups_to).add_all_soft()
+    return _BalanceFamilies(model, in_group, students, groups_to).add_all_soft(maxima)
 
 
 # A stateful builder with a single entry point (add_all); the families share the
@@ -169,17 +210,27 @@ class _BalanceFamilies:
             }
         )
 
-    def add_all_soft(self) -> dict[str, cp_model.IntVar]:
+    def add_all_soft(
+        self, maxima: BalanceMaxima | None = None
+    ) -> dict[str, cp_model.IntVar]:
         """Add all six families with limit ``STRICTEST_LIMIT + slack``.
+
+        Parameters
+        ----------
+        maxima : BalanceMaxima | None
+            Per-family ceilings. A non-``None`` field caps the matching slack at
+            ``cap - STRICTEST_LIMIT`` instead of the uncapped bound.
 
         Returns
         -------
         dict[str, cp_model.IntVar]
             The six shared slacks, keyed by :data:`FAMILY_NAMES`.
         """
-        upper = max_slack_bound(self.students, self.groups_to)
+        uncapped_bound = uncapped_slack_bound(self.students, self.groups_to)
         slacks = {
-            name: self.model.NewIntVar(0, upper, f"slack_{name}")
+            name: self.model.NewIntVar(
+                0, _slack_upper(name, maxima, uncapped_bound), f"slack_{name}"
+            )
             for name in FAMILY_NAMES
         }
         self._add_families(

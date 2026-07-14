@@ -83,6 +83,11 @@ def readableerror_to_validation_message(exc: Exception) -> str:
             "niet mogelijk. Overweeg de volgende versoepelingen om het probleem wel op te "
             "lossen:\n {possible_improvement}"
         ),
+        "balance_caps_infeasible": (
+            "Met deze grenzen is geen geldige indeling mogelijk. Dat kan aan de "
+            "ingestelde balansgrenzen liggen, of aan de harde voorkeuren. Verruim een "
+            "grens (of zet hem op Onbeperkt) en probeer het opnieuw."
+        ),
         "internal_error": (
             "Er is iets onverwachts misgegaan. Het probleem is gelogd. "
             "Laat de maker dit onderzoeken."

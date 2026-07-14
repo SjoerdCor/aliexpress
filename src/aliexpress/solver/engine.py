@@ -20,7 +20,8 @@ from ortools.sat.python import cp_model
 from .. import errors
 from ..data import preferences_data
 from . import feasibility, modelbuilder, strategies
-from ._balance_families import SLACK_WEIGHTS, max_slack_bound
+from ._balance import BalanceMaxima
+from ._balance_families import SLACK_WEIGHTS, uncapped_slack_bound
 from .progress import ProgressListener
 from .satisfaction import _normalize_and_bound
 
@@ -95,6 +96,44 @@ def solve_with_fixed_balance(  # pylint: disable=too-many-arguments
     return _extract(problem, solver, preferences)
 
 
+def _floor_infeasibility_error(
+    *,
+    maxima: BalanceMaxima | None,
+    preferences,
+    students: dict,
+    groups_to: dict,
+    not_together: list,
+) -> errors.FeasibilityError:
+    """The right ``FeasibilityError`` for a floor stage proven infeasible.
+
+    With one or more families capped, the infeasibility can stem from the caps
+    themselves, so :func:`.feasibility.diagnose` (which assumes balance is fully
+    soft) would misattribute it to the preferences. Report an honest generic
+    error in that case; the precise, actionable tip follows in a later slice.
+    Without caps, the preferences are the only possible cause, so ``diagnose``
+    names the family that must give.
+    """
+    if maxima is not None and maxima.constrains_anything():
+        return errors.FeasibilityError(
+            "balance_caps_infeasible",
+            technical_message=(
+                "Balance caps (or hard preferences) admit no valid assignment"
+            ),
+        )
+    return errors.FeasibilityError(
+        "infeasible_preferences",
+        context={
+            "case": feasibility.diagnose(
+                preferences=preferences,
+                students=students,
+                groups_to=groups_to,
+                not_together=not_together,
+            )
+        },
+        technical_message="Hard preference constraints are mutually infeasible",
+    )
+
+
 def solve_within_minimal_relaxation(  # pylint: disable=too-many-arguments
     # Each keyword-only argument is a distinct input to the model (raw data, rules,
     # strategy choice, progress listener); grouping them would obscure the entry
@@ -107,6 +146,7 @@ def solve_within_minimal_relaxation(  # pylint: disable=too-many-arguments
     not_together: list,
     optimize: str = "lexmaxmin",
     listener: ProgressListener | None = None,
+    maxima: BalanceMaxima | None = None,
 ) -> Solution:
     """Solve the distribution with the class balance relaxed only as far as needed.
 
@@ -152,6 +192,12 @@ def solve_within_minimal_relaxation(  # pylint: disable=too-many-arguments
         ``"satisfaction"`` (see :func:`.strategies.optimize`). ``None`` (the default)
         means no one is watching; every emit site guards on it, so callers that don't
         care about progress need not pass one and pay nothing for the payloads.
+    maxima : BalanceMaxima | None
+        Per-family upper bounds on the relaxation. A non-empty ``maxima`` caps
+        each named family's slack, so the automatic relaxation can never loosen
+        that family beyond its bound (see
+        :func:`.modelbuilder.build_soft_problem`). ``None`` (the default) or an
+        all-``None`` ``maxima`` leaves the balance fully relaxable, as before.
 
     Returns
     -------
@@ -161,16 +207,20 @@ def solve_within_minimal_relaxation(  # pylint: disable=too-many-arguments
     Raises
     ------
     FeasibilityError
-        If the hard preference constraints (minimal satisfaction, not-together,
-        "Niet in") are mutually infeasible even with class balance fully soft —
-        detected by the first stage below coming back ``INFEASIBLE``. The
-        ``context["case"]`` names the diagnosed cause (see
-        :func:`.feasibility.diagnose`).
+        If the first stage below comes back ``INFEASIBLE``. When ``maxima`` caps
+        at least one family, this may be caused by the caps (or by the hard
+        preferences) and cannot be safely attributed to preferences alone, so
+        the error is a generic ``"balance_caps_infeasible"`` (the precise,
+        actionable tip follows in a later slice). Otherwise the hard preference
+        constraints (minimal satisfaction, not-together, "Niet in") are mutually
+        infeasible even with class balance fully soft; the error is
+        ``"infeasible_preferences"`` and ``context["case"]`` names the diagnosed
+        cause (see :func:`.feasibility.diagnose`).
     SolverError
         If any other stage cannot be solved to proven optimality.
     """
     problem = modelbuilder.build_soft_problem(
-        preferences, students, groups_to, not_together
+        preferences, students, groups_to, not_together, maxima=maxima
     )
     model = problem.model
 
@@ -184,17 +234,12 @@ def solve_within_minimal_relaxation(  # pylint: disable=too-many-arguments
             minimize=sum(problem.nonpositive.values()),
         )
     except errors.StageInfeasible as exc:
-        raise errors.FeasibilityError(
-            "infeasible_preferences",
-            context={
-                "case": feasibility.diagnose(
-                    preferences=preferences,
-                    students=students,
-                    groups_to=groups_to,
-                    not_together=not_together,
-                )
-            },
-            technical_message="Hard preference constraints are mutually infeasible",
+        raise _floor_infeasibility_error(
+            maxima=maxima,
+            preferences=preferences,
+            students=students,
+            groups_to=groups_to,
+            not_together=not_together,
         ) from exc
     if listener is not None:
         listener.stage_finished("floor", time.perf_counter() - t_start)
@@ -202,10 +247,12 @@ def solve_within_minimal_relaxation(  # pylint: disable=too-many-arguments
         # interim result. The floor stage's is not yet balance- or satisfaction-
         # optimized, but it is the earliest candidate to show while the rest runs.
         listener.interim_result(*problem.read_solution(solver))
-    nonpositive_optimum = round(solver.ObjectiveValue())
-    model.Add(sum(problem.nonpositive.values()) <= nonpositive_optimum)
+    # Pin the minimal non-positive count as an upper bound for the later stages.
+    model.Add(sum(problem.nonpositive.values()) <= round(solver.ObjectiveValue()))
 
-    max_slack = model.NewIntVar(0, max_slack_bound(students, groups_to), "max_slack")
+    max_slack = model.NewIntVar(
+        0, uncapped_slack_bound(students, groups_to), "max_slack"
+    )
     model.AddMaxEquality(max_slack, list(problem.slacks.values()))
     weighted = (
         sum(SLACK_WEIGHTS[name] * slack for name, slack in problem.slacks.items())
