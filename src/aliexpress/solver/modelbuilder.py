@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from ortools.sat.python import cp_model
 
 from ..data import preferences_data
+from ._balance import UNCAPPED, BalanceMaxima
 from ._balance_families import add_balance_constraints, add_soft_balance_constraints
 from .satisfaction import _normalize_and_bound
 from .scaling import weight_scale
@@ -172,7 +173,11 @@ def build_problem(
 
 
 def build_soft_problem(
-    preferences, students: dict, groups_to: dict, not_together: list, maxima=None
+    preferences,
+    students: dict,
+    groups_to: dict,
+    not_together: list,
+    maxima: BalanceMaxima = UNCAPPED,
 ) -> SoftProblem:
     """Build the CP-SAT model with class balance left relaxable.
 
@@ -196,10 +201,10 @@ def build_soft_problem(
         occupancy.
     not_together : list
         Rules of the form ``{"group": {student, ...}, "Max_aantal_samen": int}``.
-    maxima : aliexpress.solver._balance.BalanceMaxima | None
+    maxima : aliexpress.solver._balance.BalanceMaxima
         Per-family ceilings on the relaxation. A non-``None`` family maximum
-        bounds how far that family may relax; ``None`` leaves the balance fully
-        relaxable, as before.
+        bounds how far that family may relax; an empty (all-unlimited)
+        ``BalanceMaxima`` (the default) leaves the balance fully relaxable.
 
     Returns
     -------

@@ -13,7 +13,7 @@ from .data import datareader
 from .data.datareader import GroupCounts
 from .data.preferences_data import PreferenceData
 from .solver import engine, groepsindeling_view, results, solutions
-from .solver._balance import BalanceMaxima, GroupBalance
+from .solver._balance import UNCAPPED, BalanceMaxima, GroupBalance
 from .solver.groepsindeling_view import GroepsindelingView
 from .solver.progress import InputSummary, PlateauOutcome, ProgressListener
 from .solver.results import SolutionResult
@@ -312,7 +312,7 @@ def distribute_students_from_data(  # pylint: disable=too-many-arguments,too-man
     groupbalance: GroupBalance | None = None,
     year_offset: int = 0,
     listener: ProgressListener | None = None,
-    maxima: BalanceMaxima | None = None,
+    maxima: BalanceMaxima = UNCAPPED,
 ):
     """Distribute all students over all groups with lexmaxmin — the pure data core.
 
@@ -351,11 +351,11 @@ def distribute_students_from_data(  # pylint: disable=too-many-arguments,too-man
         determined automatically. Not consulted on the fixed-balance path, which has
         no stepper. ``None`` (the default) means no one is watching; the input summary
         is then not even built.
-    maxima : BalanceMaxima | None
+    maxima : BalanceMaxima
         Per-family upper bounds on the automatic relaxation. Active only on the
         automatic path (``groupbalance is None``), where each capped family may
-        relax no further than its bound; the fixed-balance path ignores it.
-        ``None`` (the default) or an all-``None`` ``maxima`` reproduces the
+        relax no further than its bound; the fixed-balance path ignores it. An
+        empty (all-unlimited) ``BalanceMaxima`` (the default) reproduces the
         current behaviour.
 
     Returns

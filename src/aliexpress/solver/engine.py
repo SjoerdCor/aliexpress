@@ -20,7 +20,7 @@ from ortools.sat.python import cp_model
 from .. import errors
 from ..data import preferences_data
 from . import feasibility, modelbuilder, strategies
-from ._balance import BalanceMaxima
+from ._balance import UNCAPPED, BalanceMaxima
 from ._balance_families import SLACK_WEIGHTS, uncapped_slack_bound
 from .progress import ProgressListener
 from .satisfaction import _normalize_and_bound
@@ -98,7 +98,7 @@ def solve_with_fixed_balance(  # pylint: disable=too-many-arguments
 
 def _floor_infeasibility_error(
     *,
-    maxima: BalanceMaxima | None,
+    maxima: BalanceMaxima,
     preferences,
     students: dict,
     groups_to: dict,
@@ -113,7 +113,7 @@ def _floor_infeasibility_error(
     Without caps, the preferences are the only possible cause, so ``diagnose``
     names the family that must give.
     """
-    if maxima is not None and maxima.constrains_anything():
+    if maxima.constrains_anything():
         return errors.FeasibilityError(
             "balance_caps_infeasible",
             technical_message=(
@@ -146,7 +146,7 @@ def solve_within_minimal_relaxation(  # pylint: disable=too-many-arguments
     not_together: list,
     optimize: str = "lexmaxmin",
     listener: ProgressListener | None = None,
-    maxima: BalanceMaxima | None = None,
+    maxima: BalanceMaxima = UNCAPPED,
 ) -> Solution:
     """Solve the distribution with the class balance relaxed only as far as needed.
 
@@ -192,12 +192,12 @@ def solve_within_minimal_relaxation(  # pylint: disable=too-many-arguments
         ``"satisfaction"`` (see :func:`.strategies.optimize`). ``None`` (the default)
         means no one is watching; every emit site guards on it, so callers that don't
         care about progress need not pass one and pay nothing for the payloads.
-    maxima : BalanceMaxima | None
+    maxima : BalanceMaxima
         Per-family upper bounds on the relaxation. A non-empty ``maxima`` caps
         each named family's slack, so the automatic relaxation can never loosen
         that family beyond its bound (see
-        :func:`.modelbuilder.build_soft_problem`). ``None`` (the default) or an
-        all-``None`` ``maxima`` leaves the balance fully relaxable, as before.
+        :func:`.modelbuilder.build_soft_problem`). An empty (all-unlimited)
+        ``BalanceMaxima`` (the default) leaves the balance fully relaxable.
 
     Returns
     -------

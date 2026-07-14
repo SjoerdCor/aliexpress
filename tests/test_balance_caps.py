@@ -25,9 +25,9 @@ def test_slack_upper_caps_named_family():
     assert upper == 3 - STRICTEST_LIMIT  # cap 3 - 1 = 2
 
 
-def test_slack_upper_none_maxima_uses_default():
-    """maxima=None leaves the slack at its uncapped bound."""
-    assert _slack_upper("diff_total", None, uncapped_bound=10) == 10
+def test_slack_upper_empty_maxima_uses_default():
+    """An empty BalanceMaxima (all Onbeperkt) leaves the slack at its uncapped bound."""
+    assert _slack_upper("diff_total", BalanceMaxima(), uncapped_bound=10) == 10
 
 
 def test_slack_upper_none_field_uses_default():
