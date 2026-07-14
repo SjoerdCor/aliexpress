@@ -541,20 +541,20 @@ def _one_stamgroep_scenario(n_students: int, groups: list[str]):
     return preference_data, target_groups
 
 
-def test_maxima_none_matches_no_maxima_on_automatic_path():
-    """maxima=None reproduces the automatic path's result exactly (backward-compat)."""
+def test_empty_maxima_matches_no_maxima_on_automatic_path():
+    """An empty BalanceMaxima() reproduces the automatic path's result exactly."""
     preference_data, target_groups = _one_stamgroep_scenario(
         5, ["Rood", "Geel", "Blauw"]
     )
 
     baseline = distribute_students_from_data(preference_data, target_groups)
-    with_none = distribute_students_from_data(
-        preference_data, target_groups, maxima=None
+    with_empty = distribute_students_from_data(
+        preference_data, target_groups, maxima=BalanceMaxima()
     )
 
     pd.testing.assert_frame_equal(
         baseline["dataframes"]["Leerlingtevredenheid"].data,
-        with_none["dataframes"]["Leerlingtevredenheid"].data,
+        with_empty["dataframes"]["Leerlingtevredenheid"].data,
     )
 
 

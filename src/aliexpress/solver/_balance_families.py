@@ -22,7 +22,7 @@ requirement) demands, instead of fixing it upfront.
 
 from ortools.sat.python import cp_model
 
-from ._balance import BalanceMaxima
+from ._balance import UNCAPPED, BalanceMaxima
 
 #: The tightest possible value for every balance limit; the soft families
 #: relax outward from here via their slack.
@@ -60,7 +60,7 @@ _MAXIMA_FIELD_BY_FAMILY: dict[str, str] = {
 }
 
 
-def _slack_upper(name: str, maxima: BalanceMaxima | None, uncapped_bound: int) -> int:
+def _slack_upper(name: str, maxima: BalanceMaxima, uncapped_bound: int) -> int:
     """The upper bound for family ``name``'s slack.
 
     The ``uncapped_bound`` unless ``maxima`` caps this family, in which case the
@@ -69,8 +69,6 @@ def _slack_upper(name: str, maxima: BalanceMaxima | None, uncapped_bound: int) -
     to ``STRICTEST_LIMIT`` yields upper bound 0, pinning the family at its
     strictest value.
     """
-    if maxima is None:
-        return uncapped_bound
     cap = getattr(maxima, _MAXIMA_FIELD_BY_FAMILY[name])
     if cap is None:
         return uncapped_bound
@@ -141,7 +139,7 @@ def add_soft_balance_constraints(
     in_group: dict[tuple[str, str], cp_model.IntVar],
     students: dict,
     groups_to: dict,
-    maxima: BalanceMaxima | None = None,
+    maxima: BalanceMaxima = UNCAPPED,
 ) -> dict[str, cp_model.IntVar]:
     """Add all six balance families with limit ``STRICTEST_LIMIT + slack``.
 
@@ -156,12 +154,13 @@ def add_soft_balance_constraints(
     groups_to : dict
         Target groups, keyed by group name, with current ``Jongens``/``Meisjes``
         occupancy.
-    maxima : BalanceMaxima | None
+    maxima : BalanceMaxima
         Per-family ceilings on the relaxation. For any family whose maximum is
         not ``None``, its slack upper bound drops from the generous
         :func:`uncapped_slack_bound` to ``cap - STRICTEST_LIMIT`` — so that family's
-        limit can never exceed ``cap``. ``None`` (whole object or a single
-        field) leaves that family uncapped, as before.
+        limit can never exceed ``cap``. An empty (all-unlimited) ``BalanceMaxima``
+        leaves every family uncapped; a single ``None`` field leaves that family
+        uncapped.
 
     Returns
     -------
@@ -211,15 +210,17 @@ class _BalanceFamilies:
         )
 
     def add_all_soft(
-        self, maxima: BalanceMaxima | None = None
+        self, maxima: BalanceMaxima = UNCAPPED
     ) -> dict[str, cp_model.IntVar]:
         """Add all six families with limit ``STRICTEST_LIMIT + slack``.
 
         Parameters
         ----------
-        maxima : BalanceMaxima | None
+        maxima : BalanceMaxima
             Per-family ceilings. A non-``None`` field caps the matching slack at
-            ``cap - STRICTEST_LIMIT`` instead of the uncapped bound.
+            ``cap - STRICTEST_LIMIT`` instead of the uncapped bound. An
+            empty (all-unlimited) ``BalanceMaxima`` leaves every family
+            uncapped; a single ``None`` field leaves that family uncapped.
 
         Returns
         -------

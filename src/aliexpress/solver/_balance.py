@@ -48,9 +48,9 @@ class GroupBalance:
 STRICTEST_BALANCE = GroupBalance(1, 1, 1, 1, 1, 1)
 
 
-@dataclass
+@dataclass(frozen=True)
 class BalanceMaxima:
-    """Per-family upper bound on the automatic relaxation. None = Onbeperkt."""
+    """Per-family upper bound on the automatic relaxation. None = unlimited."""
 
     max_diff_n_students_year: int | None = None
     """Upper bound on max_diff_n_students_year during the adaptive relaxation."""
@@ -84,6 +84,13 @@ class BalanceMaxima:
     def constrains_anything(self) -> bool:
         """True if at least one family has a cap (a non-None field)."""
         return any(value is not None for value in vars(self).values())
+
+
+#: The null-object "no caps" BalanceMaxima: every family unlimited. It is the
+#: default for every solve entry point, so the solver may always assume it
+#: receives a BalanceMaxima (never None). Safe to share as a default argument
+#: because BalanceMaxima is frozen.
+UNCAPPED = BalanceMaxima()
 
 
 #: Generous floor for the whole-group defaults. The ceiling only exists to stop
