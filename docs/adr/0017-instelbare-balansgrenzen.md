@@ -37,9 +37,13 @@ Kernkeuzes:
   krijgt altijd concrete getallen.
 - **Los van de vaste `GroupBalance`.** Dit is níet het bestaande
   vaste-balans-pad (`solve_with_fixed_balance`), dat élke familie op een vast
-  getal pint. Een aparte `BalanceMaxima`-dataclass (zes `int | None`, `None` =
-  Onbeperkt) begrenst enkel de bovenkant van het automatische pad; de minimale
-  relaxatie en de weging eronder blijven intact.
+  getal pint. Een aparte `BalanceMaxima`-dataclass (zes `int | None` per familie,
+  een veld op `None` = die familie Onbeperkt) begrenst enkel de bovenkant van het
+  automatische pad; de minimale relaxatie en de weging eronder blijven intact. De
+  solver krijgt altijd een `BalanceMaxima` (nooit een object-niveau `None`): de
+  toestand "geen enkele grens" is het lege `BalanceMaxima()` als null-object
+  (de constante `UNCAPPED`), niet een aparte sentinel. Zo hoeft de solver geen
+  `None`-tak te kennen.
 
 ## Infeasibility: één overflow-solve met exacte, haalbare tip
 
