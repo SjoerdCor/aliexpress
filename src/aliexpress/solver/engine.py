@@ -25,13 +25,6 @@ from ._balance_families import SLACK_WEIGHTS, uncapped_slack_bound
 from .progress import ProgressListener
 from .satisfaction import _normalize_and_bound
 
-#: Weight of the max-slack spreading term in the relaxation objective below:
-#: equal to weight 1.0 on the ×100 scale :data:`~._balance_families.SLACK_WEIGHTS`
-#: uses, so the max-slack term weighs exactly as much as one per-year family —
-#: enough to break ties towards spreading the relaxation across limits rather
-#: than piling it onto one, without dominating the per-family weights.
-MAX_SLACK_WEIGHT = 100
-
 
 @dataclass
 class Solution:
@@ -158,11 +151,11 @@ def solve_within_minimal_relaxation(  # pylint: disable=too-many-arguments
        reach strictly positive satisfaction if the balance that would give
        them one is forbidden, so this stage finds how much relaxation is
        unavoidable.
-    2. With that count pinned, minimize the weighted balance relaxation, then
-       pin the resulting minimum too. Whole-group limits weigh less than
-       per-year ones (:data:`~._balance_families.SLACK_WEIGHTS`), and a
-       max-slack term keeps the relaxation spread across limits rather than
-       piled onto one.
+    2. With that count pinned, minimize the *sorted profile* of the six
+       weighted balance slacks, leximin, and pin the resulting profile too
+       (see :func:`_pin_balance_leximin`). Whole-group limits weigh less than
+       per-year ones (:data:`~._balance_families.SLACK_WEIGHTS`); leximin
+       spreads the relaxation across limits rather than piling it onto one.
 
     The chosen strategy then runs on the same model, now that the class
     balance is fixed at its minimal relaxation.
@@ -250,23 +243,13 @@ def solve_within_minimal_relaxation(  # pylint: disable=too-many-arguments
     # Pin the minimal non-positive count as an upper bound for the later stages.
     model.Add(sum(problem.nonpositive.values()) <= round(solver.ObjectiveValue()))
 
-    max_slack = model.NewIntVar(
-        0, uncapped_slack_bound(students, groups_to), "max_slack"
-    )
-    model.AddMaxEquality(max_slack, list(problem.slacks.values()))
-    weighted = (
-        sum(SLACK_WEIGHTS[name] * slack for name, slack in problem.slacks.items())
-        + MAX_SLACK_WEIGHT * max_slack
-    )
     if listener is not None:
         listener.stage_started("balance")
     t_start = time.perf_counter()
-    solver = strategies.solve_stage(model, "balance relaxation", minimize=weighted)
+    solver = _pin_balance_leximin(problem, students, groups_to)
     if listener is not None:
         listener.stage_finished("balance", time.perf_counter() - t_start)
         listener.interim_result(*problem.read_solution(solver))
-    budget = round(solver.ObjectiveValue())
-    model.Add(weighted <= budget)
 
     if listener is not None:
         listener.stage_started("satisfaction")
@@ -275,6 +258,62 @@ def solve_within_minimal_relaxation(  # pylint: disable=too-many-arguments
     if listener is not None:
         listener.stage_finished("satisfaction", time.perf_counter() - t_start)
     return _extract(problem, solver, preferences)
+
+
+def _pin_balance_leximin(problem, students: dict, groups_to: dict) -> cp_model.CpSolver:
+    """Minimize the sorted profile of weighted slacks, leximin, and pin it.
+
+    Rather than one weighted sum (which lets CP-SAT trade slack fractionally
+    between families without a provable optimum once caps bind — see
+    ADR-0018), this minimizes the *profile* of ``weight * slack`` values
+    sorted from largest to smallest, one entry at a time: stage ``k`` pins the
+    ``(k+1)``-th largest weighted slack to its minimal value, allowing exactly
+    ``k`` families to exceed it (which families is left to the solver — only
+    the profile is pinned, not the assignment of slack to family). Stops as
+    soon as a pinned value is 0, since the remaining entries must be 0 too.
+    Each sub-stage runs via :func:`.strategies.solve_stage`, so it is proven
+    optimal or raises, same guarantee as the single stage it replaces.
+
+    Parameters
+    ----------
+    problem : modelbuilder.SoftProblem
+        The built soft problem, for its ``model`` and per-family ``slacks``.
+    students : dict
+        Per-student info, forwarded to :func:`uncapped_slack_bound` for the
+        domain of every ``M_k`` variable.
+    groups_to : dict
+        Target groups with current occupancy, forwarded the same way.
+
+    Returns
+    -------
+    cp_model.CpSolver
+        The solver holding the last sub-stage's proven-optimal solution.
+    """
+    model = problem.model
+    weighted = {
+        name: SLACK_WEIGHTS[name] * slack for name, slack in problem.slacks.items()
+    }
+    m_upper = max(SLACK_WEIGHTS.values()) * uncapped_slack_bound(students, groups_to)
+    solver = None
+    for k in range(len(weighted)):
+        m_var = model.NewIntVar(0, m_upper, f"balance_M_{k}")
+        if k == 0:
+            for expr in weighted.values():
+                model.Add(expr <= m_var)
+        else:
+            exceed = {
+                name: model.NewBoolVar(f"balance_exceed_{k}_{name}")
+                for name in weighted
+            }
+            for name, expr in weighted.items():
+                model.Add(expr <= m_var).OnlyEnforceIf(exceed[name].Not())
+            model.Add(sum(exceed.values()) <= k)
+        solver = strategies.solve_stage(model, f"balance leximin M_{k}", minimize=m_var)
+        value = round(solver.ObjectiveValue())
+        model.Add(m_var <= value)
+        if value == 0:
+            break
+    return solver
 
 
 def _extract(problem, solver: cp_model.CpSolver, preferences) -> Solution:

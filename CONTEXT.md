@@ -77,7 +77,7 @@ Een harde eis dat een specifieke leerling niet in een bepaalde bestemmingsgroep 
 _Avoid_: niet in, verbod
 
 **Relaxatievloer**:
-De minimale Tevredenheid die de verdeling voor iedere leerling probeert te halen voordat ze de balans-eisen per groep gaat versoepelen. De balans wordt alleen zover gebroken als nodig om zoveel mogelijk leerlingen boven die vloer te krijgen, en daarna zo strak mogelijk gehouden. De vloer is strikt positieve tevredenheid: een puur-positieve leerling haalt hem met minstens één ingewilligde voorkeur, een leerling met vermij-voorkeuren alleen als geen ervan geschonden wordt.
+De minimale Tevredenheid die de verdeling voor iedere leerling probeert te halen voordat ze de balans-eisen per groep gaat versoepelen. De balans wordt alleen zover gebroken als nodig om zoveel mogelijk leerlingen boven die vloer te krijgen, en daarna zo strak mogelijk gehouden: de grootste afwijking gaat eerst omlaag (afwijkingen worden gespreid, niet op één criterium gestapeld), waarbij een afwijking per Jaarlaag ongeveer dubbel zo zwaar telt als een afwijking over de hele groep. De vloer is strikt positieve tevredenheid: een puur-positieve leerling haalt hem met minstens één ingewilligde voorkeur, een leerling met vermij-voorkeuren alleen als geen ervan geschonden wordt.
 _Avoid_: ondergrens (dat is Extra zekerheid), minimale relaxatie
 
 **Balansgrens**:

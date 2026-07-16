@@ -22,6 +22,7 @@ import pandas as pd
 import pytest
 
 from aliexpress.solver import engine
+from aliexpress.solver._balance_families import SLACK_WEIGHTS
 
 # Two empty target groups: occupancy is entirely determined by "Niet in"
 # placements below, so the balance geometry is exact and known.
@@ -202,3 +203,172 @@ def test_mixed_student_with_honored_preference_but_net_negative_is_protected():
     )
 
     assert solution.student_satisfaction["x"] == pytest.approx(1.0)
+
+
+# Ten students over two empty groups, all Jaarlaag 1, spread over three
+# Stamgroepen (st0/st1/st2) with a lopsided boy/girl split (8 boys, 2 girls).
+# Nothing forces a specific assignment (the single "Graag met" row below just
+# keeps the preferences frame non-empty, an unsupported edge case otherwise) —
+# the six balance families alone leave no assignment fully balanced, and two
+# genuinely different relaxation profiles are reachable:
+#
+# - weighted sum + max-slack (the old objective): realized weighted slacks
+#   sorted descending [200, 200, 100, 98, 0, 0] (clique and gender_year both
+#   at 200 — the unweighted max-slack term cannot tell a weight-100 family
+#   from a weight-49 one, so it is happy to pile a second family up to 200).
+# - weighted leximin (the new objective): [200, 100, 100, 100, 49, 49] — the
+#   same unavoidable peak (clique, 200) but only *one* family allowed to sit
+#   at that peak; the second-largest weighted slack is minimized to 100
+#   instead of 200.
+#
+# Found by randomized search over small instances (see the balansrelaxatie
+# plan) rather than derived by hand; verified to fail against the pre-ADR-0018
+# weighted-sum objective (second-largest weighted slack 200) and pass against
+# the leximin one (second-largest 100).
+_LEXIMIN_GROUPS_TO = {
+    "G0": {"Jongens": 0, "Meisjes": 0},
+    "G1": {"Jongens": 0, "Meisjes": 0},
+}
+
+
+def _leximin_students() -> dict:
+    stamgroep_by_index = [
+        "st0",
+        "st1",
+        "st2",
+        "st1",
+        "st2",
+        "st1",
+        "st1",
+        "st1",
+        "st1",
+        "st2",
+    ]
+    sex_by_index = [
+        "Jongen",
+        "Jongen",
+        "Jongen",
+        "Meisje",
+        "Meisje",
+        "Meisje",
+        "Jongen",
+        "Jongen",
+        "Jongen",
+        "Jongen",
+    ]
+    return {
+        f"s{i}": {
+            "Stamgroep": stamgroep_by_index[i],
+            "Jongen/meisje": sex_by_index[i],
+            "MinimaleTevredenheid": math.nan,
+            "Jaarlaag": 1,
+        }
+        for i in range(10)
+    }
+
+
+def _realized_cliques(assignment: dict, students: dict, groups_to: dict) -> tuple:
+    """Largest same-Stamgroep (and same-Stamgroep-same-sex) headcount in one group."""
+    stamgroepen: dict = {}
+    for student, info in students.items():
+        stamgroepen.setdefault(info["Stamgroep"], []).append(student)
+    clique = 0
+    clique_sex = 0
+    for members in stamgroepen.values():
+        counts = {group: 0 for group in groups_to}
+        counts_sex = {
+            (group, sex): 0 for group in groups_to for sex in ("Jongen", "Meisje")
+        }
+        for student in members:
+            group = assignment[student]
+            counts[group] += 1
+            counts_sex[group, students[student]["Jongen/meisje"]] += 1
+        clique = max(clique, *counts.values())
+        clique_sex = max(clique_sex, *counts_sex.values())
+    return clique, clique_sex
+
+
+def _realized_weighted_slacks(
+    assignment: dict, students: dict, groups_to: dict
+) -> dict:
+    """Recompute each family's realized weighted slack from a solved ``assignment``.
+
+    Mirrors the ``STRICTEST_LIMIT + slack`` arithmetic of
+    ``_balance_families.py`` in plain Python, over the *realized* group
+    counts/gender splits/clique counts — the same "derive it from the public
+    assignment" style as ``_group_size_spread`` in
+    ``tests/integration/test_integration_main.py``, just for all six families
+    instead of one.
+    """
+    strictest_limit = 1
+
+    def spread(members) -> int:
+        counts = {group: 0 for group in groups_to}
+        for student in members:
+            counts[assignment[student]] += 1
+        return max(counts.values()) - min(counts.values())
+
+    def gender_diff_max(members) -> int:
+        boys = {group: 0 for group in groups_to}
+        girls = {group: 0 for group in groups_to}
+        for student in members:
+            group = assignment[student]
+            if students[student]["Jongen/meisje"] == "Jongen":
+                boys[group] += 1
+            else:
+                girls[group] += 1
+        return max(abs(boys[group] - girls[group]) for group in groups_to)
+
+    cohorts: dict = {}
+    for student, info in students.items():
+        cohorts.setdefault(info.get("Jaarlaag"), []).append(student)
+
+    clique, clique_sex = _realized_cliques(assignment, students, groups_to)
+    raw = {
+        "diff_year": max(spread(members) for members in cohorts.values()),
+        "diff_total": spread(list(students)),
+        "clique": clique,
+        "clique_sex": clique_sex,
+        "gender_year": max(gender_diff_max(members) for members in cohorts.values()),
+        "gender_total": gender_diff_max(list(students)),
+    }
+    return {
+        name: SLACK_WEIGHTS[name] * max(0, value - strictest_limit)
+        for name, value in raw.items()
+    }
+
+
+def test_balance_relaxation_prefers_lower_weighted_peak():
+    """Leximin caps how many families may share the largest weighted slack.
+
+    The old objective (weighted sum + an unweighted max-slack term) cannot
+    distinguish a weight-100 family from a weight-49 one once both sit at the
+    same *unweighted* slack value, so it is willing to let a second family
+    join the top of the profile. Leximin instead minimizes the profile level
+    by level: at most one family may sit at the largest weighted value, so
+    the second-largest is pushed down from 200 to 100 on this instance.
+    """
+    students = _leximin_students()
+    prefs = pd.DataFrame(
+        [
+            {
+                "Leerling": "s0",
+                "TypeWens": "Graag met",
+                "Nr": 1,
+                "Waarde": "s1",
+                "Gewicht": 1.0,
+            }
+        ]
+    ).set_index(["Leerling", "TypeWens", "Nr"])
+
+    solution = engine.solve_within_minimal_relaxation(
+        preferences=prefs,
+        students=students,
+        groups_to=_LEXIMIN_GROUPS_TO,
+        not_together=[],
+    )
+
+    realized = _realized_weighted_slacks(
+        solution.assignment, students, _LEXIMIN_GROUPS_TO
+    )
+    assert sorted(realized.values(), reverse=True) == [200, 100, 100, 100, 49, 49]
