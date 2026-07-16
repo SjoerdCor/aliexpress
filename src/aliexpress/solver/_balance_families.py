@@ -28,11 +28,14 @@ from ._balance import UNCAPPED, BalanceMaxima
 #: relax outward from here via their slack.
 STRICTEST_LIMIT = 1
 
-#: Per balance-slack family, its weight in a relaxation objective (scaled x100
-#: to integers, so the objective stays exact). Whole-group families
-#: (``_total``) weigh less than their per-year counterpart: spreading students
-#: unevenly across the whole group is less disruptive than an uneven single
-#: year cohort, so it is cheaper to relax first.
+#: Per balance-slack family, its weight in the leximin peak measure (scaled
+#: x100 to integers, so the comparison stays exact): the balance stage
+#: leximin-minimizes the sorted profile of ``weight * slack`` across families,
+#: so this weight sets the scale on which peaks are compared, not a summed
+#: objective coefficient. Whole-group families (``_total``) weigh less than
+#: their per-year counterpart: spreading students unevenly across the whole
+#: group is less disruptive than an uneven single year cohort, so it is
+#: cheaper to relax first.
 SLACK_WEIGHTS: dict[str, int] = {
     "diff_year": 100,
     "diff_total": 49,
