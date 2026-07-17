@@ -22,7 +22,7 @@ from ..errors import (
 from ..logging_config import bind_log_context
 from ..main import distribute_students_from_data
 from .models import Process
-from .process_files import load_groups, load_voorkeuren
+from .process_files import load_balance_maxima, load_groups, load_voorkeuren
 from .progress_writer import ProgressWriter
 from .routes.processes import get_process_mode, year_offset_for_mode
 from .storage import get_file_path, get_process_path
@@ -112,6 +112,7 @@ def run_solve_thread(ctx: ThreadContext, not_together):
                 )
                 preference_data, _ = load_voorkeuren(ctx.school_id, ctx.process_name)
                 target_groups = load_groups(ctx.school_id, ctx.process_name)
+                maxima = load_balance_maxima(ctx.school_id, ctx.process_name)
                 year_offset = year_offset_for_mode(
                     get_process_mode(get_process_path(ctx.school_id, ctx.process_name))
                 )
@@ -127,6 +128,7 @@ def run_solve_thread(ctx: ThreadContext, not_together):
                     not_together,
                     year_offset=year_offset,
                     listener=writer,
+                    maxima=maxima,
                 )
                 logger.info("Distributing students finished successfully")
                 # Write artifacts before flipping to "done" so the result page never

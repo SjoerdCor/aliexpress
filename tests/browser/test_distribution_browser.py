@@ -16,7 +16,7 @@ from playwright.sync_api import expect
 
 from aliexpress.data import datareader
 from aliexpress.web.extensions import db as flask_db
-from aliexpress.web.models import Process
+from aliexpress.web.models import Process, Run
 from aliexpress.web.process_files import save_voorkeuren
 from app import app
 from tests.browser.conftest import TEST_SCHOOLCODE
@@ -25,8 +25,16 @@ from tests.helpers import make_interim_view
 _INTEGRATION = Path(__file__).parents[1] / "integration"
 
 
-def _make_process(live_server, tmp_path, page, name="browserrun"):
-    """Create a process with ready-to-solve input files and select it in the browser."""
+def _make_process(live_server, tmp_path, page, name="browserrun", running=True):
+    """Create a process with ready-to-solve input files and select it in the browser.
+
+    ``running=True`` (the default) also creates a Run row with status "running", so a
+    plain ``page.goto(".../processing")`` lands straight on the live-progress view — most
+    tests here stub ``/status`` themselves and only care about that view's JS. Pass
+    ``running=False`` for the handful of tests that drive a real solve: they need the
+    processing page's idle panel (no Run yet) so they can submit its "Start verdeling"
+    form themselves.
+    """
     proc = tmp_path / TEST_SCHOOLCODE / name
     proc.mkdir(parents=True, exist_ok=True)
     shutil.copy(_INTEGRATION / "groepen_small.xlsx", proc / "groups.xlsx")
@@ -39,18 +47,33 @@ def _make_process(live_server, tmp_path, page, name="browserrun"):
         save_voorkeuren(
             TEST_SCHOOLCODE, name, processor.to_preference_data(), source="excel"
         )
-        flask_db.session.add(Process(school_id=TEST_SCHOOLCODE, name=name))
+        proc_row = Process(school_id=TEST_SCHOOLCODE, name=name)
+        flask_db.session.add(proc_row)
+        flask_db.session.flush()
+        if running:
+            flask_db.session.add(Run(process_id=proc_row.id, status="running"))
         flask_db.session.commit()
     page.goto(f"{live_server}/processes/select/{name}")  # sets the session process
     return proc
 
 
+def _start_distribution_from_idle_panel(live_server, page):
+    """Navigate to the idle processing panel and click "Start verdeling".
+
+    The idle panel prefills every balance-maxima field with the data-driven defaults, so
+    submitting it unmodified reproduces the previous "start immediately" behaviour for
+    tests that only care about the solve itself, not the balance-limits UI.
+    """
+    page.goto(f"{live_server}/processing")
+    page.click('button:has-text("Start verdeling")')
+
+
 @pytest.mark.usefixtures("login")
 def test_processing_to_result_to_download(live_server, tmp_path, page):
     """Starting a distribution lands on the result page and the workbook downloads."""
-    proc = _make_process(live_server, tmp_path, page)
+    proc = _make_process(live_server, tmp_path, page, running=False)
 
-    page.goto(f"{live_server}/start_distribution")
+    _start_distribution_from_idle_panel(live_server, page)
     # The processing page polls /status and redirects here once the solve is done.
     page.wait_for_url("**/result", timeout=60000)
 
@@ -450,9 +473,9 @@ def test_processing_stays_gated_when_estimate_predicts_a_short_run(
 @pytest.mark.usefixtures("login")
 def test_processing_stepper_completes(live_server, tmp_path, page):
     """The processing page shows the three-step stepper and it all ends up 'done'."""
-    proc = _make_process(live_server, tmp_path, page, name="stepperrun")
+    proc = _make_process(live_server, tmp_path, page, name="stepperrun", running=False)
 
-    page.goto(f"{live_server}/start_distribution")
+    _start_distribution_from_idle_panel(live_server, page)
     # The stepper renders all three steps immediately (they only ever refine in
     # place, never appear/disappear — see the "rustregels" in the plan).
     assert page.locator(".solve-step").count() == 3
@@ -482,9 +505,9 @@ def test_processing_stepper_completes(live_server, tmp_path, page):
 @pytest.mark.usefixtures("login")
 def test_result_group_cards_and_popover(live_server, tmp_path, page):
     """The structured group-card view renders: cards, click-popover, legend, overview."""
-    _make_process(live_server, tmp_path, page, name="cardsrun")
+    _make_process(live_server, tmp_path, page, name="cardsrun", running=False)
 
-    page.goto(f"{live_server}/start_distribution")
+    _start_distribution_from_idle_panel(live_server, page)
     page.wait_for_url("**/result", timeout=60000)
 
     # Group cards render with at least one chip.

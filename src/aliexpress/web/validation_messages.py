@@ -144,6 +144,14 @@ def readableerror_to_validation_message(exc: Exception) -> str:
         "duplicate_group_names": (
             "Groepsnamen moeten uniek zijn. Dubbel: {duplicates}."
         ),
+        "missing_balance_maximum": (
+            "Vul bij elke klassenbalans-grens een geheel getal van minimaal 1 in, "
+            "of vink Onbeperkt aan."
+        ),
+        "invalid_balance_maximum": (
+            "Een klassenbalans-grens moet een geheel getal van minimaal 1 zijn, "
+            "of Onbeperkt."
+        ),
     }
 
     template = friendly_templates.get(exc.code, None)

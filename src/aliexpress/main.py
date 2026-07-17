@@ -80,7 +80,7 @@ def _log_initial_state(groups_to, students_info, stamgroep_display=None):
     logger.info("Current stamgroep distribution:\n%s", stamgroepen.value_counts())
 
 
-def _build_input_summary(
+def build_input_summary(
     groups_to, students_info, stamgroep_display=None
 ) -> InputSummary:
     """Derive the input-overview counts for the processing page.
@@ -385,7 +385,7 @@ def distribute_students_from_data(  # pylint: disable=too-many-arguments,too-man
             listener, preference_data, target_groups, year_offset
         )
         listener.input_summary(
-            _build_input_summary(
+            build_input_summary(
                 target_groups.counts, students_info, preference_data.stamgroep_display
             )
         )

@@ -2,9 +2,16 @@
 {% set current_step = 6 %}
 
 {% block title %}ALI-Express{% endblock %}
-{% block header %}Groepsindeling aan het uitrekenen...{% endblock %}
+{% block header %}
+{% if mode == "running" %}
+Groepsindeling aan het uitrekenen...
+{% else %}
+Groepsindeling — klaar om te rekenen
+{% endif %}
+{% endblock %}
 
 {% block content %}
+{% if mode == "running" %}
 <p id="input-overview" class="input-overview"></p>
 <p>ALI Express werkt in drie stappen:</p>
 <ol class="solve-stepper">
@@ -211,7 +218,7 @@
                                 headers: { "Content-Type": "application/json" },
                                 body: JSON.stringify({ message: data.message }),
                             }).then(() => {
-                                window.location.href = "/not_together";
+                                window.location.href = "/processing";
                             });
 
                 }
@@ -224,4 +231,96 @@
     poll();
     setInterval(poll, 1000);
 </script>
+{% endif %}
+
+{% if mode == "idle" %}
+{% set jaarlaag_label = "" %}
+{% if summary.years | length == 1 %}
+    {% set jaarlaag_label = ", jaarlaag " ~ summary.years[0] %}
+{% elif summary.years | length > 1 %}
+    {% set jaarlaag_label = ", jaarlagen " ~ (summary.years[:-1] | join(", ")) ~ " en " ~ summary.years[-1] %}
+{% endif %}
+{% set bron_parts = [] %}
+{% for naam, aantal in summary.source_groups.items() %}
+    {% set _ = bron_parts.append(naam ~ " (" ~ aantal ~ ")") %}
+{% endfor %}
+<p class="input-overview input-overview--visible">{{ summary.n_students }} leerlingen ({{ summary.n_boys }} jongens, {{ summary.n_girls }} meisjes){{ jaarlaag_label }}
+uit {{ bron_parts | join(", ") }} → {{ summary.n_target_groups }} groepen</p>
+
+<form method="post" action="{{ url_for('wizard.start_distribution') }}">
+    <details class="instructions-box">
+        <summary>Geavanceerd: klassenbalans-grenzen</summary>
+
+        <fieldset>
+            <legend>Groepsgrootte</legend>
+            <label>
+                Per jaarlaag
+                <input type="number" name="maxima_max_diff_n_students_year" min="1" step="1"
+                       value="{{ maxima.max_diff_n_students_year }}">
+                <input type="checkbox" name="maxima_max_diff_n_students_year_unlimited"> Onbeperkt
+                <span title="Placeholder: uitleg volgt.">ⓘ</span>
+            </label>
+            <label>
+                Totaal
+                <input type="number" name="maxima_max_diff_n_students_total" min="1" step="1"
+                       value="{{ maxima.max_diff_n_students_total }}">
+                <input type="checkbox" name="maxima_max_diff_n_students_total_unlimited"> Onbeperkt
+                <span title="Placeholder: uitleg volgt.">ⓘ</span>
+            </label>
+        </fieldset>
+
+        <fieldset>
+            <legend>Jongens/meisjes</legend>
+            <label>
+                Per jaarlaag
+                <input type="number" name="maxima_max_imbalance_boys_girls_year" min="1" step="1"
+                       value="{{ maxima.max_imbalance_boys_girls_year }}">
+                <input type="checkbox" name="maxima_max_imbalance_boys_girls_year_unlimited"> Onbeperkt
+                <span title="Placeholder: uitleg volgt.">ⓘ</span>
+            </label>
+            <label>
+                Totaal
+                <input type="number" name="maxima_max_imbalance_boys_girls_total" min="1" step="1"
+                       value="{{ maxima.max_imbalance_boys_girls_total }}">
+                <input type="checkbox" name="maxima_max_imbalance_boys_girls_total_unlimited"> Onbeperkt
+                <span title="Placeholder: uitleg volgt.">ⓘ</span>
+            </label>
+        </fieldset>
+
+        <fieldset>
+            <legend>Zelfde stamgroep</legend>
+            <label>
+                Totaal
+                <input type="number" name="maxima_max_clique" min="1" step="1"
+                       value="{{ maxima.max_clique }}">
+                <input type="checkbox" name="maxima_max_clique_unlimited"> Onbeperkt
+                <span title="Placeholder: uitleg volgt.">ⓘ</span>
+            </label>
+            <label>
+                Per sekse
+                <input type="number" name="maxima_max_clique_sex" min="1" step="1"
+                       value="{{ maxima.max_clique_sex }}">
+                <input type="checkbox" name="maxima_max_clique_sex_unlimited"> Onbeperkt
+                <span title="Placeholder: uitleg volgt.">ⓘ</span>
+            </label>
+        </fieldset>
+    </details>
+
+    <div class="step-navigation">
+        <button type="submit" class="button next-step">Start verdeling</button>
+    </div>
+</form>
+
+<script>
+    // Onbeperkt is a null-object: when checked, the number field is meaningless, so it
+    // is disabled (and thus not submitted at all — the parser then reads only the
+    // checkbox and stores None). Unchecking re-enables it. No external libs needed.
+    document.querySelectorAll('input[type="checkbox"][name$="_unlimited"]').forEach(checkbox => {
+        const numberInput = checkbox.closest("label").querySelector('input[type="number"]');
+        const sync = () => { numberInput.disabled = checkbox.checked; };
+        checkbox.addEventListener("change", sync);
+        sync();
+    });
+</script>
+{% endif %}
 {% endblock %}
