@@ -1,8 +1,11 @@
 """Tests for data/form_parsers.py (pure form-to-dataclass conversions)."""
 
+import pytest
 from werkzeug.datastructures import MultiDict
 
 from aliexpress.data import form_parsers
+from aliexpress.errors import ValidationError
+from aliexpress.solver._balance import BalanceMaxima
 from tests.helpers import make_students
 
 
@@ -85,3 +88,62 @@ class TestParseGroupsToForm:
         result = form_parsers.parse_groups_to_form(form, groups_to)
         assert result.distribution["Klas A"] == {"Jongens": 1, "Meisjes": 0}
         assert result.state["original_groups"]["Klas A"]["checked_indices"] == [0]
+
+
+class TestParseBalanceMaximaForm:
+    """Tests for the form-parsing helper parse_balance_maxima_form."""
+
+    ALL_NUMBERS = MultiDict(
+        [
+            ("maxima_max_diff_n_students_year", "2"),
+            ("maxima_max_diff_n_students_total", "3"),
+            ("maxima_max_imbalance_boys_girls_year", "2"),
+            ("maxima_max_imbalance_boys_girls_total", "3"),
+            ("maxima_max_clique", "5"),
+            ("maxima_max_clique_sex", "3"),
+        ]
+    )
+
+    def test_all_fields_filled_in_gives_matching_maxima(self):
+        """Six filled-in number fields produce a BalanceMaxima with those ints."""
+        result = form_parsers.parse_balance_maxima_form(self.ALL_NUMBERS)
+        assert result == BalanceMaxima(
+            max_diff_n_students_year=2,
+            max_diff_n_students_total=3,
+            max_imbalance_boys_girls_year=2,
+            max_imbalance_boys_girls_total=3,
+            max_clique=5,
+            max_clique_sex=3,
+        )
+
+    def test_unlimited_checkbox_overrides_an_ignored_number(self):
+        """A checked unlimited checkbox makes that family None, even with a stray number."""
+        form = MultiDict(self.ALL_NUMBERS.items(multi=True))
+        form["maxima_max_clique_unlimited"] = "on"
+        result = form_parsers.parse_balance_maxima_form(form)
+        assert result.max_clique is None
+        assert result.max_diff_n_students_year == 2
+
+    def test_empty_number_without_unlimited_raises_missing(self):
+        """A blank number field (no unlimited checkbox) raises with the missing code."""
+        form = MultiDict(self.ALL_NUMBERS.items(multi=True))
+        form["maxima_max_clique"] = ""
+        with pytest.raises(ValidationError) as exc_info:
+            form_parsers.parse_balance_maxima_form(form)
+        assert exc_info.value.code == "missing_balance_maximum"
+
+    def test_non_integer_value_raises_invalid(self):
+        """A non-integer number field raises with the invalid code."""
+        form = MultiDict(self.ALL_NUMBERS.items(multi=True))
+        form["maxima_max_clique"] = "abc"
+        with pytest.raises(ValidationError) as exc_info:
+            form_parsers.parse_balance_maxima_form(form)
+        assert exc_info.value.code == "invalid_balance_maximum"
+
+    def test_zero_value_raises_invalid(self):
+        """A value of 0 raises with the invalid code (minimum is 1)."""
+        form = MultiDict(self.ALL_NUMBERS.items(multi=True))
+        form["maxima_max_clique"] = "0"
+        with pytest.raises(ValidationError) as exc_info:
+            form_parsers.parse_balance_maxima_form(form)
+        assert exc_info.value.code == "invalid_balance_maximum"

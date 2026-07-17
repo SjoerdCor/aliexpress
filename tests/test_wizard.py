@@ -3,6 +3,7 @@
 # pylint: disable=redefined-outer-name  # standard pytest fixture pattern
 # pylint: disable=too-many-lines  # large route-test suite; splitting it is separate work
 
+import dataclasses
 import json
 import re
 from dataclasses import asdict
@@ -15,9 +16,11 @@ import pandas as pd
 import aliexpress.web.routes.wizard as wizard_module
 import aliexpress.web.tasks as tasks_module
 from aliexpress.errors import ValidationError
+from aliexpress.solver._balance import BalanceMaxima
 from aliexpress.solver.groepsindeling_view import GroepsindelingView
 from aliexpress.web.extensions import db
 from aliexpress.web.models import Process, Run
+from aliexpress.web.process_files import load_balance_maxima
 from app import app as flask_app
 from tests.helpers import (
     SCHOOL_ID,
@@ -30,6 +33,14 @@ from tests.helpers import (
     write_groups_to_json,
     write_minimal_voorkeuren_json,
 )
+
+
+def _unlimited_maxima_form():
+    """Balance-maxima form data with every family ticked Onbeperkt (no numbers required)."""
+    return {
+        f"maxima_{field.name}_unlimited": "on"
+        for field in dataclasses.fields(BalanceMaxima)
+    }
 
 
 class TestUploadErrors:
@@ -442,6 +453,24 @@ class TestNotTogetherPage:
         assert response.status_code == 302
         assert any(cat == "error" for cat, _ in flashes(client))
 
+    def test_post_valid_rules_lands_on_processing_without_starting_a_run(
+        self, client, tmp_path, monkeypatch
+    ):
+        """A valid POST redirects to the idle processing panel; no run is started yet."""
+        proc_dir = setup_process(client, tmp_path)
+        write_minimal_voorkeuren_json(proc_dir)
+        self._mock_file_reads(monkeypatch)
+
+        response = client.post("/not_together", data={"n_rules": "0"})
+
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/processing")
+        with flask_app.app_context():
+            proc = Process.query.filter_by(
+                school_id=SCHOOL_ID, name="testproces"
+            ).first()
+            assert proc.run is None
+
 
 class TestUploadPreferencesWritesJson:
     """POST /upload_preferences with a valid Excel also writes voorkeuren.json."""
@@ -546,7 +575,7 @@ class TestStartDistribution:
         }
         self._patch_pipeline(monkeypatch, result=result)
 
-        response = client.get("/start_distribution")
+        response = client.post("/start_distribution", data=_unlimited_maxima_form())
         assert response.status_code == 302
         assert response.headers["Location"].endswith("/processing")
         assert (proc_dir / "results.xlsx").read_bytes() == b"excel-bytes"
@@ -567,7 +596,7 @@ class TestStartDistribution:
         exc = ValidationError("wrong_columns_preferences", {"wrong_columns": "Kolom A"})
         self._patch_pipeline(monkeypatch, exc=exc)
 
-        client.get("/start_distribution")
+        client.post("/start_distribution", data=_unlimited_maxima_form())
         run = self._read_run()
         assert run.status == "error"
         assert "verkeerde kolommen" in run.message
@@ -592,7 +621,7 @@ class TestStartDistribution:
         }
         solver = self._patch_pipeline(monkeypatch, result=result)
 
-        response = client.get("/start_distribution")
+        response = client.post("/start_distribution", data=_unlimited_maxima_form())
         assert response.status_code == 302
         # distribute_students_from_data(preference_data, target_groups, not_together, ...)
         passed = solver.call_args.args[2]
@@ -614,11 +643,77 @@ class TestStartDistribution:
         }
         self._patch_pipeline(monkeypatch, result=result)
 
-        response = client.get("/start_distribution")
+        response = client.post("/start_distribution", data=_unlimited_maxima_form())
         assert response.status_code == 302
         assert (proc_dir / "results.xlsx").read_bytes() == b"form-excel"
         assert (proc_dir / "sociogram.html").read_text("utf-8") == "<div>socio</div>"
         assert self._read_run().status == "done"
+
+    def test_valid_maxima_are_saved_before_the_solve_starts(
+        self, client, tmp_path, monkeypatch
+    ):
+        """Valid balance-maxima fields are persisted to balance_limits.json and the
+        teacher is sent back to /processing to watch the run."""
+        proc_dir = setup_process(client, tmp_path)
+        write_minimal_voorkeuren_json(proc_dir)
+        (proc_dir / "groups.xlsx").write_bytes(b"dummy")
+        result = {
+            "download": BytesIO(b"x"),
+            "dataframes": {},
+            "groepsindeling_view": GroepsindelingView(
+                group_order=[], groups=[], balance_rows=[]
+            ),
+        }
+        self._patch_pipeline(monkeypatch, result=result)
+        form_data = _unlimited_maxima_form()
+        del form_data["maxima_max_clique_unlimited"]
+        form_data["maxima_max_clique"] = "7"
+
+        response = client.post("/start_distribution", data=form_data)
+
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/processing")
+        maxima = load_balance_maxima(SCHOOL_ID, "testproces")
+        assert maxima.max_clique == 7
+        assert maxima.max_diff_n_students_year is None
+
+    def test_invalid_maxima_flashes_and_does_not_start_a_run(
+        self, client, tmp_path, monkeypatch
+    ):
+        """A malformed balance-maxima field flashes a friendly error and starts no run."""
+        proc_dir = setup_process(client, tmp_path)
+        write_minimal_voorkeuren_json(proc_dir)
+        (proc_dir / "groups.xlsx").write_bytes(b"dummy")
+        self._patch_pipeline(monkeypatch)
+
+        response = client.post("/start_distribution", data={})
+
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/processing")
+        assert any(cat == "error" for cat, _ in flashes(client))
+        assert self._read_run() is None
+        assert not (proc_dir / "balance_limits.json").exists()
+
+
+class TestProcessingIdlePanel:  # pylint: disable=too-few-public-methods  # one test
+    """Tests for GET /processing in the idle state (no run started yet)."""
+
+    def test_idle_panel_shows_summary_and_start_button(self, client, tmp_path):
+        """The idle panel renders the input summary, the maxima fields and the Start button."""
+        proc_dir = setup_process(client, tmp_path)
+        write_minimal_voorkeuren_json(proc_dir)
+        pd.DataFrame(
+            {"Jongens": [1, 1], "Meisjes": [1, 0]},
+            index=pd.Index(["klas a", "klas b"], name="Groepen"),
+        ).to_excel(proc_dir / "groups.xlsx")
+
+        response = client.get("/processing")
+
+        assert response.status_code == 200
+        html = response.data.decode("utf-8")
+        assert 'name="maxima_max_clique"' in html
+        assert "Start verdeling" in html
+        assert "leerlingen" in html
 
 
 class TestStatus:
