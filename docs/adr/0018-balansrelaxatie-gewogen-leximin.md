@@ -54,6 +54,75 @@ bewijsbaar blijkt.
   met een gespreid profiel: exact de oplossing die de kwadratische som vond
   maar nooit kon certificeren.
 
+## Exacte formulering en overdracht tussen de fasen
+
+De normatieve keuze hierboven verandert niet, maar de eerste implementatie
+bleek onnodig veel zoekhistorie mee te slepen. De productieformulering gebruikt
+daarom drie exact equivalente versterkingen:
+
+- **Eén groepsindex per leerling.** De one-hot `in_group`-booleans blijven
+  bestaan voor alle balanstellingen. Daarnaast krijgt iedere leerling één
+  gehele groepsindex, aan dezelfde one-hot keuze gekoppeld. "Leerling A zit bij
+  leerling B" is daardoor één gereïficeerde gelijkheid van twee groepsindices,
+  hergebruikt voor wederzijdse wensen. Voorheen bouwde iedere wens per
+  doelgroep een `BoolAnd`, een `BoolOr` en daarna een `max`; op het 72-leerlingen-
+  scenario daalt het model van 1.741 naar 905 variabelen en verdwijnen 908
+  `BoolAnd`- en 908 `BoolOr`-constraints. De twee representaties zijn equivalent:
+  `AddExactlyOne` kiest precies één one-hot-boolean en die ware boolean fixeert
+  de groepsindex op dezelfde groep.
+- **Een echt sorteernetwerk voor zes gewogen slacks.** Vijftien vaste
+  compare-swaps (`max`/`min`) materialiseren het volledige aflopende profiel
+  één keer. Iedere leximin-stage minimaliseert daarna rechtstreeks één uitgang
+  van dat netwerk. De oude `exceed`-encoding maakte per rang zes booleans die
+  alleen uitdrukten dat hooguit `k` families boven een variabele grens mochten
+  liggen; die cardinaliteitsrelaxatie was correct, maar propageerde zwakker
+  tussen opeenvolgende rangen.
+- **Een schoon tevredenheidsmodel met een exacte profieltabel.** Na het bewijs
+  van de balans wordt het model opnieuw opgebouwd. Alleen de bewezen
+  relaxatievloer en het volledige gesorteerde balansprofiel gaan mee; alle
+  sorteervariabelen en balansdoelstellingen verdwijnen. Het profiel wordt niet
+  vastgezet op de toevallige familie→slack-toewijzing van de laatste
+  balansoplossing. In plaats daarvan bevat `AddAllowedAssignments` alle geldige
+  permutaties van het profiel die, gegeven de familiegewichten en
+  Balansgrenzen, echte slacktuples vormen. Zo blijven alle oplossingen met
+  exact hetzelfde leximinprofiel beschikbaar voor tevredenheidsoptimalisatie,
+  terwijl de pin sterk en compact propageert.
+
+## Prestatiemeting na deze formulering
+
+Op het opgeslagen adversariële `testschool/herdoor`-scenario (72 leerlingen,
+vier doelgroepen, grenzen 3/4/3/4/6/4) zijn twee volledige productieruns gedaan
+met 8 workers en zonder tijdslimiet. Beide bewezen exact profiel
+`(400, 300, 200, 200, 49, 0)` en leverden exact dezelfde verdeling van
+leerlingtevredenheid op.
+
+| meting | vloer | balans | tevredenheid | totaal |
+|---|---:|---:|---:|---:|
+| oude geregistreerde formulering | 28,0s | 3.505,2s | 2.971,4s | 6.504,6s (108,4 min) |
+| nieuwe formulering, run 1 | 3,5s | 554,6s | 480,0s | 1.038,1s (17,3 min) |
+| nieuwe formulering, run 2 | 16,7s | 751,9s | 569,4s | 1.338,1s (22,3 min) |
+
+Dezelfde benchmark op de opgeslagen gewone processen met 35 leerlingen laat
+zien dat de lange staart niet bij ieder pad hoort:
+
+| verdeelmodus | runs | vloer | balans | tevredenheid | totaal |
+|---|---:|---:|---:|---:|---:|
+| Doorzetten | 3 | 0,12–0,20s | 0,90–0,93s | 2,37–2,75s | 3,45–3,93s |
+| Herindelen met dezelfde groepen | 3 | 0,05–0,07s | 0,31–0,35s | 0,67s | 1,07–1,10s |
+
+Dit zijn representatieve opgeslagen scenario's, geen schaalgarantie. Ze
+rechtvaardigen wel een asymmetrische UX: geen algemene waarschuwing bij het
+veelgebruikte Doorzetten of bij gewoon Herindelen, maar hooguit een rustige
+waarschuwing bij grotere of sterk begrensde gevallen van Herindelen met
+doorzetten.
+
+De wijziging is daarmee ongeveer vijf- tot zesmaal sneller en maakt het geval
+weer praktisch hanteerbaar, maar haalt de gewenste 10–15 minuten end-to-end
+niet betrouwbaar. Die grens kan dus geen SLA zijn zolang iedere CP-SAT-stage
+tot een bewijs moet doorrekenen. De bestaande Tussenstand blijft daarom
+belangrijk tijdens de bewijsstaart; hoe een gebruiker daarmee verder kan gaan
+blijft een afzonderlijke productbeslissing.
+
 ## Overwogen alternatieven
 
 - **Gewogen som behouden en meer rekentijd geven** — afgewezen: bij 900s
@@ -84,6 +153,36 @@ bewijsbaar blijkt.
   hints van stage naar stage) — afgewezen: gemeten contraproductief (+40%
   resp. +57%, gecombineerd zelfs verlies van het bewijs); CP-SAT's eigen
   presolve/symmetriedetectie wint van handmatige sturing.
+- **16 in plaats van 8 workers** — afgewezen na meting op beide hoofdfasen.
+  Meer workers betekent in CP-SAT een ander portfolio van zoekstrategieën, niet
+  simpelweg tweemaal zoveel van dezelfde zoekactie. In de balansprefix werden
+  `M₀` en `M₁` samen 196s in plaats van 99s; in de tevredenheidsfase werd het
+  eerste plateau 117s in plaats van 52s. De extra cores maakten het bewijs dus
+  consequent trager.
+- **Een minimaal 12-comparatornetwerk in plaats van het insertion-netwerk met
+  15 comparators** — afgewezen. Het kleinere netwerk was exact equivalent en
+  gebruikte zes hulpvariabelen minder, maar alle eerste vier profielstages
+  werden trager (`16/104/74/196s` tegen `15/85/64/182s`). Minder variabelen
+  bleek hier niet hetzelfde als betere propagatie; de topologie van het
+  insertion-netwerk sloot beter aan op CP-SAT's zoekportfolio.
+- **Discrete domeinen voor de sorteernetwerkuitgangen** — afgewezen. Omdat een
+  gewogen slack alleen een veelvoud van 49 of 100 kan zijn, leek een exact
+  domein zonder tussenwaarden sterker dan het interval `0..upper`. In de
+  praktijk maakte het de lineaire relaxatie en domeinverwerking duurder:
+  alleen `M₀` liep op van circa 15s naar 72s.
+- **Bewezen profielwaarden als gelijkheid pinnen** — afgewezen na een volledige
+  balansmeting. `Mₖ == optimum` is logisch equivalent aan de gebruikte
+  `Mₖ <= optimum`, omdat de ontbrekende ondergrens zojuist bewezen is. De
+  expliciete gelijkheden veranderden presolve en branching echter ongunstig:
+  de balansfase werd 618s in plaats van 555s; `M₄` alleen 242s in plaats van
+  197s.
+- **Na ieder tevredenheidsplateau opnieuw een schoon model bouwen** —
+  afgewezen. Dezelfde techniek helpt sterk op de natuurlijke grens tussen
+  balans en tevredenheid, maar binnen lexmaxmin moeten de bewezen
+  boven-drempel-aantallen toch opnieuw worden gemodelleerd. De zwaarste telling
+  werd 194s in plaats van 163s (het hele niveau 222s in plaats van 187s).
+  Ook alleen de historische minimumvariabele vastpinnen had geen betekenisvolle
+  winst: 483s tegen 480s voor de volledige tevredenheidsfase.
 - **Tijds- of gap-begrenzing met gedegradeerd resultaat** — buiten deze
   wijziging gehouden: een zwaar geval met bindende grenzen rekent door (met
   voortgangspagina en Tussenstand); alleen bewezen INFEASIBLE geeft een
@@ -96,20 +195,19 @@ bewijsbaar blijkt.
   van het profiel nul is); de voortgang toont dus meer, kleinere stappen.
 - `MAX_SLACK_WEIGHT` en de max-slack-variabele verdwijnen; `SLACK_WEIGHTS`
   verandert van objective-coëfficiënten in de piek-maatstaf van de leximin.
-- Bij bindende grenzen op pathologische invoer blijft de volledige solve duur
-  (orde ~10 minuten balansfase op het stress-scenario, plus de
-  tevredenheidsfase); dat is de geaccepteerde prijs van harde grenzen op de
+- Bij bindende grenzen op pathologische invoer blijft de volledige solve duur:
+  op het stress-scenario 17,3–22,3 minuten totaal, waarvan 9,2–12,5 minuten
+  balans. Dat is de geaccepteerde prijs van harde grenzen op de
   haalbaarheidsrand, bewust zonder tijdslimiet gelaten.
 - Integratietests die exacte uitkomsten pinnen worden her-pind: ook het
   gezonde referentiescenario verschuift (FULL-instantie: totale tevredenheid
   33.614 → 32.571, 15 van de 43 leerlingen), niet doordat de balansstage een
   ander profiel vindt maar doordat de profiel-pin de tevredenheidsfase minder
   ruimte laat dan het oude sombudget.
-- Bij bindende Balansgrenzen heeft de rekentijd van de balansfase een hoge
-  run-tot-run-variantie, terwijl de uitkomst deterministisch blijft: een
-  herhaalde meting op hetzelfde adversariële scenario bewees in beide runs
-  dezelfde profielwaarden (M₀=400, M₁=300, M₂=200), maar een stage die in de
-  ene run na 192s bewees, had in een andere run na 600s zelfs nog geen
-  ondergrens. Dat is inherent aan "doorrekenen tot bewijs" zonder tijdslimiet
-  (zie Overwogen alternatieven): elke stage levert altijd hetzelfde bewezen
-  optimum, alleen de tijd om daar te komen wisselt.
+- Bij bindende Balansgrenzen heeft de rekentijd een hoge run-tot-run-variantie,
+  terwijl de uitkomst deterministisch blijft: de twee volledige metingen
+  bewezen hetzelfde profiel en dezelfde satisfactieverdeling, maar verschilden
+  vijf minuten in totaaltijd (17,3 tegen 22,3 minuten). Dat is inherent aan
+  "doorrekenen tot bewijs" zonder tijdslimiet (zie Overwogen alternatieven):
+  elke stage levert hetzelfde bewezen optimum, alleen de tijd om daar te komen
+  wisselt.

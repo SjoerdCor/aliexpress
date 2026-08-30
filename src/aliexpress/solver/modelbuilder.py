@@ -92,6 +92,17 @@ class SoftProblem:
         return _read_solution(self, solver)
 
 
+@dataclass
+class _AssignmentModel:
+    """Equivalent one-hot/integer assignment representations and their cache."""
+
+    model: cp_model.CpModel
+    in_group: dict
+    group_index: dict
+    groups_to: dict
+    together_by_pair: dict
+
+
 def _read_solution(problem, solver: cp_model.CpSolver) -> tuple[dict, dict]:
     """Read the assignment and honored-wish booleans off a solved ``(problem, solver)`` pair.
 
@@ -155,9 +166,10 @@ def build_problem(
     Problem
         The built model plus the variables the pipeline reads back.
     """
-    model, in_group = _build_assignment(students, groups_to)
+    assignment = _build_assignment(students, groups_to)
+    model, in_group = assignment.model, assignment.in_group
     satisfied, satisfaction, satisfaction_bounds = _add_satisfaction(
-        model, in_group, preferences, students, groups_to
+        assignment, preferences, students
     )
     _constrain_forbidden_groups(model, in_group, preferences)
     _constrain_not_together(model, in_group, not_together, groups_to)
@@ -211,9 +223,10 @@ def build_soft_problem(
     SoftProblem
         The built model plus the variables the pipeline reads back.
     """
-    model, in_group = _build_assignment(students, groups_to)
+    assignment = _build_assignment(students, groups_to)
+    model, in_group = assignment.model, assignment.in_group
     satisfied, satisfaction, satisfaction_bounds = _add_satisfaction(
-        model, in_group, preferences, students, groups_to
+        assignment, preferences, students
     )
     _constrain_forbidden_groups(model, in_group, preferences)
     _constrain_not_together(model, in_group, not_together, groups_to)
@@ -282,23 +295,27 @@ def build_feasibility_problem(  # pylint: disable=too-many-arguments
     cp_model.CpModel
         The built model, with no objective set.
     """
-    model, in_group = _build_assignment(students, groups_to)
+    assignment = _build_assignment(students, groups_to)
+    model, in_group = assignment.model, assignment.in_group
     _constrain_forbidden_groups(model, in_group, preferences)
     add_soft_balance_constraints(model, in_group, students, groups_to)
     if min_satisfaction_hard:
-        _, satisfaction, _ = _add_satisfaction(
-            model, in_group, preferences, students, groups_to
-        )
+        _, satisfaction, _ = _add_satisfaction(assignment, preferences, students)
         _constrain_minimal_satisfaction(model, satisfaction, students)
     if not_together_hard:
         _constrain_not_together(model, in_group, not_together, groups_to)
     return model
 
 
-def _build_assignment(
-    students: dict, groups_to: dict
-) -> tuple[cp_model.CpModel, dict[tuple[str, str], cp_model.IntVar]]:
-    """A fresh model plus its assignment booleans (exactly one group per student).
+def _build_assignment(students: dict, groups_to: dict) -> _AssignmentModel:
+    """A fresh model plus equivalent one-hot and integer group assignments.
+
+    The one-hot ``in_group`` booleans remain the natural representation for
+    balance counts.  ``group_index`` channels that same choice into one integer
+    per student, so a student-to-student preference can be represented directly
+    as equality of two group indices instead of four per-group conjunctions and
+    a max constraint.  ``AddExactlyOne`` makes the one-way channel constraints
+    below sufficient: the single true literal fixes the integer to its index.
 
     Parameters
     ----------
@@ -309,8 +326,9 @@ def _build_assignment(
 
     Returns
     -------
-    tuple[cp_model.CpModel, dict[tuple[str, str], cp_model.IntVar]]
-        The fresh model and its ``in_group[student, group]`` booleans.
+    _AssignmentModel
+        The fresh model, its equivalent assignment variables, target groups
+        and the cache shared by reciprocal student preferences.
     """
     model = cp_model.CpModel()
     in_group = {
@@ -320,7 +338,16 @@ def _build_assignment(
     }
     for student in students:
         model.AddExactlyOne(in_group[student, group] for group in groups_to)
-    return model, in_group
+    group_index = {
+        student: model.NewIntVar(0, len(groups_to) - 1, f"group_index_{student}")
+        for student in students
+    }
+    for student in students:
+        for index, group in enumerate(groups_to):
+            model.Add(group_index[student] == index).OnlyEnforceIf(
+                in_group[student, group]
+            )
+    return _AssignmentModel(model, in_group, group_index, groups_to, {})
 
 
 def _constrain_positive_satisfaction(
@@ -399,26 +426,24 @@ def _constrain_minimal_satisfaction(model, satisfaction, students):
         model.Add(satisfaction[student] >= math.floor(floor * SATISFACTION_SCALE))
 
 
-def _together_literal(model, in_group, student, target, groups_to):
+def _together_literal(assignment: _AssignmentModel, student, target):
     """Boolean literal: ``student`` ends up with ``target`` (a group or a classmate)."""
-    if target in groups_to:
-        return in_group[student, target]
-    per_group = []
-    for group in groups_to:
-        both = model.NewBoolVar(f"and_{student}_{target}_{group}")
-        model.AddBoolAnd(
-            in_group[student, group], in_group[target, group]
-        ).OnlyEnforceIf(both)
-        model.AddBoolOr(
-            in_group[student, group].Not(), in_group[target, group].Not(), both
-        )
-        per_group.append(both)
-    together = model.NewBoolVar(f"together_{student}_{target}")
-    model.AddMaxEquality(together, per_group)
-    return together
+    if target in assignment.groups_to:
+        return assignment.in_group[student, target]
+    pair = tuple(sorted((student, target)))
+    if pair not in assignment.together_by_pair:
+        together = assignment.model.NewBoolVar(f"together_{pair[0]}_{pair[1]}")
+        assignment.model.Add(
+            assignment.group_index[student] == assignment.group_index[target]
+        ).OnlyEnforceIf(together)
+        assignment.model.Add(
+            assignment.group_index[student] != assignment.group_index[target]
+        ).OnlyEnforceIf(together.Not())
+        assignment.together_by_pair[pair] = together
+    return assignment.together_by_pair[pair]
 
 
-def _add_satisfaction(model, in_group, preferences, students, groups_to):
+def _add_satisfaction(assignment: _AssignmentModel, preferences, students):
     """Add per-preference honored-literals and per-student satisfaction integers.
 
     The weighted honored sum of a student is ``sum(weight * together)`` over all
@@ -439,23 +464,27 @@ def _add_satisfaction(model, in_group, preferences, students, groups_to):
     graag_met = preferences_data.get_graag_met(preferences)
     scale = weight_scale(graag_met["Gewicht"]) if not graag_met.empty else 1
     satisfied, weighted_terms, weight_range = _honored_terms(
-        model, in_group, graag_met, groups_to, scale
+        assignment, graag_met, scale
     )
 
     satisfaction = {}
     satisfaction_bounds = {}
     for student in students:
         if student not in weighted_terms:  # no preferences: constant baseline 1
-            satisfaction[student] = model.NewConstant(SATISFACTION_SCALE)
+            satisfaction[student] = assignment.model.NewConstant(SATISFACTION_SCALE)
             satisfaction_bounds[student] = (SATISFACTION_SCALE, SATISFACTION_SCALE)
             continue
         satisfaction[student], satisfaction_bounds[student] = _satisfaction_variable(
-            model, student, weighted_terms[student], weight_range[student], scale
+            assignment.model,
+            student,
+            weighted_terms[student],
+            weight_range[student],
+            scale,
         )
     return satisfied, satisfaction, satisfaction_bounds
 
 
-def _honored_terms(model, in_group, graag_met, groups_to, scale):
+def _honored_terms(assignment: _AssignmentModel, graag_met, scale):
     """Honored-literals plus each student's weighted terms and their bounds.
 
     Returns ``(satisfied, weighted_terms, weight_range)``: the honored literal
@@ -468,7 +497,7 @@ def _honored_terms(model, in_group, graag_met, groups_to, scale):
     for key, row in graag_met.iterrows():
         student = key[0]
         weight = round(row["Gewicht"] * scale)
-        together = _together_literal(model, in_group, student, row["Waarde"], groups_to)
+        together = _together_literal(assignment, student, row["Waarde"])
         satisfied[key] = together if weight > 0 else together.Not()
         weighted_terms.setdefault(student, []).append(weight * together)
         low, high = weight_range.setdefault(student, [0, 0])
