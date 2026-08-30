@@ -111,6 +111,20 @@ def uncapped_slack_bound(students: dict, groups_to: dict) -> int:
     return len(students) + total_occupancy
 
 
+def slack_upper_bounds(
+    students: dict, groups_to: dict, maxima: BalanceMaxima = UNCAPPED
+) -> dict[str, int]:
+    """Return each slack's data-derived upper bound as a plain integer.
+
+    The exact-profile table is built in a fresh model and must filter impossible
+    family mappings against the same domains as the slack variables. Keeping
+    those bounds in plain Python avoids reflecting OR-Tools variable domains,
+    which is unsafe for constant-domain variables in the Windows binding.
+    """
+    uncapped_bound = uncapped_slack_bound(students, groups_to)
+    return {name: _slack_upper(name, maxima, uncapped_bound) for name in FAMILY_NAMES}
+
+
 def add_balance_constraints(
     model: cp_model.CpModel,
     in_group: dict[tuple[str, str], cp_model.IntVar],
@@ -230,11 +244,9 @@ class _BalanceFamilies:
         dict[str, cp_model.IntVar]
             The six shared slacks, keyed by :data:`FAMILY_NAMES`.
         """
-        uncapped_bound = uncapped_slack_bound(self.students, self.groups_to)
+        upper_bounds = slack_upper_bounds(self.students, self.groups_to, maxima)
         slacks = {
-            name: self.model.NewIntVar(
-                0, _slack_upper(name, maxima, uncapped_bound), f"slack_{name}"
-            )
+            name: self.model.NewIntVar(0, upper_bounds[name], f"slack_{name}")
             for name in FAMILY_NAMES
         }
         self._add_families(
