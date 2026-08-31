@@ -83,6 +83,40 @@ Teachers log in at `/login` with that schoolcode and password. They obtain their
 from the administrator who set up ALI Express for their school. The session ends when the
 browser is closed.
 
+## Handmatig testen met synthetische scenario's
+
+Start de app vanuit PowerShell in de repository:
+
+```powershell
+uv run python app.py
+# of
+.\aliexpress.bat
+```
+
+Is de database leeg, maak dan in een tweede PowerShell een school aan en log in op de app met
+schoolcode `testschool`:
+
+```powershell
+uv run flask schools add testschool
+```
+
+De CLI toont een tijdelijk wachtwoord; wijzig dit bij de eerste login. Maak daarna de
+scenario's aan:
+
+```powershell
+# doorzetten, standaard 35 leerlingen
+uv run python -m tests.testdata testschool doorzetten-2
+# herindelen, 35 leerlingen
+uv run python -m tests.testdata testschool herindelen-2 herindelen 35
+# herindelen met doorzetten, 72 leerlingen
+uv run python -m tests.testdata testschool herdoor-2 herindelen_met_doorzetten 72
+```
+
+Het optionele laatste argument is het aantal leerlingen: deze voorbeelden gebruiken `35` en
+`72`; zonder argument is de standaard `35`. De processen zijn al gevuld tot en met
+**Niet-samen** en kunnen direct via **Opslaan & door naar indelen** en **Start verdeling**
+gedraaid worden.
+
 ## How it works
 
 Start the app by double-clicking the ALI Express shortcut — a browser window opens automatically. Upload `voorkeuren.xlsx` and `groepen.xlsx`, optionally enter any "niet samen" constraints, and click Run.
