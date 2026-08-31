@@ -2,7 +2,10 @@
 
 import json
 import os
+import threading
 from dataclasses import asdict
+
+import pytest
 
 from aliexpress.solver.groepsindeling_view import GroepsindelingView
 from aliexpress.solver.progress import PlateauOutcome
@@ -61,6 +64,39 @@ def test_no_leftover_temp_file(tmp_path):
 
     remaining = set(os.listdir(tmp_path))
     assert remaining == {"progress.json"}
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows holds the destination open")
+def test_open_reader_does_not_drop_next_update_on_windows(tmp_path):
+    """A transient Windows read lock delays, but does not lose, the next snapshot."""
+    path = tmp_path / "progress.json"
+    writer = ProgressWriter(str(path))
+    write_errors = []
+
+    def write_next_snapshot():
+        try:
+            writer.stage_started("floor")
+        except PermissionError as exc:  # pragma: no cover - asserted in parent thread
+            write_errors.append(exc)
+
+    # This open handle is the real condition that used to make os.replace fail on
+    # Windows when /status happened to be reading during a progress update.
+    with open(path, encoding="utf-8") as reader:
+        assert json.load(reader)["steps"]["floor"] == "pending"
+        writer_thread = threading.Thread(target=write_next_snapshot)
+        writer_thread.start()
+
+        # join(timeout) observes the writer without releasing the reader. The fixed
+        # writer is still retrying; the broken writer already exited with WinError 5.
+        writer_thread.join(timeout=0.1)
+        assert writer_thread.is_alive(), "writer did not wait for the open reader"
+
+    # Leaving the with-block closes the reader. The same pending write must now finish
+    # and publish "busy"; retrying may not discard that latest snapshot.
+    writer_thread.join(timeout=2)
+    assert not writer_thread.is_alive()
+    assert not write_errors
+    assert _assert_parsable(path)["steps"]["floor"] == "busy"
 
 
 def test_interim_result_view_writes_separate_file_and_timestamp(tmp_path):
