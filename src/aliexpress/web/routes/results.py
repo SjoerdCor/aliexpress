@@ -21,7 +21,7 @@ from flask_login import login_required
 from ...main import build_input_summary
 from ...solver._balance import default_balance_maxima
 from ..models import Process
-from ..process_files import load_groups, load_voorkeuren
+from ..process_files import load_balance_maxima, load_groups, load_voorkeuren
 from ..storage import get_file_path
 from .auth import effective_school_id
 from .processes import require_process
@@ -37,10 +37,13 @@ results_bp = Blueprint("results", __name__)
 def processing():
     """Display the processing page: an idle panel to start the solve, or its live progress.
 
-    Branches on the process's Run status: "running" shows the live progress view (the
-    poll-driven stepper etc., unchanged); "done" redirects straight to the result;
-    anything else ("pending", "error", or no run yet at all) shows the idle panel,
-    read-only — it writes nothing, so revisiting this page never has side effects.
+    Branches on the process's Run status: "pending" or "running" shows the live progress
+    view (the poll-driven stepper etc., unchanged) — "pending" is the brief window right
+    after Start verdeling, before the background thread's first status write lands, and a
+    fast solve can finish within it, so it must not fall back to the idle panel; "done"
+    redirects straight to the result; anything else ("error", or no run yet at all) shows
+    the idle panel, read-only — it writes nothing, so revisiting this page never has side
+    effects.
     """
     school_id = effective_school_id()
     if school_id is None:
@@ -49,19 +52,27 @@ def processing():
     proc = Process.by_name(school_id, process_id)
     run_status = proc.run.status if proc and proc.run else None
 
-    if run_status == "running":
-        return render_template("processing.html", mode="running")
     if run_status == "done":
         return redirect(url_for("results.result_page"))
 
     preference_data, _ = load_voorkeuren(school_id, process_id)
     target_groups = load_groups(school_id, process_id)
-    maxima = default_balance_maxima(preference_data.students_info, target_groups.counts)
     summary = build_input_summary(
         target_groups.counts,
         preference_data.students_info,
         preference_data.stamgroep_display,
     )
+
+    if run_status in ("pending", "running"):
+        return render_template("processing.html", mode="running", summary=summary)
+
+    maxima_path = get_file_path(school_id, process_id, "balance_limits.json")
+    if run_status == "error" and os.path.exists(maxima_path):
+        maxima = load_balance_maxima(school_id, process_id)
+    else:
+        maxima = default_balance_maxima(
+            preference_data.students_info, target_groups.counts
+        )
     return render_template(
         "processing.html", mode="idle", summary=summary, maxima=maxima
     )

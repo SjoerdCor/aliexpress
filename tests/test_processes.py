@@ -295,6 +295,19 @@ class TestSelectProcess:
         assert response.status_code == 302
         assert response.headers["Location"].endswith("/processing")
 
+    def test_select_with_pending_run_redirects_to_processing(self, client, tmp_path):
+        """A run that has not reached its first worker update still resumes as active."""
+        proc_dir = tmp_path / SCHOOL_ID / "wachtproces"
+        proc_dir.mkdir(parents=True, exist_ok=True)
+        with flask_app.app_context():
+            proc = make_process_row(SCHOOL_ID, "wachtproces")
+            run = Run(process_id=proc.id, status="pending")
+            db.session.add(run)
+            db.session.commit()
+        response = client.get("/processes/select/wachtproces")
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/processing")
+
     def test_select_with_error_run_redirects_to_processing(self, client, tmp_path):
         """A failed run reopens the processing page so the user sees the error."""
         proc_dir = tmp_path / SCHOOL_ID / "foutproces"

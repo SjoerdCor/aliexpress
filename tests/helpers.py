@@ -6,6 +6,8 @@
 import json
 from unittest.mock import MagicMock
 
+import pandas as pd
+
 from aliexpress.data.preferences_form import (
     Preference,
     PreferenceKind,
@@ -126,6 +128,14 @@ def write_groups_to_json(proc_dir, groups_to):
     (proc_dir / "relevant_students_and_groups.json").write_text(
         json.dumps({"groups_to": groups_to}), encoding="utf-8"
     )
+
+
+def write_minimal_groups_xlsx(proc_dir):
+    """Write the smallest valid destination-groups workbook for route tests."""
+    pd.DataFrame(
+        {"Jongens": [1, 1], "Meisjes": [1, 0]},
+        index=pd.Index(["klas a", "klas b"], name="Groepen"),
+    ).to_excel(proc_dir / "groups.xlsx")
 
 
 def make_students(*genders):

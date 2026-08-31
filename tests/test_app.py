@@ -9,7 +9,13 @@ from aliexpress import ensure_secret_key
 from aliexpress.web.extensions import db
 from aliexpress.web.models import Process, Run
 from app import app as flask_app
-from tests.helpers import SCHOOL_ID, flashes, setup_process
+from tests.helpers import (
+    SCHOOL_ID,
+    flashes,
+    setup_process,
+    write_minimal_groups_xlsx,
+    write_minimal_voorkeuren_json,
+)
 
 
 class TestSecretKeyGuard:
@@ -66,7 +72,9 @@ class TestSimpleRenders:
 
     def test_processing_returns_200(self, client, tmp_path):
         """GET /processing renders the processing page (running mode) for the active process."""
-        setup_process(client, tmp_path)
+        proc_dir = setup_process(client, tmp_path)
+        write_minimal_voorkeuren_json(proc_dir)
+        write_minimal_groups_xlsx(proc_dir)
         with flask_app.app_context():
             proc = Process.query.filter_by(
                 school_id=SCHOOL_ID, name="testproces"
