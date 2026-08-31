@@ -31,6 +31,13 @@ logger = logging.getLogger(__name__)
 results_bp = Blueprint("results", __name__)
 
 
+def _load_json_snapshot(path):
+    """Read a complete snapshot while keeping its Windows file handle short-lived."""
+    with open(path, "rb") as fh:
+        snapshot = fh.read()
+    return json.loads(snapshot)
+
+
 @results_bp.route("/processing")
 @login_required
 @require_process
@@ -99,8 +106,7 @@ def status():
     }
     progress_path = get_file_path(school_id, process_name, "progress.json")
     if os.path.exists(progress_path):
-        with open(progress_path, encoding="utf-8") as fh:
-            payload.update(json.load(fh))
+        payload.update(_load_json_snapshot(progress_path))
     if run.status == "error" and run.message:
         payload["message"] = run.message
     return jsonify(payload)
@@ -153,8 +159,7 @@ def interim_result():
     path = get_file_path(school_id, process_id, "interim_result.json")
     if not os.path.exists(path):
         return "", 204
-    with open(path, encoding="utf-8") as fh:
-        view = json.load(fh)
+    view = _load_json_snapshot(path)
     return render_template("partials/interim_result.html", view=view)
 
 

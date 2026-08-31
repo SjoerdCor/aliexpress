@@ -12,6 +12,7 @@ docs/plan-processing-eta-gating.md for the three-phase estimator this feeds.
 import json
 import math
 import os
+import time
 from dataclasses import asdict
 from datetime import datetime, timezone
 
@@ -35,6 +36,38 @@ SATISFACTION_BALANCE_FACTOR = 12
 # docs/metingen-processing-eta.md.
 TYPICAL_ROUNDS = 7
 
+# A normal reader only holds the destination open long enough to copy its bytes. One
+# second is deliberately much longer than that window, while still surfacing genuine
+# permission/ACL problems promptly instead of hanging the solver thread indefinitely.
+_WINDOWS_REPLACE_TIMEOUT_SECONDS = 1.0
+_WINDOWS_REPLACE_RETRY_SECONDS = 0.01
+
+
+def _replace_snapshot(tmp_path: str, path: str) -> None:
+    """Atomically publish a snapshot despite a transient Windows read handle.
+
+    POSIX permits replacing a pathname while another process still has the previous
+    inode open. Windows denies that replace unless every open handle shared delete
+    access, which Python's regular ``open`` does not request. Pollers close their handle
+    quickly, so retry that transient denial for a bounded period. The call only returns
+    after the snapshot is published; a persistent permission error is re-raised rather
+    than silently dropping the update.
+    """
+    if os.name != "nt":
+        os.replace(tmp_path, path)
+        return
+
+    deadline = time.monotonic() + _WINDOWS_REPLACE_TIMEOUT_SECONDS
+    while True:
+        try:
+            os.replace(tmp_path, path)
+            return
+        except PermissionError:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise
+            time.sleep(min(_WINDOWS_REPLACE_RETRY_SECONDS, remaining))
+
 
 def _format_remaining(seconds: float) -> str:
     """Render a remaining-time estimate as the user-facing "nog ~X" line.
@@ -57,9 +90,9 @@ class ProgressWriter(ProgressListener):
     """Writes ``progress.json`` atomically after every solve event.
 
     Runs in the solver thread. Each write goes to a temp file in the same
-    directory followed by ``os.replace``, which is atomic on both POSIX and
-    Windows — the ``/status`` route can never read a half-written file, even
-    if it polls mid-write.
+    directory followed by an atomic replace. A transient open-reader denial is
+    retried on Windows; the ``/status`` route therefore sees either the previous
+    complete snapshot or the next complete snapshot, never a half-written file.
     """
 
     def __init__(self, path: str, interim_result_path: str | None = None):
@@ -129,7 +162,7 @@ class ProgressWriter(ProgressListener):
         tmp_path = f"{self.interim_result_path}.tmp"
         with open(tmp_path, "w", encoding="utf-8") as fh:
             json.dump(asdict(view), fh, ensure_ascii=False)
-        os.replace(tmp_path, self.interim_result_path)
+        _replace_snapshot(tmp_path, self.interim_result_path)
         self._state["interim_result_updated_at"] = datetime.now(
             timezone.utc
         ).isoformat()
@@ -181,4 +214,4 @@ class ProgressWriter(ProgressListener):
         tmp_path = f"{self.path}.tmp"
         with open(tmp_path, "w", encoding="utf-8") as fh:
             json.dump(self._state, fh, ensure_ascii=False)
-        os.replace(tmp_path, self.path)
+        _replace_snapshot(tmp_path, self.path)
