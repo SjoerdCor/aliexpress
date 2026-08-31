@@ -20,7 +20,7 @@ from aliexpress.solver._balance import BalanceMaxima
 from aliexpress.solver.groepsindeling_view import GroepsindelingView
 from aliexpress.web.extensions import db
 from aliexpress.web.models import Process, Run
-from aliexpress.web.process_files import load_balance_maxima
+from aliexpress.web.process_files import load_balance_maxima, save_balance_maxima
 from app import app as flask_app
 from tests.helpers import (
     SCHOOL_ID,
@@ -31,6 +31,7 @@ from tests.helpers import (
     make_students,
     setup_process,
     write_groups_to_json,
+    write_minimal_groups_xlsx,
     write_minimal_voorkeuren_json,
 )
 
@@ -380,6 +381,19 @@ class TestNotTogetherLoadsFromJson:
         assert "Alice" in html
         assert "Bob" in html
 
+    def test_not_together_continue_text_does_not_claim_to_start_distribution(
+        self, client, tmp_path, monkeypatch
+    ):
+        """The final not-together action accurately describes its next step."""
+        proc_dir = setup_process(client, tmp_path)
+        write_minimal_voorkeuren_json(proc_dir)
+        self._mock_groups(monkeypatch)
+
+        html = client.get("/not_together").data.decode("utf-8")
+
+        assert "Opslaan &amp; door naar indelen" in html
+        assert "Opslaan &amp; Indeling starten" not in html
+
     def test_missing_json_and_xlsx_redirects_with_error(
         self, client, tmp_path, monkeypatch
     ):
@@ -702,10 +716,7 @@ class TestProcessingIdlePanel:  # pylint: disable=too-few-public-methods  # one 
         """The idle panel renders the input summary, the maxima fields and the Start button."""
         proc_dir = setup_process(client, tmp_path)
         write_minimal_voorkeuren_json(proc_dir)
-        pd.DataFrame(
-            {"Jongens": [1, 1], "Meisjes": [1, 0]},
-            index=pd.Index(["klas a", "klas b"], name="Groepen"),
-        ).to_excel(proc_dir / "groups.xlsx")
+        write_minimal_groups_xlsx(proc_dir)
 
         response = client.get("/processing")
 
@@ -714,6 +725,63 @@ class TestProcessingIdlePanel:  # pylint: disable=too-few-public-methods  # one 
         assert 'name="maxima_max_clique"' in html
         assert "Start verdeling" in html
         assert "leerlingen" in html
+
+
+class TestProcessingRunStates:
+    """Tests for the processing page while a run is active."""
+
+    def test_pending_run_shows_progress_view_with_server_summary(
+        self, client, tmp_path
+    ):
+        """A pending run is active already and must not show the Start button."""
+        proc_dir = setup_process(client, tmp_path)
+        write_minimal_voorkeuren_json(proc_dir)
+        write_minimal_groups_xlsx(proc_dir)
+        with flask_app.app_context():
+            proc = Process.query.filter_by(
+                school_id=SCHOOL_ID, name="testproces"
+            ).first()
+            db.session.add(Run(process_id=proc.id, status="pending"))
+            db.session.commit()
+
+        response = client.get("/processing")
+
+        assert response.status_code == 200
+        html = response.data.decode("utf-8")
+        assert "Groepsindeling aan het uitrekenen" in html
+        assert (
+            'id="input-overview" class="input-overview input-overview--visible"' in html
+        )
+        assert "2 leerlingen" in html
+        assert "Start verdeling" not in html
+
+    def test_error_run_reuses_saved_balance_maxima(self, client, tmp_path):
+        """An error page shows the limits chosen for the failed attempt."""
+        proc_dir = setup_process(client, tmp_path)
+        write_minimal_voorkeuren_json(proc_dir)
+        write_minimal_groups_xlsx(proc_dir)
+        save_balance_maxima(
+            SCHOOL_ID,
+            "testproces",
+            BalanceMaxima(max_diff_n_students_year=6, max_clique=7),
+        )
+        with flask_app.app_context():
+            proc = Process.query.filter_by(
+                school_id=SCHOOL_ID, name="testproces"
+            ).first()
+            db.session.add(Run(process_id=proc.id, status="error", message="Mislukt"))
+            db.session.commit()
+
+        response = client.get("/processing")
+
+        assert response.status_code == 200
+        html = response.data.decode("utf-8")
+        assert 'name="maxima_max_diff_n_students_year"' in html
+        assert 'name="maxima_max_clique"' in html
+        assert 'value="6"' in html
+        assert 'value="7"' in html
+        assert 'value="None"' not in html
+        assert re.search(r'name="maxima_max_clique_sex_unlimited"\s+checked', html)
 
 
 class TestStatus:

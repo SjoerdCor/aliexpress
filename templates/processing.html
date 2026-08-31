@@ -11,8 +11,20 @@ Groepsindeling — klaar om te rekenen
 {% endblock %}
 
 {% block content %}
+{% set jaarlaag_label = "" %}
+{% if summary.years | length == 1 %}
+    {% set jaarlaag_label = ", jaarlaag " ~ summary.years[0] %}
+{% elif summary.years | length > 1 %}
+    {% set jaarlaag_label = ", jaarlagen " ~ (summary.years[:-1] | join(", ")) ~ " en " ~ summary.years[-1] %}
+{% endif %}
+{% set bron_parts = [] %}
+{% for naam, aantal in summary.source_groups.items() %}
+    {% set _ = bron_parts.append(naam ~ " (" ~ aantal ~ ")") %}
+{% endfor %}
+<p id="input-overview" class="input-overview input-overview--visible">{{ summary.n_students }} leerlingen ({{ summary.n_boys }} jongens, {{ summary.n_girls }} meisjes){{ jaarlaag_label }}
+uit {{ bron_parts | join(", ") }} → {{ summary.n_target_groups }} groepen</p>
+
 {% if mode == "running" %}
-<p id="input-overview" class="input-overview"></p>
 <p>ALI Express werkt in drie stappen:</p>
 <ol class="solve-stepper">
     <li class="solve-step solve-step--pending" data-stage="floor">
@@ -204,7 +216,7 @@ Groepsindeling — klaar om te rekenen
                 if (revealed(data)) {
                     updateInterimResult(data.interim_result_updated_at);
                 }
-                if (data.status_studentdistribution === "running") {
+                if (["pending", "running"].includes(data.status_studentdistribution)) {
                     document.querySelector('.loading-spinner').style.display = 'block';
 
                 }
@@ -234,19 +246,6 @@ Groepsindeling — klaar om te rekenen
 {% endif %}
 
 {% if mode == "idle" %}
-{% set jaarlaag_label = "" %}
-{% if summary.years | length == 1 %}
-    {% set jaarlaag_label = ", jaarlaag " ~ summary.years[0] %}
-{% elif summary.years | length > 1 %}
-    {% set jaarlaag_label = ", jaarlagen " ~ (summary.years[:-1] | join(", ")) ~ " en " ~ summary.years[-1] %}
-{% endif %}
-{% set bron_parts = [] %}
-{% for naam, aantal in summary.source_groups.items() %}
-    {% set _ = bron_parts.append(naam ~ " (" ~ aantal ~ ")") %}
-{% endfor %}
-<p class="input-overview input-overview--visible">{{ summary.n_students }} leerlingen ({{ summary.n_boys }} jongens, {{ summary.n_girls }} meisjes){{ jaarlaag_label }}
-uit {{ bron_parts | join(", ") }} → {{ summary.n_target_groups }} groepen</p>
-
 <form method="post" action="{{ url_for('wizard.start_distribution') }}">
     <details class="instructions-box">
         <summary>Geavanceerd: klassenbalans-grenzen</summary>
@@ -256,15 +255,17 @@ uit {{ bron_parts | join(", ") }} → {{ summary.n_target_groups }} groepen</p>
             <label>
                 Per jaarlaag
                 <input type="number" name="maxima_max_diff_n_students_year" min="1" step="1"
-                       value="{{ maxima.max_diff_n_students_year }}">
-                <input type="checkbox" name="maxima_max_diff_n_students_year_unlimited"> Onbeperkt
+                       value="{{ maxima.max_diff_n_students_year if maxima.max_diff_n_students_year is not none else '' }}">
+                <input type="checkbox" name="maxima_max_diff_n_students_year_unlimited"
+                       {% if maxima.max_diff_n_students_year is none %}checked{% endif %}> Onbeperkt
                 <span title="Placeholder: uitleg volgt.">ⓘ</span>
             </label>
             <label>
                 Totaal
                 <input type="number" name="maxima_max_diff_n_students_total" min="1" step="1"
-                       value="{{ maxima.max_diff_n_students_total }}">
-                <input type="checkbox" name="maxima_max_diff_n_students_total_unlimited"> Onbeperkt
+                       value="{{ maxima.max_diff_n_students_total if maxima.max_diff_n_students_total is not none else '' }}">
+                <input type="checkbox" name="maxima_max_diff_n_students_total_unlimited"
+                       {% if maxima.max_diff_n_students_total is none %}checked{% endif %}> Onbeperkt
                 <span title="Placeholder: uitleg volgt.">ⓘ</span>
             </label>
         </fieldset>
@@ -274,15 +275,17 @@ uit {{ bron_parts | join(", ") }} → {{ summary.n_target_groups }} groepen</p>
             <label>
                 Per jaarlaag
                 <input type="number" name="maxima_max_imbalance_boys_girls_year" min="1" step="1"
-                       value="{{ maxima.max_imbalance_boys_girls_year }}">
-                <input type="checkbox" name="maxima_max_imbalance_boys_girls_year_unlimited"> Onbeperkt
+                       value="{{ maxima.max_imbalance_boys_girls_year if maxima.max_imbalance_boys_girls_year is not none else '' }}">
+                <input type="checkbox" name="maxima_max_imbalance_boys_girls_year_unlimited"
+                       {% if maxima.max_imbalance_boys_girls_year is none %}checked{% endif %}> Onbeperkt
                 <span title="Placeholder: uitleg volgt.">ⓘ</span>
             </label>
             <label>
                 Totaal
                 <input type="number" name="maxima_max_imbalance_boys_girls_total" min="1" step="1"
-                       value="{{ maxima.max_imbalance_boys_girls_total }}">
-                <input type="checkbox" name="maxima_max_imbalance_boys_girls_total_unlimited"> Onbeperkt
+                       value="{{ maxima.max_imbalance_boys_girls_total if maxima.max_imbalance_boys_girls_total is not none else '' }}">
+                <input type="checkbox" name="maxima_max_imbalance_boys_girls_total_unlimited"
+                       {% if maxima.max_imbalance_boys_girls_total is none %}checked{% endif %}> Onbeperkt
                 <span title="Placeholder: uitleg volgt.">ⓘ</span>
             </label>
         </fieldset>
@@ -292,15 +295,17 @@ uit {{ bron_parts | join(", ") }} → {{ summary.n_target_groups }} groepen</p>
             <label>
                 Totaal
                 <input type="number" name="maxima_max_clique" min="1" step="1"
-                       value="{{ maxima.max_clique }}">
-                <input type="checkbox" name="maxima_max_clique_unlimited"> Onbeperkt
+                       value="{{ maxima.max_clique if maxima.max_clique is not none else '' }}">
+                <input type="checkbox" name="maxima_max_clique_unlimited"
+                       {% if maxima.max_clique is none %}checked{% endif %}> Onbeperkt
                 <span title="Placeholder: uitleg volgt.">ⓘ</span>
             </label>
             <label>
                 Per sekse
                 <input type="number" name="maxima_max_clique_sex" min="1" step="1"
-                       value="{{ maxima.max_clique_sex }}">
-                <input type="checkbox" name="maxima_max_clique_sex_unlimited"> Onbeperkt
+                       value="{{ maxima.max_clique_sex if maxima.max_clique_sex is not none else '' }}">
+                <input type="checkbox" name="maxima_max_clique_sex_unlimited"
+                       {% if maxima.max_clique_sex is none %}checked{% endif %}> Onbeperkt
                 <span title="Placeholder: uitleg volgt.">ⓘ</span>
             </label>
         </fieldset>

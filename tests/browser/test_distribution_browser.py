@@ -131,6 +131,29 @@ def test_processing_shows_input_overview(live_server, tmp_path, page):
 
 
 @pytest.mark.usefixtures("login")
+def test_processing_pending_status_shows_spinner(live_server, tmp_path, page):
+    """The initial pending status is treated as active by the processing poll."""
+    _make_process(live_server, tmp_path, page, name="pendingrun")
+
+    page.route(
+        "**/status",
+        lambda route: route.fulfill(
+            json={
+                "status_studentdistribution": "pending",
+                "steps": {
+                    "floor": "pending",
+                    "balance": "pending",
+                    "satisfaction": "pending",
+                },
+            }
+        ),
+    )
+    page.goto(f"{live_server}/processing")
+
+    expect(page.locator(".loading-spinner")).to_be_visible()
+
+
+@pytest.mark.usefixtures("login")
 def test_processing_shows_sociogram_card_and_no_logs(live_server, tmp_path, page):
     """The sociogram card appears once /status reports sociogram_ready; no raw log block.
 
