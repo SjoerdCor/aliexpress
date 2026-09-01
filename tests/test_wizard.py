@@ -15,7 +15,7 @@ import pandas as pd
 
 import aliexpress.web.routes.wizard as wizard_module
 import aliexpress.web.tasks as tasks_module
-from aliexpress.errors import ValidationError
+from aliexpress.errors import FeasibilityError, ValidationError
 from aliexpress.solver._balance import BalanceMaxima
 from aliexpress.solver.groepsindeling_view import GroepsindelingView
 from aliexpress.web.extensions import db
@@ -615,6 +615,43 @@ class TestStartDistribution:
         assert run.status == "error"
         assert "verkeerde kolommen" in run.message
         assert not (proc_dir / "results.xlsx").exists()
+
+    def test_balance_cap_error_returns_to_idle_with_message_and_saved_limits(
+        self, client, tmp_path, monkeypatch
+    ):
+        """The processing error flow shows the cap tip and keeps entered limits."""
+        proc_dir = setup_process(client, tmp_path)
+        write_minimal_voorkeuren_json(proc_dir)
+        write_minimal_groups_xlsx(proc_dir)
+        exc = FeasibilityError(
+            "balance_caps_too_tight",
+            context={
+                "suggestion": {
+                    "clique": {"current": 1, "suggested": 2},
+                }
+            },
+        )
+        self._patch_pipeline(monkeypatch, exc=exc)
+        form_data = _unlimited_maxima_form()
+        del form_data["maxima_max_clique_unlimited"]
+        form_data["maxima_max_clique"] = "1"
+
+        response = client.post("/start_distribution", data=form_data)
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/processing")
+
+        status = client.get("/status").get_json()
+        assert status["status_studentdistribution"] == "error"
+        assert "Zelfde stamgroep totaal" in status["message"]
+        assert "van 1 naar 2 (+1)" in status["message"]
+
+        client.post("/handle-error", json={"message": status["message"]})
+        processing = client.get("/processing")
+        assert processing.status_code == 200
+        html = processing.data.decode("utf-8")
+        assert "Met deze grenzen is geen geldige indeling mogelijk." in html
+        assert "Start verdeling" in html
+        assert re.search(r'name="maxima_max_clique"[^>]*value="1"', html)
 
     def test_not_together_json_is_loaded_when_present(
         self, client, tmp_path, monkeypatch

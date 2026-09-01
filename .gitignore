@@ -179,3 +179,4 @@ notebooks/Untitled*.ipynb
 notebooks/*/
 
 docs/plan-*.md
+!docs/plan-balansgrenzen.md

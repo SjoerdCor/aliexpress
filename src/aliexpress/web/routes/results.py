@@ -63,9 +63,9 @@ def processing():
         return redirect(url_for("results.result_page"))
 
     preference_data, _ = load_voorkeuren(school_id, process_id)
-    target_groups = load_groups(school_id, process_id)
+    groups_to, _ = load_groups(school_id, process_id)
     summary = build_input_summary(
-        target_groups.counts,
+        groups_to,
         preference_data.students_info,
         preference_data.stamgroep_display,
     )
@@ -77,9 +77,7 @@ def processing():
     if run_status == "error" and os.path.exists(maxima_path):
         maxima = load_balance_maxima(school_id, process_id)
     else:
-        maxima = default_balance_maxima(
-            preference_data.students_info, target_groups.counts
-        )
+        maxima = default_balance_maxima(preference_data.students_info, groups_to)
     return render_template(
         "processing.html", mode="idle", summary=summary, maxima=maxima
     )

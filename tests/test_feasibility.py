@@ -7,6 +7,8 @@ the CP-SAT model builders directly, on the plain
 ``model.build_feasibility_problem`` consumes.
 """
 
+from unittest.mock import MagicMock
+
 import pandas as pd
 import pytest
 
@@ -19,6 +21,7 @@ from aliexpress.data.preferences_form import (
     build_preference_data,
 )
 from aliexpress.solver import engine, feasibility
+from aliexpress.solver._balance import BalanceMaxima
 
 
 def _target_groups(*names: str) -> GroupCounts:
@@ -225,3 +228,218 @@ def test_infeasible_auto_path_raises_diagnosed_error():
         )
     assert exc_info.value.code == "infeasible_preferences"
     assert exc_info.value.context["case"] == "min_satisfaction"
+
+
+def test_balance_cap_diagnosis_suggests_minimal_clique_increase():
+    """A clique cap of one is diagnosed as the sole cause of infeasibility."""
+    students = {
+        f"s{i}": {
+            "MinimaleTevredenheid": float("nan"),
+            "Jongen/meisje": "Jongen" if i < 2 else "Meisje",
+            "Stamgroep": "a",
+            "Jaarlaag": 1,
+        }
+        for i in range(5)
+    }
+    groups_to = {
+        group: {"Jongens": 0, "Meisjes": 0} for group in ("rood", "geel", "blauw")
+    }
+    preferences = pd.DataFrame(
+        [
+            {
+                "Leerling": "s0",
+                "TypeWens": "Graag met",
+                "Nr": 1,
+                "Waarde": "s1",
+                "Gewicht": 1.0,
+            }
+        ]
+    ).set_index(["Leerling", "TypeWens", "Nr"])
+    capped = BalanceMaxima(max_clique=1)
+
+    unrestricted = engine.solve_within_minimal_relaxation(
+        preferences=preferences,
+        students=students,
+        groups_to=groups_to,
+        not_together=[],
+    )
+    suggestion = feasibility.diagnose_balance_caps(
+        preferences=preferences,
+        students=students,
+        groups_to=groups_to,
+        not_together=[],
+        maxima=capped,
+    )
+    relaxed = engine.solve_within_minimal_relaxation(
+        preferences=preferences,
+        students=students,
+        groups_to=groups_to,
+        not_together=[],
+        maxima=BalanceMaxima(max_clique=2),
+    )
+
+    assert unrestricted.assignment
+    assert suggestion == {"clique": {"current": 1, "suggested": 2}}
+    assert relaxed.assignment
+
+
+def test_capped_floor_infeasibility_raises_actionable_balance_error():
+    """The automatic solver exposes the cap diagnosis in its public error."""
+    students = {
+        f"s{i}": {
+            "MinimaleTevredenheid": float("nan"),
+            "Jongen/meisje": "Jongen" if i < 2 else "Meisje",
+            "Stamgroep": "a",
+            "Jaarlaag": 1,
+        }
+        for i in range(5)
+    }
+    groups_to = {
+        group: {"Jongens": 0, "Meisjes": 0} for group in ("rood", "geel", "blauw")
+    }
+    preferences = pd.DataFrame(
+        [
+            {
+                "Leerling": "s0",
+                "TypeWens": "Graag met",
+                "Nr": 1,
+                "Waarde": "s1",
+                "Gewicht": 1.0,
+            }
+        ]
+    ).set_index(["Leerling", "TypeWens", "Nr"])
+
+    with pytest.raises(errors.FeasibilityError) as exc_info:
+        engine.solve_within_minimal_relaxation(
+            preferences=preferences,
+            students=students,
+            groups_to=groups_to,
+            not_together=[],
+            maxima=BalanceMaxima(max_clique=1),
+        )
+
+    assert exc_info.value.code == "balance_caps_too_tight"
+    assert exc_info.value.context == {
+        "suggestion": {"clique": {"current": 1, "suggested": 2}}
+    }
+
+
+def test_balance_cap_diagnosis_emits_no_progress_events():
+    """The silent cap diagnosis does not add UI stages or interim results."""
+    students = {
+        f"s{i}": {
+            "MinimaleTevredenheid": float("nan"),
+            "Jongen/meisje": "Jongen" if i < 2 else "Meisje",
+            "Stamgroep": "a",
+            "Jaarlaag": 1,
+        }
+        for i in range(5)
+    }
+    groups_to = {
+        group: {"Jongens": 0, "Meisjes": 0} for group in ("rood", "geel", "blauw")
+    }
+    preferences = pd.DataFrame(
+        [
+            {
+                "Leerling": "s0",
+                "TypeWens": "Graag met",
+                "Nr": 1,
+                "Waarde": "s1",
+                "Gewicht": 1.0,
+            }
+        ]
+    ).set_index(["Leerling", "TypeWens", "Nr"])
+    listener = MagicMock()
+
+    with pytest.raises(errors.FeasibilityError):
+        engine.solve_within_minimal_relaxation(
+            preferences=preferences,
+            students=students,
+            groups_to=groups_to,
+            not_together=[],
+            maxima=BalanceMaxima(max_clique=1),
+            listener=listener,
+        )
+
+    listener.stage_started.assert_called_once_with("floor")
+    listener.stage_finished.assert_not_called()
+    listener.interim_result.assert_not_called()
+
+
+def test_balance_cap_diagnosis_returns_joint_multiple_overflows():
+    """All positive cap overflows are returned as one jointly feasible set."""
+    students = {
+        f"s{i}": {
+            "MinimaleTevredenheid": float("nan"),
+            "Jongen/meisje": "Jongen" if i < 2 else "Meisje",
+            "Stamgroep": "a",
+            "Jaarlaag": 1,
+        }
+        for i in range(5)
+    }
+    groups_to = {group: {"Jongens": 0, "Meisjes": 0} for group in ("rood", "geel")}
+    preferences = pd.DataFrame(
+        [
+            {
+                "Leerling": "s0",
+                "TypeWens": "Graag met",
+                "Nr": 1,
+                "Waarde": "s1",
+                "Gewicht": 1.0,
+            }
+        ]
+    ).set_index(["Leerling", "TypeWens", "Nr"])
+    capped = BalanceMaxima(max_clique=1, max_clique_sex=1)
+
+    suggestion = feasibility.diagnose_balance_caps(
+        preferences=preferences,
+        students=students,
+        groups_to=groups_to,
+        not_together=[],
+        maxima=capped,
+    )
+
+    assert set(suggestion) == {"clique", "clique_sex"}
+    assert suggestion["clique"] == {"current": 1, "suggested": 3}
+    assert suggestion["clique_sex"] == {"current": 1, "suggested": 2}
+
+    relaxed = engine.solve_within_minimal_relaxation(
+        preferences=preferences,
+        students=students,
+        groups_to=groups_to,
+        not_together=[],
+        maxima=BalanceMaxima(
+            max_clique=suggestion["clique"]["suggested"],
+            max_clique_sex=suggestion["clique_sex"]["suggested"],
+        ),
+    )
+    assert relaxed.assignment
+
+
+def test_capped_solver_uses_preference_diagnosis_when_uncapped_is_infeasible():
+    """Caps never hide a hard-preference infeasibility from the existing diagnosis."""
+    preference_data, target_groups = _infeasible_by_min_satisfaction()
+    maxima = BalanceMaxima(max_clique=1)
+
+    assert (
+        feasibility.diagnose_balance_caps(
+            preferences=preference_data.preferences,
+            students=preference_data.students_info,
+            groups_to=target_groups.counts,
+            not_together=[],
+            maxima=maxima,
+        )
+        is None
+    )
+
+    with pytest.raises(errors.FeasibilityError) as exc_info:
+        engine.solve_within_minimal_relaxation(
+            preferences=preference_data.preferences,
+            students=preference_data.students_info,
+            groups_to=target_groups.counts,
+            not_together=[],
+            maxima=maxima,
+        )
+
+    assert exc_info.value.code == "infeasible_preferences"
+    assert exc_info.value.context == {"case": "min_satisfaction"}
