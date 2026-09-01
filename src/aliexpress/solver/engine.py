@@ -19,7 +19,9 @@ from ortools.sat.python import cp_model
 
 from .. import errors
 from ..data import preferences_data
-from . import balance_profile, feasibility, modelbuilder, strategies
+from . import feasibility, modelbuilder
+from . import sorted_weighted_slacks as sorted_weighted_slacks_module
+from . import strategies
 from ._balance import UNCAPPED, BalanceMaxima
 from ._balance_families import SLACK_WEIGHTS, slack_upper_bounds, uncapped_slack_bound
 from .progress import ProgressListener
@@ -37,10 +39,10 @@ class Solution:
 
 @dataclass
 class _BalanceLeximinOutcome:
-    """Proven profile plus the solver that produced its last position."""
+    """Proven sorted weighted slacks plus the solver that produced the last value."""
 
     solver: cp_model.CpSolver
-    weighted_profile: tuple[int, ...]
+    sorted_weighted_slacks: tuple[int, ...]
 
 
 def solve_with_fixed_balance(  # pylint: disable=too-many-arguments
@@ -159,16 +161,18 @@ def solve_within_minimal_relaxation(  # pylint: disable=too-many-arguments
        reach strictly positive satisfaction if the balance that would give
        them one is forbidden, so this stage finds how much relaxation is
        unavoidable.
-    2. With that count pinned, minimize the *sorted profile* of the six
-       weighted balance slacks, leximin, and pin the resulting profile too
+    2. With that count pinned, minimize the six weighted balance slacks in
+       descending order, leximin, and pin the resulting sorted weighted slacks
+       too
        (see :func:`_pin_balance_leximin`). Whole-group limits weigh less than
        per-year ones (:data:`~._balance_families.SLACK_WEIGHTS`); leximin
        spreads the relaxation across limits rather than piling it onto one.
 
     The chosen strategy then runs on a freshly built model carrying only the
-    proven floor and exact balance profile. This preserves every distribution
-    admitted by those decisions while dropping the sorting and discovery
-    variables that would otherwise burden every satisfaction sub-stage.
+    proven floor and exact sorted weighted slacks. This preserves every distribution
+    admitted by those decisions while dropping the balance-optimization-only
+    sorting variables and constraints that would otherwise burden every
+    satisfaction sub-stage.
 
     Parameters
     ----------
@@ -263,19 +267,20 @@ def solve_within_minimal_relaxation(  # pylint: disable=too-many-arguments
         listener.interim_result(*problem.read_solution(balance_outcome.solver))
 
     # CP-SAT starts every stage from a fresh search; keeping the sorting network
-    # and all of its discovery machinery in the satisfaction phase only makes
-    # each plateau re-process that history. Rebuild the base problem and carry
+    # and all of its balance-optimization-only variables and constraints in the
+    # satisfaction phase only makes each plateau re-process that machinery.
+    # Rebuild the base problem and carry
     # over exactly the two proven decisions: the floor count and the sorted
-    # weighted balance profile. The profile table preserves every valid mapping
-    # of profile positions to balance families.
-    problem = _build_profile_pinned_problem(
+    # weighted slacks. The table preserves every valid mapping of sorted
+    # positions to balance families.
+    problem = _build_sorted_weighted_slacks_pinned_problem(
         preferences=preferences,
         students=students,
         groups_to=groups_to,
         not_together=not_together,
         maxima=maxima,
         floor_count=floor_count,
-        weighted_profile=balance_outcome.weighted_profile,
+        sorted_weighted_slacks=balance_outcome.sorted_weighted_slacks,
     )
 
     if listener is not None:
@@ -287,7 +292,7 @@ def solve_within_minimal_relaxation(  # pylint: disable=too-many-arguments
     return _extract(problem, solver, preferences)
 
 
-def _build_profile_pinned_problem(  # pylint: disable=too-many-arguments
+def _build_sorted_weighted_slacks_pinned_problem(  # pylint: disable=too-many-arguments
     # Rebuilding requires the same five independent model inputs as the public
     # solve entry point, plus the two proven decisions being transferred.
     # Wrapping those once-used values in another object would hide this boundary
@@ -299,17 +304,17 @@ def _build_profile_pinned_problem(  # pylint: disable=too-many-arguments
     not_together: list,
     maxima: BalanceMaxima,
     floor_count: int,
-    weighted_profile: tuple[int, ...],
+    sorted_weighted_slacks: tuple[int, ...],
 ) -> modelbuilder.SoftProblem:
     """Build a clean satisfaction model with the proven pre-stages pinned."""
     problem = modelbuilder.build_soft_problem(
         preferences, students, groups_to, not_together, maxima=maxima
     )
     problem.model.Add(sum(problem.nonpositive.values()) <= floor_count)
-    balance_profile.pin_exact_profile(
+    sorted_weighted_slacks_module.pin_exact_sorted_weighted_slacks(
         problem.model,
         problem.slacks,
-        weighted_profile,
+        sorted_weighted_slacks,
         slack_upper_bounds(students, groups_to, maxima),
     )
     return problem
@@ -318,17 +323,17 @@ def _build_profile_pinned_problem(  # pylint: disable=too-many-arguments
 def _pin_balance_leximin(
     problem, students: dict, groups_to: dict
 ) -> _BalanceLeximinOutcome:
-    """Minimize the sorted profile of weighted slacks, leximin, and pin it.
+    """Minimize and pin the sorted weighted slacks, using leximin.
 
     Rather than one weighted sum (which lets CP-SAT trade slack fractionally
     between families without a provable optimum once caps bind — see
-    ADR-0018), this minimizes the *profile* of ``weight * slack`` values
-    sorted from largest to smallest, one entry at a time. A fixed compare-swap
-    network materializes that ordering once; stage ``k`` then pins its
-    ``(k+1)``-th output to the minimal value. Which family occupies which
-    position remains free: only the profile is pinned, not the assignment of
-    slack to family. Stops as soon as a pinned value is 0, since the remaining
-    entries must be 0 too.
+    ADR-0018), this minimizes the ``weight * slack`` values sorted from largest
+    to smallest, one entry at a time. A fixed compare-swap network materializes
+    that ordering once; stage ``k`` then pins its ``(k+1)``-th output to the
+    minimal value. Which family occupies which position remains free: only the
+    sorted weighted slacks are pinned, not the assignment of slack to family.
+    Stops as soon as a pinned value is 0, since the remaining entries must be 0
+    too.
     Each sub-stage runs via :func:`.strategies.solve_stage`, so it is proven
     optimal or raises, same guarantee as the single stage it replaces.
 
@@ -345,7 +350,7 @@ def _pin_balance_leximin(
     Returns
     -------
     _BalanceLeximinOutcome
-        The full proven weighted profile and the solver holding the last
+        The full proven sorted weighted slacks and the solver holding the last
         sub-stage's optimal solution.
     """
     model = problem.model
@@ -353,20 +358,26 @@ def _pin_balance_leximin(
         name: SLACK_WEIGHTS[name] * slack for name, slack in problem.slacks.items()
     }
     m_upper = max(SLACK_WEIGHTS.values()) * uncapped_slack_bound(students, groups_to)
-    ordered = _sorting_network_descending(model, list(weighted.values()), m_upper)
+    sorted_weighted_slack_variables = _sorting_network_descending(
+        model, list(weighted.values()), m_upper
+    )
     solver = None
-    profile = []
-    for k, profile_value in enumerate(ordered):
+    sorted_weighted_slacks = []
+    for k, sorted_weighted_slack in enumerate(sorted_weighted_slack_variables):
         solver = strategies.solve_stage(
-            model, f"balance leximin M_{k}", minimize=profile_value
+            model, f"balance leximin M_{k}", minimize=sorted_weighted_slack
         )
         value = round(solver.ObjectiveValue())
-        profile.append(value)
-        model.Add(profile_value <= value)
+        sorted_weighted_slacks.append(value)
+        model.Add(sorted_weighted_slack <= value)
         if value == 0:
             break
-    profile.extend([0] * (len(ordered) - len(profile)))
-    return _BalanceLeximinOutcome(solver, tuple(profile))
+    # The outputs are descending and non-negative, so after a proven zero all
+    # remaining values are zero and can be filled in directly.
+    sorted_weighted_slacks.extend(
+        [0] * (len(sorted_weighted_slack_variables) - len(sorted_weighted_slacks))
+    )
+    return _BalanceLeximinOutcome(solver, tuple(sorted_weighted_slacks))
 
 
 def _sorting_network_descending(
@@ -378,8 +389,8 @@ def _sorting_network_descending(
     already-sorted prefix, and every comparator emits an exact ``max`` followed
     by an exact ``min``. For the six balance families it needs only fifteen
     comparators. Unlike per-rank ``exceed`` booleans, the network establishes
-    every order statistic once and propagates bounds between adjacent profile
-    positions throughout all later solve stages.
+    every order statistic once and propagates bounds between adjacent sorted
+    weighted-slack positions throughout all later solve stages.
     """
     ordered = []
     for input_index, value in enumerate(values):

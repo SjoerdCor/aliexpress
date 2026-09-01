@@ -316,8 +316,8 @@ def _max_clique_sex(view) -> int:
     return largest
 
 
-def _weighted_balance_profile(trans: pd.DataFrame, view) -> list[int]:
-    """The realized weighted-slack profile, sorted large-to-small, one entry per family.
+def _sorted_weighted_slacks(trans: pd.DataFrame, view) -> list[int]:
+    """The realized weighted slacks, sorted large-to-small, one entry per family.
 
     Mirrors the quantity the balance stage's leximin actually optimizes (ADR-0018): each
     family's realized value becomes a slack via ``max(0, realized - STRICTEST_LIMIT)``,
@@ -362,13 +362,13 @@ def test_distribute_students_once_happy_flow_full():
     assert (tevr["Tevredenheid"] > 0).all()  # the goal: every student ends up positive
 
     trans = dfs["Overgangsmatrix"]
-    # The balance stage leximin-minimizes the sorted weighted-slack profile across the six
+    # The balance stage leximin-minimizes the sorted weighted slacks across the six
     # balance families (ADR-0018): it spreads relaxation as evenly as the instance allows,
     # rather than piling it onto one family while leaving another slack. A ceiling on each
-    # family separately would also accept a *stacked* profile (all the relaxation
+    # family separately would also accept a *stacked* vector (all the relaxation
     # concentrated in one or two families) that this instance's leximin optimum no longer
-    # produces, so it is the sorted weighted profile itself that is pinned here.
-    assert _weighted_balance_profile(trans, view) == [200, 200, 100, 100, 98, 0]
+    # produces, so it is the sorted weighted slacks themselves that are pinned here.
+    assert _sorted_weighted_slacks(trans, view) == [200, 200, 100, 100, 98, 0]
 
 
 def _dataframe(table):

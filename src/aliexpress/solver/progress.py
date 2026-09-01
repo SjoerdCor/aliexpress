@@ -10,8 +10,8 @@ poll (see ``web/progress_writer.py``).
 
 - ``"floor"`` — stage 1, finding the minimal relaxation floor (non-positive
   satisfaction count).
-- ``"balance"`` — stage 2, minimizing the sorted profile of the weighted
-  balance slacks, leximin, within that floor. The up to six leximin sub-solves
+- ``"balance"`` — stage 2, minimizing the sorted weighted slacks, leximin,
+  within that floor. The up to six leximin sub-solves
   this runs internally are invisible to the UI: they are reported as a single
   ``"balance"`` stage, same as any other.
 - ``"satisfaction"`` — stage 3, maximizing satisfaction (all lexmaxmin levels

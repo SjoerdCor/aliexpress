@@ -210,7 +210,7 @@ def test_mixed_student_with_honored_preference_but_net_negative_is_protected():
 # Nothing forces a specific assignment (the single "Graag met" row below just
 # keeps the preferences frame non-empty, an unsupported edge case otherwise) —
 # the six balance families alone leave no assignment fully balanced, and two
-# genuinely different relaxation profiles are reachable:
+# genuinely different relaxation vectors are reachable:
 #
 # - weighted sum + max-slack (the old objective): realized weighted slacks
 #   sorted descending [200, 200, 100, 98, 0, 0] (clique and gender_year both
@@ -344,8 +344,9 @@ def test_balance_relaxation_prefers_lower_weighted_peak():
     The old objective (weighted sum + an unweighted max-slack term) cannot
     distinguish a weight-100 family from a weight-49 one once both sit at the
     same *unweighted* slack value, so it is willing to let a second family
-    join the top of the profile. Leximin instead minimizes the profile level
-    by level: at most one family may sit at the largest weighted value, so
+    join the top of the weighted slacks. Leximin instead minimizes the sorted
+    weighted-slack level by level: at most one family may sit at the largest
+    weighted value, so
     the second-largest is pushed down from 200 to 100 on this instance.
     """
     students = _leximin_students()

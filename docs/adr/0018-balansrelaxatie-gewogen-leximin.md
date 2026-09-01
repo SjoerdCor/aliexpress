@@ -18,10 +18,10 @@ niets aan. Stages die één variabele minimaliseren bewijzen wél.
 
 ## Beslissing: leximin over de gewogen slacks, op beide paden
 
-De balansfase minimaliseert het *gesorteerde profiel* van de zes gewogen
-slacks, van groot naar klein: eerst de grootste `w_f · slack_f` zo laag
+De balansfase minimaliseert de zes gewogen slacks in aflopende volgorde,
+van groot naar klein: eerst de grootste `w_f · slack_f` zo laag
 mogelijk (bewezen) en vastgepind, dan de op-één-na-grootste ("hooguit één
-familie mag erboven uitsteken"), enzovoort — tot het profiel op nul eindigt.
+familie mag erboven uitsteken"), enzovoort — tot de resterende slacks nul zijn.
 Elke stage minimaliseert één variabele, de vorm die onder bindende grenzen
 bewijsbaar blijkt.
 
@@ -39,25 +39,27 @@ bewijsbaar blijkt.
   per leerling, +0,2s).
 - **Gezonde invoer is niet gratis — de kost zit in de pin, niet in de
   balanskeuze.** Op de FULL-integratie-instantie vindt de balansfase exact
-  hetzelfde profiel als de oude som (gewogen gesorteerd 200, 200, 100, 100,
+  dezelfde gesorteerde gewogen slacks als de oude som (200, 200, 100, 100,
   98, 0; piek 200 in beide). Het verschil ontstaat pas in wat er gepind
   wordt: het oude sombudget (`som(gewicht·slack) + 100·max_slack ≤ 898`) laat
   de tevredenheidsfase daarbinnen vrij herverdelen, en die eindigt gestapeld
   op 200, 200, 200, 49, 49, 0 — een derde familie naar de piek, som nog steeds
-  precies 898. De profiel-pin houdt elk niveau `M_k` vast, dus de eindbalans
+  precies 898. De pin op de gesorteerde gewogen slacks houdt elk niveau `M_k`
+  vast, dus de eindbalans
   blijft 200, 200, 100, 100, 98, 0: leximin-strikt beter (positie 3: 100 tegen
   200). Prijs: totale tevredenheid 33,614 → 32,571 (−3,1%), 15 van de 43
   leerlingen verschuiven; de laagst-bedeelde leerling blijft exact gelijk
   (0,516129), de op-één-na-laagste zakt van 0,5333 naar 0,5231.
 - **Bewezen optimaal blijft de norm.** Op het adversariële scenario bewijzen
   alle leximin-stages (628s totaal), gelijk aan strikte per-familie-lex maar
-  met een gespreid profiel: exact de oplossing die de kwadratische som vond
+  met gespreide gewogen slacks: exact de oplossing die de kwadratische som vond
   maar nooit kon certificeren.
 
 ## Exacte formulering en overdracht tussen de fasen
 
 De normatieve keuze hierboven verandert niet, maar de eerste implementatie
-bleek onnodig veel zoekhistorie mee te slepen. De productieformulering gebruikt
+bleek onnodig veel balance-optimization-only variabelen en constraints mee te
+slepen. De productieformulering gebruikt
 daarom drie exact equivalente versterkingen:
 
 - **Eén groepsindex per leerling.** De one-hot `in_group`-booleans blijven
@@ -71,28 +73,32 @@ daarom drie exact equivalente versterkingen:
   `AddExactlyOne` kiest precies één one-hot-boolean en die ware boolean fixeert
   de groepsindex op dezelfde groep.
 - **Een echt sorteernetwerk voor zes gewogen slacks.** Vijftien vaste
-  compare-swaps (`max`/`min`) materialiseren het volledige aflopende profiel
+  compare-swaps (`max`/`min`) materialiseren de volledige aflopende reeks
+  gesorteerde gewogen slacks
   één keer. Iedere leximin-stage minimaliseert daarna rechtstreeks één uitgang
-  van dat netwerk. De oude `exceed`-encoding maakte per rang zes booleans die
-  alleen uitdrukten dat hooguit `k` families boven een variabele grens mochten
-  liggen; die cardinaliteitsrelaxatie was correct, maar propageerde zwakker
+  van dat netwerk. De oude `exceed`-constructie maakte per rang zes booleans die
+  alleen uitdrukten dat hoogstens `k` uitzonderingen boven een variabele grens
+  mochten liggen; die cardinaliteitsrelaxatie was correct, maar propageerde zwakker
   tussen opeenvolgende rangen.
-- **Een schoon tevredenheidsmodel met een exacte profieltabel.** Na het bewijs
+- **Een schoon tevredenheidsmodel met een exacte tabel voor gesorteerde gewogen
+  slacks.** Na het bewijs
   van de balans wordt het model opnieuw opgebouwd. Alleen de bewezen
-  relaxatievloer en het volledige gesorteerde balansprofiel gaan mee; alle
-  sorteervariabelen en balansdoelstellingen verdwijnen. Het profiel wordt niet
+  relaxatievloer en de volledige gesorteerde gewogen slacks gaan mee; alle
+  balance-optimization-only sorteervariabelen, doelstellingen en constraints
+  verdwijnen. De slacks worden niet
   vastgezet op de toevallige familie→slack-toewijzing van de laatste
   balansoplossing. In plaats daarvan bevat `AddAllowedAssignments` alle geldige
-  permutaties van het profiel die, gegeven de familiegewichten en
+  permutaties van deze slacks die, gegeven de familiegewichten en
   Balansgrenzen, echte slacktuples vormen. Zo blijven alle oplossingen met
-  exact hetzelfde leximinprofiel beschikbaar voor tevredenheidsoptimalisatie,
+  exact dezelfde leximin-slacks beschikbaar voor tevredenheidsoptimalisatie,
   terwijl de pin sterk en compact propageert.
 
 ## Prestatiemeting na deze formulering
 
 Op het opgeslagen adversariële `testschool/herdoor`-scenario (72 leerlingen,
 vier doelgroepen, grenzen 3/4/3/4/6/4) zijn twee volledige productieruns gedaan
-met 8 workers en zonder tijdslimiet. Beide bewezen exact profiel
+met 8 workers en zonder tijdslimiet. Beide bewezen exact dezelfde gesorteerde
+gewogen slacks
 `(400, 300, 200, 200, 49, 0)` en leverden exact dezelfde verdeling van
 leerlingtevredenheid op.
 
@@ -135,9 +141,10 @@ blijft een afzonderlijke productbeslissing.
 - **Strikte per-familie-lex** (zes stages in vaste familievolgorde) — bewijst
   even goed en even snel, maar absolute prioriteit dumpt de relaxatie op de
   laagste families (clique tegen zijn grens om één punt hoger te winnen);
-  het gespreide leximin-profiel is de gewenste semantiek.
-- **Leximin voor het profiel, maar pinnen via een sombudget in plaats van het
-  profiel** (variant B) — afgewezen ten gunste van de profiel-pin (variant A).
+  de gespreide leximin-slacks zijn de gewenste semantiek.
+- **Leximin voor de gesorteerde gewogen slacks, maar pinnen via een sombudget
+  in plaats daarvan** (variant B) — afgewezen ten gunste van de pin op de
+  gesorteerde gewogen slacks (variant A).
   A is het zuivere, enkelvoudige criterium ("minimale balansafwijking")
   zonder max-hack en zonder tweede optimalisatiefase over de balans zelf;
   conceptuele zuiverheid en robuustheid wegen zwaarder dan de winst die B in
@@ -146,9 +153,9 @@ blijft een afzonderlijke productbeslissing.
   lexmaxmin — maar in de middenband: B zou circa 6 leerlingen naar ≥⅔
   tevredenheid tillen die A daaronder laat. De ~3% die A daarvoor kost, is dus
   een bewust geaccepteerde prijs. Het oude gedrag pinde net als B een
-  sombudget (zij het op de som + max-hack, zonder ooit een profiel te
-  berekenen); de −3,1% die op de FULL-instantie gemeten is bij het overstappen
-  naar A, maakt precies deze afweging zichtbaar.
+  sombudget (zij het op de som + max-hack, zonder ooit de gesorteerde gewogen
+  slacks te berekenen); de −3,1% die op de FULL-instantie gemeten is bij het
+  overstappen naar A, maakt precies deze afweging zichtbaar.
 - **Handmatige solver-hulp** (value-precedence symmetry breaking, solution
   hints van stage naar stage) — afgewezen: gemeten contraproductief (+40%
   resp. +57%, gecombineerd zelfs verlies van het bewijs); CP-SAT's eigen
@@ -161,7 +168,8 @@ blijft een afzonderlijke productbeslissing.
   consequent trager.
 - **Een minimaal 12-comparatornetwerk in plaats van het insertion-netwerk met
   15 comparators** — afgewezen. Het kleinere netwerk was exact equivalent en
-  gebruikte zes hulpvariabelen minder, maar alle eerste vier profielstages
+  gebruikte zes hulpvariabelen minder, maar alle eerste vier stages voor de
+  gesorteerde gewogen slacks
   werden trager (`16/104/74/196s` tegen `15/85/64/182s`). Minder variabelen
   bleek hier niet hetzelfde als betere propagatie; de topologie van het
   insertion-netwerk sloot beter aan op CP-SAT's zoekportfolio.
@@ -170,8 +178,9 @@ blijft een afzonderlijke productbeslissing.
   domein zonder tussenwaarden sterker dan het interval `0..upper`. In de
   praktijk maakte het de lineaire relaxatie en domeinverwerking duurder:
   alleen `M₀` liep op van circa 15s naar 72s.
-- **Bewezen profielwaarden als gelijkheid pinnen** — afgewezen na een volledige
-  balansmeting. `Mₖ == optimum` is logisch equivalent aan de gebruikte
+- **Bewezen waarden van de gesorteerde gewogen slacks als gelijkheid pinnen** —
+  afgewezen na een volledige balansmeting. `Mₖ == optimum` is logisch equivalent
+  aan de gebruikte
   `Mₖ <= optimum`, omdat de ontbrekende ondergrens zojuist bewezen is. De
   expliciete gelijkheden veranderden presolve en branching echter ongunstig:
   de balansfase werd 618s in plaats van 555s; `M₄` alleen 242s in plaats van
@@ -181,8 +190,8 @@ blijft een afzonderlijke productbeslissing.
   balans en tevredenheid, maar binnen lexmaxmin moeten de bewezen
   boven-drempel-aantallen toch opnieuw worden gemodelleerd. De zwaarste telling
   werd 194s in plaats van 163s (het hele niveau 222s in plaats van 187s).
-  Ook alleen de historische minimumvariabele vastpinnen had geen betekenisvolle
-  winst: 483s tegen 480s voor de volledige tevredenheidsfase.
+  Ook alleen de balance-optimization-only minimumvariabele vastpinnen had geen
+  betekenisvolle winst: 483s tegen 480s voor de volledige tevredenheidsfase.
 - **Tijds- of gap-begrenzing met gedegradeerd resultaat** — buiten deze
   wijziging gehouden: een zwaar geval met bindende grenzen rekent door (met
   voortgangspagina en Tussenstand); alleen bewezen INFEASIBLE geeft een
@@ -192,7 +201,8 @@ blijft een afzonderlijke productbeslissing.
 ## Consequenties
 
 - De balansfase bestaat uit maximaal zes korte stages (stopt zodra de rest
-  van het profiel nul is); de voortgang toont dus meer, kleinere stappen.
+  van de gesorteerde gewogen slacks nul is); de voortgang toont dus meer,
+  kleinere stappen.
 - `MAX_SLACK_WEIGHT` en de max-slack-variabele verdwijnen; `SLACK_WEIGHTS`
   verandert van objective-coëfficiënten in de piek-maatstaf van de leximin.
 - Bij bindende grenzen op pathologische invoer blijft de volledige solve duur:
@@ -202,11 +212,13 @@ blijft een afzonderlijke productbeslissing.
 - Integratietests die exacte uitkomsten pinnen worden her-pind: ook het
   gezonde referentiescenario verschuift (FULL-instantie: totale tevredenheid
   33.614 → 32.571, 15 van de 43 leerlingen), niet doordat de balansstage een
-  ander profiel vindt maar doordat de profiel-pin de tevredenheidsfase minder
+  andere gesorteerde gewogen slacks vindt maar doordat de pin daarop de
+  tevredenheidsfase minder
   ruimte laat dan het oude sombudget.
 - Bij bindende Balansgrenzen heeft de rekentijd een hoge run-tot-run-variantie,
   terwijl de uitkomst deterministisch blijft: de twee volledige metingen
-  bewezen hetzelfde profiel en dezelfde satisfactieverdeling, maar verschilden
+  bewezen dezelfde gesorteerde gewogen slacks en dezelfde satisfactieverdeling,
+  maar verschilden
   vijf minuten in totaaltijd (17,3 tegen 22,3 minuten). Dat is inherent aan
   "doorrekenen tot bewijs" zonder tijdslimiet (zie Overwogen alternatieven):
   elke stage levert hetzelfde bewezen optimum, alleen de tijd om daar te komen
