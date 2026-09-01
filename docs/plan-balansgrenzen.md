@@ -47,6 +47,55 @@ De gebruiker krijgt een Nederlandse melding met de zes UI-namen, de huidige en
 voorgestelde grens en de verhoging. Bij meerdere wijzigingen vermeldt de tekst
 dat ze bij elkaar horen en dat een andere combinatie ook mogelijk kan zijn.
 
+### Plak 4 — polish, documentatie en browseracceptatie
+
+Deze plak verandert de solversemantiek niet. De processingpagina blijft één
+actie gebruiken: `Start verdeling` bewaart de ingevulde maxima en start de
+verdeling. Er komt geen aparte opslagactie.
+
+- Vervang de tijdelijke `ⓘ`-teksten door korte, definitieve Nederlandse uitleg.
+  De bestaande `title`-tooltip en vormgeving blijven behouden.
+- Als `Onbeperkt` is aangevinkt, wordt het getalveld leeg weergegeven met de
+  placeholder `Geen maximum`. Het veld wordt niet meegestuurd; de eerder
+  ingevulde waarde wordt alleen tijdelijk in de browser onthouden en komt bij
+  uitvinken terug. Was het veld al leeg, dan blijft het na uitvinken leeg en
+  voorkomt browser-validatie dat je kunt starten. De ingevulde waarden worden
+  pas bij `Start verdeling` bewaard; teruggaan verwerpt onopgeslagen wijzigingen
+  zonder waarschuwing.
+- Voeg op de idle/error-versie van de processingpagina een teruglink naar
+  `not_together` toe. Tijdens een actieve run is er geen teruglink; na een
+  afgeronde run verwijst `/processing` rechtstreeks naar het resultaat.
+- Voeg in `tests/browser/test_distribution_browser.py` een echte Playwright-
+  acceptatietest toe die één grens aanpast, één grens op `Onbeperkt` zet, de
+  disabled/leeg-weergave controleert, de verdeling start en de opgeslagen
+  `balance_limits.json` controleert. Gebruik de bestaande kleine synthetische
+  fixture; de test raakt niet alle zes velden aan, omdat de parser daarvoor al
+  dekking heeft.
+- Voeg een aparte Playwright-navigatietest toe voor de teruglink. De bestaande
+  actieve-run-test bewaakt dat die link daar niet verschijnt.
+- Werk de README slechts kort bij: standaard is geen handmatige configuratie
+  nodig, de defaults zijn ruim en invoerafhankelijk, `Onbeperkt` verwijdert
+  alleen de bovengrens en te krappe grenzen krijgen een gezamenlijke suggestie.
+  De uitgebreide uitleg blijft bij de `ⓘ`-teksten, ADR-0017 en `CONTEXT.md`.
+- Controleer de aangeraakte solverdocstrings. De huidige docstrings beschrijven
+  de begrensde relaxatie en de overflowdiagnose al voldoende; ze hoeven daarom
+  niet opnieuw te worden uitgebreid.
+
+## Voor de merge
+
+- Controleer dat de browserflow alleen synthetische testdata gebruikt en geen
+  gegevens uit `instance/storage` raakt.
+- Voer de volledige niet-browser tests uit met
+  `uv run pytest tests --ignore=tests/browser`.
+- Voer de volledige Playwright-suite uit met `uv run pytest tests/browser`.
+- Controleer formattering en patchhygiëne met
+  `uv run black --check tests/browser/test_distribution_browser.py` en
+  `git diff --check`.
+- Controleer handmatig de idle/error-flow: een teruglink naar `not_together`,
+  geen teruglink tijdens een actieve run, en grenzen die na een mislukte run
+  opnieuw met hun opgeslagen waarden verschijnen.
+- Zet de status pas op `implemented` nadat deze controles groen zijn.
+
 ## Prestatiemeting plak 3
 
 De meting is uitgevoerd op synthetische data die in de tests is vastgelegd of

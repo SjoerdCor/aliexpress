@@ -125,7 +125,7 @@ ALI Express then solves the problem in three steps:
 
 1. **Ensure every student reaches strictly positive satisfaction.** The solver first finds the *minimal* relaxation of the group-balance constraints under which as many students as possible end up with satisfaction above zero — a pure-positive student clears this with at least one honored preference, while a student with avoid-preferences clears it only if none of them is violated. This gives a single relaxation budget R\*: as tight as the data allows, no tighter. (See [ADR-0015](docs/adr/0015-relaxatievloer-strikt-positieve-tevredenheid.md).)
 
-2. **Set the group balance within that budget.** With R\* fixed, the solver distributes the allowed flexibility across all balance dimensions — group size, boy/girl ratio, and clique limits — as evenly as possible. No manual configuration required.
+2. **Set the group balance within that budget.** With R\* fixed, the solver distributes the allowed flexibility across all balance dimensions — group size, boy/girl ratio, and clique limits — as evenly as possible. With the defaults, no manual configuration is required; optional Balansgrenzen can cap how far this relaxation may go.
 
 3. **Optimise student satisfaction.** Within the balance envelope from step 2, satisfaction is maximised using *plateaued lexicographic max-min*: the least satisfied student is raised as high as possible first, then the second least satisfied, and so on. The outcome is as fair as possible, not just good on average.
 
@@ -201,6 +201,8 @@ The year layer comes from the EDEXML export for both redistribute modes.
 - **Group size** — the spread between the largest and smallest group is minimised, both for the new cohort alone and for the total group (including students already in the group)
 - **Boy/girl ratio** — balanced within the new cohort and in the total group
 - **Clique limits** — at most N students from the same previous class end up together, preventing large social clusters; enforced separately for boys and girls
+
+Optional **Balansgrenzen** are filled with generous, input-dependent defaults on the processing page. **Onbeperkt** removes the upper bound for that balance family; it does not disable balance optimisation. If selected bounds make a distribution infeasible, the page suggests a jointly feasible relaxation.
 
 ### Special constraints
 
