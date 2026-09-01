@@ -2,7 +2,10 @@
 
 import json
 import os
+import threading
 from dataclasses import asdict
+
+import pytest
 
 from aliexpress.solver.groepsindeling_view import GroepsindelingView
 from aliexpress.solver.progress import PlateauOutcome
@@ -63,6 +66,39 @@ def test_no_leftover_temp_file(tmp_path):
     assert remaining == {"progress.json"}
 
 
+@pytest.mark.skipif(os.name != "nt", reason="Windows holds the destination open")
+def test_open_reader_does_not_drop_next_update_on_windows(tmp_path):
+    """A transient Windows read lock delays, but does not lose, the next snapshot."""
+    path = tmp_path / "progress.json"
+    writer = ProgressWriter(str(path))
+    write_errors = []
+
+    def write_next_snapshot():
+        try:
+            writer.stage_started("floor")
+        except PermissionError as exc:  # pragma: no cover - asserted in parent thread
+            write_errors.append(exc)
+
+    # This open handle is the real condition that used to make os.replace fail on
+    # Windows when /status happened to be reading during a progress update.
+    with open(path, encoding="utf-8") as reader:
+        assert json.load(reader)["steps"]["floor"] == "pending"
+        writer_thread = threading.Thread(target=write_next_snapshot)
+        writer_thread.start()
+
+        # join(timeout) observes the writer without releasing the reader. The fixed
+        # writer is still retrying; the broken writer already exited with WinError 5.
+        writer_thread.join(timeout=0.1)
+        assert writer_thread.is_alive(), "writer did not wait for the open reader"
+
+    # Leaving the with-block closes the reader. The same pending write must now finish
+    # and publish "busy"; retrying may not discard that latest snapshot.
+    writer_thread.join(timeout=2)
+    assert not writer_thread.is_alive()
+    assert not write_errors
+    assert _assert_parsable(path)["steps"]["floor"] == "busy"
+
+
 def test_interim_result_view_writes_separate_file_and_timestamp(tmp_path):
     """interim_result_view writes interim_result.json and sets a timestamp in progress.json."""
     progress_path = tmp_path / "progress.json"
@@ -114,7 +150,7 @@ def test_estimate_phase_a_before_balance_finishes(tmp_path):
 
 
 def test_estimate_phase_b_after_balance_before_any_plateau(tmp_path):
-    """Phase B: 12x the balance duration, no plateau finished yet."""
+    """Phase B: 6x the balance duration, no plateau finished yet."""
     path = tmp_path / "progress.json"
     writer = ProgressWriter(str(path))
 
@@ -122,11 +158,23 @@ def test_estimate_phase_b_after_balance_before_any_plateau(tmp_path):
 
     data = _assert_parsable(path)
     assert data["estimate"]["phase"] == "b"
-    assert data["estimate"]["seconds"] == 24.0
+    assert data["estimate"]["seconds"] == 12.0
+
+
+def test_estimate_phase_b_tapers_after_one_minute_of_balance(tmp_path):
+    """The balance-dominated tail is added one-for-one after the normal regime."""
+    path = tmp_path / "progress.json"
+    writer = ProgressWriter(str(path))
+
+    writer.stage_finished("balance", 90.0)
+
+    data = _assert_parsable(path)
+    # 6 * 60 + (90 - 60) == 390, rather than 6 * 90 == 540.
+    assert data["estimate"]["seconds"] == 390.0
 
 
 def test_estimate_phase_c_uses_longest_round_not_average(tmp_path):
-    """Phase C: max(TYPICAL_ROUNDS - rounds_done, 1) * the longest round so far (not average)."""
+    """Phase C uses the eleven-round budget and longest round, not the average."""
     path = tmp_path / "progress.json"
     writer = ProgressWriter(str(path))
 
@@ -136,8 +184,8 @@ def test_estimate_phase_c_uses_longest_round_not_average(tmp_path):
 
     data = _assert_parsable(path)
     assert data["estimate"]["phase"] == "c"
-    # max(7 - 2, 1) * 12.0 == 60.0; if it used the average (10.0) this would be 50.0.
-    assert data["estimate"]["seconds"] == 60.0
+    # max(11 - 2, 1) * 12.0 == 108.0; if it used the average (10.0) this would be 90.0.
+    assert data["estimate"]["seconds"] == 108.0
 
 
 def test_estimate_phase_c_tail_floor_never_zero_or_negative(tmp_path):
@@ -146,7 +194,7 @@ def test_estimate_phase_c_tail_floor_never_zero_or_negative(tmp_path):
     writer = ProgressWriter(str(path))
 
     writer.stage_finished("balance", 2.0)
-    for _ in range(8):
+    for _ in range(12):
         writer.plateau_finished(PlateauOutcome(0.5, 10, 10.0))
 
     data = _assert_parsable(path)
@@ -159,16 +207,16 @@ def test_estimate_text_rounding_seconds_under_a_minute(tmp_path):
     path = tmp_path / "progress.json"
     writer = ProgressWriter(str(path))
 
-    writer.stage_finished("balance", 4.0)  # 12 * 4.0 = 48.0 -> rounds up to 50
+    writer.stage_finished("balance", 4.0)  # 6 * 4.0 = 24.0 -> rounds up to 30
 
     data = _assert_parsable(path)
     assert (
-        data["estimate"]["text"] == "naar verwachting nog ~50 seconden (ruwe schatting)"
+        data["estimate"]["text"] == "naar verwachting nog ~30 seconden (ruwe schatting)"
     )
 
 
-def test_estimate_text_rounding_130_seconds_to_3_minutes(tmp_path):
-    """130 seconds rounds up to the nearest whole minute: 3 minutes."""
+def test_estimate_text_rounding_260_seconds_to_5_minutes(tmp_path):
+    """260 seconds rounds up to the nearest whole minute: 5 minutes."""
     path = tmp_path / "progress.json"
     writer = ProgressWriter(str(path))
 
@@ -176,10 +224,10 @@ def test_estimate_text_rounding_130_seconds_to_3_minutes(tmp_path):
     writer.plateau_finished(PlateauOutcome(0.5, 10, 26.0))
 
     data = _assert_parsable(path)
-    # phase c: max(7 - 1, 1) * 26.0 == 156.0, rounds up to 3 minutes.
-    assert data["estimate"]["seconds"] == 156.0
+    # phase c: max(11 - 1, 1) * 26.0 == 260.0, rounds up to 5 minutes.
+    assert data["estimate"]["seconds"] == 260.0
     assert (
-        data["estimate"]["text"] == "naar verwachting nog ~3 minuten (ruwe schatting)"
+        data["estimate"]["text"] == "naar verwachting nog ~5 minuten (ruwe schatting)"
     )
 
 
@@ -189,8 +237,8 @@ def test_estimate_text_singular_minute(tmp_path):
     writer = ProgressWriter(str(path))
 
     writer.stage_finished("balance", 2.0)
-    writer.plateau_finished(PlateauOutcome(0.5, 10, 10.0))
-    # phase c: max(7 - 1, 1) * 10.0 == 60.0 -> exactly one minute after rounding up.
+    writer.plateau_finished(PlateauOutcome(0.5, 10, 6.0))
+    # phase c: max(11 - 1, 1) * 6.0 == 60.0 -> exactly one minute after rounding up.
     data = _assert_parsable(path)
     assert data["estimate"]["seconds"] == 60.0
     assert data["estimate"]["text"] == "naar verwachting nog ~1 minuut (ruwe schatting)"

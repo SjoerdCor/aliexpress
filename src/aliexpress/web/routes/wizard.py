@@ -22,6 +22,7 @@ from flask_login import login_required
 from ...data import candidatedetermination, datareader, input_writer
 from ...data.form_parsers import (
     build_form_state,
+    parse_balance_maxima_form,
     parse_groups_to_form,
     parse_not_together_form,
     parse_student_entry,
@@ -47,6 +48,7 @@ from ..process_files import (
     load_student_names,
     reset_downstream_wizard_files,
     reset_result_files,
+    save_balance_maxima,
     save_candidates,
     save_edexml,
     save_groups_excel,
@@ -668,14 +670,19 @@ def not_together_page():
 
     save_not_together(school_id, process_id, rules)
     logger.info("Not-together rules accepted: %d rules", len(rules))
-    return redirect(url_for("wizard.start_distribution"))
+    return redirect(url_for("results.processing"))
 
 
-@wizard_bp.route("/start_distribution", methods=["GET"])
+@wizard_bp.route("/start_distribution", methods=["POST"])
 @login_required
 @require_process
 def start_distribution():
-    """Start the student distribution using stored input files"""
+    """Start the student distribution using stored input files.
+
+    The processing page's idle panel posts here (its "Start verdeling" button); this
+    is where the teacher's class-balance limits are first parsed and persisted, before
+    the background solve thread reads them.
+    """
     logger.info("Starting distribution")
     school_id = effective_school_id()
     if school_id is None:
@@ -683,6 +690,13 @@ def start_distribution():
     process_name = session["process_id"]
 
     not_together = load_not_together(school_id, process_name)
+
+    try:
+        maxima = parse_balance_maxima_form(request.form)
+    except ValidationError as exc:
+        warn_and_flash(to_validation_message(exc), log_detail=exc.code)
+        return redirect(url_for("results.processing"))
+    save_balance_maxima(school_id, process_name, maxima)
 
     proc = Process.by_name(school_id, process_name)
     Run.reset(proc.id)

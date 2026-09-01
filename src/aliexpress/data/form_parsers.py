@@ -5,10 +5,12 @@ extracted here so route modules stay thin and the parsing can be unit-tested
 without a running Flask app.
 """
 
+import dataclasses
 from dataclasses import dataclass
 from itertools import zip_longest
 
 from ..errors import ValidationError
+from ..solver._balance import BalanceMaxima
 from . import datareader
 from .preferences_form import Preference, PreferenceKind, StudentEntry
 
@@ -237,6 +239,36 @@ def parse_not_together_form(form, n_rules):
         if cleaned:
             rules.append({"group": set(cleaned), "Max_aantal_samen": max_samen})
     return rules
+
+
+def parse_balance_maxima_form(form) -> BalanceMaxima:
+    """Parse balance-maxima form fields into a BalanceMaxima.
+
+    Each of the six families has a checkbox ``maxima_{field}_unlimited`` and a
+    number field ``maxima_{field}``. A checked checkbox makes that family
+    ``None`` (Onbeperkt), ignoring the number field. Otherwise the number field
+    must hold an integer of at least 1.
+
+    Raises ``ValidationError`` on malformed input (missing or non-integer
+    number field); the caller translates it via ``to_validation_message`` and
+    flashes it.
+    """
+    values = {}
+    for field in dataclasses.fields(BalanceMaxima):
+        if form.get(f"maxima_{field.name}_unlimited"):
+            values[field.name] = None
+            continue
+        raw = form.get(f"maxima_{field.name}", "").strip()
+        if not raw:
+            raise ValidationError("missing_balance_maximum")
+        try:
+            value = int(raw)
+        except ValueError as exc:
+            raise ValidationError("invalid_balance_maximum") from exc
+        if value < 1:
+            raise ValidationError("invalid_balance_maximum")
+        values[field.name] = value
+    return BalanceMaxima(**values)
 
 
 def build_new_candidates(

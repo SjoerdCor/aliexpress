@@ -68,10 +68,52 @@ def _format_infeasible_preferences(context: dict) -> str:
     )
 
 
+_BALANCE_CAP_LABELS = {
+    "diff_year": "Groepsgrootte per jaarlaag",
+    "diff_total": "Groepsgrootte totaal",
+    "gender_year": "Jongens/meisjes per jaarlaag",
+    "gender_total": "Jongens/meisjes totaal",
+    "clique": "Zelfde stamgroep totaal",
+    "clique_sex": "Zelfde stamgroep per sekse",
+}
+
+
+def _format_balance_caps_too_tight(context: dict) -> str:
+    """Compose the Dutch message for a joint balance-cap suggestion."""
+    changes = []
+    for family, label in _BALANCE_CAP_LABELS.items():
+        change = context.get("suggestion", {}).get(family)
+        if change is None:
+            continue
+        current = change["current"]
+        suggested = change["suggested"]
+        changes.append(
+            f"‘{label}’ van {current} naar {suggested} (+{suggested - current})"
+        )
+
+    header = "Met deze grenzen is geen geldige indeling mogelijk."
+    if len(changes) == 1:
+        return (
+            f"{header} Een mogelijke minimale verruiming is: verhoog {changes[0]}. "
+            "Mogelijk werkt ook een andere combinatie."
+        )
+    if changes:
+        return (
+            f"{header} Een mogelijke minimale verruiming is: verhoog {' én '.join(changes)}. "
+            "Deze aanpassingen horen bij elkaar. Mogelijk werkt ook een andere combinatie."
+        )
+    return (
+        f"{header} Mogelijk zijn de ingestelde balansgrenzen te krap. "
+        "Mogelijk werkt ook een andere combinatie."
+    )
+
+
 def readableerror_to_validation_message(exc: Exception) -> str:
     """Convert a validation exception to a user-friendly message"""
     if exc.code == "infeasible_preferences":
         return _format_infeasible_preferences(exc.context)
+    if exc.code == "balance_caps_too_tight":
+        return _format_balance_caps_too_tight(exc.context)
     friendly_templates = {
         "wrong_columns_preferences": (
             "Het voorkeuren-bestand heeft de verkeerde kolommen. Controleer of je het goede"
@@ -138,6 +180,14 @@ def readableerror_to_validation_message(exc: Exception) -> str:
         ),
         "duplicate_group_names": (
             "Groepsnamen moeten uniek zijn. Dubbel: {duplicates}."
+        ),
+        "missing_balance_maximum": (
+            "Vul bij elke klassenbalans-grens een geheel getal van minimaal 1 in, "
+            "of vink Onbeperkt aan."
+        ),
+        "invalid_balance_maximum": (
+            "Een klassenbalans-grens moet een geheel getal van minimaal 1 zijn, "
+            "of Onbeperkt."
         ),
     }
 

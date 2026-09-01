@@ -15,8 +15,10 @@ This test walks the complete form path end-to-end using the real Flask test clie
     → /roster                (writes roster.json)
     → /groups_to             (writes groups.xlsx + input_method.json)
     → /preferences_form      (writes voorkeuren.json + preferences_form_state.json)
-    → /not_together          (writes not_together.json)
-    → /start_distribution    (redirects to /processing — solver NOT awaited)
+    → /not_together          (writes not_together.json, redirects to /processing — the
+                               idle panel with the "Start verdeling" button)
+    → /start_distribution    (POST from the idle panel; redirects to /processing —
+                               solver NOT awaited)
 
 After each transition the test asserts:
 1. The expected HTTP redirect / status code.
@@ -30,6 +32,7 @@ by no-ops so the test is fast and deterministic — we only want to know the kic
 accepted, not that the LP terminates).
 """
 
+import dataclasses
 import json
 import pathlib
 import xml.etree.ElementTree as ET
@@ -39,6 +42,7 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 
 from aliexpress.data.preferences_form import StudentEntry, build_preference_data
+from aliexpress.solver._balance import BalanceMaxima
 from tests.helpers import SCHOOL_ID
 
 # ---------------------------------------------------------------------------
@@ -337,8 +341,8 @@ class TestFullWizardFormFlow:  # pylint: disable=too-few-public-methods  # one t
             resp.status_code == 302
         ), f"Expected 302 from /not_together, got {resp.status_code}"
         assert resp.headers["Location"].endswith(
-            "/start_distribution"
-        ), f"Expected redirect to /start_distribution, got {resp.headers['Location']}"
+            "/processing"
+        ), f"Expected redirect to /processing, got {resp.headers['Location']}"
         nt_file = pdir / "not_together.json"
         assert (
             nt_file.exists()
@@ -380,17 +384,25 @@ class TestFullWizardFormFlow:  # pylint: disable=too-few-public-methods  # one t
         ), f"groups.xlsx has only {len(groups_df)} group(s) — solver needs at least 2"
 
     def _step_start_distribution(self, client):
-        """GET /start_distribution with background threads replaced by no-ops.
+        """POST /start_distribution (the idle panel's "Start verdeling" button), with
+        background threads replaced by no-ops.
 
-        We replace Thread so neither the solver nor the sociogram actually run —
-        the test only cares that the kickoff route accepts the request (i.e. all
-        input files were found) and issues the expected redirect to /processing.
+        Every balance-maxima family is submitted as Onbeperkt so the form parses without
+        needing real numbers. We replace Thread so neither the solver nor the sociogram
+        actually run — the test only cares that the kickoff route accepts the request
+        (i.e. all input files were found) and issues the expected redirect to /processing.
         """
         noop_thread = MagicMock()
         noop_thread.start.return_value = None
+        maxima_form = {
+            f"maxima_{field.name}_unlimited": "on"
+            for field in dataclasses.fields(BalanceMaxima)
+        }
 
         with patch("aliexpress.web.routes.wizard.Thread", return_value=noop_thread):
-            resp = client.get("/start_distribution", follow_redirects=False)
+            resp = client.post(
+                "/start_distribution", data=maxima_form, follow_redirects=False
+            )
 
         assert (
             resp.status_code == 302

@@ -8,6 +8,7 @@ than cell-by-cell. The per-student satisfaction - the actual optimization object
 uniquely determined and is asserted in full."""
 
 import json
+from collections import Counter
 
 import pandas as pd
 import pytest
@@ -23,7 +24,9 @@ from aliexpress.data.preferences_form import (
     build_preference_data,
 )
 from aliexpress.main import distribute_students_from_data, distribute_students_once
-from aliexpress.solver._balance import GroupBalance
+from aliexpress.solver import engine
+from aliexpress.solver._balance import BalanceMaxima, GroupBalance
+from aliexpress.solver._balance_families import SLACK_WEIGHTS, STRICTEST_LIMIT
 from aliexpress.solver.groepsindeling_view import GroepsindelingView
 
 _NOT_TOGETHER_SMALL = [
@@ -75,43 +78,43 @@ _FULL_SATISFACTION = {
         "Adam": 0.516129,
         "Amy": 0.6673,
         "Anna": 0.976378,
-        "Anne": 0.785263,
+        "Anne": 0.607369,
         "Anne Claire": 0.571429,
-        "Benjamin": 0.738796,
+        "Benjamin": 1.0,
         "Bram": 0.774194,
         "Cas": 0.857143,
         "Daan": 1.0,
         "David": 0.857143,
-        "Eline": 0.932211,
+        "Eline": 0.661054,
         "Emily": 0.976378,
         "Esmee": 0.607369,
-        "Feline": 0.738796,
-        "Fenna": 0.861287,
+        "Feline": 0.571429,
+        "Fenna": 0.784678,
         "Iris": 0.571429,
         "Jack": 0.861287,
-        "Jayden": 0.784678,
-        "Jill": 1.0,
+        "Jayden": 0.523119,
+        "Jill": 0.666667,
         "Julia": 0.984127,
         "Julian": 0.709125,
         "Jurre": 0.666667,
-        "Lars": 0.666667,
+        "Lars": 1.0,
         "Liv A.": 0.661054,
         "Liv B.": 0.656708,
         "Lois": 1.0,
         "Lotte": 0.784678,
         "Lucas": 0.571429,
         "Lynn": 1.0,
-        "Mats": 0.88189,
-        "Max": 0.894772,
+        "Mats": 0.651537,
+        "Max": 0.661054,
         "Naomi": 1.0,
-        "Nina": 0.533333,
+        "Nina": 0.8,
         "Noor": 0.571429,
         "Nora": 0.933333,
         "Siem X.": 0.666667,
-        "Siem Y.": 0.709125,
-        "Sophie": 1.0,
-        "Stijn": 0.8,
-        "Sven": 0.666667,
+        "Siem Y.": 0.822719,
+        "Sophie": 0.666667,
+        "Stijn": 0.533333,
+        "Sven": 1.0,
         "Tijn": 0.666667,
         "Vera": 0.533333,
         "Zoe": 0.979573,
@@ -120,43 +123,43 @@ _FULL_SATISFACTION = {
         "Adam": 1.0,
         "Amy": 1.5,
         "Anna": 5.0,
-        "Anne": 1.5,
+        "Anne": 1.0,
         "Anne Claire": 1.0,
-        "Benjamin": 1.5,
+        "Benjamin": 3.0,
         "Bram": 2.0,
         "Cas": 2.0,
         "Daan": 2.0,
         "David": 2.0,
-        "Eline": 3.5,
+        "Eline": 1.5,
         "Emily": 5.0,
         "Esmee": 1.0,
-        "Feline": 1.5,
-        "Fenna": 2.5,
+        "Feline": 1.0,
+        "Fenna": 2.0,
         "Iris": 1.0,
         "Jack": 2.5,
-        "Jayden": 2.0,
-        "Jill": 2.0,
+        "Jayden": 1.0,
+        "Jill": 1.0,
         "Julia": 5.0,
         "Julian": 1.5,
         "Jurre": 1.0,
-        "Lars": 1.0,
+        "Lars": 2.0,
         "Liv A.": 1.5,
         "Liv B.": 1.5,
         "Lois": 1.0,
         "Lotte": 2.0,
         "Lucas": 1.0,
         "Lynn": 1.0,
-        "Mats": 3.0,
-        "Max": 3.0,
+        "Mats": 1.5,
+        "Max": 1.5,
         "Naomi": 1.0,
-        "Nina": 1.0,
+        "Nina": 2.0,
         "Noor": 1.0,
         "Nora": 3.0,
         "Siem X.": 1.0,
-        "Siem Y.": 1.5,
-        "Sophie": 2.0,
-        "Stijn": 2.0,
-        "Sven": 1.0,
+        "Siem Y.": 2.0,
+        "Sophie": 1.0,
+        "Stijn": 1.0,
+        "Sven": 2.0,
         "Tijn": 1.0,
         "Vera": 1.0,
         "Zoe": 5.0,
@@ -291,6 +294,55 @@ def test_distribute_students_once_happy_flow_small():
     assert max(r.size_diff for r in year_rows) <= 2
 
 
+def _max_clique_sex(view) -> int:
+    """Largest same-Stamgroep, same-sex headcount placed together in one target group.
+
+    Tallies each group card's student chips by ``(Stamgroep, sex)`` across its jaarlaag
+    sections -- ``chip.origin_full`` is the Stamgroep -- and returns the largest count found
+    in any group. This is the public-view-model equivalent of the ``clique_sex`` balance
+    family (see ``_BalanceFamilies._cliques``), read from ``GroepsindelingView`` rather than
+    solver internals.
+    """
+    largest = 0
+    for group in view.groups:
+        counts: Counter = Counter()
+        for section in group.year_sections:
+            for chip in section.boys.students:
+                counts[(chip.origin_full, "Jongen")] += 1
+            for chip in section.girls.students:
+                counts[(chip.origin_full, "Meisje")] += 1
+        if counts:
+            largest = max(largest, *counts.values())
+    return largest
+
+
+def _sorted_weighted_slacks(trans: pd.DataFrame, view) -> list[int]:
+    """The realized weighted slacks, sorted large-to-small, one entry per family.
+
+    Mirrors the quantity the balance stage's leximin actually optimizes (ADR-0018): each
+    family's realized value becomes a slack via ``max(0, realized - STRICTEST_LIMIT)``,
+    weighted by ``SLACK_WEIGHTS``, and the six weighted values are sorted descending. Every
+    realized value is read from public result data: ``trans`` (the Overgangsmatrix) for
+    ``clique``, ``view.balance_rows`` for the four size/gender families, and
+    ``_max_clique_sex`` for ``clique_sex``.
+    """
+    total_row = next(r for r in view.balance_rows if r.is_total)
+    year_rows = [r for r in view.balance_rows if not r.is_total]
+    realized = {
+        "diff_year": max(r.size_diff for r in year_rows),
+        "diff_total": total_row.size_diff,
+        "clique": int(trans.to_numpy().max()),
+        "clique_sex": _max_clique_sex(view),
+        "gender_year": max(r.sex_imbalance for r in year_rows),
+        "gender_total": total_row.sex_imbalance,
+    }
+    weighted = [
+        SLACK_WEIGHTS[name] * max(0, value - STRICTEST_LIMIT)
+        for name, value in realized.items()
+    ]
+    return sorted(weighted, reverse=True)
+
+
 def test_distribute_students_once_happy_flow_full():
     """Full dataset, satisfaction maximized within the auto-determined minimal balance
     relaxation that still lets every student fulfil at least one positive wish."""
@@ -310,14 +362,13 @@ def test_distribute_students_once_happy_flow_full():
     assert (tevr["Tevredenheid"] > 0).all()  # the goal: every student ends up positive
 
     trans = dfs["Overgangsmatrix"]
-    total_row = next(r for r in view.balance_rows if r.is_total)
-    year_rows = [r for r in view.balance_rows if not r.is_total]
-    # Class balance realized within the auto-determined minimal relaxation.
-    assert trans.to_numpy().max() <= 3  # max students from one stamgroep in a group
-    assert total_row.sex_imbalance <= 2
-    assert max(r.sex_imbalance for r in year_rows) <= 3
-    assert total_row.size_diff <= 2
-    assert max(r.size_diff for r in year_rows) <= 1
+    # The balance stage leximin-minimizes the sorted weighted slacks across the six
+    # balance families (ADR-0018): it spreads relaxation as evenly as the instance allows,
+    # rather than piling it onto one family while leaving another slack. A ceiling on each
+    # family separately would also accept a *stacked* vector (all the relaxation
+    # concentrated in one or two families) that this instance's leximin optimum no longer
+    # produces, so it is the sorted weighted slacks themselves that are pinned here.
+    assert _sorted_weighted_slacks(trans, view) == [200, 200, 100, 100, 98, 0]
 
 
 def _dataframe(table):
@@ -507,3 +558,151 @@ def test_distribute_students_once_happy_flow_infeasible():
     # redesign, see CLAUDE.md).
     assert exc.value.code == "infeasible_problem"
     assert "ruimere klassenbalans" in exc.value.context["possible_improvement"]
+
+
+def _one_stamgroep_scenario(n_students: int, groups: list[str]):
+    """A tiny automatic-path scenario: ``n_students`` from one Stamgroep.
+
+    Everyone shares Stamgroep "A", so the clique family binds. Each student has a
+    single mild group preference (towards ``groups[0]``) so the report tables are
+    non-empty; the preferences do not affect clique feasibility, which depends
+    only on the Stamgroep.
+    """
+    preferences = [
+        Preference(target=groups[0], weight=1.0, kind=PreferenceKind.TOGETHER)
+    ]
+    students = [
+        StudentEntry(
+            f"Kind{i}",
+            "Jongen" if i % 2 else "Meisje",
+            "A",
+            None,
+            preferences=preferences,
+        )
+        for i in range(n_students)
+    ]
+    keys = [g.lower() for g in groups]
+    target_groups = GroupCounts(
+        counts={key: {"Jongens": 0, "Meisjes": 0} for key in keys},
+        display=dict(zip(keys, groups)),
+    )
+    preference_data = build_preference_data(students, all_to_groups=keys)
+    return preference_data, target_groups
+
+
+def test_empty_maxima_matches_no_maxima_on_automatic_path():
+    """An empty BalanceMaxima() reproduces the automatic path's result exactly."""
+    preference_data, target_groups = _one_stamgroep_scenario(
+        5, ["Rood", "Geel", "Blauw"]
+    )
+
+    baseline = distribute_students_from_data(preference_data, target_groups)
+    with_empty = distribute_students_from_data(
+        preference_data, target_groups, maxima=BalanceMaxima()
+    )
+
+    pd.testing.assert_frame_equal(
+        baseline["dataframes"]["Leerlingtevredenheid"].data,
+        with_empty["dataframes"]["Leerlingtevredenheid"].data,
+    )
+
+
+def test_too_tight_cap_raises_actionable_feasibility_error():
+    """A cap that alone makes the instance infeasible raises an actionable error.
+
+    Five students from one Stamgroep over three groups need a clique of at least
+    ceil(5/3) = 2 per group; capping ``max_clique`` at 1 is therefore impossible.
+    Uncapped the same instance solves, so the cap is the sole cause — and the
+    error must not misattribute it to the (empty) preferences.
+    """
+    preference_data, target_groups = _one_stamgroep_scenario(
+        5, ["Rood", "Geel", "Blauw"]
+    )
+
+    # Uncapped: solves fine.
+    distribute_students_from_data(
+        preference_data, target_groups, maxima=BalanceMaxima(max_clique=None)
+    )
+
+    with pytest.raises(errors.FeasibilityError) as exc:
+        distribute_students_from_data(
+            preference_data, target_groups, maxima=BalanceMaxima(max_clique=1)
+        )
+    assert exc.value.code == "balance_caps_too_tight"
+    assert exc.value.context == {
+        "suggestion": {"clique": {"current": 1, "suggested": 5}}
+    }
+
+
+def _popular_student_scenario(n_students: int, groups: list[str]):
+    """Everyone wants the one popular classmate; each from their own Stamgroep.
+
+    ``Kind0`` is the popular student and has no preference of their own; every
+    other student's single preference is "Graag met Kind0". The only way to
+    honour all those preferences is to put everyone in Kind0's group, so the
+    minimal relaxation that lifts every student above the satisfaction floor is a
+    single giant group — the "everyone in one of four groups" pathology. Distinct
+    Stamgroepen keep the clique family out of it, so only the group-size families
+    govern the spread.
+    """
+    students = []
+    for i in range(n_students):
+        preferences = (
+            []
+            if i == 0
+            else [Preference(target="Kind0", weight=1.0, kind=PreferenceKind.TOGETHER)]
+        )
+        students.append(
+            StudentEntry(
+                f"Kind{i}",
+                "Jongen" if i % 2 else "Meisje",
+                f"sg{i}",
+                None,
+                preferences=preferences,
+            )
+        )
+    keys = [g.lower() for g in groups]
+    target_groups = GroupCounts(
+        counts={key: {"Jongens": 0, "Meisjes": 0} for key in keys},
+        display=dict(zip(keys, groups)),
+    )
+    preference_data = build_preference_data(students, all_to_groups=keys)
+    return preference_data, target_groups
+
+
+def _group_size_spread(solution, groups_to) -> int:
+    """Largest minus smallest realized group size in a solved assignment."""
+    sizes = Counter(solution.assignment.values())
+    for group in groups_to:
+        sizes.setdefault(group, 0)
+    return max(sizes.values()) - min(sizes.values())
+
+
+def test_diff_total_cap_shrinks_realized_group_size_spread():
+    """A diff_total cap reins in the automatic path's runaway group-size spread.
+
+    Uncapped, all twelve students pile into Kind0's group (spread 12) because that
+    is the minimal relaxation reaching the floor. Capping ``max_diff_n_students_total``
+    at 4 forbids that: the solve still succeeds (a few students drop below the floor,
+    a valid tier-2 outcome), but the realized spread is at most 4.
+    """
+    preference_data, target_groups = _popular_student_scenario(
+        12, ["Rood", "Geel", "Blauw", "Groen"]
+    )
+
+    uncapped = engine.solve_within_minimal_relaxation(
+        preferences=preference_data.preferences,
+        students=preference_data.students_info,
+        groups_to=target_groups.counts,
+        not_together=[],
+    )
+    assert _group_size_spread(uncapped, target_groups.counts) > 4
+
+    capped = engine.solve_within_minimal_relaxation(
+        preferences=preference_data.preferences,
+        students=preference_data.students_info,
+        groups_to=target_groups.counts,
+        not_together=[],
+        maxima=BalanceMaxima(max_diff_n_students_total=4),
+    )
+    assert _group_size_spread(capped, target_groups.counts) <= 4
