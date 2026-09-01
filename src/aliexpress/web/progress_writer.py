@@ -24,17 +24,23 @@ _PHASE_A_TEXT = (
     "Aan het rekenen… dit duurt meestal minder dan een minuut, soms enkele minuten."
 )
 
-# Satisfaction typically takes much longer than balance; the measured sat/balance ratio
-# was 5-7.5x across the slice-7 confirmation batch. 12 sits above that range (a deliberate
-# overestimate) while still staying low enough that the ~23s-runs common in that batch don't
-# get misclassified as "long" by the 45s reveal threshold. See
-# docs/metingen-processing-eta.md ("Bevestiging op deze machine").
-SATISFACTION_BALANCE_FACTOR = 12
+# The post-performance measurements across all three modes put the ordinary
+# satisfaction/balance ratios around 2-5.3. Six covers the observed upper end with a modest
+# safety margin for the normal balance regime. Once balance itself exceeds a minute, its
+# proof time is no longer a six-for-one predictor of satisfaction: the hard capped runs have
+# a ratio below 1. See docs/metingen-processing-eta.md ("Herkalibratie na perf").
+SATISFACTION_BALANCE_FACTOR = 6
 
-# Typical number of lexmaxmin rounds observed in the slice-7 confirmation batch. Used as the
-# phase-C round budget: max(TYPICAL_ROUNDS - rounds_done, 1) rounds remain. See
-# docs/metingen-processing-eta.md.
-TYPICAL_ROUNDS = 7
+# Keep the normal six-times estimate for the observed short/medium balance regime. Beyond
+# that point, add balance seconds one-for-one; this captures the balance-dominated tail
+# without turning a 9-minute satisfaction phase into a 75-minute ETA.
+BALANCE_LINEAR_REGION_SECONDS = 60
+LONG_BALANCE_FACTOR = 1
+
+# The largest normal post-performance mode (Doorzetten) produced eleven rounds; using that
+# upper observed budget keeps the first phase-C estimate on the roomy side for all modes.
+# The lower-bound guard still prevents a zero ETA when a run has an unusual tail.
+TYPICAL_ROUNDS = 11
 
 # A normal reader only holds the destination open long enough to copy its bytes. One
 # second is deliberately much longer than that window, while still surfacing genuine
@@ -173,8 +179,9 @@ class ProgressWriter(ProgressListener):
 
         Three phases (see docs/metingen-processing-eta.md and
         docs/plan-processing-eta-gating.md for the calibration): phase A (no number yet,
-        balance not finished), phase B (balance finished, no round finished yet — a
-        deliberately overestimating multiple of the balance duration), and phase C (at
+        balance not finished), phase B (balance finished, no round finished yet — six times
+        the balance duration in the normal regime, with a one-for-one long-balance tail),
+        and phase C (at
         least one round finished — a budget of typical-minus-done rounds times the
         *longest* round so far, since round durations tend to grow, not shrink, over a
         run). Called at the end of every event that could move the estimate.
@@ -201,7 +208,7 @@ class ProgressWriter(ProgressListener):
                     "text": _PHASE_A_TEXT,
                 }
                 return
-            seconds = SATISFACTION_BALANCE_FACTOR * balance_entry["seconds"]
+            seconds = _phase_b_seconds(balance_entry["seconds"])
             phase = "b"
 
         self._state["estimate"] = {
@@ -215,3 +222,19 @@ class ProgressWriter(ProgressListener):
         with open(tmp_path, "w", encoding="utf-8") as fh:
             json.dump(self._state, fh, ensure_ascii=False)
         _replace_snapshot(tmp_path, self.path)
+
+
+def _phase_b_seconds(balance_seconds: float) -> float:
+    """Estimate phase-B satisfaction time from the completed balance duration.
+
+    Balance duration is a useful predictor for ordinary runs, but the post-performance
+    stress measurements show a different regime once balance proof itself takes more than
+    about a minute. The piecewise continuation keeps the estimate conservative without
+    multiplying the balance-dominated tail by six again.
+    """
+    normal_balance = min(balance_seconds, BALANCE_LINEAR_REGION_SECONDS)
+    long_balance = max(balance_seconds - BALANCE_LINEAR_REGION_SECONDS, 0)
+    return (
+        SATISFACTION_BALANCE_FACTOR * normal_balance
+        + LONG_BALANCE_FACTOR * long_balance
+    )
