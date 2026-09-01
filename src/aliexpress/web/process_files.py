@@ -6,6 +6,7 @@ verbs: ``load_*`` / ``save_*`` / ``has_*``. This module may import from ``data``
 canonical ``PreferenceData`` format and ``datareader``); ``storage`` stays pure paths.
 """
 
+import dataclasses
 import json
 import os
 from io import BytesIO
@@ -14,6 +15,7 @@ import pandas as pd
 
 from ..data import datareader
 from ..data.preferences_data import PreferenceData
+from ..solver._balance import BalanceMaxima
 from .storage import get_file_path
 
 
@@ -111,6 +113,25 @@ def save_not_together(school_id, process_id, rules) -> None:
     path = get_file_path(school_id, process_id, "not_together.json")
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(data, fh, ensure_ascii=False)
+
+
+def load_balance_maxima(school_id, process_id) -> BalanceMaxima:
+    """Load the per-family balance-relaxation caps from balance_limits.json.
+
+    No fallback for a missing file: the Start step always writes this before a
+    solve (ADR-0017), so a missing file signals a bug rather than "unlimited".
+    """
+    path = get_file_path(school_id, process_id, "balance_limits.json")
+    with open(path, encoding="utf-8") as fh:
+        data = json.load(fh)
+    return BalanceMaxima(**data)
+
+
+def save_balance_maxima(school_id, process_id, maxima: BalanceMaxima) -> None:
+    """Persist the per-family balance-relaxation caps as balance_limits.json."""
+    path = get_file_path(school_id, process_id, "balance_limits.json")
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(dataclasses.asdict(maxima), fh, ensure_ascii=False)
 
 
 def load_input_method(school_id, process_id) -> str:

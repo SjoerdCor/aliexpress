@@ -293,8 +293,11 @@ def test_full_redistribute_flow_to_result(live_server, page):
     page.click("button:has-text('Naar niet samen')")
     page.wait_for_url(f"{live_server}/not_together")
 
-    # No niet-samen rules either; start the solve.
-    page.click("button:has-text('Opslaan & Indeling starten')")
+    # No niet-samen rules either; saving lands on the idle processing panel, where the
+    # balance-maxima defaults are prefilled — submitting it unmodified starts the solve.
+    page.click("button:has-text('Opslaan & door naar indelen')")
+    page.wait_for_url(f"{live_server}/processing")
+    page.click('button:has-text("Start verdeling")')
     page.wait_for_url("**/result", timeout=60000)
 
     # The klassenoverzicht now renders as the structured balance table: one row per

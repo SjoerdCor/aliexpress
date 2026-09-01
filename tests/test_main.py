@@ -2,7 +2,7 @@
 
 import logging
 
-from aliexpress.main import _build_input_summary, _log_initial_state
+from aliexpress.main import _log_initial_state, build_input_summary
 
 
 def test_log_initial_state_reports_stamgroep_as_entered(monkeypatch):
@@ -47,7 +47,7 @@ def test_build_input_summary_counts_display_groups_not_matching_keys():
     # groups; grouping by display name collapses them to "Klas A" with 2 students.
     stamgroep_display = {"klasa": "Klas A", "klasa2": "Klas A", "annes": "Anne's groep"}
 
-    summary = _build_input_summary(groups_to, students_info, stamgroep_display)
+    summary = build_input_summary(groups_to, students_info, stamgroep_display)
 
     assert summary.n_students == 3
     assert summary.n_boys == 2

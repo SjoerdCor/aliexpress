@@ -18,7 +18,10 @@ from flask import (
 )
 from flask_login import login_required
 
+from ...main import build_input_summary
+from ...solver._balance import default_balance_maxima
 from ..models import Process
+from ..process_files import load_balance_maxima, load_groups, load_voorkeuren
 from ..storage import get_file_path
 from .auth import effective_school_id
 from .processes import require_process
@@ -28,12 +31,56 @@ logger = logging.getLogger(__name__)
 results_bp = Blueprint("results", __name__)
 
 
+def _load_json_snapshot(path):
+    """Read a complete snapshot while keeping its Windows file handle short-lived."""
+    with open(path, "rb") as fh:
+        snapshot = fh.read()
+    return json.loads(snapshot)
+
+
 @results_bp.route("/processing")
 @login_required
 @require_process
 def processing():
-    """Display processing page"""
-    return render_template("processing.html")
+    """Display the processing page: an idle panel to start the solve, or its live progress.
+
+    Branches on the process's Run status: "pending" or "running" shows the live progress
+    view (the poll-driven stepper etc., unchanged) — "pending" is the brief window right
+    after Start verdeling, before the background thread's first status write lands, and a
+    fast solve can finish within it, so it must not fall back to the idle panel; "done"
+    redirects straight to the result; anything else ("error", or no run yet at all) shows
+    the idle panel, read-only — it writes nothing, so revisiting this page never has side
+    effects.
+    """
+    school_id = effective_school_id()
+    if school_id is None:
+        return redirect(url_for("admin.dashboard"))
+    process_id = session["process_id"]
+    proc = Process.by_name(school_id, process_id)
+    run_status = proc.run.status if proc and proc.run else None
+
+    if run_status == "done":
+        return redirect(url_for("results.result_page"))
+
+    preference_data, _ = load_voorkeuren(school_id, process_id)
+    groups_to, _ = load_groups(school_id, process_id)
+    summary = build_input_summary(
+        groups_to,
+        preference_data.students_info,
+        preference_data.stamgroep_display,
+    )
+
+    if run_status in ("pending", "running"):
+        return render_template("processing.html", mode="running", summary=summary)
+
+    maxima_path = get_file_path(school_id, process_id, "balance_limits.json")
+    if run_status == "error" and os.path.exists(maxima_path):
+        maxima = load_balance_maxima(school_id, process_id)
+    else:
+        maxima = default_balance_maxima(preference_data.students_info, groups_to)
+    return render_template(
+        "processing.html", mode="idle", summary=summary, maxima=maxima
+    )
 
 
 @results_bp.route("/status")
@@ -57,8 +104,7 @@ def status():
     }
     progress_path = get_file_path(school_id, process_name, "progress.json")
     if os.path.exists(progress_path):
-        with open(progress_path, encoding="utf-8") as fh:
-            payload.update(json.load(fh))
+        payload.update(_load_json_snapshot(progress_path))
     if run.status == "error" and run.message:
         payload["message"] = run.message
     return jsonify(payload)
@@ -111,8 +157,7 @@ def interim_result():
     path = get_file_path(school_id, process_id, "interim_result.json")
     if not os.path.exists(path):
         return "", 204
-    with open(path, encoding="utf-8") as fh:
-        view = json.load(fh)
+    view = _load_json_snapshot(path)
     return render_template("partials/interim_result.html", view=view)
 
 

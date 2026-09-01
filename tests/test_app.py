@@ -6,8 +6,16 @@ from io import BytesIO
 from types import SimpleNamespace
 
 from aliexpress import ensure_secret_key
+from aliexpress.web.extensions import db
+from aliexpress.web.models import Process, Run
 from app import app as flask_app
-from tests.helpers import flashes, setup_process
+from tests.helpers import (
+    SCHOOL_ID,
+    flashes,
+    setup_process,
+    write_minimal_groups_xlsx,
+    write_minimal_voorkeuren_json,
+)
 
 
 class TestSecretKeyGuard:
@@ -63,8 +71,16 @@ class TestSimpleRenders:
         assert client.get("/upload_edexml").status_code == 200
 
     def test_processing_returns_200(self, client, tmp_path):
-        """GET /processing renders the processing page for the active process."""
-        setup_process(client, tmp_path)
+        """GET /processing renders the processing page (running mode) for the active process."""
+        proc_dir = setup_process(client, tmp_path)
+        write_minimal_voorkeuren_json(proc_dir)
+        write_minimal_groups_xlsx(proc_dir)
+        with flask_app.app_context():
+            proc = Process.query.filter_by(
+                school_id=SCHOOL_ID, name="testproces"
+            ).first()
+            db.session.add(Run(process_id=proc.id, status="running"))
+            db.session.commit()
         assert client.get("/processing").status_code == 200
 
 
@@ -94,7 +110,7 @@ class TestSessionGuard:
         assert response.headers["Location"].endswith("/processes")
 
     def test_start_distribution_no_session_redirects(self, client):
-        """GET /start_distribution without a session redirects to /processes."""
-        response = client.get("/start_distribution")
+        """POST /start_distribution without a session redirects to /processes."""
+        response = client.post("/start_distribution")
         assert response.status_code == 302
         assert response.headers["Location"].endswith("/processes")
