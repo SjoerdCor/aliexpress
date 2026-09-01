@@ -69,6 +69,79 @@ def _start_distribution_from_idle_panel(live_server, page):
 
 
 @pytest.mark.usefixtures("login")
+def test_balance_limits_can_be_changed_unlimited_and_submitted(
+    live_server, tmp_path, page
+):
+    """The real processing form submits an edited cap and an unlimited cap.
+
+    The small real instance keeps this focused browser acceptance test quick while
+    still exercising the rendered form, its JavaScript, the POST route, and the
+    persisted values consumed by the solve thread.
+    """
+    proc = _make_process(
+        live_server, tmp_path, page, name="balance-limits", running=False
+    )
+
+    page.goto(f"{live_server}/processing")
+    page.locator("details.instructions-box > summary").click()
+
+    page.locator('input[name="maxima_max_clique"]').fill("7")
+    unlimited_number = page.locator('input[name="maxima_max_clique_sex"]')
+    unlimited_number.fill("6")
+    unlimited = page.locator('input[name="maxima_max_clique_sex_unlimited"]')
+    unlimited.check()
+
+    expect(unlimited_number).to_be_disabled()
+    expect(unlimited_number).to_have_value("")
+    expect(unlimited_number).to_have_attribute("placeholder", "Geen maximum")
+    unlimited.uncheck()
+    expect(unlimited_number).to_be_enabled()
+    expect(unlimited_number).to_have_value("6")
+    unlimited.check()
+    expect(unlimited_number).to_have_value("")
+    assert page.locator('[title="Placeholder: uitleg volgt."]').count() == 0
+
+    page.click('button:has-text("Start verdeling")')
+    page.wait_for_url("**/result", timeout=60000)
+
+    saved = json.loads((proc / "balance_limits.json").read_text("utf-8"))
+    assert saved["max_clique"] == 7
+    assert saved["max_clique_sex"] is None
+
+
+@pytest.mark.usefixtures("login")
+def test_balance_limit_without_number_stays_on_form(live_server, tmp_path, page):
+    """A missing active cap is blocked by native form validation without a reload."""
+    _make_process(live_server, tmp_path, page, name="balance-validation", running=False)
+
+    page.goto(f"{live_server}/processing")
+    page.locator("details.instructions-box > summary").click()
+    number = page.locator('input[name="maxima_max_clique"]')
+    number.fill("")
+    assert number.evaluate("element => element.validity.valueMissing") is True
+
+    page.click('button:has-text("Start verdeling")')
+    page.wait_for_timeout(250)
+
+    assert page.url == f"{live_server}/processing"
+    expect(number).to_be_visible()
+
+
+@pytest.mark.usefixtures("login")
+def test_processing_idle_links_back_to_not_together(live_server, tmp_path, page):
+    """The idle processing page offers the previous wizard step."""
+    _make_process(live_server, tmp_path, page, name="balance-navigation", running=False)
+
+    page.goto(f"{live_server}/processing")
+    back = page.locator("a.previous-step")
+    expect(back).to_have_attribute("href", "/not_together")
+    expect(back).to_contain_text("niet samen")
+
+    back.click()
+    page.wait_for_url(f"{live_server}/not_together")
+
+
+@pytest.mark.usefixtures("login")
 def test_processing_to_result_to_download(live_server, tmp_path, page):
     """Starting a distribution lands on the result page and the workbook downloads."""
     proc = _make_process(live_server, tmp_path, page, running=False)
@@ -151,6 +224,7 @@ def test_processing_pending_status_shows_spinner(live_server, tmp_path, page):
     page.goto(f"{live_server}/processing")
 
     expect(page.locator(".loading-spinner")).to_be_visible()
+    assert page.locator("a.previous-step").count() == 0
 
 
 @pytest.mark.usefixtures("login")
