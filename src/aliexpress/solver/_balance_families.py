@@ -30,7 +30,7 @@ STRICTEST_LIMIT = 1
 
 #: Per balance-slack family, its weight in the leximin peak measure (scaled
 #: x100 to integers, so the comparison stays exact): the balance stage
-#: leximin-minimizes the sorted profile of ``weight * slack`` across families,
+#: leximin-minimizes the sorted weighted slacks across families,
 #: so this weight sets the scale on which peaks are compared, not a summed
 #: objective coefficient. Whole-group families (``_total``) weigh less than
 #: their per-year counterpart: spreading students unevenly across the whole
@@ -102,8 +102,8 @@ def uncapped_slack_bound(students: dict, groups_to: dict) -> int:
     Returns
     -------
     int
-        The shared upper bound for every soft-family slack, and for a caller's
-        own max-of-slacks variable (e.g. the automatic path's ``max_slack``).
+        The shared upper bound for every soft-family slack and any
+        balance-optimization-only variables that use the same safe bound.
     """
     total_occupancy = sum(
         counts["Jongens"] + counts["Meisjes"] for counts in groups_to.values()
@@ -116,7 +116,7 @@ def slack_upper_bounds(
 ) -> dict[str, int]:
     """Return each slack's data-derived upper bound as a plain integer.
 
-    The exact-profile table is built in a fresh model and must filter impossible
+    The exact sorted-weighted-slacks table is built in a fresh model and must filter impossible
     family mappings against the same domains as the slack variables. Keeping
     those bounds in plain Python avoids reflecting OR-Tools variable domains,
     which is unsafe for constant-domain variables in the Windows binding.
@@ -183,7 +183,7 @@ def add_soft_balance_constraints(
     -------
     dict[str, cp_model.IntVar]
         The six shared slacks, keyed by :data:`FAMILY_NAMES`, for the caller to
-        weight into a relaxation objective (see :data:`SLACK_WEIGHTS`).
+        build the sorted weighted-slack measure (see :data:`SLACK_WEIGHTS`).
     """
     return _BalanceFamilies(model, in_group, students, groups_to).add_all_soft(maxima)
 
