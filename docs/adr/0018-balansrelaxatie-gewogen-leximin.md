@@ -93,6 +93,38 @@ daarom drie exact equivalente versterkingen:
   exact dezelfde leximin-slacks beschikbaar voor tevredenheidsoptimalisatie,
   terwijl de pin sterk en compact propageert.
 
+## Dezelfde norm voor de cap-infeasibilitydiagnose
+
+De beslissing geldt ook wanneer ingestelde Balansgrenzen de eerste
+relaxatievloer infeasible maken. De diagnose bouwt dan een nieuw model met
+`UNCAPPED` en dezelfde harde voorkeuren. Een infeasible eerste stage betekent
+dat de bestaande voorkeurendiagnose wint; de melding noemt de grenzen dan niet.
+
+Is het onbeperkte model wel haalbaar, dan worden alleen begrensde families
+voorzien van `max(0, slack - cap_slack)`. De gewogen overflows worden met
+hetzelfde sorteernetwerk en dezelfde gewogen leximin-norm geminimaliseerd als de
+normale balansslacks. Dit levert een gezamenlijke, bewezen haalbare verruiming
+op; een toevallige familie-toewijzing uit één solveroplossing wordt niet als
+extra eis gepind.
+
+### Meting van de diagnose
+
+Op synthetische fixtures duurde de leximin-diagnose 0,0328 s voor de kleine
+clique-case, 0,0215 s voor twee positieve overflows en 0,0668–0,0825 s voor
+het moeilijke 24-leerlingen-geval (drie runs). De eerste stage van het
+synthetische onbeperkt-infeasible geval stopte in 0,0031 s met `INFEASIBLE`.
+De leximinvarianten hadden respectievelijk 2, 3 en 4 stages inclusief de
+vloer; het onbeperkt-infeasible geval had alleen de vloerstatus.
+
+De tijdelijke gewogen-sombaseline gaf op dezelfde fixtures dezelfde concrete
+suggesties en was sneller: 0,0207 s, 0,0161 s en 0,0321–0,0342 s. Dat is geen
+reden om de productienorm terug te draaien: de som optimaliseert een ander
+criterium en de leximinvariant levert de gevraagde bewezen gewogen
+overflowvector. Beide varianten waren op deze kleine synthetische gevallen
+praktisch bruikbaar; de meting ondersteunt geen schaalgarantie. Gelijkwaardige
+leximinoptima kunnen bovendien meer dan één familie- of toewijzingsuitkomst
+toestaan, zodat de diagnose één bewezen mogelijkheid toont.
+
 ## Prestatiemeting na deze formulering
 
 Op het opgeslagen adversariële `testschool/herdoor`-scenario (72 leerlingen,

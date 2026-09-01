@@ -110,19 +110,27 @@ def _floor_infeasibility_error(
     """The right ``FeasibilityError`` for a floor stage proven infeasible.
 
     With one or more families capped, the infeasibility can stem from the caps
-    themselves, so :func:`.feasibility.diagnose` (which assumes balance is fully
-    soft) would misattribute it to the preferences. Report an honest generic
-    error in that case; the precise, actionable tip follows in a later slice.
+    themselves, so first compare the capped model with an otherwise identical
+    uncapped model. A joint weighted-leximin overflow suggestion proves that
+    the caps are the cause. If the uncapped model is infeasible too,
+    :func:`.feasibility.diagnose` diagnoses the hard preferences instead.
     Without caps, the preferences are the only possible cause, so ``diagnose``
     names the family that must give.
     """
     if maxima.constrains_anything():
-        return errors.FeasibilityError(
-            "balance_caps_infeasible",
-            technical_message=(
-                "Balance caps (or hard preferences) admit no valid assignment"
-            ),
+        suggestion = feasibility.diagnose_balance_caps(
+            preferences=preferences,
+            students=students,
+            groups_to=groups_to,
+            not_together=not_together,
+            maxima=maxima,
         )
+        if suggestion is not None:
+            return errors.FeasibilityError(
+                "balance_caps_too_tight",
+                context={"suggestion": suggestion},
+                technical_message="Configured balance caps are too tight",
+            )
     return errors.FeasibilityError(
         "infeasible_preferences",
         context={
@@ -215,14 +223,12 @@ def solve_within_minimal_relaxation(  # pylint: disable=too-many-arguments
     ------
     FeasibilityError
         If the first stage below comes back ``INFEASIBLE``. When ``maxima`` caps
-        at least one family, this may be caused by the caps (or by the hard
-        preferences) and cannot be safely attributed to preferences alone, so
-        the error is a generic ``"balance_caps_infeasible"`` (the precise,
-        actionable tip follows in a later slice). Otherwise the hard preference
-        constraints (minimal satisfaction, not-together, "Niet in") are mutually
-        infeasible even with class balance fully soft; the error is
-        ``"infeasible_preferences"`` and ``context["case"]`` names the diagnosed
-        cause (see :func:`.feasibility.diagnose`).
+        at least one family, a silent uncapped comparison either returns one
+        joint weighted-leximin relaxation in ``context["suggestion"]`` with
+        code ``"balance_caps_too_tight"``, or proves the hard preferences
+        infeasible and returns ``"infeasible_preferences"``. Without caps, the
+        latter existing preference diagnosis is used directly. The diagnosis
+        emits no progress events.
     SolverError
         If any other stage cannot be solved to proven optimality.
     """
@@ -358,26 +364,15 @@ def _pin_balance_leximin(
         name: SLACK_WEIGHTS[name] * slack for name, slack in problem.slacks.items()
     }
     m_upper = max(SLACK_WEIGHTS.values()) * uncapped_slack_bound(students, groups_to)
-    sorted_weighted_slack_variables = _sorting_network_descending(
-        model, list(weighted.values()), m_upper
+    outcome = sorted_weighted_slacks_module.minimize_sorted_leximin(
+        model,
+        list(weighted.values()),
+        m_upper,
+        solve_stage=strategies.solve_stage,
+        label_prefix="balance leximin",
+        variable_prefix="balance_sort",
     )
-    solver = None
-    sorted_weighted_slacks = []
-    for k, sorted_weighted_slack in enumerate(sorted_weighted_slack_variables):
-        solver = strategies.solve_stage(
-            model, f"balance leximin M_{k}", minimize=sorted_weighted_slack
-        )
-        value = round(solver.ObjectiveValue())
-        sorted_weighted_slacks.append(value)
-        model.Add(sorted_weighted_slack <= value)
-        if value == 0:
-            break
-    # The outputs are descending and non-negative, so after a proven zero all
-    # remaining values are zero and can be filled in directly.
-    sorted_weighted_slacks.extend(
-        [0] * (len(sorted_weighted_slack_variables) - len(sorted_weighted_slacks))
-    )
-    return _BalanceLeximinOutcome(solver, tuple(sorted_weighted_slacks))
+    return _BalanceLeximinOutcome(outcome.solver, outcome.values)
 
 
 def _sorting_network_descending(
@@ -392,24 +387,9 @@ def _sorting_network_descending(
     every order statistic once and propagates bounds between adjacent sorted
     weighted-slack positions throughout all later solve stages.
     """
-    ordered = []
-    for input_index, value in enumerate(values):
-        current = value
-        next_ordered = []
-        for position, existing in enumerate(ordered):
-            high = model.NewIntVar(
-                0, upper_bound, f"balance_sort_{input_index}_{position}_high"
-            )
-            low = model.NewIntVar(
-                0, upper_bound, f"balance_sort_{input_index}_{position}_low"
-            )
-            model.AddMaxEquality(high, [existing, current])
-            model.AddMinEquality(low, [existing, current])
-            next_ordered.append(high)
-            current = low
-        next_ordered.append(current)
-        ordered = next_ordered
-    return ordered
+    return sorted_weighted_slacks_module.sorting_network_descending(
+        model, values, upper_bound
+    )
 
 
 def _extract(problem, solver: cp_model.CpSolver, preferences) -> Solution:

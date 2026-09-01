@@ -15,7 +15,7 @@ import pytest
 from werkzeug.exceptions import RequestEntityTooLarge
 
 from aliexpress.data import datareader
-from aliexpress.errors import ValidationError
+from aliexpress.errors import FeasibilityError, ValidationError
 from aliexpress.web.validation_messages import (
     readableerror_to_validation_message,
     schemaerror_to_validation_message,
@@ -96,6 +96,68 @@ class TestErrorMessages:
         )
         msg = readableerror_to_validation_message(exc)
         assert "Jan" in msg and "100%" in msg
+
+    def test_balance_caps_too_tight_single_change_is_natural_dutch(self):
+        """A single proposed increase gets a natural singular message."""
+        exc = FeasibilityError(
+            "balance_caps_too_tight",
+            context={
+                "suggestion": {
+                    "diff_total": {"current": 4, "suggested": 5},
+                }
+            },
+        )
+
+        msg = readableerror_to_validation_message(exc)
+
+        assert msg == (
+            "Met deze grenzen is geen geldige indeling mogelijk. Een mogelijke minimale "
+            "verruiming is: verhoog ‘Groepsgrootte totaal’ van 4 naar 5 (+1). "
+            "Mogelijk werkt ook een andere combinatie."
+        )
+
+    def test_balance_caps_too_tight_multiple_changes_explain_the_joint_set(self):
+        """Multiple increases use 'én' and explicitly belong together."""
+        exc = FeasibilityError(
+            "balance_caps_too_tight",
+            context={
+                "suggestion": {
+                    "diff_total": {"current": 4, "suggested": 5},
+                    "gender_total": {"current": 3, "suggested": 5},
+                }
+            },
+        )
+
+        msg = readableerror_to_validation_message(exc)
+
+        assert "‘Groepsgrootte totaal’ van 4 naar 5 (+1)" in msg
+        assert "én ‘Jongens/meisjes totaal’ van 3 naar 5 (+2)" in msg
+        assert "Deze aanpassingen horen bij elkaar." in msg
+        assert "Mogelijk werkt ook een andere combinatie." in msg
+
+    def test_balance_caps_too_tight_uses_all_dutch_balance_names(self):
+        """Every internal family is rendered with its Dutch UI label."""
+        labels = {
+            "diff_year": "Groepsgrootte per jaarlaag",
+            "diff_total": "Groepsgrootte totaal",
+            "gender_year": "Jongens/meisjes per jaarlaag",
+            "gender_total": "Jongens/meisjes totaal",
+            "clique": "Zelfde stamgroep totaal",
+            "clique_sex": "Zelfde stamgroep per sekse",
+        }
+        exc = FeasibilityError(
+            "balance_caps_too_tight",
+            context={
+                "suggestion": {
+                    family: {"current": 1, "suggested": 2} for family in labels
+                }
+            },
+        )
+
+        msg = readableerror_to_validation_message(exc)
+
+        for label in labels.values():
+            assert f"‘{label}’" in msg
 
     @staticmethod
     def _nulls_schema_error():

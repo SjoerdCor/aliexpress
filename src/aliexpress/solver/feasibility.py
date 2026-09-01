@@ -11,7 +11,17 @@ them, once left soft, restores feasibility.
 
 from ortools.sat.python import cp_model
 
-from . import modelbuilder
+from .. import errors
+from . import modelbuilder, sorted_weighted_slacks, strategies
+from ._balance import UNCAPPED, BalanceMaxima
+from ._balance_families import (
+    FAMILY_NAMES,
+    SLACK_WEIGHTS,
+    STRICTEST_LIMIT,
+    capped_families,
+    maximum_for_family,
+    uncapped_slack_bound,
+)
 from .strategies import NUM_WORKERS
 
 
@@ -131,3 +141,87 @@ def diagnose(
         **common, min_satisfaction_soft=True, not_together_soft=True
     )
     return "both" if both_help else "fundamental"
+
+
+def _add_cap_overflows(problem, students, groups_to, maxima, families):
+    """Add exact overflow variables for the capped families only."""
+    upper_bound = uncapped_slack_bound(students, groups_to)
+    overflows = {}
+    weighted_overflows = []
+    for family in families:
+        cap = maximum_for_family(family, maxima)
+        cap_slack = cap - STRICTEST_LIMIT
+        overflow = problem.model.NewIntVar(0, upper_bound, f"cap_overflow_{family}")
+        problem.model.AddMaxEquality(overflow, [0, problem.slacks[family] - cap_slack])
+        overflows[family] = overflow
+        weighted_overflows.append(SLACK_WEIGHTS[family] * overflow)
+    return overflows, weighted_overflows, upper_bound
+
+
+def _cap_suggestion(overflows, solver, maxima):
+    """Read positive overflow values as current/suggested cap pairs."""
+    suggestion = {}
+    for family, overflow in overflows.items():
+        amount = solver.Value(overflow)
+        if amount > 0:
+            current = maximum_for_family(family, maxima)
+            suggestion[family] = {
+                "current": current,
+                "suggested": current + amount,
+            }
+    return suggestion
+
+
+def diagnose_balance_caps(  # pylint: disable=too-many-arguments
+    *,
+    preferences,
+    students: dict,
+    groups_to: dict,
+    not_together: list,
+    maxima: BalanceMaxima,
+) -> dict | None:
+    """Find one joint weighted-leximin loosening for infeasible balance caps.
+
+    The first stage checks the same hard preferences with an uncapped soft
+    balance model. ``None`` therefore means that the hard preferences are
+    infeasible even without balance maxima. If that stage is feasible, only
+    capped families receive an exact overflow variable; their weighted
+    overflows are sorted and minimized leximin, with every proven level pinned.
+
+    The diagnosis is deliberately not a progress phase: it has no listener and
+    emits no interim result. A later unexpected infeasibility is allowed to
+    propagate instead of being misclassified as a preference problem.
+    """
+    families = capped_families(maxima)
+    if not families:
+        return {}
+
+    problem = modelbuilder.build_soft_problem(
+        preferences, students, groups_to, not_together, maxima=UNCAPPED
+    )
+    try:
+        floor_solver = strategies.solve_stage(
+            problem.model,
+            "balance cap diagnosis floor",
+            minimize=sum(problem.nonpositive.values()),
+        )
+    except errors.StageInfeasible:
+        return None
+
+    floor_count = round(floor_solver.ObjectiveValue())
+    problem.model.Add(sum(problem.nonpositive.values()) <= floor_count)
+
+    overflows, weighted_overflows, upper_bound = _add_cap_overflows(
+        problem, students, groups_to, maxima, families
+    )
+
+    outcome = sorted_weighted_slacks.minimize_sorted_leximin(
+        problem.model,
+        weighted_overflows,
+        max(SLACK_WEIGHTS[family] for family in FAMILY_NAMES) * upper_bound,
+        solve_stage=strategies.solve_stage,
+        label_prefix="balance cap overflow leximin",
+        variable_prefix="cap_overflow_sort",
+    )
+
+    return _cap_suggestion(overflows, outcome.solver, maxima)

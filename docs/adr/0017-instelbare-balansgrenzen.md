@@ -45,7 +45,12 @@ Kernkeuzes:
   (de constante `UNCAPPED`), niet een aparte sentinel. Zo hoeft de solver geen
   `None`-tak te kennen.
 
-## Infeasibility: één overflow-solve met exacte, haalbare tip
+## Historische eerste vorm van de infeasibility-diagnose (achterhaald)
+
+De oorspronkelijke plak-3-uitwerking hieronder beschreef één gewogen-som-
+solve. Die vorm is door ADR-0018 achterhaald en blijft hier uitsluitend staan
+als historische besluitvorming; de actuele diagnose gebruikt gewogen leximin
+over de cap-overflows, zoals beschreven in de volgende sectie.
 
 Een harde grens kan het probleem onoplosbaar maken. Bij infeasibility draait één
 extra solve die de balans-slacks weer vrijlaat en per familie een *overflow*
@@ -58,6 +63,16 @@ boven de grens minimaliseert, gewogen met de bestaande `SLACK_WEIGHTS`:
 - **INFEASIBLE** → zelfs onbeperkt bestaat geen indeling; het ligt aan de harde
   voorkeuren, en de bestaande `feasibility.diagnose` (Niet-samen / Extra
   zekerheid / Niet-in) neemt het over. De grenzen worden dan niet genoemd.
+
+## Actuele plak 3: gewogen leximin over cap-overflows
+
+Conform ADR-0018 laat de diagnose de balans-slacks eerst onbeperkt en bouwt zij
+voor alleen de begrensde families een exacte overflow boven de ingestelde cap.
+De gewogen overflows worden als aflopende vector leximin-geminimaliseerd, met
+iedere bewezen positie vastgezet. Positieve waarden worden als één gezamenlijk
+haalbare suggestie teruggegeven. Dit vervangt de historische gewogen-som-
+objective; de overige infeasibility-afhandeling uit de historische beschrijving
+blijft van toepassing.
 
 ## Overwogen alternatieven
 

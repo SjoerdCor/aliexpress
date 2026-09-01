@@ -63,6 +63,18 @@ _MAXIMA_FIELD_BY_FAMILY: dict[str, str] = {
 }
 
 
+def maximum_for_family(name: str, maxima: BalanceMaxima) -> int | None:
+    """Return the configured maximum for a named balance family."""
+    return getattr(maxima, _MAXIMA_FIELD_BY_FAMILY[name])
+
+
+def capped_families(maxima: BalanceMaxima) -> tuple[str, ...]:
+    """Return the balance families whose automatic relaxation is capped."""
+    return tuple(
+        name for name in FAMILY_NAMES if maximum_for_family(name, maxima) is not None
+    )
+
+
 def _slack_upper(name: str, maxima: BalanceMaxima, uncapped_bound: int) -> int:
     """The upper bound for family ``name``'s slack.
 
@@ -72,7 +84,7 @@ def _slack_upper(name: str, maxima: BalanceMaxima, uncapped_bound: int) -> int:
     to ``STRICTEST_LIMIT`` yields upper bound 0, pinning the family at its
     strictest value.
     """
-    cap = getattr(maxima, _MAXIMA_FIELD_BY_FAMILY[name])
+    cap = maximum_for_family(name, maxima)
     if cap is None:
         return uncapped_bound
     return cap - STRICTEST_LIMIT

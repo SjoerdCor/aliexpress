@@ -14,10 +14,91 @@ or UI concerns.
 """
 
 import itertools
+from dataclasses import dataclass
 
 from ortools.sat.python import cp_model
 
 from ._balance_families import SLACK_WEIGHTS
+
+
+@dataclass(frozen=True)
+class LeximinOutcome:
+    """The solver and sorted values proven by a generic descending leximin run."""
+
+    solver: cp_model.CpSolver
+    values: tuple[int, ...]
+
+
+def sorting_network_descending(
+    model: cp_model.CpModel,
+    values: list,
+    upper_bound: int,
+    *,
+    variable_prefix: str = "balance_sort",
+) -> list[cp_model.IntVar]:
+    """Materialize ``values`` in descending order with exact compare-swaps.
+
+    This is shared by the normal balance optimization and the cap-overflow
+    diagnosis. Both callers need the same order statistics, but keep their own
+    model-building responsibilities and objective meaning.
+    """
+    ordered = []
+    for input_index, value in enumerate(values):
+        current = value
+        next_ordered = []
+        for position, existing in enumerate(ordered):
+            high = model.NewIntVar(
+                0,
+                upper_bound,
+                f"{variable_prefix}_{input_index}_{position}_high",
+            )
+            low = model.NewIntVar(
+                0,
+                upper_bound,
+                f"{variable_prefix}_{input_index}_{position}_low",
+            )
+            model.AddMaxEquality(high, [existing, current])
+            model.AddMinEquality(low, [existing, current])
+            next_ordered.append(high)
+            current = low
+        next_ordered.append(current)
+        ordered = next_ordered
+    return ordered
+
+
+# Six explicit parameters keep the reusable helper's model, objective values,
+# stage runner, and variable naming visible to both production callers.
+def minimize_sorted_leximin(  # pylint: disable=too-many-arguments
+    model: cp_model.CpModel,
+    values: list,
+    upper_bound: int,
+    *,
+    solve_stage,
+    label_prefix: str,
+    variable_prefix: str,
+) -> LeximinOutcome:
+    """Minimize non-negative ``values`` leximin after sorting them descending.
+
+    ``solve_stage`` is injected so this reusable model helper does not own the
+    solver orchestration. Each sorted position is proven and pinned in turn;
+    once the largest remaining value is zero, all later values are zero too.
+    """
+    ordered = sorting_network_descending(
+        model, values, upper_bound, variable_prefix=variable_prefix
+    )
+    solver = None
+    proven_values = []
+    for position, sorted_value in enumerate(ordered):
+        solver = solve_stage(
+            model, f"{label_prefix} M_{position}", minimize=sorted_value
+        )
+        value = round(solver.ObjectiveValue())
+        proven_values.append(value)
+        model.Add(sorted_value <= value)
+        if value == 0:
+            break
+    proven_values.extend([0] * (len(ordered) - len(proven_values)))
+    return LeximinOutcome(solver, tuple(proven_values))
 
 
 def pin_exact_sorted_weighted_slacks(

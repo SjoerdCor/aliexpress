@@ -607,8 +607,8 @@ def test_empty_maxima_matches_no_maxima_on_automatic_path():
     )
 
 
-def test_too_tight_cap_raises_generic_feasibility_error():
-    """A cap that alone makes the instance infeasible raises the generic error.
+def test_too_tight_cap_raises_actionable_feasibility_error():
+    """A cap that alone makes the instance infeasible raises an actionable error.
 
     Five students from one Stamgroep over three groups need a clique of at least
     ceil(5/3) = 2 per group; capping ``max_clique`` at 1 is therefore impossible.
@@ -628,7 +628,10 @@ def test_too_tight_cap_raises_generic_feasibility_error():
         distribute_students_from_data(
             preference_data, target_groups, maxima=BalanceMaxima(max_clique=1)
         )
-    assert exc.value.code == "balance_caps_infeasible"
+    assert exc.value.code == "balance_caps_too_tight"
+    assert exc.value.context == {
+        "suggestion": {"clique": {"current": 1, "suggested": 5}}
+    }
 
 
 def _popular_student_scenario(n_students: int, groups: list[str]):
