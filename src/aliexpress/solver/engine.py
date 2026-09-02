@@ -110,10 +110,11 @@ def _floor_infeasibility_error(
     """The right ``FeasibilityError`` for a floor stage proven infeasible.
 
     With one or more families capped, the infeasibility can stem from the caps
-    themselves, so first compare the capped model with an otherwise identical
-    uncapped model. A joint weighted-leximin overflow suggestion proves that
-    the caps are the cause. If the uncapped model is infeasible too,
-    :func:`.feasibility.diagnose` diagnoses the hard preferences instead.
+    themselves, so compare the capped model with an otherwise identical
+    uncapped model. A joint weighted-leximin overflow suggestion restores a
+    valid assignment and proves that the caps are the cause. If the uncapped
+    model is infeasible too, :func:`.feasibility.diagnose` diagnoses the hard
+    preferences instead.
     Without caps, the preferences are the only possible cause, so ``diagnose``
     names the family that must give.
     """
@@ -224,11 +225,12 @@ def solve_within_minimal_relaxation(  # pylint: disable=too-many-arguments
     FeasibilityError
         If the first stage below comes back ``INFEASIBLE``. When ``maxima`` caps
         at least one family, a silent uncapped comparison either returns one
-        joint weighted-leximin relaxation in ``context["suggestion"]`` with
-        code ``"balance_caps_too_tight"``, or proves the hard preferences
-        infeasible and returns ``"infeasible_preferences"``. Without caps, the
-        latter existing preference diagnosis is used directly. The diagnosis
-        emits no progress events.
+        jointly feasible weighted-leximin relaxation in
+        ``context["suggestion"]`` with code ``"balance_caps_too_tight"``, or
+        proves the hard preferences infeasible and returns
+        ``"infeasible_preferences"``. Without caps, the latter existing
+        preference diagnosis is used directly. The diagnosis emits no progress
+        events.
     SolverError
         If any other stage cannot be solved to proven optimality.
     """

@@ -182,11 +182,19 @@ def diagnose_balance_caps(  # pylint: disable=too-many-arguments
 ) -> dict | None:
     """Find one joint weighted-leximin loosening for infeasible balance caps.
 
-    The first stage checks the same hard preferences with an uncapped soft
-    balance model. ``None`` therefore means that the hard preferences are
-    infeasible even without balance maxima. If that stage is feasible, only
-    capped families receive an exact overflow variable; their weighted
-    overflows are sorted and minimized leximin, with every proven level pinned.
+    The uncapped soft-balance model contains the same hard constraints as the
+    failed capped model. Only capped families receive an exact overflow
+    variable; their weighted overflows are sorted and minimized leximin, with
+    every proven level pinned. If an initial feasibility check fails, the hard
+    preferences are infeasible without balance maxima too and this function
+    returns ``None``.
+
+    Deliberately do not optimize or pin the number of students without a
+    positive wish here. The failed floor stage proves that the configured caps
+    admit no valid assignment at all. A cap suggestion therefore has to restore
+    feasibility, not preserve the better satisfaction floor of an uncapped
+    model; requiring the latter can add increases that are unnecessary for a
+    valid run.
 
     The diagnosis is deliberately not a progress phase: it has no listener and
     emits no interim result. A later unexpected infeasibility is allowed to
@@ -199,21 +207,16 @@ def diagnose_balance_caps(  # pylint: disable=too-many-arguments
     problem = modelbuilder.build_soft_problem(
         preferences, students, groups_to, not_together, maxima=UNCAPPED
     )
-    try:
-        floor_solver = strategies.solve_stage(
-            problem.model,
-            "balance cap diagnosis floor",
-            minimize=sum(problem.nonpositive.values()),
-        )
-    except errors.StageInfeasible:
-        return None
-
-    floor_count = round(floor_solver.ObjectiveValue())
-    problem.model.Add(sum(problem.nonpositive.values()) <= floor_count)
-
     overflows, weighted_overflows, upper_bound = _add_cap_overflows(
         problem, students, groups_to, maxima, families
     )
+
+    try:
+        strategies.solve_stage(
+            problem.model, "balance cap diagnosis feasibility", minimize=0
+        )
+    except errors.StageInfeasible:
+        return None
 
     outcome = sorted_weighted_slacks.minimize_sorted_leximin(
         problem.model,
