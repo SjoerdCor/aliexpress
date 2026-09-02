@@ -273,6 +273,7 @@ def reset_result_files(school_id, process_id) -> None:
     for name in (
         "results.xlsx",
         "result_tables.json",
+        "groepsindeling_view.json",
         "sociogram.html",
         "progress.json",
         "interim_result.json",

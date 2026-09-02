@@ -194,12 +194,15 @@ def _preferences_url(path):
 def _resume_url(proc, path):
     """Return the URL where an existing process should resume.
 
-    Checks run status first (done → result, pending/running/error → processing), then
-    falls back to the wizard step that matches which files are already present.
+    Checks run status first: done opens the result, pending/running enters explicit
+    watch mode, and error opens ordinary processing. Otherwise, it falls back to the
+    wizard step matching the saved files.
     """
     if proc.run is not None and proc.run.status == "done":
         return url_for("results.result_page")
-    if proc.run is not None and proc.run.status in ("pending", "running", "error"):
+    if proc.run is not None and proc.run.status in ("pending", "running"):
+        return url_for("results.processing", watch=1)
+    if proc.run is not None and proc.run.status == "error":
         return url_for("results.processing")
 
     def has(*names):
