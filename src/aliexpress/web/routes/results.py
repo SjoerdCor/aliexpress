@@ -48,9 +48,10 @@ def processing():
     view (the poll-driven stepper etc., unchanged) — "pending" is the brief window right
     after Start verdeling, before the background thread's first status write lands, and a
     fast solve can finish within it, so it must not fall back to the idle panel; "done"
-    redirects straight to the result; anything else ("error", or no run yet at all) shows
-    the idle panel, read-only — it writes nothing, so revisiting this page never has side
-    effects.
+    redirects to the result only in explicit watch mode and otherwise shows the idle
+    panel for a new indeling; "error" shows the idle panel with its saved limits open;
+    and no run yet shows the idle panel with data-driven defaults and closed limits.
+    Ordinary GETs are read-only, so revisiting this page never has side effects.
     """
     school_id = effective_school_id()
     if school_id is None:
@@ -59,7 +60,7 @@ def processing():
     proc = Process.by_name(school_id, process_id)
     run_status = proc.run.status if proc and proc.run else None
 
-    if run_status == "done":
+    if run_status == "done" and request.args.get("watch") == "1":
         return redirect(url_for("results.result_page"))
 
     preference_data, _ = load_voorkeuren(school_id, process_id)
@@ -71,15 +72,26 @@ def processing():
     )
 
     if run_status in ("pending", "running"):
-        return render_template("processing.html", mode="running", summary=summary)
+        return render_template(
+            "processing.html",
+            mode="running",
+            summary=summary,
+            recalculation=False,
+            balance_limits_open=False,
+        )
 
     maxima_path = get_file_path(school_id, process_id, "balance_limits.json")
-    if run_status == "error" and os.path.exists(maxima_path):
+    if run_status in ("error", "done") and os.path.exists(maxima_path):
         maxima = load_balance_maxima(school_id, process_id)
     else:
         maxima = default_balance_maxima(preference_data.students_info, groups_to)
     return render_template(
-        "processing.html", mode="idle", summary=summary, maxima=maxima
+        "processing.html",
+        mode="idle",
+        summary=summary,
+        maxima=maxima,
+        recalculation=run_status == "done",
+        balance_limits_open=run_status == "error",
     )
 
 

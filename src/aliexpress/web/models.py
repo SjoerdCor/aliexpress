@@ -9,9 +9,10 @@ integer primary key — so a logged-in school cannot reach another school's data
 
 Solve tracking
 --------------
-A process has at most one current run. Re-running a process resets that row. Progress
-during a run is reported via ``progress.json`` in the process directory (written by the
-solve thread), not through the database.
+A process has at most one current run. A new solve atomically claims that process and
+reuses a completed or failed row. Progress during a run is reported via
+``progress.json`` in the process directory (written by the solve thread), not through
+the database.
 
 Authentication
 --------------
@@ -27,6 +28,8 @@ calls ``get_id()`` to store the identity in the session and passes that string b
 from datetime import datetime, timezone
 
 from flask_login import UserMixin
+from sqlalchemy import update
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from .extensions import db
 
@@ -119,18 +122,39 @@ class Run(db.Model):
     )
 
     @classmethod
-    def reset(cls, process_id):
-        """Replace any existing run for this process with a fresh pending run.
+    def start_if_inactive(cls, process_id) -> bool:
+        """Atomically claim a process for a fresh pending run.
 
-        Deletes the old row first so the new run starts clean. Commits when done;
-        callers in background threads open their own session and will see the new row.
+        A missing row is claimed with SQLite's conflict-safe insert. Existing
+        completed or failed rows are conditionally updated; active rows do not
+        match that update and therefore remain unchanged.
         """
-        existing = db.session.get(cls, process_id)
-        if existing is not None:
-            db.session.delete(existing)
-            db.session.flush()
-        db.session.add(cls(process_id=process_id))
+        insert_statement = sqlite_insert(cls).values(
+            process_id=process_id, status="pending"
+        )
+        insert_statement = insert_statement.on_conflict_do_nothing(
+            index_elements=[cls.process_id]
+        )
+        inserted = db.session.execute(insert_statement).rowcount == 1
+        if inserted:
+            db.session.commit()
+            return True
+
+        update_statement = (
+            update(cls)
+            .where(
+                cls.process_id == process_id,
+                cls.status.in_(("done", "error")),
+            )
+            .values(
+                status="pending",
+                message=None,
+                created_at=datetime.now(timezone.utc),
+            )
+        )
+        updated = db.session.execute(update_statement).rowcount == 1
         db.session.commit()
+        return updated
 
     def set_status(self, status, message=None):
         """Persist a new status (and optional message) for this run."""
