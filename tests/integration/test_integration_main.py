@@ -630,7 +630,7 @@ def test_too_tight_cap_raises_actionable_feasibility_error():
         )
     assert exc.value.code == "balance_caps_too_tight"
     assert exc.value.context == {
-        "suggestion": {"clique": {"current": 1, "suggested": 5}}
+        "suggestion": {"clique": {"current": 1, "suggested": 2}}
     }
 
 

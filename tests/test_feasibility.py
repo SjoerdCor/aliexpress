@@ -416,6 +416,84 @@ def test_balance_cap_diagnosis_returns_joint_multiple_overflows():
     assert relaxed.assignment
 
 
+def test_balance_cap_diagnosis_does_not_preserve_uncapped_satisfaction_floor():
+    """The suggestion restores feasibility without unnecessary cap increases.
+
+    Three students can only go to Rood. Putting the flexible fourth student in
+    Blauw gives a valid 3-1 split once the per-year cap becomes 2, and the two
+    existing students in Blauw keep the total sizes within 1. Putting that
+    fourth student in Rood fulfils their wish, but needs both wider per-year and
+    total caps. The diagnosis must suggest the smaller feasible limits, not the
+    limits needed to retain the uncapped model's better satisfaction floor.
+    """
+    groups = ["Rood", "Blauw"]
+    group_keys = [matching_key(group) for group in groups]
+    students = [
+        StudentEntry(
+            "Anna",
+            "Meisje",
+            "A",
+            None,
+            1,
+            excluded_groups=["Blauw"],
+        ),
+        StudentEntry(
+            "Bo",
+            "Jongen",
+            "B",
+            None,
+            1,
+            excluded_groups=["Blauw"],
+        ),
+        StudentEntry(
+            "Cas",
+            "Meisje",
+            "C",
+            None,
+            1,
+            excluded_groups=["Blauw"],
+        ),
+        StudentEntry(
+            "Daan",
+            "Jongen",
+            "D",
+            None,
+            1,
+            preferences=[Preference("Anna", 1.0, PreferenceKind.TOGETHER)],
+        ),
+    ]
+    preference_data = build_preference_data(students, group_keys)
+    groups_to = {
+        matching_key("Rood"): {"Jongens": 0, "Meisjes": 0},
+        matching_key("Blauw"): {"Jongens": 1, "Meisjes": 1},
+    }
+    maxima = BalanceMaxima(
+        max_diff_n_students_year=1,
+        max_diff_n_students_total=1,
+    )
+
+    suggestion = feasibility.diagnose_balance_caps(
+        preferences=preference_data.preferences,
+        students=preference_data.students_info,
+        groups_to=groups_to,
+        not_together=[],
+        maxima=maxima,
+    )
+
+    assert suggestion == {"diff_year": {"current": 1, "suggested": 2}}
+    relaxed = engine.solve_within_minimal_relaxation(
+        preferences=preference_data.preferences,
+        students=preference_data.students_info,
+        groups_to=groups_to,
+        not_together=[],
+        maxima=BalanceMaxima(
+            max_diff_n_students_year=2,
+            max_diff_n_students_total=1,
+        ),
+    )
+    assert relaxed.assignment
+
+
 def test_capped_solver_uses_preference_diagnosis_when_uncapped_is_infeasible():
     """Caps never hide a hard-preference infeasibility from the existing diagnosis."""
     preference_data, target_groups = _infeasible_by_min_satisfaction()
