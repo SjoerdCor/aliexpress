@@ -4,6 +4,10 @@ These pin the Dutch strings shown to teachers when uploads fail; a refactor must
 silently change the UI text.
 """
 
+# The detailed payload is repeated in the web-flow and logging invariant tests so
+# each public boundary can be verified independently.
+# pylint: disable=duplicate-code
+
 # pylint: disable=protected-access  # tests call _validate_input directly (same as test_datareader)
 
 from unittest.mock import patch
@@ -158,6 +162,128 @@ class TestErrorMessages:
 
         for label in labels.values():
             assert f"‘{label}’" in msg
+
+    def test_detailed_small_conflict_has_neutral_fixed_order_and_context(self):
+        """A small core explains floors, raw wishes, rules and merged exclusions."""
+        exc = FeasibilityError(
+            "infeasible_preferences",
+            context={
+                "case": "detailed",
+                "conflict": {
+                    "conditions": [
+                        {
+                            "type": "forbidden_group",
+                            "student": "Piet",
+                            "group": "Blauw",
+                        },
+                        {
+                            "type": "not_together",
+                            "rule_index": 2,
+                            "students": ["Piet", "Sam", "Noor"],
+                            "max_together": 1,
+                        },
+                        {
+                            "type": "forbidden_group",
+                            "student": "Piet",
+                            "group": "Rood",
+                        },
+                        {
+                            "type": "minimum_satisfaction",
+                            "student": "Piet",
+                            "floor": 1.0,
+                            "preferences": [
+                                {
+                                    "kind": "Graag met",
+                                    "target": "Sam",
+                                    "weight": 1.0,
+                                },
+                                {
+                                    "kind": "Liever niet met",
+                                    "target": "Noor",
+                                    "weight": -2.0,
+                                },
+                            ],
+                        },
+                    ]
+                },
+            },
+        )
+
+        msg = readableerror_to_validation_message(exc)
+
+        assert "Piet" in msg
+        assert "Alle voorkeuren gehonoreerd" in msg
+        assert "Graag met Sam" in msg
+        assert "Liever niet met Noor" in msg
+        assert "Niet-samen-regel 2" in msg
+        assert "maximaal 1" in msg
+        assert "Piet mag niet in Blauw en Rood" in msg
+        assert msg.index("extra zekerheid") < msg.index("Niet-samen-regel 2")
+        assert msg.index("Niet-samen-regel 2") < msg.index("Piet mag niet in Blauw")
+        assert "niet tegelijk uitvoerbaar" in msg
+        assert "oorzaak" not in msg.lower()
+
+    def test_detailed_large_conflict_is_a_concrete_inventory(self):
+        """A large core names involved inputs without inventing a causal explanation."""
+        conditions = [
+            {
+                "type": "minimum_satisfaction",
+                "student": student,
+                "floor": 1.0,
+                "preferences": [],
+            }
+            for student in ["Anna", "Bram", "Claire", "Daan", "Eva"]
+        ]
+        conditions += [
+            {
+                "type": "forbidden_group",
+                "student": student,
+                "group": "Blauw",
+            }
+            for student in ["Anna", "Bram", "Claire", "Daan"]
+        ]
+        msg = readableerror_to_validation_message(
+            FeasibilityError(
+                "infeasible_preferences",
+                context={"case": "detailed", "conflict": {"conditions": conditions}},
+            )
+        )
+
+        assert "te groot" in msg
+        assert "extra zekerheid" in msg
+        assert "Anna" in msg and "Eva" in msg
+        assert "Niet in" in msg
+        assert "Graag met" not in msg
+
+    def test_detailed_conflict_shows_form_label_for_negative_preference(self):
+        """Negative form preferences keep their user-facing type in the context."""
+        msg = readableerror_to_validation_message(
+            FeasibilityError(
+                "infeasible_preferences",
+                context={
+                    "case": "detailed",
+                    "conflict": {
+                        "conditions": [
+                            {
+                                "type": "minimum_satisfaction",
+                                "student": "Piet",
+                                "floor": 0.5,
+                                "preferences": [
+                                    {
+                                        "kind": "Liever niet met",
+                                        "target": "Sam",
+                                        "weight": 1.0,
+                                    }
+                                ],
+                            }
+                        ]
+                    },
+                },
+            )
+        )
+
+        assert "Minstens tevreden" in msg
+        assert "Liever niet met Sam" in msg
 
     @staticmethod
     def _nulls_schema_error():

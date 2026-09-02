@@ -66,8 +66,8 @@ De detaildiagnose krijgt een begrensd tijdsbudget. Alleen een volledig irreducib
 bewezen core mag als concrete conflictverklaring worden getoond. Als core-extractie of
 -verkleining niet binnen het budget slaagt, blijft de bestaande diagnose op familieniveau
 de veilige fallback. Een gedeeltelijk verkleinde core wordt niet als irreducibel
-gepresenteerd. De concrete tijdslimiet wordt met benchmarks op realistische invoer
-vastgesteld, niet vooraf gegokt.
+gepresenteerd. De concrete tijdslimiet is voor deze slice als eindige functieparameter
+vastgelegd op 10 seconden, met een eenmalige lokale meting als onderbouwing.
 
 Een kleine core wordt volledig uitgeschreven. Daarbij mag de formatter alleen
 mechanisch groeperen, bijvoorbeeld twee uitsluitingen samenvoegen tot “Piet mag niet in
@@ -89,7 +89,7 @@ Een grote core wordt niet afgekapt en ook niet volledig uitgeschreven. De format
 geeft dan een concrete inventaris van de betrokken invoer, bijvoorbeeld: “Het gevonden
 conflict betreft niet-samen-regel 2, de extra zekerheid van Piet en Noor, en de
 `Niet in`-uitsluitingen van Anna, Piet, Sam en Noor.” De precieze grens tussen klein en
-groot wordt als benoemde configuratieconstante gekozen en met representatieve
+groot wordt als benoemde functieparameter met default gekozen en met representatieve
 voorbeelden getoetst.
 
 ## Gevolgen
@@ -111,7 +111,12 @@ voorbeelden getoetst.
 
 ## Nog te besluiten
 
-- De concrete diagnose-tijdslimiet en grens tussen een kleine en grote core worden met
-  benchmarks en representatieve meldingstests gekozen.
 - Welke exact bewijsbare tevredenheidsgevolgen in de optionele tweede slice compact
   genoeg zijn om te tonen.
+
+Voor slice 1 is de diagnose-deadline vastgesteld op 10 seconden en de grens tussen een
+kleine en grote core op acht voorwaarden. Een eenmalige lokale meting op 2 september 2026 mat maximaal
+0,0545 seconde en elf solves op de geteste scenario's; de deadline blijft daarom ruim
+maar eindig voor grotere invoer. De deadline wordt als functieparameter aangeboden; de
+worker count en seed zijn lokale reproduceerbaarheidsinstellingen. De grens van acht is
+een presentatiekeuze en geen invoerlimiet.

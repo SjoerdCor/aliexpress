@@ -11,6 +11,7 @@ from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
+from ortools.sat.python import cp_model
 
 from aliexpress import errors
 from aliexpress.data.datareader import GroupCounts, matching_key
@@ -22,6 +23,12 @@ from aliexpress.data.preferences_form import (
 )
 from aliexpress.solver import engine, feasibility
 from aliexpress.solver._balance import BalanceMaxima
+from aliexpress.solver.conflicts import (
+    Conflict,
+    ForbiddenGroup,
+    MinimumSatisfaction,
+    NotTogetherRule,
+)
 
 
 def _target_groups(*names: str) -> GroupCounts:
@@ -216,8 +223,29 @@ class TestDiagnose:
         )
 
 
+def test_detailed_diagnosis_returns_a_complete_irreducible_conflict():
+    """The diagnosis shrinks a sufficient solver core to an irreducible conflict."""
+    preference_data, target_groups = _infeasible_by_min_satisfaction()
+
+    conflict = feasibility.diagnose_conflict(
+        preferences=preference_data.preferences,
+        students=preference_data.students_info,
+        groups_to=target_groups.counts,
+        not_together=[],
+        deadline_seconds=5.0,
+    )
+
+    assert isinstance(conflict, Conflict)
+    assert any(isinstance(c, MinimumSatisfaction) for c in conflict.conditions)
+    assert any(isinstance(c, ForbiddenGroup) for c in conflict.conditions)
+    # Bo is forced to Rood by two separate ``Niet in`` rows, so all three exclusions
+    # plus Anna's floor are needed for this particular fixture.
+    assert len(conflict.conditions) == 4
+    assert conflict.to_context()["conditions"]
+
+
 def test_infeasible_auto_path_raises_diagnosed_error():
-    """solve_within_minimal_relaxation raises FeasibilityError with the diagnosed case."""
+    """solve_within_minimal_relaxation raises FeasibilityError with a detail core."""
     preference_data, target_groups = _infeasible_by_min_satisfaction()
     with pytest.raises(errors.FeasibilityError) as exc_info:
         engine.solve_within_minimal_relaxation(
@@ -227,7 +255,138 @@ def test_infeasible_auto_path_raises_diagnosed_error():
             not_together=[],
         )
     assert exc_info.value.code == "infeasible_preferences"
-    assert exc_info.value.context["case"] == "min_satisfaction"
+    assert exc_info.value.context["case"] == "detailed"
+    assert exc_info.value.context["conflict"]["conditions"]
+
+
+def test_infeasible_auto_path_includes_a_detailed_conflict():
+    """The engine exposes a proven conflict when detail diagnosis succeeds."""
+    preference_data, target_groups = _infeasible_by_min_satisfaction()
+
+    with pytest.raises(errors.FeasibilityError) as exc_info:
+        engine.solve_within_minimal_relaxation(
+            preferences=preference_data.preferences,
+            students=preference_data.students_info,
+            groups_to=target_groups.counts,
+            not_together=[],
+        )
+
+    assert exc_info.value.context["case"] == "detailed"
+    assert len(exc_info.value.context["conflict"]["conditions"]) == 4
+
+
+def test_infeasible_auto_path_keeps_family_fallback_when_detail_times_out(monkeypatch):
+    """No partial detail is exposed when the injected diagnosis budget is exhausted."""
+    preference_data, target_groups = _infeasible_by_min_satisfaction()
+    monkeypatch.setattr(feasibility, "diagnose_conflict", lambda **_kwargs: None)
+
+    with pytest.raises(errors.FeasibilityError) as exc_info:
+        engine.solve_within_minimal_relaxation(
+            preferences=preference_data.preferences,
+            students=preference_data.students_info,
+            groups_to=target_groups.counts,
+            not_together=[],
+        )
+
+    assert exc_info.value.context == {"case": "min_satisfaction"}
+
+
+def test_detailed_diagnosis_keeps_a_complete_not_together_rule_together():
+    """One user rule is represented as one condition, not one per target group."""
+    preference_data, target_groups, not_together = _infeasible_by_not_together()
+
+    conflict = feasibility.diagnose_conflict(
+        preferences=preference_data.preferences,
+        students=preference_data.students_info,
+        groups_to=target_groups.counts,
+        not_together=not_together,
+        deadline_seconds=5.0,
+    )
+
+    rules = [c for c in conflict.conditions if isinstance(c, NotTogetherRule)]
+    assert len(rules) == 1
+    assert rules[0].rule_index == 1
+    assert rules[0].students == ("ali", "bram", "cis")
+    assert rules[0].max_together == 1
+
+
+def test_detailed_diagnosis_returns_no_partial_core_on_unknown(monkeypatch):
+    """An undecided shrink check cannot be presented as a proven conflict."""
+    preference_data, target_groups = _infeasible_by_min_satisfaction()
+    calls = []
+
+    def fake_solve(problem, active_indices, _remaining_seconds):
+        calls.append(active_indices)
+        if len(calls) == 1:
+            solver = MagicMock()
+            solver.SufficientAssumptionsForInfeasibility.return_value = list(
+                problem.condition_by_index
+            )
+            return cp_model.INFEASIBLE, solver
+        return cp_model.UNKNOWN, MagicMock()
+
+    monkeypatch.setattr(feasibility, "_solve_diagnostic", fake_solve)
+    conflict = feasibility.diagnose_conflict(
+        preferences=preference_data.preferences,
+        students=preference_data.students_info,
+        groups_to=target_groups.counts,
+        not_together=[],
+        deadline_seconds=5.0,
+    )
+
+    assert conflict is None
+    assert len(calls) == 2
+
+
+@pytest.mark.parametrize(
+    "initial_status",
+    [cp_model.FEASIBLE, cp_model.UNKNOWN, cp_model.MODEL_INVALID],
+)
+def test_detailed_diagnosis_returns_no_conflict_without_infeasible_core(
+    monkeypatch, initial_status
+):
+    """Only an explicit INFEASIBLE result may start core extraction."""
+    preference_data, target_groups = _infeasible_by_min_satisfaction()
+    monkeypatch.setattr(
+        feasibility,
+        "_solve_diagnostic",
+        lambda *_args: (initial_status, MagicMock()),
+    )
+
+    conflict = feasibility.diagnose_conflict(
+        preferences=preference_data.preferences,
+        students=preference_data.students_info,
+        groups_to=target_groups.counts,
+        not_together=[],
+        deadline_seconds=5.0,
+    )
+
+    assert conflict is None
+
+
+@pytest.mark.parametrize("solver_core", [[], [999999]])
+def test_detailed_diagnosis_returns_no_conflict_for_invalid_solver_core(
+    monkeypatch, solver_core
+):
+    """An empty or unknown solver core is not safe evidence for a UI message."""
+    preference_data, target_groups = _infeasible_by_min_satisfaction()
+    solver = MagicMock()
+    solver.SufficientAssumptionsForInfeasibility.return_value = solver_core
+    monkeypatch.setattr(
+        feasibility,
+        "_solve_diagnostic",
+        lambda *_args: (cp_model.INFEASIBLE, solver),
+    )
+
+    conflict = feasibility.diagnose_conflict(
+        preferences=preference_data.preferences,
+        students=preference_data.students_info,
+        groups_to=target_groups.counts,
+        not_together=[],
+        deadline_seconds=5.0,
+    )
+
+    assert conflict is None
 
 
 def test_balance_cap_diagnosis_suggests_minimal_clique_increase():
@@ -520,4 +679,5 @@ def test_capped_solver_uses_preference_diagnosis_when_uncapped_is_infeasible():
         )
 
     assert exc_info.value.code == "infeasible_preferences"
-    assert exc_info.value.context == {"case": "min_satisfaction"}
+    assert exc_info.value.context["case"] == "detailed"
+    assert exc_info.value.context["conflict"]["conditions"]

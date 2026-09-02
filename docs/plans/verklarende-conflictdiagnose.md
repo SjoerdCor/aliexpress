@@ -95,9 +95,8 @@ Laat `engine.py` eerst de detaildiagnose proberen. Bij succes komt het conflict 
 `FeasibilityError`-context. Bij timeout of technische mislukking roept het enginepad de
 bestaande familieniveaudetectie aan en blijft het huidige `case`-contract intact.
 
-Kies de standaarddeadline pas na de benchmark uit stap 8. Houd de deadline als benoemde
-constante of injecteerbare parameter zodat unit tests geen echte klok hoeven af te
-wachten.
+Gebruik voor slice 1 een standaarddeadline van 10 seconden. Houd de deadline als
+benoemde functieparameter zodat unit tests geen echte klok hoeven af te wachten.
 
 ### 5. Vertaal matching keys op de bestaande laaggrens
 
@@ -130,7 +129,7 @@ Voor een kleine core:
 Voor een grote core toont de formatter een concrete inventaris van betrokken
 regelnummers, extra-zekerheidsleerlingen en leerlingen met `Niet in`-uitsluitingen. Hij
 leidt geen nieuw capaciteits- of oorzakelijk verhaal af. Houd de grens als benoemde
-constante; start voor de tests met acht corevoorwaarden en herijk dit met voorbeelden.
+functieparameter met default acht; herijk dit met voorbeelden.
 
 Gebruik alleen platte tekst en regeleinden. Voeg geen nieuw paneel, HTML in foutcontext,
 databasekolom of directe navigatielink toe.
@@ -159,18 +158,17 @@ Voeg gerichte tests toe:
 Gebruik bij meerdere mogelijke cores invariant-gebaseerde assertions. Pin alleen exacte
 tekst waar de input één unieke irreducibele core heeft.
 
-### 8. Meet voordat de standaardlimieten worden vastgezet
+### 8. Begrensde diagnosetijd
 
-Voeg `benchmarks/benchmark_conflict_diagnosis.py` toe met ten minste:
-
-- een klein lokaal conflict zoals Piet/Sam;
-- een realistische dataset met een geïnjecteerd conflict;
-- een grotere core rond een niet-samen-regel;
-- meerdere mogelijke conflicten.
-
-Meet apart core-extractie, verkleining, aantal solves en totale diagnosetijd. Kies daarna
-de deadline en controleer of de grens van acht voorwaarden leesbare meldingen oplevert.
-Leg de gemeten keuze in dit plan of ADR-0019 vast.
+Een eenmalige lokale meting op 2 september 2026 (één run per scenario, één worker,
+deadline 5 s) gaf de volgende waarden: klein Piet/Sam 0,0115 s en 4 solves; realistische
+integratiedata met geïnjecteerd conflict 0,0292 s en 4 solves; grote niet-samen-core
+0,0545 s en 11 solves; meerdere mogelijke conflicten 0,0231 s en 5 solves. De grootste
+gemeten core had tien voorwaarden. Daarom is de standaarddeadline voor slice 1 vastgesteld
+op 10 s: ruim boven deze metingen, maar begrensd voor zwaardere invoer. De diagnose
+ontvangt deze waarde als functieparameter; worker count en seed blijven lokale
+reproduceerbaarheidsinstellingen. De grens van acht voorwaarden blijft de defaultparameter
+voor de kleine formatteringsvariant. De meetcode is geen onderdeel van de applicatie.
 
 ### 9. Verificatievolgorde
 
