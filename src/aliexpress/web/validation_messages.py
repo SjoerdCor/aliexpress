@@ -38,7 +38,7 @@ def _format_infeasible_preferences(context: dict) -> str:
         return _format_detailed_conflict(conflict["conditions"])
 
     case = context.get("case", "fundamental")
-    header = "Met deze voorkeuren lukt geen evenwichtige groepsindeling."
+    header = "Met deze voorkeuren bestaat geen geldige groepsindeling."
 
     verlaag_zekerheid = (
         "verlaag de extra zekerheid een stap "
@@ -84,7 +84,7 @@ def _format_detailed_conflict(conditions: list[dict], small_core_limit: int = 8)
     minimums = [c for c in conditions if c.get("type") == "minimum_satisfaction"]
     rules = [c for c in conditions if c.get("type") == "not_together"]
     forbidden = [c for c in conditions if c.get("type") == "forbidden_group"]
-    lines = ["Met deze voorwaarden lukt geen groepsindeling."]
+    lines = ["Met deze voorkeuren bestaat geen geldige groepsindeling."]
 
     for condition in minimums:
         lines.append(
