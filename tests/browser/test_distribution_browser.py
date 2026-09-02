@@ -164,6 +164,49 @@ def test_processing_to_result_to_download(live_server, tmp_path, page):
 
 
 @pytest.mark.usefixtures("login")
+def test_completed_distribution_can_be_adjusted_and_run_again(
+    live_server, tmp_path, page
+):
+    """A completed process reopens its saved limits and follows a second real run."""
+    proc = _make_process(
+        live_server, tmp_path, page, name="rerun-completed", running=False
+    )
+
+    _start_distribution_from_idle_panel(live_server, page)
+    page.wait_for_url("**/result", timeout=60000)
+
+    page.get_by_role("link", name="← Nog niet helemaal... opnieuw invoeren").click()
+    page.wait_for_url(f"{live_server}/processing")
+
+    download_link = page.get_by_role("link", name="Download huidige groepsindeling")
+    expect(download_link).to_have_attribute("href", "/download")
+    notice = page.locator(".recalculation-note")
+    expect(notice).to_have_css("background-color", "rgb(247, 247, 247)")
+    assert "button" not in (download_link.get_attribute("class") or "").split()
+    with page.expect_download() as download_info:
+        download_link.click()
+    assert download_info.value.suggested_filename == "results.xlsx"
+    assert page.url == f"{live_server}/processing"
+
+    details = page.locator("details.instructions-box")
+    assert details.evaluate("element => element.open") is False
+    expect(page.get_by_role("button", name="Start nieuwe indeling")).to_be_visible()
+
+    details.locator("summary").click()
+    assert details.evaluate("element => element.open") is True
+    clique_limit = page.locator('input[name="maxima_max_clique"]')
+    saved_limit = int(clique_limit.input_value())
+    loosened_limit = saved_limit + 1
+    clique_limit.fill(str(loosened_limit))
+
+    page.get_by_role("button", name="Start nieuwe indeling").click()
+    page.wait_for_url("**/result", timeout=60000)
+
+    saved = json.loads((proc / "balance_limits.json").read_text("utf-8"))
+    assert saved["max_clique"] == loosened_limit
+
+
+@pytest.mark.usefixtures("login")
 def test_processing_shows_input_overview(live_server, tmp_path, page):
     """The processing page renders the input overview from the /status payload.
 
