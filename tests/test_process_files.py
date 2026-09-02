@@ -39,3 +39,36 @@ class TestBalanceMaximaRoundTrip:
             process_files.save_balance_maxima(school_id, process_id, maxima)
             loaded = process_files.load_balance_maxima(school_id, process_id)
         assert loaded == maxima
+
+
+class TestResetResultFiles:  # pylint: disable=too-few-public-methods
+    """reset_result_files removes stale output without touching balance limits."""
+
+    def test_removes_all_stale_outputs_but_keeps_balance_limits(self, client):
+        """Every result artifact is removed while the saved limits remain available."""
+        school_id, process_id = "test-school", "reset-results"
+        result_files = (
+            "results.xlsx",
+            "result_tables.json",
+            "groepsindeling_view.json",
+            "sociogram.html",
+            "progress.json",
+            "interim_result.json",
+        )
+        with flask_app.app_context():
+            process_path = get_process_path(school_id, process_id)
+            os.makedirs(process_path)
+            for filename in result_files:
+                with open(
+                    os.path.join(process_path, filename), "w", encoding="utf-8"
+                ) as fh:
+                    fh.write("stale output")
+            process_files.save_balance_maxima(school_id, process_id, BalanceMaxima())
+
+            process_files.reset_result_files(school_id, process_id)
+
+            assert all(
+                not os.path.exists(os.path.join(process_path, name))
+                for name in result_files
+            )
+            assert os.path.exists(os.path.join(process_path, "balance_limits.json"))

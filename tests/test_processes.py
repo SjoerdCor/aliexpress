@@ -293,7 +293,7 @@ class TestSelectProcess:
             db.session.commit()
         response = client.get("/processes/select/looptproces")
         assert response.status_code == 302
-        assert response.headers["Location"].endswith("/processing")
+        assert response.headers["Location"].endswith("/processing?watch=1")
 
     def test_select_with_pending_run_redirects_to_processing(self, client, tmp_path):
         """A run that has not reached its first worker update still resumes as active."""
@@ -306,7 +306,7 @@ class TestSelectProcess:
             db.session.commit()
         response = client.get("/processes/select/wachtproces")
         assert response.status_code == 302
-        assert response.headers["Location"].endswith("/processing")
+        assert response.headers["Location"].endswith("/processing?watch=1")
 
     def test_select_with_error_run_redirects_to_processing(self, client, tmp_path):
         """A failed run reopens the processing page so the user sees the error."""

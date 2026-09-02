@@ -2,6 +2,8 @@
 
 # pylint: disable=redefined-outer-name,unused-argument  # standard pytest fixture patterns
 
+from datetime import datetime, timezone
+
 import pytest
 from werkzeug.security import generate_password_hash
 
@@ -68,27 +70,56 @@ class TestProcessByName:
         assert result is None
 
 
-class TestRunReset:
-    """Tests for Run.reset() classmethod."""
+class TestRunStartIfInactive:
+    """Tests for the atomic Run.start_if_inactive() classmethod."""
 
-    def test_creates_fresh_run_when_none_exists(self, process):
-        """reset() creates a Run row if no run exists yet."""
-        assert process.run is None
-        Run.reset(process.id)
+    def test_claims_process_without_existing_run(self, process):
+        """A process without a run can be claimed and receives pending status."""
+        assert Run.start_if_inactive(process.id) is True
+
         _db.session.refresh(process)
         assert process.run is not None
         assert process.run.status == "pending"
 
-    def test_replaces_existing_run(self, process):
-        """reset() deletes the old run and inserts a fresh pending one."""
-        old_run = Run(process_id=process.id, status="done")
+    @pytest.mark.parametrize("status", ["done", "error"])
+    def test_reclaims_inactive_run(self, process, status):
+        """A completed or failed run is reset to a fresh pending claim."""
+        old_run = Run(
+            process_id=process.id,
+            status=status,
+            message="oude foutmelding",
+            created_at=datetime(2000, 1, 1, tzinfo=timezone.utc),
+        )
         _db.session.add(old_run)
         _db.session.commit()
+        old_created_at = old_run.created_at
 
-        Run.reset(process.id)
-        _db.session.refresh(process)
+        assert Run.start_if_inactive(process.id) is True
 
-        assert process.run.status == "pending"
+        _db.session.refresh(old_run)
+        assert old_run.status == "pending"
+        assert old_run.message is None
+        assert old_run.created_at > old_created_at
+
+    @pytest.mark.parametrize("status", ["pending", "running"])
+    def test_rejects_active_run_without_changing_it(self, process, status):
+        """An active run cannot be claimed and remains fully intact."""
+        active_run = Run(
+            process_id=process.id,
+            status=status,
+            message="actieve melding",
+            created_at=datetime(2000, 1, 1, tzinfo=timezone.utc),
+        )
+        _db.session.add(active_run)
+        _db.session.commit()
+        old_created_at = active_run.created_at
+
+        assert Run.start_if_inactive(process.id) is False
+
+        _db.session.refresh(active_run)
+        assert active_run.status == status
+        assert active_run.message == "actieve melding"
+        assert active_run.created_at == old_created_at
 
 
 class TestRunSetStatus:
