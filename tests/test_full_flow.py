@@ -390,7 +390,7 @@ class TestFullWizardFormFlow:  # pylint: disable=too-few-public-methods  # one t
         Every balance-maxima family is submitted as Onbeperkt so the form parses without
         needing real numbers. We replace Thread so neither the solver nor the sociogram
         actually run — the test only cares that the kickoff route accepts the request
-        (i.e. all input files were found) and issues the expected redirect to /processing.
+        (i.e. all input files were found) and enters explicit processing watch mode.
         """
         noop_thread = MagicMock()
         noop_thread.start.return_value = None
@@ -408,8 +408,8 @@ class TestFullWizardFormFlow:  # pylint: disable=too-few-public-methods  # one t
             resp.status_code == 302
         ), f"Expected 302 from /start_distribution, got {resp.status_code}"
         assert resp.headers["Location"].endswith(
-            "/processing"
-        ), f"Expected redirect to /processing, got {resp.headers['Location']}"
+            "/processing?watch=1"
+        ), f"Expected redirect to processing watch mode, got {resp.headers['Location']}"
 
     # ------------------------------------------------------------------
     # The test

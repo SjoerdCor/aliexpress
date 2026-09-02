@@ -680,8 +680,9 @@ def start_distribution():
     """Start the student distribution using stored input files.
 
     The processing page's idle panel posts here (its "Start verdeling" button); this
-    is where the teacher's class-balance limits are first parsed and persisted, before
-    the background solve thread reads them.
+    is where the teacher's class-balance limits are parsed. The process is claimed
+    atomically before those limits or any result files are changed, so repeated posts
+    cannot start overlapping background work.
     """
     logger.info("Starting distribution")
     school_id = effective_school_id()
@@ -696,10 +697,14 @@ def start_distribution():
     except ValidationError as exc:
         warn_and_flash(to_validation_message(exc), log_detail=exc.code)
         return redirect(url_for("results.processing"))
-    save_balance_maxima(school_id, process_name, maxima)
 
     proc = Process.by_name(school_id, process_name)
-    Run.reset(proc.id)
+    if not Run.start_if_inactive(proc.id):
+        logger.info("Distribution start ignored because a run is already active")
+        flash("De groepsindeling wordt al berekend.", "info")
+        return redirect(url_for("results.processing", watch=1))
+
+    save_balance_maxima(school_id, process_name, maxima)
     reset_result_files(school_id, process_name)
     # Capture the integer PK before spawning threads so they append log lines without
     # a school+name lookup on every on_update call.
@@ -714,4 +719,4 @@ def start_distribution():
     )
     Thread(target=create_sociogram_thread, args=(ctx,)).start()
     Thread(target=run_solve_thread, args=(ctx, not_together)).start()
-    return redirect(url_for("results.processing"))
+    return redirect(url_for("results.processing", watch=1))

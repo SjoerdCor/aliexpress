@@ -12,6 +12,7 @@ from unittest.mock import MagicMock
 
 import openpyxl
 import pandas as pd
+import pytest
 
 import aliexpress.web.routes.wizard as wizard_module
 import aliexpress.web.tasks as tasks_module
@@ -591,7 +592,7 @@ class TestStartDistribution:
 
         response = client.post("/start_distribution", data=_unlimited_maxima_form())
         assert response.status_code == 302
-        assert response.headers["Location"].endswith("/processing")
+        assert response.headers["Location"].endswith("/processing?watch=1")
         assert (proc_dir / "results.xlsx").read_bytes() == b"excel-bytes"
         tables = json.loads((proc_dir / "result_tables.json").read_text("utf-8"))
         assert "Groepsindeling" in tables
@@ -638,7 +639,7 @@ class TestStartDistribution:
 
         response = client.post("/start_distribution", data=form_data)
         assert response.status_code == 302
-        assert response.headers["Location"].endswith("/processing")
+        assert response.headers["Location"].endswith("/processing?watch=1")
 
         status = client.get("/status").get_json()
         assert status["status_studentdistribution"] == "error"
@@ -723,7 +724,7 @@ class TestStartDistribution:
         response = client.post("/start_distribution", data=form_data)
 
         assert response.status_code == 302
-        assert response.headers["Location"].endswith("/processing")
+        assert response.headers["Location"].endswith("/processing?watch=1")
         maxima = load_balance_maxima(SCHOOL_ID, "testproces")
         assert maxima.max_clique == 7
         assert maxima.max_diff_n_students_year is None
@@ -744,6 +745,90 @@ class TestStartDistribution:
         assert any(cat == "error" for cat, _ in flashes(client))
         assert self._read_run() is None
         assert not (proc_dir / "balance_limits.json").exists()
+
+    @pytest.mark.parametrize("status", ["pending", "running"])
+    def test_active_run_rejects_second_start_without_changing_files(
+        self, client, tmp_path, monkeypatch, status
+    ):
+        """A repeated valid POST cannot replace an active run or its artifacts."""
+        proc_dir = setup_process(client, tmp_path)
+        write_minimal_voorkeuren_json(proc_dir)
+        write_minimal_groups_xlsx(proc_dir)
+        save_balance_maxima(
+            SCHOOL_ID,
+            "testproces",
+            BalanceMaxima(max_clique=4),
+        )
+        old_outputs = {
+            "results.xlsx": b"old workbook",
+            "result_tables.json": b'{"old": true}',
+            "groepsindeling_view.json": b'{"old": true}',
+        }
+        for name, content in old_outputs.items():
+            (proc_dir / name).write_bytes(content)
+        with flask_app.app_context():
+            proc = Process.query.filter_by(
+                school_id=SCHOOL_ID, name="testproces"
+            ).first()
+            db.session.add(Run(process_id=proc.id, status=status, message="behouden"))
+            db.session.commit()
+            created_at = proc.run.created_at
+
+        thread_factory = MagicMock()
+        monkeypatch.setattr(wizard_module, "Thread", thread_factory)
+        form_data = _unlimited_maxima_form()
+        del form_data["maxima_max_clique_unlimited"]
+        form_data["maxima_max_clique"] = "7"
+
+        response = client.post("/start_distribution", data=form_data)
+
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/processing?watch=1")
+        assert flashes(client) == [("info", "De groepsindeling wordt al berekend.")]
+        thread_factory.assert_not_called()
+        with flask_app.app_context():
+            proc = Process.query.filter_by(
+                school_id=SCHOOL_ID, name="testproces"
+            ).first()
+            assert proc.run.status == status
+            assert proc.run.message == "behouden"
+            assert proc.run.created_at == created_at
+        assert load_balance_maxima(SCHOOL_ID, "testproces").max_clique == 4
+        for name, content in old_outputs.items():
+            assert (proc_dir / name).read_bytes() == content
+
+    def test_accepted_restart_removes_every_old_output_but_keeps_new_limits(
+        self, client, tmp_path, monkeypatch
+    ):
+        """A claimed restart clears stale output before its workers are spawned."""
+        proc_dir = setup_process(client, tmp_path)
+        write_minimal_voorkeuren_json(proc_dir)
+        write_minimal_groups_xlsx(proc_dir)
+        old_outputs = """results.xlsx result_tables.json groepsindeling_view.json
+        sociogram.html progress.json interim_result.json""".split()
+        for name in old_outputs:
+            (proc_dir / name).write_bytes(b"old output")
+        with flask_app.app_context():
+            proc = Process.query.filter_by(
+                school_id=SCHOOL_ID, name="testproces"
+            ).first()
+            db.session.add(Run(process_id=proc.id, status="done"))
+            db.session.commit()
+
+        thread_factory = MagicMock()
+        monkeypatch.setattr(wizard_module, "Thread", thread_factory)
+        form_data = _unlimited_maxima_form()
+        del form_data["maxima_max_clique_unlimited"]
+        form_data["maxima_max_clique"] = "7"
+
+        response = client.post("/start_distribution", data=form_data)
+
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/processing?watch=1")
+        assert thread_factory.call_count == 2
+        assert all(not (proc_dir / name).exists() for name in old_outputs)
+        assert load_balance_maxima(SCHOOL_ID, "testproces").max_clique == 7
+        assert self._read_run().status == "pending"
 
 
 class TestProcessingIdlePanel:  # pylint: disable=too-few-public-methods  # one test
@@ -766,6 +851,77 @@ class TestProcessingIdlePanel:  # pylint: disable=too-few-public-methods  # one 
 
 class TestProcessingRunStates:
     """Tests for the processing page while a run is active."""
+
+    def test_done_run_opens_safe_recalculation_form_without_mutating_state(
+        self, client, tmp_path
+    ):
+        """A completed run can be revisited as an idle form without side effects."""
+        proc_dir = setup_process(client, tmp_path)
+        write_minimal_voorkeuren_json(proc_dir)
+        write_minimal_groups_xlsx(proc_dir)
+        saved_maxima = BalanceMaxima(
+            max_diff_n_students_year=6,
+            max_diff_n_students_total=8,
+            max_imbalance_boys_girls_year=5,
+            max_imbalance_boys_girls_total=7,
+            max_clique=4,
+            max_clique_sex=3,
+        )
+        save_balance_maxima(SCHOOL_ID, "testproces", saved_maxima)
+        result_files = {
+            "results.xlsx": b"existing workbook",
+            "result_tables.json": b'{"existing": "tables"}',
+            "groepsindeling_view.json": b'{"existing": "view"}',
+        }
+        for filename, contents in result_files.items():
+            (proc_dir / filename).write_bytes(contents)
+        with flask_app.app_context():
+            proc = Process.query.filter_by(
+                school_id=SCHOOL_ID, name="testproces"
+            ).first()
+            db.session.add(Run(process_id=proc.id, status="done"))
+            db.session.commit()
+
+        response = client.get("/processing")
+
+        assert response.status_code == 200
+        html = response.data.decode("utf-8")
+        assert re.search(r'name="maxima_max_diff_n_students_year"[^>]*value="6"', html)
+        assert re.search(r'name="maxima_max_clique"[^>]*value="4"', html)
+        assert "Start nieuwe indeling" in html
+        assert "Start verdeling" not in html
+        assert "Een nieuwe indeling vervangt het huidige resultaat." in html
+        assert re.search(
+            r'href="/download"[^>]*>Download huidige groepsindeling</a>', html
+        )
+        details_tag = re.search(
+            r'<details class="instructions-box"[^>]*>', html
+        ).group()
+        assert " open" not in details_tag
+
+        with flask_app.app_context():
+            proc = Process.query.filter_by(
+                school_id=SCHOOL_ID, name="testproces"
+            ).first()
+            assert proc.run.status == "done"
+        assert load_balance_maxima(SCHOOL_ID, "testproces") == saved_maxima
+        for filename, contents in result_files.items():
+            assert (proc_dir / filename).read_bytes() == contents
+
+    def test_done_run_in_watch_mode_redirects_to_result(self, client, tmp_path):
+        """The explicit processing watch mode follows a completed run to its result."""
+        setup_process(client, tmp_path)
+        with flask_app.app_context():
+            proc = Process.query.filter_by(
+                school_id=SCHOOL_ID, name="testproces"
+            ).first()
+            db.session.add(Run(process_id=proc.id, status="done"))
+            db.session.commit()
+
+        response = client.get("/processing?watch=1")
+
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/result")
 
     def test_pending_run_shows_progress_view_with_server_summary(
         self, client, tmp_path
@@ -819,6 +975,10 @@ class TestProcessingRunStates:
         assert 'value="7"' in html
         assert 'value="None"' not in html
         assert re.search(r'name="maxima_max_clique_sex_unlimited"\s+checked', html)
+        details_tag = re.search(
+            r'<details class="instructions-box"[^>]*>', html
+        ).group()
+        assert " open" in details_tag
 
 
 class TestStatus:
@@ -895,6 +1055,20 @@ class TestResultPage:
         html = client.get("/result").data.decode("utf-8")
         assert "Groepsindeling" in html
         assert "<table>indeling</table>" in html
+
+    def test_restart_link_opens_plain_processing_form(self, client, tmp_path):
+        """The existing retry link opens editable processing without watch mode."""
+        proc_dir = setup_process(client, tmp_path)
+        (proc_dir / "result_tables.json").write_text("{}", encoding="utf-8")
+
+        html = client.get("/result").data.decode("utf-8")
+
+        assert "← Nog niet helemaal... opnieuw invoeren" in html
+        assert re.search(
+            r'href="/processing"[^>]*>← Nog niet helemaal\.\.\. opnieuw invoeren</a>',
+            html,
+        )
+        assert "/processing?watch=" not in html
 
 
 class TestInterimResult:
