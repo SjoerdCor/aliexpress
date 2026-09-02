@@ -26,6 +26,13 @@ from ortools.sat.python import cp_model
 from ..data import preferences_data
 from ._balance import UNCAPPED, BalanceMaxima
 from ._balance_families import add_balance_constraints, add_soft_balance_constraints
+from .conflicts import (
+    ConflictCondition,
+    ForbiddenGroup,
+    MinimumSatisfaction,
+    NotTogetherRule,
+    PreferenceContext,
+)
 from .satisfaction import _normalize_and_bound
 from .scaling import weight_scale
 
@@ -90,6 +97,15 @@ class SoftProblem:
         See :func:`_read_solution`, the shared reader both problem types delegate to.
         """
         return _read_solution(self, solver)
+
+
+@dataclass
+class DiagnosticProblem:
+    """A feasibility model with one assumption per meaningful user condition."""
+
+    model: cp_model.CpModel
+    condition_by_index: dict[int, ConflictCondition]
+    literal_by_index: dict[int, cp_model.IntVar]
 
 
 @dataclass
@@ -307,6 +323,63 @@ def build_feasibility_problem(  # pylint: disable=too-many-arguments
     return model
 
 
+def build_diagnostic_problem(
+    preferences,
+    students: dict,
+    groups_to: dict,
+    not_together: list,
+) -> DiagnosticProblem:
+    """Build the soft-balance feasibility model with CP-SAT assumptions.
+
+    The assignment, satisfaction and soft-balance structure is shared with the existing
+    feasibility model.  Only the three user-facing hard-condition families are
+    conditional: every ``Niet in`` row, every configured satisfaction floor and every
+    complete not-together rule receives one assumption literal.
+    """
+    assignment_model = _build_assignment_model(students, groups_to)
+    model, in_group = assignment_model.model, assignment_model.in_group
+    _, satisfaction, _ = _add_satisfaction(assignment_model, preferences, students)
+    add_soft_balance_constraints(model, in_group, students, groups_to)
+
+    condition_by_index: dict[int, ConflictCondition] = {}
+    literal_by_index = {}
+
+    def assumption_for(condition: ConflictCondition):
+        """Register one user condition as an assumption guarding its model constraints.
+
+        The returned literal is attached to every internal constraint belonging to the
+        condition.  Its CP-SAT index is stored alongside the condition so the diagnosis
+        layer can turn ``SufficientAssumptionsForInfeasibility`` back into user terms.
+        """
+        literal = model.NewBoolVar(f"diagnosis_assumption_{len(condition_by_index)}")
+        model.AddAssumption(literal)
+        condition_by_index[literal.Index()] = condition
+        literal_by_index[literal.Index()] = literal
+        return literal
+
+    _constrain_forbidden_groups(
+        model,
+        in_group,
+        preferences,
+        assumption_for=assumption_for,
+    )
+    _constrain_minimal_satisfaction(
+        model,
+        satisfaction,
+        students,
+        assumption_for=assumption_for,
+        preferences=preferences,
+    )
+    _constrain_not_together(
+        model,
+        in_group,
+        not_together,
+        groups_to,
+        assumption_for=assumption_for,
+    )
+    return DiagnosticProblem(model, condition_by_index, literal_by_index)
+
+
 def _build_assignment_model(students: dict, groups_to: dict) -> _AssignmentModel:
     """A fresh model plus equivalent one-hot and integer group assignments.
 
@@ -396,24 +469,44 @@ def _constrain_positive_satisfaction(
     return nonpositive
 
 
-def _constrain_forbidden_groups(model, in_group, preferences):
+def _constrain_forbidden_groups(model, in_group, preferences, *, assumption_for=None):
     """'Niet in': the student cannot be placed in the named group (hard)."""
     for index, row in preferences.query('TypeWens == "Niet in"').iterrows():
         student = index[0]
-        model.Add(in_group[student, row["Waarde"]] == 0)
-
-
-def _constrain_not_together(model, in_group, not_together, groups_to):
-    """At most ``Max_aantal_samen`` students of each rule group per target group."""
-    for rule in not_together:
-        for group in groups_to:
-            model.Add(
-                sum(in_group[student, group] for student in rule["group"])
-                <= rule["Max_aantal_samen"]
+        constraint = model.Add(in_group[student, row["Waarde"]] == 0)
+        if assumption_for is not None:
+            constraint.OnlyEnforceIf(
+                assumption_for(ForbiddenGroup(student, row["Waarde"]))
             )
 
 
-def _constrain_minimal_satisfaction(model, satisfaction, students):
+def _constrain_not_together(
+    model, in_group, not_together, groups_to, *, assumption_for=None
+):
+    """At most ``Max_aantal_samen`` students of each rule group per target group."""
+    for rule_index, rule in enumerate(not_together, start=1):
+        rule_students = tuple(sorted(rule["group"]))
+        literal = None
+        if assumption_for is not None:
+            literal = assumption_for(
+                NotTogetherRule(
+                    rule_index,
+                    rule_students,
+                    rule["Max_aantal_samen"],
+                )
+            )
+        for group in groups_to:
+            constraint = model.Add(
+                sum(in_group[student, group] for student in rule_students)
+                <= rule["Max_aantal_samen"]
+            )
+            if literal is not None:
+                constraint.OnlyEnforceIf(literal)
+
+
+def _constrain_minimal_satisfaction(
+    model, satisfaction, students, *, assumption_for=None, preferences=None
+):
     """Per-student satisfaction floors (UI: "Extra zekerheid").
 
     Floors are rounded *down* to the integer scale so a floor that is met
@@ -423,7 +516,36 @@ def _constrain_minimal_satisfaction(model, satisfaction, students):
         floor = info["MinimaleTevredenheid"]
         if math.isnan(floor):
             continue
-        model.Add(satisfaction[student] >= math.floor(floor * SATISFACTION_SCALE))
+        constraint = model.Add(
+            satisfaction[student] >= math.floor(floor * SATISFACTION_SCALE)
+        )
+        if assumption_for is not None:
+            condition = MinimumSatisfaction(
+                student,
+                float(floor),
+                _preference_context(preferences, student),
+            )
+            constraint.OnlyEnforceIf(assumption_for(condition))
+
+
+def _preference_context(preferences, student) -> tuple[PreferenceContext, ...]:
+    """Return form preferences for ``student`` as non-hard explanation context."""
+    if preferences is None:
+        return ()
+    context = []
+    for index, row in preferences.iterrows():
+        if index[0] == student and index[1] != "Niet in":
+            weight = float(row["Gewicht"])
+            context.append(
+                PreferenceContext(
+                    # Form data stores "Liever niet met" as a negative canonical weight
+                    # under the positive model category; restore the label for the UI.
+                    kind="Liever niet met" if weight < 0 else "Graag met",
+                    target=row["Waarde"],
+                    weight=abs(weight),
+                )
+            )
+    return tuple(context)
 
 
 def _same_group_literal(assignment_model: _AssignmentModel, student, target):

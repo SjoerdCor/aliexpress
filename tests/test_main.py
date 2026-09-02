@@ -2,7 +2,21 @@
 
 import logging
 
-from aliexpress.main import _log_initial_state, build_input_summary
+import pytest
+
+from aliexpress import errors
+from aliexpress.data.datareader import GroupCounts, matching_key
+from aliexpress.data.preferences_form import (
+    Preference,
+    PreferenceKind,
+    StudentEntry,
+    build_preference_data,
+)
+from aliexpress.main import (
+    _log_initial_state,
+    build_input_summary,
+    distribute_students_from_data,
+)
 
 
 def test_log_initial_state_reports_stamgroep_as_entered(monkeypatch):
@@ -55,3 +69,85 @@ def test_build_input_summary_counts_display_groups_not_matching_keys():
     assert summary.source_groups == {"Klas A": 2, "Anne's groep": 1}
     assert summary.n_target_groups == 2
     assert summary.years == [6, 7]
+
+
+def test_distribution_translates_detailed_conflict_keys_at_main_boundary(monkeypatch):
+    """Solver keys become entered names while the technical error stays unchanged."""
+    students = [
+        StudentEntry(
+            "Piet Jansen",
+            "Jongen",
+            "Klas A",
+            1.0,
+            preferences=[
+                Preference("Sam de Vries", 1.0, PreferenceKind.TOGETHER),
+                Preference("Blauw", 2.0, PreferenceKind.APART),
+            ],
+            excluded_groups=["Rood"],
+        ),
+        StudentEntry("Sam de Vries", "Meisje", "Klas A", None),
+    ]
+    blue, red = matching_key("Blauw"), matching_key("Rood")
+    preference_data = build_preference_data(
+        students,
+        [blue, red],
+        unique_name={
+            matching_key("Piet Jansen"): "Piet",
+            matching_key("Sam de Vries"): "Sam",
+        },
+    )
+    target_groups = GroupCounts(
+        counts={blue: {"Jongens": 0, "Meisjes": 0}, red: {"Jongens": 0, "Meisjes": 0}},
+        display={blue: "Blauw", red: "Rood"},
+    )
+    technical_message = "Hard preference constraints are mutually infeasible"
+    detail = {
+        "case": "detailed",
+        "conflict": {
+            "conditions": [
+                {
+                    "type": "minimum_satisfaction",
+                    "student": matching_key("Piet Jansen"),
+                    "floor": 1.0,
+                    "preferences": [
+                        {
+                            "kind": "Graag met",
+                            "target": matching_key("Sam de Vries"),
+                            "weight": 1.0,
+                        },
+                        {
+                            "kind": "Liever niet met",
+                            "target": blue,
+                            "weight": -2.0,
+                        },
+                    ],
+                },
+                {
+                    "type": "forbidden_group",
+                    "student": matching_key("Piet Jansen"),
+                    "group": red,
+                },
+            ]
+        },
+    }
+
+    def fail(**_kwargs):
+        raise errors.FeasibilityError(
+            "infeasible_preferences", detail, technical_message=technical_message
+        )
+
+    monkeypatch.setattr("aliexpress.main.engine.solve_within_minimal_relaxation", fail)
+
+    with pytest.raises(errors.FeasibilityError) as exc_info:
+        distribute_students_from_data(preference_data, target_groups)
+
+    translated = exc_info.value.context["conflict"]["conditions"]
+    assert translated[0]["student"] == "Piet"
+    assert translated[0]["preferences"][0]["target"] == "Sam"
+    assert translated[0]["preferences"][1]["target"] == "Blauw"
+    assert translated[1] == {
+        "type": "forbidden_group",
+        "student": "Piet",
+        "group": "Rood",
+    }
+    assert exc_info.value.technical_message == technical_message

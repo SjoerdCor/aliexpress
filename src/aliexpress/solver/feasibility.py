@@ -9,6 +9,8 @@ relaxable, and this module attributes an infeasible instance to whichever of
 them, once left soft, restores feasibility.
 """
 
+import time
+
 from ortools.sat.python import cp_model
 
 from .. import errors
@@ -22,6 +24,7 @@ from ._balance_families import (
     maximum_for_family,
     uncapped_slack_bound,
 )
+from .conflicts import Conflict
 from .strategies import NUM_WORKERS
 
 
@@ -83,6 +86,117 @@ def feasible_when_relaxed(  # pylint: disable=too-many-arguments
     solver.parameters.random_seed = 1
     status = solver.Solve(problem)
     return status in (cp_model.OPTIMAL, cp_model.FEASIBLE)
+
+
+def diagnose_conflict(  # pylint: disable=too-many-arguments
+    *,
+    preferences,
+    students: dict,
+    groups_to: dict,
+    not_together: list,
+    deadline_seconds: float = 10.0,
+) -> Conflict | None:
+    """Find one fully checked, subset-minimal conflict, or return ``None``.
+
+    The initial solve asks CP-SAT for a sufficient assumption core.  Only that core is
+    tested further: each candidate is removed in stable input order only when the
+    remaining assumptions are still infeasible.  Every solve must finish with a
+    decisive status before a conflict can be returned; timeout, ``UNKNOWN``, an invalid
+    model or an invalid/empty solver core therefore produces the safe fallback signal
+    ``None``.
+    """
+    if deadline_seconds <= 0:
+        return None
+
+    started = time.perf_counter()
+    try:
+        problem = modelbuilder.build_diagnostic_problem(
+            preferences, students, groups_to, not_together
+        )
+    except Exception:  # pylint: disable=broad-exception-caught
+        # A diagnosis is optional; a builder failure must preserve the normal fallback.
+        return None
+
+    def solve(active_indices):
+        return _solve_diagnostic(
+            problem,
+            active_indices,
+            _remaining_time(started, deadline_seconds),
+        )
+
+    core = _extract_sufficient_core(problem, solve)
+    if core is None:
+        return None
+    core = _shrink_core(core, solve)
+    if core is None:
+        return None
+    return Conflict(tuple(problem.condition_by_index[index] for index in core))
+
+
+def _extract_sufficient_core(problem, solve):
+    """Return CP-SAT's sufficient core in stable condition order, if proven."""
+    status, solver = solve(list(problem.literal_by_index))
+    if status != cp_model.INFEASIBLE:
+        return None
+
+    try:
+        solver_core = list(solver.SufficientAssumptionsForInfeasibility())
+    except Exception:  # pylint: disable=broad-exception-caught
+        return None
+    if not solver_core or any(
+        index not in problem.condition_by_index for index in solver_core
+    ):
+        return None
+
+    # CP-SAT may return a valid core in a solver-dependent order.  The model builder's
+    # insertion order is the stable condition order used for all shrink checks and output.
+    order = {
+        index: position for position, index in enumerate(problem.condition_by_index)
+    }
+    return sorted(set(solver_core), key=order.__getitem__)
+
+
+def _shrink_core(core, solve):
+    """Remove redundant conditions while every check returns a decisive status."""
+    # Greedily remove each candidate.  A condition is necessary when removing it makes
+    # the remaining assumptions feasible; otherwise it is not part of this irreducible
+    # conflict.  ``tuple(core)`` is a snapshot because ``core`` shrinks in the loop.
+    for index in tuple(core):
+        candidate = [
+            candidate_index for candidate_index in core if candidate_index != index
+        ]
+        status, _ = solve(candidate)
+        if status == cp_model.INFEASIBLE:
+            core.remove(index)
+        elif status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+            continue
+        else:
+            return None
+    return core
+
+
+def _remaining_time(started: float, deadline_seconds: float) -> float:
+    """Return the positive wall-clock budget left for one diagnostic solve."""
+    return deadline_seconds - (time.perf_counter() - started)
+
+
+def _solve_diagnostic(problem, active_indices, remaining_seconds):
+    """Solve a diagnostic model with exactly ``active_indices`` assumptions."""
+    if remaining_seconds <= 0:
+        return cp_model.UNKNOWN, None
+    problem.model.ClearAssumptions()
+    problem.model.AddAssumptions(
+        [problem.literal_by_index[index] for index in active_indices]
+    )
+    solver = cp_model.CpSolver()
+    # Diagnosis is deliberately reproducible and independent from normal solve settings.
+    solver.parameters.num_workers = 1
+    solver.parameters.random_seed = 1
+    solver.parameters.max_time_in_seconds = remaining_seconds
+    try:
+        return solver.Solve(problem.model), solver
+    except Exception:  # pylint: disable=broad-exception-caught
+        return cp_model.MODEL_INVALID, solver
 
 
 def diagnose(

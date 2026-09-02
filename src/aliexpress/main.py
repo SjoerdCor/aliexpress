@@ -194,6 +194,50 @@ def _export(result, preference_data, target_groups, year_offset: int = 0):
     return output, dfs, view
 
 
+def _translate_conflict_context(context, preference_data, target_groups) -> dict:
+    """Translate a detailed solver conflict from matching keys to display values."""
+    conflict = context.get("conflict")
+    if not isinstance(conflict, dict) or not isinstance(
+        conflict.get("conditions"), list
+    ):
+        return context
+
+    def student_display(key):
+        return preference_data.unique_name.get(
+            key, preference_data.student_display.get(key, key)
+        )
+
+    def target_display(key):
+        if key in preference_data.student_display:
+            return student_display(key)
+        return target_groups.display.get(key, key)
+
+    conditions = []
+    for condition in conflict["conditions"]:
+        translated = dict(condition)
+        if condition.get("type") == "forbidden_group":
+            translated["student"] = student_display(condition["student"])
+            translated["group"] = target_groups.display.get(
+                condition["group"], condition["group"]
+            )
+        elif condition.get("type") == "minimum_satisfaction":
+            translated["student"] = student_display(condition["student"])
+            translated["preferences"] = [
+                {
+                    **preference,
+                    "target": target_display(preference["target"]),
+                }
+                for preference in condition.get("preferences", [])
+            ]
+        elif condition.get("type") == "not_together":
+            translated["students"] = [
+                student_display(student) for student in condition["students"]
+            ]
+        conditions.append(translated)
+
+    return {**context, "conflict": {**conflict, "conditions": conditions}}
+
+
 class _InterimResultAdapter(ProgressListener):
     """Turns a solver-space ``interim_result`` into a display-space ``interim_result_view``.
 
@@ -397,15 +441,26 @@ def distribute_students_from_data(  # pylint: disable=too-many-arguments,too-man
 
     if groupbalance is None:
         logger.info("Solving within the minimal class-balance relaxation")
-        solution = engine.solve_within_minimal_relaxation(
-            preferences=preferences,
-            students=students_info,
-            groups_to=target_groups.counts,
-            not_together=not_together,
-            optimize="lexmaxmin",
-            listener=listener,
-            maxima=maxima,
-        )
+        try:
+            solution = engine.solve_within_minimal_relaxation(
+                preferences=preferences,
+                students=students_info,
+                groups_to=target_groups.counts,
+                not_together=not_together,
+                optimize="lexmaxmin",
+                listener=listener,
+                maxima=maxima,
+            )
+        except errors.FeasibilityError as exc:
+            if exc.code != "infeasible_preferences" or "conflict" not in exc.context:
+                raise
+            raise errors.FeasibilityError(
+                exc.code,
+                context=_translate_conflict_context(
+                    exc.context, preference_data, target_groups
+                ),
+                technical_message=exc.technical_message,
+            ) from exc
         result = results.to_solution_result(
             solution, preferences, students_info, target_groups.counts
         )
