@@ -7,4 +7,4 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0kill-server.ps1"
 REM Force production mode for end users: no debugger/reloader. load_dotenv won't override
 REM an already-set variable, so SECRET_KEY still comes from .env.
 set FLASK_ENV=production
-start "" ".venv\Scripts\pythonw.exe" app.py
+start "" ".venv\Scripts\pythonw.exe" "%~dp0app.py"
