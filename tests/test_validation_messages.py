@@ -163,6 +163,19 @@ class TestErrorMessages:
         for label in labels.values():
             assert f"‘{label}’" in msg
 
+    def test_infeasible_preferences_uses_valid_grouping_language(self):
+        """The fallback describes validity, not an unexplained balance objective."""
+        exc = FeasibilityError(
+            "infeasible_preferences", context={"case": "min_satisfaction"}
+        )
+
+        msg = readableerror_to_validation_message(exc)
+
+        assert msg.startswith(
+            "Met deze voorkeuren bestaat geen geldige groepsindeling."
+        )
+        assert "evenwichtige groepsindeling" not in msg
+
     def test_detailed_small_conflict_has_neutral_fixed_order_and_context(self):
         """A small core explains floors, raw wishes, rules and merged exclusions."""
         exc = FeasibilityError(
@@ -211,6 +224,9 @@ class TestErrorMessages:
 
         msg = readableerror_to_validation_message(exc)
 
+        assert msg.startswith(
+            "Met deze voorkeuren bestaat geen geldige groepsindeling."
+        )
         assert "Piet" in msg
         assert "Alle voorkeuren gehonoreerd" in msg
         assert "Graag met Sam" in msg

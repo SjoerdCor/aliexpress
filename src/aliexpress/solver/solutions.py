@@ -597,9 +597,14 @@ class SolutionAnalyzer:
                 cell.number_format = numbers.FORMAT_PERCENTAGE
             self._autoscale_column_width(sheet)
 
-            self.display_satisfied_preferences().to_excel(
-                writer, sheet_name="VervuldeVoorkeuren"
-            )
+            if self.preferences.empty:
+                pd.DataFrame({"Melding": ["Geen voorkeuren ingevoerd."]}).to_excel(
+                    writer, sheet_name="VervuldeVoorkeuren", index=False
+                )
+            else:
+                self.display_satisfied_preferences().to_excel(
+                    writer, sheet_name="VervuldeVoorkeuren"
+                )
             sheet = writer.book.worksheets[-1]
             for cell in sheet["B"]:
                 cell.number_format = numbers.FORMAT_PERCENTAGE
