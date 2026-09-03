@@ -83,6 +83,28 @@ def test_build_sociogram_view_keeps_raw_edge_weight_but_clips_received_score(
     assert received_by_id["maya"] == -2.0
 
 
+def test_build_sociogram_view_scales_edge_width_by_absolute_weight():
+    """Stronger preferences get thicker, bounded lines regardless of their sign."""
+    view = sociogram.build_sociogram_view(
+        _preference_data_from_edges(
+            [
+                ("alice", "bob", 2),
+                ("charlie", "dave", 5),
+                ("bob", "alice", -2),
+                ("dave", "charlie", -5),
+            ],
+            students=("alice", "bob", "charlie", "dave"),
+        )
+    )
+
+    widths = {edge.weight: edge.line_width for edge in view.preferences}
+
+    assert widths[5.0] > widths[2.0]
+    assert widths[-5.0] == pytest.approx(widths[5.0])
+    assert widths[-2.0] == pytest.approx(widths[2.0])
+    assert widths[5.0] / widths[2.0] < 2.5
+
+
 def _preference_data_from_edges(edges, students=("alice", "bob", "charlie")):
     """Build the smallest canonical input needed for a layout-relation test."""
     records = []
@@ -114,6 +136,10 @@ def test_build_sociogram_view_uses_average_strength_for_mutual_positive_relation
     )
 
     assert len(view.layout_relations) == 1
+    assert [(edge.source, edge.target) for edge in view.preferences] == [
+        ("alice", "bob"),
+        ("bob", "alice"),
+    ]
     relation = view.layout_relations[0]
     assert {relation.source, relation.target} == {"alice", "bob"}
     assert relation.kind == "mutual_positive"

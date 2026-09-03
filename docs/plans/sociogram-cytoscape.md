@@ -1,5 +1,5 @@
 ---
-status: slice-1-complete
+status: slice-3-complete
 branch: feature/sociogram-cytoscape
 ---
 
@@ -24,8 +24,9 @@ met echte procesdata; volgende commits breiden dat resultaat zichtbaar uit.
 - [x] Slice 1 — echte voorkeuren in de browser. Nodes en gerichte positieve/negatieve
   voorkeuren worden direct uit `voorkeuren.json` gebouwd en met lokaal Cytoscape
   gerenderd. De eenvoudige grid-layout en de read-only browserdiagnose zijn aanwezig.
-- [ ] Slice 2 — sociometrische layoutprojectie.
-- [ ] Slice 3 — gewicht, focus en lokale leesbaarheid.
+- [x] Slice 2 — sociometrische layoutprojectie.
+- [x] Slice 3 — gewicht, focus en lokale leesbaarheid. Begrensde interactie, focus
+  met popup en leesbare referentiedataset zijn gereviewd en geïmplementeerd.
 - [ ] Slice 4 — direct beschikbaar in de Procesflow.
 - [ ] Slice 5 — objectieve layoutkwaliteit op `voorkeuren.xlsx`.
 - [ ] Slice 6 — schaal, offlinegarantie en verwijderen oude stack.
@@ -55,6 +56,43 @@ met echte procesdata; volgende commits breiden dat resultaat zichtbaar uit.
   geen sociometrische statusclassificaties in deze versie.
 - `stash@{0}` wordt niet toegepast. De tests daarin mogen als historische
   inspiratie dienen; de eigen Python/NumPy-SMACOF-optimizer wordt niet hergebruikt.
+
+## Waarom CoSE — en wat CoSE hier niet doet
+
+CoSE staat voor *Compound Spring Embedder*. Een compound graph kan nodes in
+bovenliggende, eventueel geneste groepsnodes bevatten. Dat is een hiërarchie van
+containers; het betekent niet dat CoSE gewone relaties automatisch als een
+hiërarchie tekent. Dit Sociogram heeft geen compound nodes. De compound-uitbreidingen
+van CoSE worden hier dus niet benut: voor onze invoer is CoSE in de kern een gewone
+force-directed spring-layout, net als NetworkX' Fruchterman-Reingold-layout.
+
+De verwachte kwaliteitswinst wordt daarom niet toegeschreven aan een intrinsiek
+superieur of hiërarchisch CoSE-algoritme. De vergelijking met de oude implementatie
+verandert tegelijkertijd de representatie en de layoutmotor:
+
+| Oude implementatie | Nieuwe implementatie |
+|---|---|
+| 102 ruwe, gerichte voorkeurspijlen sturen de layout | 73 afgeleide relaties per leerlingenpaar sturen de layout |
+| één globale voorkeursafstand `k` | `idealEdgeLength` kan per layoutrelatie verschillen |
+| gewicht verandert vooral de aantrekkingskracht | categorie en gewicht bepalen een begrensde rustlengte |
+| zichtbare en positionerende relaties zijn hetzelfde | zichtbare pijlen en onzichtbare layoutrelaties zijn gescheiden |
+
+De sociometrische projectie — wederzijds, eenzijdig en negatief vertalen naar
+verschillende ideale afstanden — is dus de belangrijkste inhoudelijke verbetering.
+CoSE is gekozen als eerste uitvoeringsmotor omdat het al in Cytoscape.js zit, zonder
+extra dependency per edge een ideale lengte accepteert en opties heeft voor
+nodeafstoting, overlap en componentafstand. Het is daarmee een pragmatische en
+vervangbare keuze, geen domeinbeslissing.
+
+Een werkelijk eerlijke algoritmevergelijking zou zowel de ruwe als de afgeleide
+relaties met meerdere motoren testen. Dat is voor de MVP niet nodig zolang de
+objectieve criteria uit slice 5 worden gehaald. Haalt CoSE die criteria niet, dan
+blijven `SociogramView` en de sociometrische projectie staan en vergelijken we pas
+een andere Cytoscape-layout; we bouwen niet meteen een eigen optimizer.
+
+Zie ook de officiële
+[Cytoscape.js-documentatie voor CoSE](https://js.cytoscape.org/#layouts/cose) en de
+[NetworkX-documentatie voor `spring_layout`](https://networkx.org/documentation/stable/reference/generated/networkx.drawing.layout.spring_layout.html).
 
 ## Publieke interfaces
 
@@ -213,6 +251,10 @@ leerkracht één leerling of pijl gericht kan onderzoeken.
 - Test dat selectie van een leerling alle inkomende en uitgaande pijlen accentueert,
   de rest dimt en dat klikken op de achtergrond de selectie wist.
 - Test dat selectie van een pijl bron, doel, soort en exact gewicht toont.
+- Test dat zoomen binnen de afgesproken onder- en bovengrens blijft en dat de resetknop
+  het volledige Sociogram terug in beeld brengt.
+- Test dat details als popup binnen de tekenarea verschijnen en met achtergrondklik of
+  Escape verdwijnen.
 
 **GREEN**
 
@@ -220,14 +262,18 @@ leerkracht één leerling of pijl gericht kan onderzoeken.
   `2`, maar niet letterlijk 2,5 maal zo dik.
 - Gebruik gebogen lijnen waar twee leerlingen elkaar kiezen, zodat beide richtingen
   zichtbaar blijven.
-- Voeg focus/dimmen en een compact detailvlak toe.
-- Behoud pan, zoom en handmatig slepen tijdens de geopende pagina.
+- Voeg focus/dimmen en een compacte popup binnen de tekenarea toe; laat die popup de
+  onderliggende pijlen niet blokkeren.
+- Behoud pan, zoom en handmatig slepen tijdens de geopende pagina, maar begrens zoom
+  met `minZoom: 0.35`, `maxZoom: 2.5` en een lagere `wheelSensitivity`; voeg een
+  resetknop toe die het volledige Sociogram fit.
 - Gebruik naast rood altijd streepstijl en tekstuele betekenis voor toegankelijkheid.
 
 **Reviewpunt:** controleer in de browser zowel het totaalbeeld als één geselecteerde
-leerling met wederzijdse en negatieve Voorkeuren.
+leerling met wederzijdse en negatieve Voorkeuren. Controleer ook dat de popup niet buiten
+de tekenarea valt en dat een extreem muiswielgebaar het overzicht niet onbruikbaar maakt.
 
-**Commit:** `feat(sociogram): maak relaties gericht onderzoekbaar`
+**Commit:** `feat(sociogram): make relationships inspectable`
 
 ## Slice 4 — direct beschikbaar in de Procesflow
 
@@ -266,6 +312,11 @@ dezelfde route hetzelfde actuele Sociogram. De solverflow blijft groen.
 
 **Gebruikersresultaat:** het referentiebestand levert een bruikbaar totaaloverzicht
 zonder nodekluwen en met weinig lijnkruisingen.
+
+De referentiedataset `testdata/voorkeuren.xlsx` is hierbij leidend: die bevat echte
+subgroepstructuren (43 leerlingen, 102 leerling-naar-leerlingvoorkeuren en 73
+layoutparen) en is daarom relevanter voor layoutbeoordeling dan willekeurig gegenereerde
+voorkeuren. Kleine of gegenereerde bestanden blijven nuttig voor snelle smoke-tests.
 
 **RED**
 
