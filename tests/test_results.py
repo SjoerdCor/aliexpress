@@ -341,20 +341,26 @@ class TestSociogramPage:
         assert response.status_code == 302
         assert response.headers["Location"].endswith("/processes")
 
-    def test_missing_file_flashes_and_redirects(self, client, tmp_path):
-        """Visiting /sociogram before the file exists flashes an error and redirects."""
+    def test_missing_preferences_flashes_and_redirects(self, client, tmp_path):
+        """Visiting /sociogram without canonical preferences flashes an error."""
         _setup_process(client, tmp_path)
         response = client.get("/sociogram")
         assert response.status_code == 302
         assert response.headers["Location"].endswith("/processes")
 
-    def test_renders_sociogram_file(self, client, tmp_path):
-        """A stored sociogram.html is rendered into the page."""
+    def test_renders_sociogram_from_preference_data(self, client, tmp_path):
+        """The route builds visible nodes and arrows from voorkeuren.json."""
         proc_dir = _setup_process(client, tmp_path)
-        (proc_dir / "sociogram.html").write_text("<div>plotly</div>", encoding="utf-8")
+        write_minimal_voorkeuren_json(proc_dir)
         response = client.get("/sociogram")
         assert response.status_code == 200
-        assert b"plotly" in response.data
+        html = response.data.decode("utf-8")
+        assert '"label": "Alice"' in html
+        assert '"label": "Bob"' in html
+        assert '"source": "alice"' in html
+        assert '"target": "bob"' in html
+        assert '"weight": 1.0' in html
+        assert "cytoscape-3.34.0.min.js" in html
 
 
 class TestDownload:

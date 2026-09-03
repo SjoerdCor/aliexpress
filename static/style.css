@@ -1680,3 +1680,10 @@ body.modal-open { overflow: hidden; }
 .gi-legend-col h4 { margin: 0 0 8px; font-size: 12.5px; text-transform: uppercase; letter-spacing: .04em; color: #555; }
 .gi-legend-note { margin-top: 8px; color: #555; font-size: 12.5px; }
 .gi-legend-badges { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
+.sociogram {
+    width: 100%;
+    height: 680px;
+    border: 1px solid #d8dee4;
+    border-radius: 8px;
+    background: #fff;
+}

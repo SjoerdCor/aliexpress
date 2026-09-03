@@ -1,5 +1,5 @@
 ---
-status: ready
+status: slice-1-complete
 branch: feature/sociogram-cytoscape
 ---
 
@@ -18,6 +18,17 @@ Dit plan werkt met verticale TDD-slices. Iedere slice doorloopt lokaal
 reviewbare commit. Er komen geen aparte commits met alleen tests of alleen
 infrastructuur. Commit 1 is de tracer bullet en levert direct een werkende route
 met echte procesdata; volgende commits breiden dat resultaat zichtbaar uit.
+
+## Voortgang
+
+- [x] Slice 1 — echte voorkeuren in de browser. Nodes en gerichte positieve/negatieve
+  voorkeuren worden direct uit `voorkeuren.json` gebouwd en met lokaal Cytoscape
+  gerenderd. De eenvoudige grid-layout en de read-only browserdiagnose zijn aanwezig.
+- [ ] Slice 2 — sociometrische layoutprojectie.
+- [ ] Slice 3 — gewicht, focus en lokale leesbaarheid.
+- [ ] Slice 4 — direct beschikbaar in de Procesflow.
+- [ ] Slice 5 — objectieve layoutkwaliteit op `voorkeuren.xlsx`.
+- [ ] Slice 6 — schaal, offlinegarantie en verwijderen oude stack.
 
 ## Vaststaande keuzes
 
@@ -155,7 +166,7 @@ volgen later. De bestaande resultaatlink vormt al een klikbaar pad naar deze pag
 **Reviewpunt:** echte voorkeuren zijn zichtbaar en onderzoekbaar; nog geen claim
 over optimale afstanden, kruisingen of definitieve styling.
 
-**Commit:** `feat(sociogram): render voorkeuren met lokaal Cytoscape`
+**Commit:** `feat(sociogram): render preferences with local Cytoscape`
 
 ## Slice 2 — sociometrische layoutprojectie
 
