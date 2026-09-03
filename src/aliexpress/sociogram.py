@@ -37,6 +37,7 @@ class PreferenceEdge:
     target: str
     weight: float
     kind: str
+    line_width: float = 2.0
 
 
 @dataclass(frozen=True)
@@ -88,6 +89,7 @@ def build_sociogram_view(preference_data) -> SociogramView:
                 target=target,
                 weight=weight,
                 kind="negative" if weight < 0 else "positive",
+                line_width=_edge_line_width(weight),
             )
         )
         if source != target:
@@ -175,6 +177,11 @@ def _node_size(received_preference_score: float) -> float:
     """Map a received-preference score to a restrained Cytoscape node diameter."""
     bounded_score = max(-2.0, min(10.0, received_preference_score))
     return 36.0 + 28.0 * (bounded_score + 2.0) / 12.0
+
+
+def _edge_line_width(weight: float) -> float:
+    """Map absolute preference strength to a bounded, non-linear line width."""
+    return 2.0 + 6.0 * _bounded_strength(abs(weight))
 
 
 def _clip_received_preference(weight: float) -> float:
