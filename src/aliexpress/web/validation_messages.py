@@ -33,8 +33,12 @@ def _format_infeasible_preferences(context: dict) -> str:
     constraint family to relax — the extra zekerheid (minimal satisfaction) and/or the
     niet-samen rules — without pointing at individual students.
     """
+    conflict = context.get("conflict")
+    if isinstance(conflict, dict) and isinstance(conflict.get("conditions"), list):
+        return _format_detailed_conflict(conflict["conditions"])
+
     case = context.get("case", "fundamental")
-    header = "Met deze voorkeuren lukt geen evenwichtige groepsindeling."
+    header = "Met deze voorkeuren bestaat geen geldige groepsindeling."
 
     verlaag_zekerheid = (
         "verlaag de extra zekerheid een stap "
@@ -66,6 +70,110 @@ def _format_infeasible_preferences(context: dict) -> str:
         "versoepelen. Waarschijnlijk botsen de 'Niet in'-uitsluitingen: controleer of "
         "leerlingen niet uit te veel groepen geweigerd worden."
     )
+
+
+def _format_detailed_conflict(conditions: list[dict], small_core_limit: int = 8) -> str:
+    """Format a proven detail core without adding causal or repair advice.
+
+    Cores up to ``small_core_limit`` are written condition by condition.  Larger valid
+    cores use the compact inventory format below.
+    """
+    if len(conditions) > small_core_limit:
+        return _format_large_conflict(conditions)
+
+    minimums = [c for c in conditions if c.get("type") == "minimum_satisfaction"]
+    rules = [c for c in conditions if c.get("type") == "not_together"]
+    forbidden = [c for c in conditions if c.get("type") == "forbidden_group"]
+    lines = ["Met deze voorkeuren bestaat geen geldige groepsindeling."]
+
+    for condition in minimums:
+        lines.append(
+            f"- {condition['student']} heeft {_floor_label(condition['floor'])}."
+        )
+        preferences = condition.get("preferences", [])
+        lines.append("  Gewone voorkeuren die de tevredenheid bepalen:")
+        if preferences:
+            for preference in preferences:
+                lines.append(
+                    "    - "
+                    f"{preference.get('kind', 'Voorkeur')} "
+                    f"{preference.get('target')} "
+                    f"(gewicht {preference.get('weight')})."
+                )
+        else:
+            lines.append("    - Geen gewone voorkeuren.")
+
+    for condition in rules:
+        students = _join_dutch(condition.get("students", []))
+        lines.append(
+            f"- Niet-samen-regel {condition['rule_index']}: maximaal "
+            f"{condition['max_together']} van {students} samen in één groep."
+        )
+
+    exclusions = {}
+    for condition in forbidden:
+        exclusions.setdefault(condition["student"], []).append(condition["group"])
+    for student, groups in exclusions.items():
+        lines.append(f"- {student} mag niet in {_join_dutch(groups)}.")
+
+    lines.append(
+        "Deze voorwaarden zijn niet tegelijk uitvoerbaar. Er kunnen nog andere conflicten bestaan."
+    )
+    return "\n".join(lines)
+
+
+def _format_large_conflict(conditions: list[dict]) -> str:
+    """Format a valid large core as a concrete inventory of involved input."""
+    rules = sorted(
+        {
+            condition["rule_index"]
+            for condition in conditions
+            if condition.get("type") == "not_together"
+        }
+    )
+    minimum_students = list(
+        dict.fromkeys(
+            condition["student"]
+            for condition in conditions
+            if condition.get("type") == "minimum_satisfaction"
+        )
+    )
+    forbidden_students = list(
+        dict.fromkeys(
+            condition["student"]
+            for condition in conditions
+            if condition.get("type") == "forbidden_group"
+        )
+    )
+    inventory = []
+    if rules:
+        inventory.append(
+            "niet-samen-regel " + _join_dutch([str(rule_index) for rule_index in rules])
+        )
+    if minimum_students:
+        inventory.append("extra zekerheid van " + _join_dutch(minimum_students))
+    if forbidden_students:
+        inventory.append("Niet in-uitsluitingen van " + _join_dutch(forbidden_students))
+    return (
+        "Het gevonden conflict is te groot om volledig uit te schrijven. "
+        f"Het betreft {_join_dutch(inventory)}. "
+        "Deze voorwaarden zijn niet tegelijk uitvoerbaar. Er kunnen nog andere conflicten bestaan."
+    )
+
+
+def _floor_label(value) -> str:
+    """Use the labels shown by the form for the two supported floor levels."""
+    if float(value) >= 1.0:
+        return "de extra zekerheid 'Alle voorkeuren gehonoreerd'"
+    return "de extra zekerheid 'Minstens tevreden'"
+
+
+def _join_dutch(values) -> str:
+    """Join already formatted values with Dutch punctuation."""
+    values = [str(value) for value in values]
+    if len(values) < 2:
+        return values[0] if values else "geen leerlingen"
+    return ", ".join(values[:-1]) + " en " + values[-1]
 
 
 _BALANCE_CAP_LABELS = {

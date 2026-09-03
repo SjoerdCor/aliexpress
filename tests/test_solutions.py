@@ -1,7 +1,11 @@
 """Unit tests for solutions.py"""
 
-import pandas as pd
+from io import BytesIO
 
+import pandas as pd
+from openpyxl import load_workbook
+
+from aliexpress.data.preferences_form import StudentEntry, build_preference_data
 from aliexpress.solver.results import GroupComposition, SexCounts, SolutionResult
 from aliexpress.solver.solutions import DisplayNames, SolutionAnalyzer, to_display_names
 
@@ -38,6 +42,42 @@ def test_indexed_series_empty_returns_named_multiindex():
     assert isinstance(result, pd.Series)
     assert len(result) == 0
     assert result.index.names == ["student", "Nr"]
+
+
+def test_to_excel_supports_a_solution_without_preferences():
+    """A valid distribution with no preferences still produces a workbook."""
+    preference_data = build_preference_data(
+        [
+            StudentEntry("Anna", "Meisje", "A", None),
+            StudentEntry("Bram", "Jongen", "A", None),
+        ],
+        ["blauw"],
+    )
+    result = SolutionResult(
+        assignment={"anna": "blauw", "bram": "blauw"},
+        student_satisfaction={"anna": 1.0, "bram": 1.0},
+        satisfied={},
+        weighted_satisfied={},
+        weights={},
+        group_composition={
+            "blauw": GroupComposition(
+                boys_total=1, girls_total=1, per_year={None: SexCounts(1, 1)}
+            )
+        },
+    )
+    analyzer = SolutionAnalyzer(
+        result,
+        preference_data.preferences,
+        preference_data.input_sheet,
+        preference_data.students_info,
+    )
+
+    output = BytesIO()
+    analyzer.to_excel(output)
+
+    workbook = load_workbook(BytesIO(output.getvalue()))
+    assert "VervuldeVoorkeuren" in workbook.sheetnames
+    assert workbook["VervuldeVoorkeuren"]["A2"].value == ("Geen voorkeuren ingevoerd.")
 
 
 def test_get_outcome_reflects_assignment():
