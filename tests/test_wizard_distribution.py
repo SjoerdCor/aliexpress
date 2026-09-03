@@ -122,6 +122,53 @@ class TestStartDistribution:
         assert "verkeerde kolommen" in run.message
         assert not (proc_dir / "results.xlsx").exists()
 
+    def test_detailed_conflict_keeps_multiline_message_in_processing_flow(
+        self, client, tmp_path, monkeypatch
+    ):
+        """A detailed diagnosis follows the existing status and flash-message path."""
+        proc_dir = setup_process(client, tmp_path)
+        write_minimal_voorkeuren_json(proc_dir)
+        write_minimal_groups_xlsx(proc_dir)
+        exc = FeasibilityError(
+            "infeasible_preferences",
+            context={
+                "case": "detailed",
+                "conflict": {
+                    "conditions": [
+                        {
+                            "type": "minimum_satisfaction",
+                            "student": "Piet",
+                            "floor": 1.0,
+                            "preferences": [
+                                {
+                                    "kind": "Graag met",
+                                    "target": "Sam",
+                                    "weight": 1.0,
+                                }
+                            ],
+                        },
+                        {
+                            "type": "forbidden_group",
+                            "student": "Piet",
+                            "group": "Blauw",
+                        },
+                    ]
+                },
+            },
+        )
+        self._patch_pipeline(monkeypatch, exc=exc)
+
+        client.post("/start_distribution", data=_unlimited_maxima_form())
+        status = client.get("/status").get_json()
+        assert status["status_studentdistribution"] == "error"
+        assert "extra zekerheid" in status["message"]
+        assert "\n" in status["message"]
+
+        client.post("/handle-error", json={"message": status["message"]})
+        html = client.get("/processing").data.decode("utf-8")
+        assert "Piet" in html
+        assert "Graag met Sam" in html
+
     def test_balance_cap_error_returns_to_idle_with_message_and_saved_limits(
         self, client, tmp_path, monkeypatch
     ):

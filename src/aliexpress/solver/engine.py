@@ -132,6 +132,18 @@ def _floor_infeasibility_error(
                 context={"suggestion": suggestion},
                 technical_message="Configured balance caps are too tight",
             )
+    conflict = feasibility.diagnose_conflict(
+        preferences=preferences,
+        students=students,
+        groups_to=groups_to,
+        not_together=not_together,
+    )
+    if conflict is not None:
+        return errors.FeasibilityError(
+            "infeasible_preferences",
+            context=conflict.to_error_context(),
+            technical_message="Hard preference constraints are mutually infeasible",
+        )
     return errors.FeasibilityError(
         "infeasible_preferences",
         context={
