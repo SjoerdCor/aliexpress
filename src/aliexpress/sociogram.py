@@ -40,11 +40,23 @@ class PreferenceEdge:
 
 
 @dataclass(frozen=True)
+class LayoutRelation:
+    """One undirected, derived relation used only to position two learners."""
+
+    source: str
+    target: str
+    kind: str
+    strength: float
+    ideal_distance: float
+
+
+@dataclass(frozen=True)
 class SociogramView:
-    """Flat, JSON-serialisable data needed to render a first sociogram slice."""
+    """Flat, JSON-serialisable data needed to render the browser sociogram."""
 
     nodes: list[SociogramNode]
     preferences: list[PreferenceEdge]
+    layout_relations: list[LayoutRelation]
 
 
 def build_sociogram_view(preference_data) -> SociogramView:
@@ -61,10 +73,11 @@ def build_sociogram_view(preference_data) -> SociogramView:
 
     incoming_scores = {student: 0.0 for student in student_keys}
     edges = []
+    pair_preferences = {}
     for position, (index, row) in enumerate(preference_data.preferences.iterrows()):
         source = index[0]
         target = row["Waarde"]
-        if target not in student_set:
+        if source not in student_set or target not in student_set:
             continue
         weight = float(row["Gewicht"])
         incoming_scores[target] += _clip_received_preference(weight)
@@ -77,6 +90,9 @@ def build_sociogram_view(preference_data) -> SociogramView:
                 kind="negative" if weight < 0 else "positive",
             )
         )
+        if source != target:
+            pair = _ordered_pair(source, target, student_keys)
+            pair_preferences.setdefault(pair, []).append((source, target, weight))
 
     nodes = [
         SociogramNode(
@@ -87,7 +103,72 @@ def build_sociogram_view(preference_data) -> SociogramView:
         )
         for student, score in incoming_scores.items()
     ]
-    return SociogramView(nodes=nodes, preferences=edges)
+    layout_relations = [
+        _build_layout_relation(source, target, preferences)
+        for (source, target), preferences in pair_preferences.items()
+    ]
+    return SociogramView(
+        nodes=nodes, preferences=edges, layout_relations=layout_relations
+    )
+
+
+def _ordered_pair(source: str, target: str, student_keys: list[str]) -> tuple[str, str]:
+    """Return a stable pair orientation based on the canonical learner order."""
+    order = {student: index for index, student in enumerate(student_keys)}
+    if order[source] <= order[target]:
+        return source, target
+    return target, source
+
+
+def _build_layout_relation(source, target, preferences) -> LayoutRelation:
+    """Combine the at-most-two directed preferences into one relation.
+
+    The preference validator guarantees that a learner can mention another learner at
+    most once, so the pair contains at most one weight per direction.
+    """
+    weights_by_source = {
+        preference_source: weight for preference_source, _, weight in preferences
+    }
+    negative_weights = [
+        abs(weight) for weight in weights_by_source.values() if weight < 0
+    ]
+
+    if negative_weights:
+        kind = "negative"
+        strength = max(negative_weights)
+    elif source in weights_by_source and target in weights_by_source:
+        kind = "mutual_positive"
+        strength = (weights_by_source[source] + weights_by_source[target]) / 2
+    else:
+        kind = "positive"
+        strength = next(iter(weights_by_source.values()))
+
+    return LayoutRelation(
+        source=source,
+        target=target,
+        kind=kind,
+        strength=float(strength),
+        ideal_distance=_ideal_distance(kind, strength),
+    )
+
+
+def _ideal_distance(kind: str, strength: float) -> float:
+    """Map relation strength into a non-overlapping, bounded distance band."""
+    bounded_strength = _bounded_strength(strength)
+    bands = {
+        "mutual_positive": (60.0, 90.0),
+        "positive": (110.0, 145.0),
+        "negative": (220.0, 290.0),
+    }
+    closest, furthest = bands[kind]
+    if kind == "negative":
+        return closest + (furthest - closest) * bounded_strength
+    return furthest - (furthest - closest) * bounded_strength
+
+
+def _bounded_strength(strength: float) -> float:
+    """Compress non-negative strength to [0, 1): x/(x+1) grows but approaches 1."""
+    return strength / (strength + 1.0)
 
 
 def _node_size(received_preference_score: float) -> float:

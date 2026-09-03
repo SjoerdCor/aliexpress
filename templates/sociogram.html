@@ -9,13 +9,18 @@
 <script>
     (() => {
         const view = {{ sociogram_view | tojson }};
-        const elements = [
-            ...view.nodes.map(node => ({ data: node })),
-            ...view.preferences.map(edge => ({ data: edge }))
-        ];
+        const nodeElements = view.nodes.map(node => ({ data: node }));
+        const layoutElements = view.layout_relations.map((relation, index) => ({
+            data: {
+                ...relation,
+                id: `layout-relation-${index}`
+            },
+            classes: 'layout-relation'
+        }));
+        const preferenceElements = view.preferences.map(edge => ({ data: edge }));
         const cy = cytoscape({
             container: document.getElementById('sociogram'),
-            elements,
+            elements: [...nodeElements, ...layoutElements, ...preferenceElements],
             style: [
                 {
                     selector: 'node',
@@ -53,9 +58,15 @@
                         'target-arrow-shape': 'triangle',
                         'width': 2
                     }
+                },
+                {
+                    selector: 'edge.layout-relation',
+                    style: {
+                        'display': 'none'
+                    }
                 }
             ],
-            layout: { name: 'grid', padding: 40, avoidOverlap: true }
+            layout: { name: 'preset' }
         });
         window.sociogramSnapshot = () => ({
             nodes: cy.nodes().map(node => {
@@ -68,12 +79,31 @@
                     }
                 };
             }),
-            preferences: cy.edges().map(edge => ({
+            preferences: cy.edges().not('.layout-relation').map(edge => ({
                 source: edge.source().position(),
                 target: edge.target().position()
             }))
         });
-        cy.ready(() => document.dispatchEvent(new CustomEvent('sociogram:ready')));
+
+        const layout = cy.layout({
+            name: 'cose',
+            eles: cy.nodes().union(cy.edges('.layout-relation')),
+            animate: false,
+            fit: true,
+            padding: 40,
+            randomize: true,
+            nodeRepulsion: 7000,
+            nodeOverlap: 24,
+            idealEdgeLength: edge => edge.data('ideal_distance'),
+            edgeElasticity: 100,
+            gravity: 0.35,
+            componentSpacing: 80,
+            numIter: 1000
+        });
+        layout.one('layoutstop', () => {
+            document.dispatchEvent(new CustomEvent('sociogram:ready'));
+        });
+        layout.run();
     })();
 </script>
 <div class="instructions-box">
@@ -82,7 +112,9 @@
     en leerlingen afzonderlijk verslepen. De eerste versie gebruikt een eenvoudige
     ingebouwde indeling; de sociale afstanden worden in een volgende versie verfijnd.
     <br><br>
-    Elke leerling is als node weergegeven. De grootte van de node is gebaseerd op de
+    Elke leerling is als node weergegeven. Wederzijdse positieve Voorkeuren krijgen de
+    kleinste sociale afstand, eenzijdige positieve Voorkeuren een middelgrote afstand en
+    negatieve Voorkeuren de grootste afstand. De grootte van de node is gebaseerd op de
     ontvangen voorkeursscore: de inkomende voorkeuren, waarbij iedere bijdrage op
     [-2, 2] wordt begrensd. De pijlen tonen de opgeslagen leerling-naar-
     leerlingvoorkeuren. Een doorgetrokken lijn is positief en een rode gestreepte lijn
