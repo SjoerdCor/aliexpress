@@ -4,15 +4,89 @@
 {% block header %}Sociogram{% endblock %}
 
 {% block content %}
-{{ plotly_div | safe }}
+<div id="sociogram" class="sociogram" aria-label="Interactief sociogram"></div>
+<script src="{{ url_for('static', filename='vendor/cytoscape-3.34.0.min.js') }}"></script>
+<script>
+    (() => {
+        const view = {{ sociogram_view | tojson }};
+        const elements = [
+            ...view.nodes.map(node => ({ data: node })),
+            ...view.preferences.map(edge => ({ data: edge }))
+        ];
+        const cy = cytoscape({
+            container: document.getElementById('sociogram'),
+            elements,
+            style: [
+                {
+                    selector: 'node',
+                    style: {
+                        'background-color': '#77aadd',
+                        'border-color': '#315f86',
+                        'border-width': 2,
+                        'height': 'data(size)',
+                        'label': 'data(label)',
+                        'font-size': 12,
+                        'text-wrap': 'wrap',
+                        'text-max-width': 100,
+                        'text-valign': 'center',
+                        'text-halign': 'center',
+                        'width': 'data(size)'
+                    }
+                },
+                {
+                    selector: 'edge[kind = "positive"]',
+                    style: {
+                        'curve-style': 'bezier',
+                        'line-color': '#4e6575',
+                        'target-arrow-color': '#4e6575',
+                        'target-arrow-shape': 'triangle',
+                        'width': 2
+                    }
+                },
+                {
+                    selector: 'edge[kind = "negative"]',
+                    style: {
+                        'curve-style': 'bezier',
+                        'line-color': '#c0392b',
+                        'line-style': 'dashed',
+                        'target-arrow-color': '#c0392b',
+                        'target-arrow-shape': 'triangle',
+                        'width': 2
+                    }
+                }
+            ],
+            layout: { name: 'grid', padding: 40, avoidOverlap: true }
+        });
+        window.sociogramSnapshot = () => ({
+            nodes: cy.nodes().map(node => {
+                const box = node.boundingBox();
+                return {
+                    id: node.id(),
+                    center: node.position(),
+                    bounding_box: {
+                        x1: box.x1, y1: box.y1, x2: box.x2, y2: box.y2
+                    }
+                };
+            }),
+            preferences: cy.edges().map(edge => ({
+                source: edge.source().position(),
+                target: edge.target().position()
+            }))
+        });
+        cy.ready(() => document.dispatchEvent(new CustomEvent('sociogram:ready')));
+    })();
+</script>
 <div class="instructions-box">
-    In deze pagina kun je het sociogram bekijken en onderzoeken. Het is een interactieve
-    pagina, waarbij je kunt inzoomen door een vak te selecteren, weer teruggaan door op de thuisknop
-    te drukken of als plaatje downloaden via het fototoestel.<br>
-
-    Elke leerling is zo dicht mogelijk bij zijn eigen vrienden weergegeven. De grootte van elke
-    bol is gerelateerd aan de populariteit van die leerling. De dikte van de pijlen is gerelateerd
-    aan de sterkte van de voorkeur. Een rode pijl betekent dat de leerling liever niet bij die andere leerling
-    in de groep zit.
+    In deze pagina kun je het sociogram bekijken en onderzoeken. Je kunt inzoomen met
+    het muiswiel of trackpad, de weergave verplaatsen door op de achtergrond te slepen
+    en leerlingen afzonderlijk verslepen. De eerste versie gebruikt een eenvoudige
+    ingebouwde indeling; de sociale afstanden worden in een volgende versie verfijnd.
+    <br><br>
+    Elke leerling is als node weergegeven. De grootte van de node is gebaseerd op de
+    ontvangen voorkeursscore: de inkomende voorkeuren, waarbij iedere bijdrage op
+    [-2, 2] wordt begrensd. De pijlen tonen de opgeslagen leerling-naar-
+    leerlingvoorkeuren. Een doorgetrokken lijn is positief en een rode gestreepte lijn
+    is negatief; de pijlrichting laat zien wie de voorkeur heeft uitgesproken.
+    Voorkeuren voor een bestemmingsgroep worden niet als pijl getoond.
 </div>
 {% endblock %}

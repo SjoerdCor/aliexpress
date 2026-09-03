@@ -5,6 +5,7 @@
 import base64
 import io
 import math
+from dataclasses import dataclass
 
 import matplotlib
 import networkx as nx
@@ -15,6 +16,90 @@ matplotlib.use("Agg")  # headless backend — must precede pyplot import
 from matplotlib import pyplot as plt
 
 from .data import datareader
+
+
+@dataclass(frozen=True)
+class SociogramNode:
+    """A student node for the browser sociogram."""
+
+    id: str
+    label: str
+    received_preference_score: float
+    size: float
+
+
+@dataclass(frozen=True)
+class PreferenceEdge:
+    """One original, directed student-to-student preference."""
+
+    id: str
+    source: str
+    target: str
+    weight: float
+    kind: str
+
+
+@dataclass(frozen=True)
+class SociogramView:
+    """Flat, JSON-serialisable data needed to render a first sociogram slice."""
+
+    nodes: list[SociogramNode]
+    preferences: list[PreferenceEdge]
+
+
+def build_sociogram_view(preference_data) -> SociogramView:
+    """Build student nodes and visible preference arrows from canonical preference data.
+
+    Destination-group preferences are intentionally left out: only preferences whose
+    target is another known student belong in the sociogram. Every retained input row
+    becomes its own directed edge, including a negative preference.
+    """
+    student_keys = list(preference_data.students_info)
+    student_set = set(student_keys)
+    student_display = preference_data.student_display
+    unique_name = preference_data.unique_name
+
+    incoming_scores = {student: 0.0 for student in student_keys}
+    edges = []
+    for position, (index, row) in enumerate(preference_data.preferences.iterrows()):
+        source = index[0]
+        target = row["Waarde"]
+        if target not in student_set:
+            continue
+        weight = float(row["Gewicht"])
+        incoming_scores[target] += _clip_received_preference(weight)
+        edges.append(
+            PreferenceEdge(
+                id=f"preference-{position}",
+                source=source,
+                target=target,
+                weight=weight,
+                kind="negative" if weight < 0 else "positive",
+            )
+        )
+
+    nodes = [
+        SociogramNode(
+            id=student,
+            label=unique_name.get(student, student_display.get(student, student)),
+            received_preference_score=score,
+            size=_node_size(score),
+        )
+        for student, score in incoming_scores.items()
+    ]
+    return SociogramView(nodes=nodes, preferences=edges)
+
+
+def _node_size(received_preference_score: float) -> float:
+    """Map a received-preference score to a restrained Cytoscape node diameter."""
+    bounded_score = max(-2.0, min(10.0, received_preference_score))
+    return 36.0 + 28.0 * (bounded_score + 2.0) / 12.0
+
+
+def _clip_received_preference(weight: float) -> float:
+    """Limit one contribution to the received score without changing the edge weight."""
+    return max(-2.0, min(2.0, weight))
+
 
 # pylint: enable=wrong-import-position
 

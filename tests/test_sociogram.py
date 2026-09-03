@@ -47,6 +47,40 @@ def test_from_preference_data_matches_constructor(preference_data):
     assert _students_info_equal(via_data.students_info, via_file.students_info)
 
 
+def test_build_sociogram_view_contains_students_and_only_student_preferences(
+    preference_data,
+):
+    """The first view contains every student and preserves visible arrow data."""
+    view = sociogram.build_sociogram_view(preference_data)
+
+    assert [node.id for node in view.nodes] == list(preference_data.students_info)
+    assert [node.label for node in view.nodes] == list(
+        preference_data.student_display.values()
+    )
+    assert [
+        (edge.source, edge.target, edge.weight, edge.kind) for edge in view.preferences
+    ] == [("harrie", "maya", -1.0, "negative")]
+
+    received_by_id = {node.id: node.received_preference_score for node in view.nodes}
+    assert received_by_id["maya"] == -1.0
+    assert received_by_id["charlie"] == 0.0
+    sizes = [node.size for node in view.nodes]
+    assert max(sizes) - min(sizes) < 10
+
+
+def test_build_sociogram_view_keeps_raw_edge_weight_but_clips_received_score(
+    preference_data,
+):
+    """Display data keeps the input weight; the node score bounds each contribution."""
+    preference_data.preferences.loc[("harrie", "Graag met", 2), "Gewicht"] = -7.0
+
+    view = sociogram.build_sociogram_view(preference_data)
+
+    assert view.preferences[0].weight == -7.0
+    received_by_id = {node.id: node.received_preference_score for node in view.nodes}
+    assert received_by_id["maya"] == -2.0
+
+
 def test_matplotlib_backend_is_agg():
     """sociogram.py must set the Agg backend to avoid Tk/display errors on headless servers."""
     import matplotlib  # pylint: disable=import-outside-toplevel

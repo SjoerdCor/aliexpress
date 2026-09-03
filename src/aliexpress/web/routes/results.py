@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+from dataclasses import asdict
 
 from flask import (
     Blueprint,
@@ -19,6 +20,7 @@ from flask import (
 from flask_login import login_required
 
 from ...main import build_input_summary
+from ...sociogram import build_sociogram_view
 from ...solver._balance import default_balance_maxima
 from ..models import Process
 from ..process_files import load_balance_maxima, load_groups, load_voorkeuren
@@ -137,18 +139,18 @@ def handle_error():
 @login_required
 @require_process
 def show_sociogram():
-    """Display the sociogram for the current process"""
+    """Display the sociogram built from the current process's canonical preferences."""
     school_id = effective_school_id()
     if school_id is None:
         return redirect(url_for("admin.dashboard"))
     process_id = session["process_id"]
-    path = get_file_path(school_id, process_id, "sociogram.html")
-    if not os.path.exists(path):
-        flash("Sociogram niet beschikbaar.", "error")
+    try:
+        preference_data, _ = load_voorkeuren(school_id, process_id)
+        sociogram_view = asdict(build_sociogram_view(preference_data))
+    except (FileNotFoundError, KeyError, ValueError, json.JSONDecodeError):
+        flash("Sociogram niet beschikbaar: geldige voorkeuren ontbreken.", "error")
         return redirect(url_for("processes.index"))
-    with open(path, encoding="utf-8") as fh:
-        plotly_div = fh.read()
-    return render_template("sociogram.html", plotly_div=plotly_div)
+    return render_template("sociogram.html", sociogram_view=sociogram_view)
 
 
 @results_bp.route("/interim_result")

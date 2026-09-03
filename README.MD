@@ -217,4 +217,7 @@ Optional **Balansgrenzen** are filled with generous, input-dependent defaults on
 Copyright (c) 2024–2026 Sjoerd Cornelissen. All rights reserved.
 
 The source code is not licensed for use, copying, modification, or distribution.
+Third-party components bundled with the application remain under their own licenses;
+see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). In particular, the locally
+vendored Cytoscape.js browser library is available under the MIT License.
 Interested in using or building on ALI Express? I'd love to hear from you! Reach out at info@sjoerdcornelissen.com — I'm sure we can make it work.
