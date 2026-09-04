@@ -1,6 +1,9 @@
 """Unit tests for solutions.py"""
 
+import subprocess
+import sys
 from io import BytesIO
+from pathlib import Path
 
 import pandas as pd
 from openpyxl import load_workbook
@@ -213,11 +216,13 @@ def test_student_performance_from_result():
     assert perf.loc["Bram", "AccountedPreferences"] == 0
 
 
-def _result_for_students(assignment: dict, students: list) -> SolutionResult:
+def _result_for_students(
+    assignment: dict, students: list, student_satisfaction: dict | None = None
+) -> SolutionResult:
     """A minimal SolutionResult keyed by matching keys, one fulfilled wish per student."""
     return SolutionResult(
         assignment=assignment,
-        student_satisfaction={s: 1.0 for s in students},
+        student_satisfaction=student_satisfaction or {s: 1.0 for s in students},
         satisfied={(s, 1): True for s in students},
         weighted_satisfied={(s, 1): 1.0 for s in students},
         weights={(s, 1): 1.0 for s in students},
@@ -263,3 +268,90 @@ def test_display_student_performance_escapes_html():
     html = analyzer.display_student_performance().to_html()
     assert "<b>Boef</b>" not in html
     assert "&lt;b&gt;Boef&lt;/b&gt;" in html
+
+
+def test_display_student_performance_uses_red_yellow_green_css_colors():
+    """Satisfaction values map to red at zero, yellow at half and green at one."""
+    students = ["Rood", "Geel", "Groen"]
+    analyzer = SolutionAnalyzer(
+        _result_for_students(
+            {student: "Groep" for student in students},
+            students,
+            student_satisfaction={"Rood": 0.0, "Geel": 0.5, "Groen": 1.0},
+        ),
+        pd.DataFrame(),
+        pd.DataFrame(),
+        {student: {} for student in students},
+    )
+
+    html = analyzer.display_student_performance().to_html()
+
+    assert "background-color: #ff0000;" in html
+    assert "background-color: #ffff00;" in html
+    assert "background-color: #00ff00;" in html
+    assert "0.00%" in html
+    assert "50.00%" in html
+    assert "100.00%" in html
+    assert "Aantal gehonoreerde voorkeuren" in html
+    assert "Aantal voorkeuren" in html
+
+
+def test_display_student_performance_renders_without_matplotlib():
+    """Both styled output paths work when importing Matplotlib is impossible."""
+    repository_root = Path(__file__).resolve().parents[1]
+    script = """
+import builtins
+import sys
+from io import BytesIO
+
+sys.path.insert(0, "src")
+real_import = builtins.__import__
+
+def deny_matplotlib(name, *args, **kwargs):
+    if name == "matplotlib" or name.startswith("matplotlib."):
+        raise ModuleNotFoundError(name)
+    return real_import(name, *args, **kwargs)
+
+builtins.__import__ = deny_matplotlib
+
+import pandas as pd
+from openpyxl import load_workbook
+from aliexpress.solver.results import GroupComposition, SexCounts, SolutionResult
+from aliexpress.solver.solutions import SolutionAnalyzer
+
+result = SolutionResult(
+    assignment={"Anna": "Groep"},
+    student_satisfaction={"Anna": 0.5},
+    satisfied={("Anna", 1): True},
+    weighted_satisfied={("Anna", 1): 1.0},
+    weights={("Anna", 1): 1.0},
+    group_composition={
+        "Groep": GroupComposition(
+            boys_total=0, girls_total=1, per_year={None: SexCounts(0, 1)}
+        )
+    },
+)
+analyzer = SolutionAnalyzer(
+    result,
+    pd.DataFrame(),
+    pd.DataFrame(),
+    {"Anna": {"Jongen/meisje": "Meisje", "Stamgroep": "X"}},
+)
+assert "50.00%" in analyzer.display_student_performance().to_html()
+output = BytesIO()
+analyzer.to_excel(output)
+workbook = load_workbook(BytesIO(output.getvalue()))
+assert "Leerlingtevredenheid" in workbook.sheetnames
+assert not any(
+    name == "matplotlib" or name.startswith("matplotlib.")
+    for name in sys.modules
+)
+"""
+
+    subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=repository_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )

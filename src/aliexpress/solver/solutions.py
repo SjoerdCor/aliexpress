@@ -43,6 +43,25 @@ TABLE_STYLES = styles = [
 ]
 
 
+def _satisfaction_background(value) -> str:
+    """Return a red-yellow-green background declaration for a satisfaction value."""
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        return ""
+    if pd.isna(value):
+        return ""
+
+    value = max(0.0, min(1.0, value))
+    if value <= 0.5:
+        red = 255
+        green = round(value * 510)
+    else:
+        red = round((1.0 - value) * 510)
+        green = 255
+    return f"background-color: #{red:02x}{green:02x}00;"
+
+
 @dataclasses.dataclass(frozen=True)
 class DisplayNames:
     """Maps matching keys back to the names as entered, per namespace, for reporting.
@@ -407,9 +426,7 @@ class SolutionAnalyzer:
             self.student_performance.rename_axis("Leerling")
             .loc[:, list(cols.keys())]
             .rename(columns=cols)
-            .style.background_gradient(
-                "RdYlGn", vmin=0, vmax=1, subset=["Tevredenheid"]
-            )
+            .style.map(_satisfaction_background, subset=["Tevredenheid"])
             .format(
                 {
                     "Tevredenheid": "{:.2%}",
