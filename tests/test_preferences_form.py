@@ -162,6 +162,17 @@ def test_duplicate_target_within_one_student_is_rejected():
     assert exc.value.check.name == "duplicated_values_preferences"
 
 
+def test_self_target_is_rejected():
+    """A student cannot submit a student-to-student preference for themselves."""
+    with pytest.raises(ValidationError) as exc:
+        build_preference_data(
+            [_student(preferences=[_together("John", 1.0)])],
+            all_to_groups=["rood"],
+        )
+
+    assert exc.value.code == "self_preference_form"
+
+
 def test_student_entry_rejects_non_integer_year_group():
     """``year_group`` accepts only a whole number or None; anything else fails loudly."""
     with pytest.raises(TypeError):

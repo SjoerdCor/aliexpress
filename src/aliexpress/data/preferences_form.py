@@ -120,6 +120,7 @@ def build_preference_data(
     """
     _check_excluded_groups_cap(students, all_to_groups)
     _check_min_satisfaction(students)
+    _check_self_preferences(students, all_to_groups)
 
     student_display, origin_group_display = _build_display_maps(students)
 
@@ -179,6 +180,22 @@ def _check_min_satisfaction(students: list[StudentEntry]) -> None:
                     "minimale_tevredenheid": min_sat,
                 },
             )
+
+
+def _check_self_preferences(
+    students: list[StudentEntry], all_to_groups: list[str]
+) -> None:
+    """Reject a student-to-student preference whose target is the student themselves."""
+    group_keys = {matching_key(group) for group in all_to_groups}
+    for student in students:
+        student_key = matching_key(student.student)
+        for preference in student.preferences:
+            target_key = matching_key(preference.target)
+            if target_key == student_key and target_key not in group_keys:
+                raise ValidationError(
+                    "self_preference_form",
+                    context={"leerling": display_name(student.student)},
+                )
 
 
 def _build_display_maps(students: list[StudentEntry]) -> tuple[dict, dict]:

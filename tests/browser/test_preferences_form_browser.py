@@ -469,6 +469,20 @@ def test_unknown_name_is_not_selectable(live_server, tmp_path, page):
 
 
 @pytest.mark.usefixtures("login")
+def test_current_student_is_not_selectable_as_own_preference(
+    live_server, tmp_path, page
+):
+    """The current pupil is absent from both preference comboboxes."""
+    _open_preferences_form(live_server, tmp_path, page)
+    _open_pupil_modal(page, "s1")
+
+    page.fill("#combo-graag_met-s1", "Anna")
+    assert page.locator("#list-graag_met-s1 .combobox-option").count() == 0
+    page.fill("#combo-liever_niet_met-s1", "Anna")
+    assert page.locator("#list-liever_niet_met-s1 .combobox-option").count() == 0
+
+
+@pytest.mark.usefixtures("login")
 def test_selecting_group_creates_chip(live_server, tmp_path, page):
     """A destination group is a valid preference target and becomes a chip."""
     _open_preferences_form(live_server, tmp_path, page)

@@ -77,7 +77,7 @@ Voer zoveel mogelijk positieve voorkeuren in. Dat geeft ALI Express meer flexibi
 
       {# Preference section: combobox that only allows known classmates or groups #}
       {# tooltip passed as explicit parameter because Jinja2 macros cannot access {% set %} variables from outer scope #}
-      {% macro preference_section(key, soort, label, tooltip) %}
+      {% macro preference_section(key, owner, soort, label, tooltip) %}
       <div class="preference-section">
         <p class="preference-section-label">
           {{ label }}
@@ -88,16 +88,16 @@ Voer zoveel mogelijk positieve voorkeuren in. Dat geeft ALI Express meer flexibi
           <input type="text" class="combobox-input" id="combo-{{ soort }}-{{ key }}"
                  placeholder="Naam leerling of groep…" autocomplete="off"
                  role="combobox" aria-expanded="false" aria-autocomplete="list"
-                 data-key="{{ key }}" data-soort="{{ soort }}">
+                 data-key="{{ key }}" data-owner="{{ owner }}" data-soort="{{ soort }}">
           <ul class="combobox-list" id="list-{{ soort }}-{{ key }}" role="listbox" hidden></ul>
         </div>
         <span class="field-error" id="err-{{ soort }}-{{ key }}"></span>
       </div>
       {% endmacro %}
 
-      {{ preference_section(key, 'graag_met', 'Graag met',
+      {{ preference_section(key, display_name, 'graag_met', 'Graag met',
            'Kies een klasgenoot of een groep waarbij deze leerling graag in dezelfde klas zit. Je kunt daarna ook een belang van die voorkeur meegeven.') }}
-      {{ preference_section(key, 'liever_niet_met', 'Liever niet met',
+      {{ preference_section(key, display_name, 'liever_niet_met', 'Liever niet met',
            'Kies een klasgenoot of een groep waarbij deze leerling liever niet in dezelfde klas zit. Je kunt daarna ook een belang van die voorkeur meegeven.') }}
 
       {# ── Niet in groep ─────────────────────────────────────────────────── #}
@@ -150,6 +150,13 @@ Voer zoveel mogelijk positieve voorkeuren in. Dat geeft ALI Express meer flexibi
   </div>{# .candidate-editor #}
   {% endfor %}
 
+  {% if sociogram_available %}
+  <p class="preferences-sociogram-link">
+    <a href="{{ url_for('results.show_sociogram') }}" target="_blank" rel="noopener"
+       class="button">Bekijk het sociogram</a>
+  </p>
+  {% endif %}
+
   <div class="step-navigation">
     <a href="{{ prev_url }}" class="button previous-step">{{ prev_label }}</a>
     <button type="submit" name="action" value="volgende" class="button next-step">
@@ -180,11 +187,6 @@ const GROUP_LABEL_SET = new Set(GROUP_LABELS);
 // Free text cannot become a preference; only listed options can be selected, so an
 // "unknown student" can no longer be entered (prevention over after-the-fact validation).
 
-function ownerName(key) {
-  const title = document.querySelector(`#editor-${key} .modal-title`);
-  return title?.textContent?.trim() || '';
-}
-
 function chosenStudentNames(key) {
   const names = new Set();
   ['graag_met', 'liever_niet_met'].forEach(soort => {
@@ -197,9 +199,8 @@ function chosenStudentNames(key) {
   return names;
 }
 
-function comboOptions(key, query) {
+function comboOptions(key, owner, query) {
   const q = query.trim().toLowerCase();
-  const owner = ownerName(key);
   const chosen = chosenStudentNames(key);  // a classmate may be named only once
   const students = [...STUDENT_NAMES]
     .filter(n => n !== owner && !chosen.has(n))
@@ -216,7 +217,7 @@ function comboOptions(key, query) {
 function renderCombo(input) {
   const { key, soort } = input.dataset;
   const list = document.getElementById(`list-${soort}-${key}`);
-  const options = comboOptions(key, input.value);
+  const options = comboOptions(key, input.dataset.owner, input.value);
   list.innerHTML = '';
   options.forEach(o => {
     const li = document.createElement('li');

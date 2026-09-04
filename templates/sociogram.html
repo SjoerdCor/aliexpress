@@ -1,18 +1,370 @@
 {% extends "base.html" %}
-{% set current_step = 5 %}
-
 {% block header %}Sociogram{% endblock %}
 
 {% block content %}
-{{ plotly_div | safe }}
-<div class="instructions-box">
-    In deze pagina kun je het sociogram bekijken en onderzoeken. Het is een interactieve
-    pagina, waarbij je kunt inzoomen door een vak te selecteren, weer teruggaan door op de thuisknop
-    te drukken of als plaatje downloaden via het fototoestel.<br>
-
-    Elke leerling is zo dicht mogelijk bij zijn eigen vrienden weergegeven. De grootte van elke
-    bol is gerelateerd aan de populariteit van die leerling. De dikte van de pijlen is gerelateerd
-    aan de sterkte van de voorkeur. Een rode pijl betekent dat de leerling liever niet bij die andere leerling
-    in de groep zit.
+{% if sociogram_view is not none %}
+<div class="sociogram-toolbar">
+    <div class="sociogram-legend" aria-label="Legenda sociogram">
+        <span class="sociogram-legend-item">
+            <span class="sociogram-line sociogram-line--positive" aria-hidden="true"></span>
+            Positief: doorgetrokken
+        </span>
+        <span class="sociogram-legend-item">
+            <span class="sociogram-line sociogram-line--negative" aria-hidden="true"></span>
+            Negatief: rood en gestreept
+        </span>
+        <span class="sociogram-legend-item sociogram-legend-item--weight">
+            Lijndikte = absoluut gewicht
+        </span>
+        <button id="sociogram-reset" type="button" class="button">Toon volledig overzicht</button>
+    </div>
 </div>
+<div class="sociogram-stage">
+    <div id="sociogram" class="sociogram" aria-label="Interactief sociogram"></div>
+    <section id="sociogram-popup" class="sociogram-popup" role="dialog"
+             aria-labelledby="sociogram-detail-title" aria-live="polite" hidden>
+        <button id="sociogram-popup-close" type="button" class="sociogram-popup-close"
+                aria-label="Sluit details">×</button>
+        <h2 id="sociogram-detail-title">Details</h2>
+        <p id="sociogram-detail-empty">Klik op een leerling of pijl om de details te bekijken.</p>
+        <dl id="sociogram-detail-content" hidden>
+            <dt>Type</dt>
+            <dd id="sociogram-detail-kind"></dd>
+            <dt>Bron</dt>
+            <dd id="sociogram-detail-source"></dd>
+            <dt>Doel</dt>
+            <dd id="sociogram-detail-target"></dd>
+            <dt>Gewicht</dt>
+            <dd id="sociogram-detail-weight"></dd>
+            <dt>Ontvangen voorkeursscore</dt>
+            <dd id="sociogram-detail-score"></dd>
+            <dt>Inkomende / uitgaande pijlen</dt>
+            <dd id="sociogram-detail-directions"></dd>
+        </dl>
+    </section>
+</div>
+<script src="{{ url_for('static', filename='vendor/cytoscape-3.34.0.min.js') }}"></script>
+<script>
+    (() => {
+        const view = {{ sociogram_view | tojson }};
+        const initialColumns = 9;
+        const nodeElements = view.nodes.map((node, index) => ({
+            data: node,
+            // Stable, evenly spread start positions make the CoSE result reproducible.
+            position: {
+                x: 100 + (index % initialColumns) * 135,
+                y: 100 + Math.floor(index / initialColumns) * 130
+            }
+        }));
+        const layoutElements = view.layout_relations.map((relation, index) => ({
+            data: {
+                ...relation,
+                id: `layout-relation-${index}`
+            },
+            classes: 'layout-relation'
+        }));
+        const directedPairs = new Set(
+            view.preferences.map(edge => `${edge.source}\u0000${edge.target}`)
+        );
+        const preferenceElements = view.preferences.map(edge => {
+            const isMutual = edge.source !== edge.target && directedPairs.has(
+                `${edge.target}\u0000${edge.source}`
+            );
+            return {
+                data: {
+                    ...edge,
+                    focus_width: Math.min(edge.line_width + 2, 10)
+                },
+                classes: `preference-edge${isMutual ? ' mutual' : ''}`
+            };
+        });
+        const graphContainer = document.getElementById('sociogram');
+        const graphStage = document.querySelector('.sociogram-stage');
+        const popup = document.getElementById('sociogram-popup');
+        const cy = cytoscape({
+            container: graphContainer,
+            elements: [...nodeElements, ...layoutElements, ...preferenceElements],
+            minZoom: 0.35,
+            maxZoom: 2.5,
+            wheelSensitivity: 0.2,
+            style: [
+                {
+                    selector: 'node',
+                    style: {
+                        'background-color': '#77aadd',
+                        'border-color': '#315f86',
+                        'border-width': 2,
+                        'height': 'data(size)',
+                        'label': 'data(label)',
+                        'font-size': 12,
+                        'text-wrap': 'wrap',
+                        'text-max-width': 100,
+                        'text-valign': 'center',
+                        'text-halign': 'center',
+                        'width': 'data(size)'
+                    }
+                },
+                {
+                    selector: 'edge.preference-edge',
+                    style: {
+                        'curve-style': 'bezier',
+                        'line-color': '#4e6575',
+                        'target-arrow-color': '#4e6575',
+                        'target-arrow-shape': 'triangle',
+                        'width': 'data(line_width)',
+                        'arrow-scale': 0.9
+                    }
+                },
+                {
+                    selector: 'edge.preference-edge.mutual',
+                    style: {
+                        // Cytoscape offsets parallel bezier edges in opposite directions.
+                        'control-point-step-size': 36
+                    }
+                },
+                {
+                    selector: 'edge.preference-edge[kind = "positive"]',
+                    style: {
+                        'line-color': '#4e6575',
+                        'target-arrow-color': '#4e6575'
+                    }
+                },
+                {
+                    selector: 'edge.preference-edge[kind = "negative"]',
+                    style: {
+                        'line-color': '#c0392b',
+                        'line-style': 'dashed',
+                        'target-arrow-color': '#c0392b'
+                    }
+                },
+                {
+                    selector: 'node.sociogram-dimmed, edge.preference-edge.sociogram-dimmed',
+                    style: {
+                        'opacity': 0.16
+                    }
+                },
+                {
+                    selector: 'node.sociogram-focused',
+                    style: {
+                        'border-color': '#e69900',
+                        'border-width': 4,
+                        'opacity': 1
+                    }
+                },
+                {
+                    selector: 'node.sociogram-selected',
+                    style: {
+                        'background-color': '#ffd27f',
+                        'border-color': '#b66b00',
+                        'border-width': 5,
+                        'opacity': 1
+                    }
+                },
+                {
+                    selector: 'edge.preference-edge.sociogram-focused',
+                    style: {
+                        'line-outline-color': '#222',
+                        'line-outline-width': 1,
+                        'opacity': 1,
+                        'width': 'data(focus_width)'
+                    }
+                },
+                {
+                    selector: 'edge.preference-edge.sociogram-dimmed',
+                    style: {
+                        'opacity': 0.12
+                    }
+                },
+                {
+                    selector: 'edge.layout-relation',
+                    style: {
+                        'display': 'none'
+                    }
+                }
+            ],
+            layout: { name: 'preset' }
+        });
+
+        const detailTitle = document.getElementById('sociogram-detail-title');
+        const detailEmpty = document.getElementById('sociogram-detail-empty');
+        const detailContent = document.getElementById('sociogram-detail-content');
+        const detailFields = {
+            kind: document.getElementById('sociogram-detail-kind'),
+            source: document.getElementById('sociogram-detail-source'),
+            target: document.getElementById('sociogram-detail-target'),
+            weight: document.getElementById('sociogram-detail-weight'),
+            score: document.getElementById('sociogram-detail-score'),
+            directions: document.getElementById('sociogram-detail-directions')
+        };
+        const popupClose = document.getElementById('sociogram-popup-close');
+        const preferenceEdges = () => cy.edges().not('.layout-relation');
+        const graphElements = () => cy.nodes().union(preferenceEdges());
+
+        function fitSociogram() {
+            cy.resize();
+            cy.fit(cy.nodes(), 40);
+        }
+
+        function clearFocus() {
+            graphElements().removeClass('sociogram-dimmed sociogram-focused sociogram-selected');
+            detailTitle.textContent = 'Details';
+            detailEmpty.hidden = false;
+            detailContent.hidden = true;
+            popup.hidden = true;
+        }
+
+        function positionPopup(position) {
+            const stageRect = graphStage.getBoundingClientRect();
+            const graphRect = graphContainer.getBoundingClientRect();
+            const padding = 12;
+            const gap = 16;
+            const anchor = {
+                x: graphRect.left - stageRect.left + position.x + gap,
+                y: graphRect.top - stageRect.top + position.y + gap
+            };
+            popup.hidden = false;
+            const maxLeft = Math.max(padding, graphStage.clientWidth - popup.offsetWidth - padding);
+            const maxTop = Math.max(padding, graphStage.clientHeight - popup.offsetHeight - padding);
+            popup.style.left = `${Math.max(padding, Math.min(anchor.x, maxLeft))}px`;
+            popup.style.top = `${Math.max(padding, Math.min(anchor.y, maxTop))}px`;
+        }
+
+        function showDetails(title, values, position) {
+            detailTitle.textContent = title;
+            Object.entries(values).forEach(([field, value]) => {
+                detailFields[field].textContent = value;
+            });
+            detailEmpty.hidden = true;
+            detailContent.hidden = false;
+            if (position) {
+                positionPopup(position);
+            }
+        }
+
+        function focusNode(node) {
+            const edges = node.connectedEdges().not('.layout-relation');
+            const endpoints = edges.connectedNodes();
+            const focused = node.union(endpoints).union(edges);
+            graphElements().removeClass('sociogram-dimmed sociogram-focused sociogram-selected');
+            graphElements().not(focused).addClass('sociogram-dimmed');
+            focused.addClass('sociogram-focused');
+            node.addClass('sociogram-selected');
+
+            const incoming = edges.filter(edge => edge.target().id() === node.id()).length;
+            const outgoing = edges.filter(edge => edge.source().id() === node.id()).length;
+            showDetails(`Leerling: ${node.data('label')}`, {
+                kind: 'Leerling',
+                source: '—',
+                target: '—',
+                weight: '—',
+                score: String(node.data('received_preference_score')),
+                directions: `${incoming} inkomend / ${outgoing} uitgaand`
+            }, node.renderedPosition());
+        }
+
+        function focusEdge(edge) {
+            const endpoints = edge.connectedNodes();
+            const focused = edge.union(endpoints);
+            graphElements().removeClass('sociogram-dimmed sociogram-focused sociogram-selected');
+            graphElements().not(focused).addClass('sociogram-dimmed');
+            focused.addClass('sociogram-focused');
+
+            const source = edge.source();
+            const target = edge.target();
+            const kind = edge.data('kind') === 'negative' ? 'Negatieve voorkeur' : 'Positieve voorkeur';
+            const popupPosition = {
+                x: (source.renderedPosition().x + target.renderedPosition().x) / 2,
+                y: (source.renderedPosition().y + target.renderedPosition().y) / 2
+            };
+            showDetails('Geselecteerde pijl', {
+                kind,
+                source: source.data('label'),
+                target: target.data('label'),
+                weight: String(edge.data('weight')),
+                score: '—',
+                directions: '—'
+            });
+            positionPopup(popupPosition);
+        }
+
+        cy.on('tap', 'node', event => focusNode(event.target));
+        cy.on('tap', 'edge.preference-edge', event => focusEdge(event.target));
+        popupClose.addEventListener('click', clearFocus);
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape' && !popup.hidden) {
+                clearFocus();
+            }
+        });
+        cy.on('tap', event => {
+            const target = event.target;
+            const isGraphElement = target && (
+                (typeof target.isNode === 'function' && target.isNode()) ||
+                (typeof target.isEdge === 'function' && target.isEdge())
+            );
+            if (!isGraphElement) {
+                clearFocus();
+            }
+        });
+
+        window.sociogramSnapshot = () => ({
+            zoom: cy.zoom(),
+            nodes: cy.nodes().map(node => {
+                const box = node.renderedBoundingBox();
+                return {
+                    id: node.id(),
+                    center: node.renderedPosition(),
+                    bounding_box: {
+                        x1: box.x1, y1: box.y1, x2: box.x2, y2: box.y2
+                    }
+                };
+            }),
+            preferences: preferenceEdges().map(edge => ({
+                source: edge.source().renderedPosition(),
+                target: edge.target().renderedPosition()
+            }))
+        });
+        window.sociogramReady = false;
+        document.getElementById('sociogram-reset').addEventListener('click', () => {
+            clearFocus();
+            fitSociogram();
+        });
+
+        const layout = cy.layout({
+            name: 'cose',
+            // Only positive invisible derived relations steer the layout. A negative
+            // relation is visible but must not become an attractive spring in CoSE.
+            eles: cy.nodes().union(cy.edges('.layout-relation[kind != "negative"]')),
+            animate: false,
+            fit: true,
+            padding: 40,
+            randomize: false,
+            nodeRepulsion: 15000,
+            nodeOverlap: 24,
+            idealEdgeLength: edge => edge.data('ideal_distance') * 0.7,
+            edgeElasticity: 10,
+            gravity: 0.35,
+            componentSpacing: 80,
+            numIter: 1000
+        });
+        layout.one('layoutstop', () => {
+            fitSociogram();
+            window.sociogramReady = true;
+            document.dispatchEvent(new CustomEvent('sociogram:ready'));
+        });
+        layout.run();
+    })();
+</script>
+<div class="instructions-box">
+    <h2>Zo lees je het sociogram</h2>
+    <p>
+        Elke cirkel is een leerling. Een pijl laat zien wie een voorkeur heeft voor wie.
+        Een vaste lijn is positief; een rode stippellijn is negatief.
+    </p>
+    <p>
+        Dikkere lijnen betekenen sterkere voorkeuren. Leerlingen die elkaar positief kiezen
+        staan meestal dichter bij elkaar. Klik op een leerling of pijl voor details; klik op de
+        achtergrond om de selectie te wissen.
+    </p>
+</div>
+{% endif %}
 {% endblock %}

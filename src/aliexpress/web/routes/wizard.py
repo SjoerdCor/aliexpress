@@ -36,6 +36,7 @@ from ..models import Process, Run
 from ..process_files import (
     has_edexml,
     has_preferences_excel,
+    has_voorkeuren,
     load_candidates,
     load_edexml,
     load_groups,
@@ -60,7 +61,7 @@ from ..process_files import (
     save_voorkeuren,
 )
 from ..storage import get_process_path
-from ..tasks import ThreadContext, create_sociogram_thread, run_solve_thread
+from ..tasks import ThreadContext, run_solve_thread
 from ..validation_messages import to_validation_message
 from .auth import effective_school_id
 from .processes import get_process_mode, is_redistribute_mode, require_process
@@ -455,6 +456,7 @@ def preferences_excel():
         return render_template(
             "preferences_excel.html",
             preferences_uploaded=has_preferences_excel(school_id, process_id),
+            sociogram_available=has_voorkeuren(school_id, process_id),
         )
 
     if not participants:
@@ -629,6 +631,7 @@ def preferences_form():
         short_names=candidatedetermination.unique_display_names(participants),
         prev_url=prev_url,
         prev_label=prev_label,
+        sociogram_available=has_voorkeuren(school_id, process_id),
     )
 
 
@@ -717,6 +720,5 @@ def start_distribution():
         process_name=process_name,
         run_id=run_id,
     )
-    Thread(target=create_sociogram_thread, args=(ctx,)).start()
     Thread(target=run_solve_thread, args=(ctx, not_together)).start()
     return redirect(url_for("results.processing", watch=1))

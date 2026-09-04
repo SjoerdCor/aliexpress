@@ -18,6 +18,12 @@
     om verder te werken, of hieronder een nieuw bestand kiezen om het te vervangen.</p>
 </div>
 {% endif %}
+{% if sociogram_available %}
+<p class="preferences-sociogram-link">
+  <a href="{{ url_for('results.show_sociogram') }}" target="_blank" rel="noopener"
+     class="button">Bekijk het sociogram</a>
+</p>
+{% endif %}
 <form id="upload-form" method="post" action="{{ url_for('wizard.upload_preferences') }}" enctype="multipart/form-data">
   <label>Upload ingevuld bestand:</label><br>
   <input type="file" name="preferences" accept=".xlsx"><br>

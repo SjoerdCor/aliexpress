@@ -44,14 +44,13 @@ class TestBalanceMaximaRoundTrip:
 class TestResetResultFiles:  # pylint: disable=too-few-public-methods
     """reset_result_files removes stale output without touching balance limits."""
 
-    def test_removes_all_stale_outputs_but_keeps_balance_limits(self, client):
-        """Every result artifact is removed while the saved limits remain available."""
+    def test_removes_solver_outputs_but_keeps_balance_limits(self, client):
+        """Reset removes solver artifacts without touching the balance limits."""
         school_id, process_id = "test-school", "reset-results"
         result_files = (
             "results.xlsx",
             "result_tables.json",
             "groepsindeling_view.json",
-            "sociogram.html",
             "progress.json",
             "interim_result.json",
         )

@@ -1,8 +1,12 @@
 """Results blueprint: processing, status, sociogram, result, download, and done routes."""
 
+# The route modules intentionally repeat the small active-process guard for HTTP clarity.
+# pylint: disable=duplicate-code
+
 import json
 import logging
 import os
+from dataclasses import asdict
 
 from flask import (
     Blueprint,
@@ -19,6 +23,7 @@ from flask import (
 from flask_login import login_required
 
 from ...main import build_input_summary
+from ...sociogram import build_sociogram_view
 from ...solver._balance import default_balance_maxima
 from ..models import Process
 from ..process_files import load_balance_maxima, load_groups, load_voorkeuren
@@ -108,12 +113,7 @@ def status():
     if proc is None or proc.run is None:
         return jsonify({"status_studentdistribution": "unknown"})
     run = proc.run
-    payload = {
-        "status_studentdistribution": run.status,
-        "sociogram_ready": os.path.exists(
-            get_file_path(school_id, process_name, "sociogram.html")
-        ),
-    }
+    payload = {"status_studentdistribution": run.status}
     progress_path = get_file_path(school_id, process_name, "progress.json")
     if os.path.exists(progress_path):
         payload.update(_load_json_snapshot(progress_path))
@@ -137,18 +137,28 @@ def handle_error():
 @login_required
 @require_process
 def show_sociogram():
-    """Display the sociogram for the current process"""
+    """Display the sociogram built from the current process's canonical preferences."""
     school_id = effective_school_id()
     if school_id is None:
         return redirect(url_for("admin.dashboard"))
     process_id = session["process_id"]
-    path = get_file_path(school_id, process_id, "sociogram.html")
-    if not os.path.exists(path):
-        flash("Sociogram niet beschikbaar.", "error")
-        return redirect(url_for("processes.index"))
-    with open(path, encoding="utf-8") as fh:
-        plotly_div = fh.read()
-    return render_template("sociogram.html", plotly_div=plotly_div)
+    try:
+        preference_data, _ = load_voorkeuren(school_id, process_id)
+        sociogram_view = asdict(build_sociogram_view(preference_data))
+    except (OSError, AttributeError, IndexError, KeyError, TypeError, ValueError):
+        logger.exception(
+            "Could not load sociogram preferences for process %s", process_id
+        )
+        flash(
+            "Sociogram niet beschikbaar: geldige voorkeuren ontbreken of kunnen niet "
+            "worden gelezen. Ga terug naar de voorkeuren en sla ze opnieuw op.",
+            "error",
+        )
+        return render_template(
+            "sociogram.html",
+            sociogram_view=None,
+        )
+    return render_template("sociogram.html", sociogram_view=sociogram_view)
 
 
 @results_bp.route("/interim_result")
