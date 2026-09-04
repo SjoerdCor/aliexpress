@@ -5,6 +5,7 @@ It has one orchestrating function that can be called from the command line or ap
 import logging
 from io import BytesIO
 
+import click
 import pandas as pd
 import pandera as pa
 
@@ -517,5 +518,16 @@ def distribute_students_once(
     )
 
 
-if __name__ == "__main__":
+@click.group()
+def main():
+    """Ali Express command-line interface."""
+
+
+@main.command()
+def solve():
+    """Distribute students using the default input workbooks."""
     distribute_students_once()
+
+
+if __name__ == "__main__":
+    main()
