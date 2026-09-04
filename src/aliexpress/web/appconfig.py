@@ -9,6 +9,10 @@ class Config:
 
     DEBUG = False
     TESTING = False
+    # The processing page polls this often in production. Browser tests override it
+    # through their test server fixture so they can wait for an actual status response
+    # without spending a full second on every polling assertion.
+    PROCESSING_POLL_INTERVAL_MS = 1000
 
     # Small, structured state (job status, log lines; later schools/login) lives in a
     # SQLite database. A relative SQLite path is resolved against Flask's instance folder,

@@ -13,6 +13,11 @@ from aliexpress.web.extensions import db, limiter
 from aliexpress.web.models import School
 from app import app as flask_app
 
+_TEST_PASSWORD_HASH = generate_password_hash(
+    "testpass",
+    method="pbkdf2:sha256:1",
+)
+
 
 @pytest.fixture()
 def client(tmp_path):
@@ -34,7 +39,7 @@ def client(tmp_path):
         school = School(
             schoolcode="test-school",
             naam="Testschool",
-            password_hash=generate_password_hash("testpass"),
+            password_hash=_TEST_PASSWORD_HASH,
         )
         db.session.add(school)
         db.session.commit()

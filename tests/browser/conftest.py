@@ -23,29 +23,16 @@ from app import app
 
 TEST_SCHOOLCODE = "browser-school"
 TEST_PASSWORD = "browser-pass"
+TEST_PROCESSING_POLL_INTERVAL_MS = 100
 
 
-@pytest.fixture
-def live_server(tmp_path):
-    """Run the app on a random port with an isolated storage dir; yield its base URL.
-
-    Also creates the test school so the login fixture can authenticate.
-    """
+@pytest.fixture(scope="session")
+def live_server():
+    """Run one Flask server per pytest worker and yield its base URL."""
     app.config["TESTING"] = True
     app.config["SECRET_KEY"] = "browser-test-secret"
-    app.config["STORAGE_DIR"] = str(tmp_path)
+    app.config["PROCESSING_POLL_INTERVAL_MS"] = TEST_PROCESSING_POLL_INTERVAL_MS
     limiter.enabled = False
-
-    with app.app_context():
-        flask_db.drop_all()
-        flask_db.create_all()
-        school = School(
-            schoolcode=TEST_SCHOOLCODE,
-            naam="Browser Testschool",
-            password_hash=generate_password_hash(TEST_PASSWORD),
-        )
-        flask_db.session.add(school)
-        flask_db.session.commit()
 
     server = make_server("127.0.0.1", 0, app)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -55,6 +42,42 @@ def live_server(tmp_path):
     finally:
         server.shutdown()
         thread.join()
+
+
+@pytest.fixture(scope="session")
+def browser_test_password_hash():
+    """Create one cheap, valid password hash per pytest worker."""
+    return generate_password_hash(TEST_PASSWORD, method="pbkdf2:sha256:1")
+
+
+@pytest.fixture(autouse=True)
+def browser_test_state(tmp_path, live_server, browser_test_password_hash):
+    """Reset database and storage for each browser test.
+
+    The server is deliberately session-scoped, while all mutable application state
+    remains function-scoped. This keeps tests isolated without restarting Flask for
+    every test.
+    """
+    del live_server  # dependency makes fixture order explicit
+    app.config["STORAGE_DIR"] = str(tmp_path)
+
+    with app.app_context():
+        flask_db.session.remove()
+        flask_db.drop_all()
+        flask_db.create_all()
+        school = School(
+            schoolcode=TEST_SCHOOLCODE,
+            naam="Browser Testschool",
+            password_hash=browser_test_password_hash,
+        )
+        flask_db.session.add(school)
+        flask_db.session.commit()
+
+    try:
+        yield
+    finally:
+        with app.app_context():
+            flask_db.session.remove()
 
 
 def _do_login(page, base_url):
@@ -67,17 +90,19 @@ def _do_login(page, base_url):
 
 
 @pytest.fixture
-def login(live_server, page):
+def login(browser_test_state, live_server, page):
     """Authenticate the browser session as the test school via /login."""
+    del browser_test_state  # dependency makes fixture order explicit
     _do_login(page, live_server)
 
 
 @pytest.fixture
-def open_groups_to(live_server, tmp_path, page):
+def open_groups_to(browser_test_state, live_server, tmp_path, page):
     """Create a process with the given groups_to and open the groups page in the browser.
 
     Returns the process directory so a test can read back the files the POST writes.
     """
+    del browser_test_state  # dependency makes fixture order explicit
     _do_login(page, live_server)
 
     def _open(groups_to):

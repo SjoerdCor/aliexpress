@@ -182,6 +182,10 @@ uit {{ bron_parts | join(", ") }} → {{ summary.n_target_groups }} groepen</p>
             });
     }
 
+    {% if config["TESTING"] %}
+    window.__statusPollCount = 0;
+    {% endif %}
+
     function poll() {
         fetch("/status")
             .then(r => r.json())
@@ -217,6 +221,9 @@ uit {{ bron_parts | join(", ") }} → {{ summary.n_target_groups }} groepen</p>
                             });
 
                 }
+                {% if config["TESTING"] %}
+                window.__statusPollCount += 1;
+                {% endif %}
 
             });
     }
@@ -224,7 +231,7 @@ uit {{ bron_parts | join(", ") }} → {{ summary.n_target_groups }} groepen</p>
     // Poll once immediately so the stepper and input overview appear right away,
     // then keep refreshing — no blank first second while the solver starts up.
     poll();
-    setInterval(poll, 1000);
+    setInterval(poll, {{ config["PROCESSING_POLL_INTERVAL_MS"] | tojson }});
 </script>
 {% endif %}
 
