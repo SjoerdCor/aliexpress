@@ -2,6 +2,7 @@
 
 import json
 import math
+import statistics
 
 import pandas as pd
 import pytest
@@ -26,20 +27,23 @@ def _make_sociogram_process(
     )
     processor = datareader.VoorkeurenProcessor(preferences_path)
     processor.process(["blauw", "groen", "geel", "oranje"])
+    preference_data = processor.to_preference_data()
     with app.app_context():
         save_voorkeuren(
             TEST_SCHOOLCODE,
             name,
-            processor.to_preference_data(),
+            preference_data,
             source="excel",
         )
         flask_db.session.add(Process(school_id=TEST_SCHOOLCODE, name=name))
         flask_db.session.commit()
 
     page.goto(f"{live_server}/processes/select/{name}")
+    page.set_viewport_size({"width": 1440, "height": 1000})
     page.goto(f"{live_server}/sociogram")
     page.wait_for_function("() => window.sociogramReady === true")
     page.locator("#sociogram").scroll_into_view_if_needed()
+    return preference_data
 
 
 def _make_small_sociogram_process(live_server, tmp_path, page, name):
@@ -120,6 +124,134 @@ def _assert_nodes_inside_canvas(page, snapshot):
     }
 
 
+def _student_preference_records(preference_data):
+    """Return visible student preferences in the same order as the browser snapshot."""
+    students = set(preference_data.students_info)
+    return [
+        (index[0], row["Waarde"], float(row["Gewicht"]))
+        for index, row in preference_data.preferences.iterrows()
+        if index[0] in students and row["Waarde"] in students
+    ]
+
+
+def _layout_pair_categories(preference_data):
+    """Derive the documented layout categories from canonical preference records."""
+    students = list(preference_data.students_info)
+    order = {student: position for position, student in enumerate(students)}
+    pairs = {}
+    for source, target, weight in _student_preference_records(preference_data):
+        pair = tuple(sorted((source, target), key=order.__getitem__))
+        pairs.setdefault(pair, []).append(weight)
+
+    categories = {}
+    for pair, weights in pairs.items():
+        if any(weight < 0 for weight in weights):
+            category = "negative"
+        elif len(weights) == 2:
+            category = "mutual_positive"
+        else:
+            category = "positive"
+        categories[pair] = category
+    return categories
+
+
+def _properly_crosses(first, second):
+    """Return whether two center-to-center segments have an interior crossing."""
+
+    def cross(point_a, point_b, point_c):
+        return (point_b["x"] - point_a["x"]) * (point_c["y"] - point_a["y"]) - (
+            point_b["y"] - point_a["y"]
+        ) * (point_c["x"] - point_a["x"])
+
+    first_source, first_target = first
+    second_source, second_target = second
+    first_orientation = (
+        cross(first_source, first_target, second_source),
+        cross(first_source, first_target, second_target),
+    )
+    second_orientation = (
+        cross(second_source, second_target, first_source),
+        cross(second_source, second_target, first_target),
+    )
+    return (
+        first_orientation[0] * first_orientation[1] < 0
+        and second_orientation[0] * second_orientation[1] < 0
+    )
+
+
+def _overlapping_nodes(snapshot):
+    """Return pairs whose rendered node bounding boxes overlap."""
+    overlaps = []
+    for index, first in enumerate(snapshot["nodes"]):
+        for second in snapshot["nodes"][index + 1 :]:
+            first_box = first["bounding_box"]
+            second_box = second["bounding_box"]
+            if max(first_box["x1"], second_box["x1"]) < min(
+                first_box["x2"], second_box["x2"]
+            ) and max(first_box["y1"], second_box["y1"]) < min(
+                first_box["y2"], second_box["y2"]
+            ):
+                overlaps.append((first["id"], second["id"]))
+    return overlaps
+
+
+def _count_crossings(records, positions):
+    """Count proper crossings between visible preference center-line proxies."""
+    crossings = 0
+    for index, first_record in enumerate(records):
+        first_pair = first_record[:2]
+        first_segment = (positions[first_pair[0]], positions[first_pair[1]])
+        for second_index in range(index + 1, len(records)):
+            second_record = records[second_index]
+            second_pair = second_record[:2]
+            if set(first_pair) & set(second_pair):
+                continue
+            second_segment = (positions[second_pair[0]], positions[second_pair[1]])
+            crossings += _properly_crosses(first_segment, second_segment)
+    return crossings
+
+
+def _category_distances(categories, positions):
+    """Return rendered center distances grouped by the documented relation category."""
+    distances = {
+        category: [] for category in ("mutual_positive", "positive", "negative")
+    }
+    for pair, category in categories.items():
+        distances[category].append(
+            math.hypot(
+                positions[pair[1]]["x"] - positions[pair[0]]["x"],
+                positions[pair[1]]["y"] - positions[pair[0]]["y"],
+            )
+        )
+    return distances
+
+
+def _reference_layout_metrics(preference_data, snapshot):
+    """Measure the observable reference-layout geometry used by slice 5."""
+    nodes = {node["id"]: node for node in snapshot["nodes"]}
+    records = _student_preference_records(preference_data)
+    categories = _layout_pair_categories(preference_data)
+    positions = {student: nodes[student]["center"] for student in nodes}
+    distances = _category_distances(categories, positions)
+
+    return {
+        "overlaps": _overlapping_nodes(snapshot),
+        "crossings": _count_crossings(records, positions),
+        "category_counts": {
+            category: len(values) for category, values in distances.items()
+        },
+        "median_distances": {
+            category: statistics.median(values)
+            for category, values in distances.items()
+        },
+        "negative_longer_than_positive_median": sum(
+            distance
+            > statistics.median(distances["mutual_positive"] + distances["positive"])
+            for distance in distances["negative"]
+        ),
+    }
+
+
 @pytest.mark.usefixtures("login")
 def test_sociogram_renders_real_nodes_and_directed_preferences(
     live_server, tmp_path, page
@@ -144,7 +276,7 @@ def test_sociogram_renders_real_nodes_and_directed_preferences(
 @pytest.mark.usefixtures("login")
 def test_sociogram_renders_reference_workbook(live_server, tmp_path, page):
     """The reference workbook renders its full social structure in the browser."""
-    _make_sociogram_process(
+    preference_data = _make_sociogram_process(
         live_server, tmp_path, page, "reference-run", "testdata/voorkeuren.xlsx"
     )
     snapshot = page.evaluate("window.sociogramSnapshot()")
@@ -153,6 +285,22 @@ def test_sociogram_renders_reference_workbook(live_server, tmp_path, page):
     assert len(snapshot["preferences"]) == 102
     _assert_nodes_inside_canvas(page, snapshot)
     assert page.locator("#sociogram canvas").count() >= 1
+
+    metrics = _reference_layout_metrics(preference_data, snapshot)
+    assert metrics["category_counts"] == {
+        "mutual_positive": 26,
+        "positive": 41,
+        "negative": 6,
+    }
+    assert not metrics["overlaps"], metrics
+    assert metrics["crossings"] < 30, metrics
+    median_distances = metrics["median_distances"]
+    assert (
+        median_distances["mutual_positive"]
+        < median_distances["positive"]
+        < median_distances["negative"]
+    ), metrics
+    assert metrics["negative_longer_than_positive_median"] >= 4, metrics
 
 
 @pytest.mark.usefixtures("login")

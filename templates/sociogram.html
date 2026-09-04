@@ -47,7 +47,15 @@
 <script>
     (() => {
         const view = {{ sociogram_view | tojson }};
-        const nodeElements = view.nodes.map(node => ({ data: node }));
+        const initialColumns = 9;
+        const nodeElements = view.nodes.map((node, index) => ({
+            data: node,
+            // Stable, evenly spread start positions make the CoSE result reproducible.
+            position: {
+                x: 100 + (index % initialColumns) * 135,
+                y: 100 + Math.floor(index / initialColumns) * 130
+            }
+        }));
         const layoutElements = view.layout_relations.map((relation, index) => ({
             data: {
                 ...relation,
@@ -323,17 +331,17 @@
 
         const layout = cy.layout({
             name: 'cose',
-            // CoSE models every spring as attractive. Negative relations remain in the
-            // viewmodel and as visible arrows, but must not become attractive springs.
+            // Only positive invisible derived relations steer the layout. A negative
+            // relation is visible but must not become an attractive spring in CoSE.
             eles: cy.nodes().union(cy.edges('.layout-relation[kind != "negative"]')),
             animate: false,
             fit: true,
             padding: 40,
-            randomize: true,
-            nodeRepulsion: 7000,
+            randomize: false,
+            nodeRepulsion: 15000,
             nodeOverlap: 24,
-            idealEdgeLength: edge => edge.data('ideal_distance'),
-            edgeElasticity: 100,
+            idealEdgeLength: edge => edge.data('ideal_distance') * 0.7,
+            edgeElasticity: 10,
             gravity: 0.35,
             componentSpacing: 80,
             numIter: 1000
