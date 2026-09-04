@@ -110,6 +110,19 @@ class TestPreferencesExcel:
         html = client.get("/preferences_excel").data.decode("utf-8")
         assert "Download invulformulier" in html
         assert 'name="students"' not in html  # no Stap 1 selection anymore
+        assert 'href="/sociogram"' not in html
+
+    def test_get_shows_sociogram_link_after_preferences_are_saved(
+        self, client, tmp_path
+    ):
+        """The Excel overview links to the sociogram once canonical preferences exist."""
+        proc_dir = self._setup(client, tmp_path)
+        write_minimal_voorkeuren_json(proc_dir)
+
+        html = client.get("/preferences_excel").data.decode("utf-8")
+
+        assert 'href="/sociogram"' in html
+        assert 'target="_blank"' in html
 
     def test_post_downloads_excel_prefilled_from_roster(self, client, tmp_path):
         """POST builds the prefilled workbook straight from the roster participants."""
@@ -121,6 +134,29 @@ class TestPreferencesExcel:
         names = [wb["Sheet1"][f"A{i}"].value for i in range(4, 8)]
         joined = " ".join(n for n in names if n)
         assert "Anna" in joined and "Bram" in joined
+
+
+class TestPreferencesFormSociogramLink:  # pylint: disable=too-few-public-methods
+    """The form-input overview also exposes the canonical sociogram."""
+
+    def test_get_shows_sociogram_link_after_preferences_are_saved(
+        self, client, tmp_path
+    ):
+        """The form overview links to the sociogram once canonical preferences exist."""
+        proc_dir = setup_process(client, tmp_path)
+        pd.DataFrame(
+            {"Jongens": [1, 1], "Meisjes": [1, 0]},
+            index=pd.Index(["Klas A", "Klas B"], name="Groepen"),
+        ).to_excel(proc_dir / "groups.xlsx")
+        (proc_dir / "roster.json").write_text(
+            json.dumps({"participants": TWO_STUDENTS_GROEN}), encoding="utf-8"
+        )
+        write_minimal_voorkeuren_json(proc_dir)
+
+        html = client.get("/preferences_form").data.decode("utf-8")
+
+        assert 'href="/sociogram"' in html
+        assert 'target="_blank"' in html
 
 
 class TestNotTogetherLoadsFromJson:

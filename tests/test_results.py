@@ -223,8 +223,10 @@ class TestStatus:
         data = client.get("/status").get_json()
         assert data["status_studentdistribution"] == "unknown"
 
-    def test_running_run_reports_sociogram_ready(self, client, tmp_path):
-        """A running run reports sociogram_ready based on sociogram.html on disk."""
+    def test_status_reports_run_and_progress_without_sociogram_state(
+        self, client, tmp_path
+    ):
+        """Status contains solver state and progress, not visualisation state."""
         proc_dir = _setup_process(client, tmp_path)
         with flask_app.app_context():
             proc = Process.query.filter_by(
@@ -235,11 +237,13 @@ class TestStatus:
 
         data = client.get("/status").get_json()
         assert data["status_studentdistribution"] == "running"
-        assert data["sociogram_ready"] is False
 
-        (proc_dir / "sociogram.html").write_text("<div>socio</div>", encoding="utf-8")
+        (proc_dir / "progress.json").write_text(
+            json.dumps({"steps": {"floor": "busy"}}), encoding="utf-8"
+        )
         data = client.get("/status").get_json()
-        assert data["sociogram_ready"] is True
+        assert data["status_studentdistribution"] == "running"
+        assert data["steps"] == {"floor": "busy"}
 
     def test_error_run_includes_message(self, client, tmp_path):
         """An errored run exposes its friendly message for the frontend to flash."""
@@ -282,6 +286,18 @@ class TestResultPage:
         html = client.get("/result").data.decode("utf-8")
         assert "Groepsindeling" in html
         assert "<table>indeling</table>" in html
+
+    def test_result_page_shows_sociogram_link(self, client, tmp_path):
+        """The completed-result page keeps the direct sociogram link."""
+        _setup_process(client, tmp_path)
+        (tmp_path / SCHOOL_ID / "testproces" / "result_tables.json").write_text(
+            "{}", encoding="utf-8"
+        )
+
+        html = client.get("/result").data.decode("utf-8")
+
+        assert 'href="/sociogram"' in html
+        assert 'target="_blank"' in html
 
     def test_restart_link_opens_plain_processing_form(self, client, tmp_path):
         """The existing retry link opens editable processing without watch mode."""
@@ -341,20 +357,50 @@ class TestSociogramPage:
         assert response.status_code == 302
         assert response.headers["Location"].endswith("/processes")
 
-    def test_missing_file_flashes_and_redirects(self, client, tmp_path):
-        """Visiting /sociogram before the file exists flashes an error and redirects."""
+    def test_missing_preferences_flashes_an_error_on_sociogram_page(
+        self, client, tmp_path
+    ):
+        """Missing canonical preferences use the application's normal flash convention."""
         _setup_process(client, tmp_path)
         response = client.get("/sociogram")
-        assert response.status_code == 302
-        assert response.headers["Location"].endswith("/processes")
+        assert response.status_code == 200
+        assert b"Sociogram niet beschikbaar" in response.data
+        assert b"geldige voorkeuren ontbreken" in response.data
 
-    def test_renders_sociogram_file(self, client, tmp_path):
-        """A stored sociogram.html is rendered into the page."""
+    def test_unreadable_preferences_do_not_change_run_status(self, client, tmp_path):
+        """A broken preferences file is isolated from an active solver run."""
         proc_dir = _setup_process(client, tmp_path)
-        (proc_dir / "sociogram.html").write_text("<div>plotly</div>", encoding="utf-8")
+        (proc_dir / "voorkeuren.json").write_text("geen json", encoding="utf-8")
+        with flask_app.app_context():
+            proc = Process.query.filter_by(
+                school_id=SCHOOL_ID, name="testproces"
+            ).first()
+            db.session.add(Run(process_id=proc.id, status="running"))
+            db.session.commit()
+
+        response = client.get("/sociogram")
+
+        assert response.status_code == 200
+        assert b"Sociogram niet beschikbaar" in response.data
+        with flask_app.app_context():
+            proc = Process.query.filter_by(
+                school_id=SCHOOL_ID, name="testproces"
+            ).first()
+            assert proc.run.status == "running"
+
+    def test_renders_sociogram_from_preference_data(self, client, tmp_path):
+        """The route builds visible nodes and arrows from voorkeuren.json."""
+        proc_dir = _setup_process(client, tmp_path)
+        write_minimal_voorkeuren_json(proc_dir)
         response = client.get("/sociogram")
         assert response.status_code == 200
-        assert b"plotly" in response.data
+        html = response.data.decode("utf-8")
+        assert '"label": "Alice"' in html
+        assert '"label": "Bob"' in html
+        assert '"source": "alice"' in html
+        assert '"target": "bob"' in html
+        assert '"weight": 1.0' in html
+        assert "cytoscape-3.34.0.min.js" in html
 
 
 class TestDownload:

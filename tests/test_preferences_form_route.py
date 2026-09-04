@@ -108,6 +108,23 @@ class TestPreferencesForm:
             for r in records
         )
 
+    def test_post_with_self_wish_flashes_and_persists_nothing(self, client, tmp_path):
+        """A manually submitted self-target is rejected by the server-side guard."""
+        proc_dir = self._setup(client, tmp_path)
+        response = client.post(
+            "/preferences_form",
+            data={
+                "preference_s1_graag_met_target": ["Anna Bos"],
+                "preference_s1_graag_met_gewicht": ["1"],
+            },
+        )
+
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/preferences_form")
+        assert not (proc_dir / "voorkeuren.json").exists()
+        html = client.get("/preferences_form").data.decode("utf-8")
+        assert "kan geen voorkeur voor zichzelf opgeven" in html
+
     def test_autosave_writes_draft_only(self, client, tmp_path):
         """A POST with action='autosave' saves the draft state, not voorkeuren.json,
         and returns 204 (background save, no navigation)."""

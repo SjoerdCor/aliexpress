@@ -10,6 +10,7 @@ from aliexpress.web.extensions import db as flask_db
 from aliexpress.web.models import Process
 from app import app
 from tests.browser.conftest import TEST_SCHOOLCODE
+from tests.helpers import write_minimal_voorkeuren_json
 
 
 def _open_preferences(live_server, tmp_path, page):
@@ -49,3 +50,17 @@ def test_forward_button_submits_upload_form_and_requires_a_file(
 
     assert page.locator(".flash-message").inner_text().strip() != ""
     assert "Upload eerst" in page.locator(".flash-message").inner_text()
+
+
+@pytest.mark.usefixtures("login")
+def test_excel_preferences_overview_shows_sociogram_after_save(
+    live_server, tmp_path, page
+):
+    """The Excel preferences page exposes the sociogram after canonical save."""
+    proc = _open_preferences(live_server, tmp_path, page)
+    write_minimal_voorkeuren_json(proc)
+    page.reload()
+
+    link = page.locator('a[href="/sociogram"]')
+    assert link.is_visible()
+    assert link.get_attribute("target") == "_blank"

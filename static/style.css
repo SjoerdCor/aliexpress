@@ -133,6 +133,10 @@ input[type="submit"]:hover {
   margin-left: auto;
 }
 
+.preferences-sociogram-link {
+  margin: 1.5rem 0 0;
+}
+
 .next-steps {
   display: flex;
   flex-direction: column;
@@ -454,20 +458,14 @@ input[type="submit"]:hover {
   opacity: 1;
 }
 
-/* The sociogram button on the processing page, a child of #wait-activities: carries
-   the HTML `hidden` attribute until progress.json reports sociogram_ready, then it is
-   unhidden and stays visible. Using `hidden` (not an opacity fade) means it reserves
-   no layout space while waiting, so it never leaves a blank gap above the interim
-   result when that arrives first. */
+/* The sociogram button on the processing page is available immediately from the
+   canonical preferences. */
 .sociogram-card {
   margin: 0 0 1rem;
 }
 
-/* The "Terwijl je wacht" section groups the sociogram button and the interim result.
-   It carries the HTML `hidden` attribute in the template and only becomes visible once
-   the first wait activity is ready (sociogram or interim result) — never a heading with
-   nothing underneath. Its children carry their own `hidden` attribute and reveal in a
-   fixed order (sociogram button, then interim result) with no layout jump. */
+/* The "Terwijl je wacht" section groups the immediately available sociogram button
+   and the optional interim result. */
 .wait-activities {
   margin-top: 1.5rem;
 }
@@ -1186,14 +1184,6 @@ table.dataframe th {
     margin-top: 0.4rem;
 }
 
-.button--secondary {
-    background-color: #7a9cdf;
-}
-
-.button--secondary:hover {
-    background-color: #5a7bbf;
-}
-
 /* Legacy placeholder — no longer used but kept for smooth diff */
 .new-student-row {
     display: flex;
@@ -1680,3 +1670,151 @@ body.modal-open { overflow: hidden; }
 .gi-legend-col h4 { margin: 0 0 8px; font-size: 12.5px; text-transform: uppercase; letter-spacing: .04em; color: #555; }
 .gi-legend-note { margin-top: 8px; color: #555; font-size: 12.5px; }
 .gi-legend-badges { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
+.sociogram {
+    width: 100%;
+    height: 680px;
+    border: 1px solid #d8dee4;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.sociogram-stage {
+    position: relative;
+    width: 100%;
+}
+
+.sociogram-toolbar {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    align-items: stretch;
+    margin-bottom: 1rem;
+}
+
+.sociogram-legend {
+    border: 1px solid #d8dee4;
+    border-radius: 8px;
+    background: #fff;
+    padding: 0.85rem 1rem;
+}
+
+.sociogram-legend {
+    display: flex;
+    flex-wrap: wrap;
+    align-content: center;
+    gap: 0.75rem 1.5rem;
+    color: #333;
+    font-size: 0.9rem;
+}
+
+.sociogram-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    white-space: nowrap;
+}
+
+.sociogram-line {
+    display: inline-block;
+    width: 2.4rem;
+    border-top: 3px solid #4e6575;
+}
+
+.sociogram-line--negative {
+    border-top-color: #c0392b;
+    border-top-style: dashed;
+}
+
+.sociogram-legend-item--weight::before {
+    content: "";
+    display: inline-block;
+    width: 2.4rem;
+    border-top: 6px solid #4e6575;
+    border-radius: 2px;
+}
+
+.sociogram-legend .button {
+    margin-left: auto;
+}
+
+.sociogram-popup {
+    position: absolute;
+    z-index: 10;
+    pointer-events: none;
+    box-sizing: border-box;
+    width: min(320px, calc(100% - 24px));
+    padding: 0.9rem 1rem;
+    border: 1px solid #b7c4ce;
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: 0 5px 18px rgba(35, 54, 68, 0.2);
+}
+
+.sociogram-popup[hidden] {
+    display: none;
+}
+
+.sociogram-popup-close {
+    float: right;
+    width: 1.7rem;
+    height: 1.7rem;
+    margin: -0.25rem -0.35rem 0 0.5rem;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: #555;
+    cursor: pointer;
+    font-size: 1.25rem;
+    line-height: 1;
+    pointer-events: auto;
+}
+
+.sociogram-popup-close:hover,
+.sociogram-popup-close:focus-visible {
+    background: #edf2f5;
+}
+
+.sociogram-popup h2 {
+    margin: 0 0 0.4rem;
+    font-size: 1rem;
+}
+
+.sociogram-popup p {
+    margin: 0;
+    color: #555;
+    font-size: 0.9rem;
+}
+
+.sociogram-popup p[hidden] {
+    display: none;
+}
+
+.sociogram-popup dl {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 0.25rem 0.75rem;
+    margin: 0;
+    font-size: 0.88rem;
+}
+
+.sociogram-popup dl[hidden] {
+    display: none;
+}
+
+.sociogram-popup dt {
+    color: #666;
+    font-weight: normal;
+}
+
+.sociogram-popup dd {
+    margin: 0;
+    color: #222;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 720px) {
+    .sociogram-legend .button {
+        margin-left: 0;
+    }
+}

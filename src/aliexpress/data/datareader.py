@@ -103,7 +103,8 @@ def validate_long_preferences(
     - every *student* ``Waarde`` is unique within a Leerling (no duplicate classmate);
       group targets may repeat and appear in both directions (they stack/counteract, ADR 0004);
     - a ``Niet in`` target must be a known group; a ``Graag met``/``Liever niet met``
-      target must be a known group *or* a known student.
+      target must be a known group *or* a known student;
+    - a student cannot target themselves.
 
     Parameters
     ----------
@@ -121,8 +122,8 @@ def validate_long_preferences(
 
     Raises
     ------
-    pandera.errors.SchemaError
-        If any check fails. Callers may enrich the error before re-raising.
+    errors.ValidationError, pandera.errors.SchemaError
+        If any check fails. Callers may enrich schema errors before re-raising.
     """
 
     def waarde_unique_within_leerling(frame: pd.DataFrame) -> bool:
@@ -181,7 +182,30 @@ def validate_long_preferences(
         coerce=True,
     )
 
-    return validate_schema_with_filetype(df, schema, filetype="voorkeuren")
+    validated = validate_schema_with_filetype(df, schema, filetype="voorkeuren")
+
+    # Run this after the schema checks so an actually malformed row (for example a
+    # missing target) still receives the more useful structural error first.
+    group_keys = {matching_key(group) for group in all_to_groups}
+    student_keys = {matching_key(student) for student in all_leerlingen}
+    source_keys = pd.Series(
+        validated.index.get_level_values("Leerling"), index=validated.index
+    ).map(matching_key)
+    target_keys = validated["Waarde"].map(matching_key)
+    weighted_types = validated.index.get_level_values("TypeWens").isin(
+        ["Graag met", "Liever niet met"]
+    )
+    self_target = (
+        weighted_types
+        & target_keys.isin(student_keys)
+        & (source_keys == target_keys)
+        & ~target_keys.isin(group_keys)
+    )
+    if self_target.any():
+        student = source_keys[self_target].iloc[0]
+        raise ValidationError("self_preference_form", context={"leerling": student})
+
+    return validated
 
 
 def toggle_negative_weights(df: pd.DataFrame, mask="Gewicht") -> pd.DataFrame:

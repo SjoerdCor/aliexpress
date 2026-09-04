@@ -3,8 +3,8 @@
 Architecture rule for modules in this package: route modules do only HTTP — read the
 request, call helpers, render/redirect/flash. Form parsing lives in
 ``data/form_parsers.py``, per-process file persistence in ``web/process_files.py``,
-background work (solving, sociogram generation) in ``web/tasks.py``, and display/
-ordering helpers in ``web/display.py``. Route modules never import from each other.
+background work (solving) in ``web/tasks.py``, and display/ordering helpers in
+``web/display.py``. Route modules never import from each other.
 
 Small route glue stays in the route module on purpose — it is routing logic, not a
 layer violation. Examples: a dispatch helper that picks which parsing/handling path to

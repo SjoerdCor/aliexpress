@@ -123,6 +123,22 @@ def test_validate_columns_extra_and_missing():
     assert str(exc.value) == expected
 
 
+def test_validate_long_preferences_rejects_self_target():
+    """The shared validator rejects self-targets for every input path."""
+    frame = pd.DataFrame(
+        {"Waarde": ["alice"], "Gewicht": [1.0]},
+        index=pd.MultiIndex.from_tuples(
+            [("alice", "Graag met", 1.0)],
+            names=["Leerling", "TypeWens", "Nr"],
+        ),
+    )
+
+    with pytest.raises(errors.ValidationError) as exc:
+        datareader.validate_long_preferences(frame, ["blauw"], ["alice", "bob"])
+
+    assert exc.value.code == "self_preference_form"
+
+
 def test_toggle_negative_weights():
     """Test that toggle_negative_weights correctly toggles weights and TypeWens."""
     df = pd.DataFrame(
