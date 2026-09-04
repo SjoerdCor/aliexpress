@@ -371,11 +371,11 @@ niet in de vergelijkende lokale benchmark.
 
 | Workers | Scheduler | Run 1 | Run 2 | Run 3 | Mediaan | Groen? |
 |---:|---|---:|---:|---:|---:|---|
-| 0 | geen | | | | | |
-| 2 | load | | | | | |
-| 3 | load | | | | | |
-| 4 | load | | | | | |
-| winnaar | worksteal | | | | | |
+| 0 | geen | 44,60 | - | - | 44,60 | Ja |
+| 2 | load | 26,85 | - | - | 26,85 | Ja |
+| 3 | load | 20,41 | - | - | 20,41 | Ja |
+| 4 | load | 17,59 | 17,21 | 17,11 | 17,21 | Ja |
+| winnaar | worksteal | 17,07 | - | - | 17,07 | Ja |
 
 Dezelfde beslisregels gelden: drie groene runs, minder workers bij minder dan 5% verschil,
 en de eenvoudigste scheduler bij gelijkstand.
@@ -391,6 +391,14 @@ een materieel deel van de resterende runtime vormen:
   in `TESTING` een korte interval;
 - behoud in productie exact 1.000 ms;
 - gebruik geen algemene nul-timeout en geen willekeurige sleepverlaging die tests flaky maakt.
+
+**Uitkomst:** gebruik voor de browsersuite `-n 4 --dist load`. De vergelijking met
+`worksteal` was bij vier workers praktisch gelijk (`17,07 s` tegenover `17,21 s`), dus de
+eenvoudigere `load`-scheduler blijft gekozen. De testserver gebruikt uitsluitend in
+`TESTING` een pollinginterval van 100 ms; productie blijft op 1.000 ms. De vijf vaste
+`wait_for_timeout(1200)`-calls zijn vervangen door wachten op verwerkte `/status`-responses
+(en bij de interim-update ook de echte `/interim_result`-response). De uiteindelijke
+durations-profile toont geen van deze vaste waits meer bij de traagste tests.
 
 **Commit:** `test: run browser suite safely in parallel`
 
