@@ -1,5 +1,5 @@
 ---
-status: slice-3-complete
+status: slice-4-complete
 branch: feature/sociogram-cytoscape
 ---
 
@@ -27,7 +27,8 @@ met echte procesdata; volgende commits breiden dat resultaat zichtbaar uit.
 - [x] Slice 2 — sociometrische layoutprojectie.
 - [x] Slice 3 — gewicht, focus en lokale leesbaarheid. Begrensde interactie, focus
   met popup en leesbare referentiedataset zijn gereviewd en geïmplementeerd.
-- [ ] Slice 4 — direct beschikbaar in de Procesflow.
+- [x] Slice 4 — direct beschikbaar in de Procesflow. Canonieke voorkeuren ontsluiten
+  het sociogram vóór, tijdens en na de Verdeling; de solverflow is onafhankelijk.
 - [ ] Slice 5 — objectieve layoutkwaliteit op `voorkeuren.xlsx`.
 - [ ] Slice 6 — schaal, offlinegarantie en verwijderen oude stack.
 

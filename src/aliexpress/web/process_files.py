@@ -39,6 +39,11 @@ def load_voorkeuren(school_id, process_id) -> tuple[PreferenceData, str]:
     return PreferenceData.from_json(json.dumps(payload)), source
 
 
+def has_voorkeuren(school_id, process_id) -> bool:
+    """Return whether canonical preferences are available for this process."""
+    return os.path.exists(get_file_path(school_id, process_id, "voorkeuren.json"))
+
+
 def load_pref_form_state(school_id, process_id):
     """Load saved form state dict, or None when none exists."""
     path = get_file_path(school_id, process_id, "preferences_form_state.json")
@@ -274,7 +279,6 @@ def reset_result_files(school_id, process_id) -> None:
         "results.xlsx",
         "result_tables.json",
         "groepsindeling_view.json",
-        "sociogram.html",
         "progress.json",
         "interim_result.json",
     ):

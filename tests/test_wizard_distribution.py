@@ -43,11 +43,9 @@ class TestStartDistribution:
     """Tests for GET /start_distribution (run lifecycle with a mocked solver)."""
 
     def _patch_pipeline(self, monkeypatch, *, result=None, exc=None):
-        """Run both background threads synchronously with a mocked solver and sociogram.
+        """Run the background solver thread synchronously with a mocked solver.
 
         Returns the solver mock so a test can inspect the arguments it was called with.
-        Both SociogramMaker() and SociogramMaker.from_preference_data() return the same
-        mock maker so the mock works for both the Excel and form input paths.
         """
         monkeypatch.setattr(wizard_module, "Thread", immediate_thread)
         solver = MagicMock(side_effect=exc) if exc else MagicMock(return_value=result)
@@ -56,19 +54,6 @@ class TestStartDistribution:
             wizard_module.datareader,
             "read_groups_excel",
             lambda _: ({"Klas A": None}, {"Klas A": "Klas A"}),
-        )
-        maker = MagicMock()
-        maker.plot_sociogram.return_value = (MagicMock(), MagicMock(), MagicMock())
-        mock_sociogram_cls = MagicMock()
-        mock_sociogram_cls.return_value = maker
-        mock_sociogram_cls.from_preference_data.return_value = maker
-        monkeypatch.setattr(
-            tasks_module.sociogram, "SociogramMaker", mock_sociogram_cls
-        )
-        fig = MagicMock()
-        fig.to_html.return_value = "<div>socio</div>"
-        monkeypatch.setattr(
-            tasks_module.sociogram, "networkx_to_plotly", lambda *a, **k: fig
         )
         return solver
 
@@ -103,7 +88,7 @@ class TestStartDistribution:
         assert "Groepsindeling" in tables
         view = json.loads((proc_dir / "groepsindeling_view.json").read_text("utf-8"))
         assert view == {"group_order": [], "groups": [], "balance_rows": []}
-        assert (proc_dir / "sociogram.html").read_text("utf-8") == "<div>socio</div>"
+        assert not (proc_dir / "sociogram.html").exists()
         assert self._read_run().status == "done"
 
     def test_error_path_sets_error_status_and_message(
@@ -231,10 +216,10 @@ class TestStartDistribution:
         passed = solver.call_args.args[2]
         assert passed == [{"group": {"Alice", "Bob"}, "Max_aantal_samen": 1}]
 
-    def test_form_path_solver_and_sociogram_succeed_with_only_voorkeuren_json(
+    def test_form_path_solver_succeeds_with_only_voorkeuren_json(
         self, client, tmp_path, monkeypatch
     ):
-        """Solver and sociogram both complete when only voorkeuren.json exists (form path)."""
+        """The solver completes when only voorkeuren.json exists (form path)."""
         proc_dir = setup_process(client, tmp_path)
         write_minimal_voorkeuren_json(proc_dir, source="form")
         (proc_dir / "groups.xlsx").write_bytes(b"dummy")
@@ -250,7 +235,6 @@ class TestStartDistribution:
         response = client.post("/start_distribution", data=_unlimited_maxima_form())
         assert response.status_code == 302
         assert (proc_dir / "results.xlsx").read_bytes() == b"form-excel"
-        assert (proc_dir / "sociogram.html").read_text("utf-8") == "<div>socio</div>"
         assert self._read_run().status == "done"
 
     def test_valid_maxima_are_saved_before_the_solve_starts(
@@ -357,7 +341,7 @@ class TestStartDistribution:
         write_minimal_voorkeuren_json(proc_dir)
         write_minimal_groups_xlsx(proc_dir)
         old_outputs = """results.xlsx result_tables.json groepsindeling_view.json
-        sociogram.html progress.json interim_result.json""".split()
+        progress.json interim_result.json""".split()
         for name in old_outputs:
             (proc_dir / name).write_bytes(b"old output")
         with flask_app.app_context():
@@ -377,7 +361,10 @@ class TestStartDistribution:
 
         assert response.status_code == 302
         assert response.headers["Location"].endswith("/processing?watch=1")
-        assert thread_factory.call_count == 2
+        thread_factory.assert_called_once()
+        assert (
+            thread_factory.call_args.kwargs["target"] is tasks_module.run_solve_thread
+        )
         assert all(not (proc_dir / name).exists() for name in old_outputs)
         assert load_balance_maxima(SCHOOL_ID, "testproces").max_clique == 7
         assert self._read_run().status == "pending"

@@ -1,8 +1,8 @@
-"""Background thread orchestration: solving and sociogram generation.
+"""Background thread orchestration for solving.
 
-Each function here runs in its own thread, spawned by the wizard route
-``start_distribution`` (which stays responsible for *that* threads start; this module
-determines *what* they do).
+The solver function runs in its own thread, spawned by the wizard route
+``start_distribution`` (which stays responsible for that thread's start; this module
+determines what it does).
 """
 
 import json
@@ -12,7 +12,6 @@ from typing import Any
 
 import pandera as pa
 
-from .. import sociogram
 from ..errors import (
     CouldNotReadFileError,
     FeasibilityError,
@@ -33,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ThreadContext:
-    """Shared context passed to background solver/sociogram threads.
+    """Shared context passed to the background solver thread.
 
     Bundles the Flask app object (needed to open a thread-local app context) with the
     process identifiers required to locate files and update the run's status.
@@ -137,37 +136,3 @@ def run_solve_thread(ctx: ThreadContext, not_together):
                 Process.by_name(ctx.school_id, ctx.process_name).run.set_status("done")
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 _handle_failure(exc, ctx.school_id, ctx.process_name)
-
-
-def create_sociogram_thread(ctx: ThreadContext):
-    """Background thread: build and write the Plotly sociogram HTML.
-
-    Runs concurrently with the solver. Reads preferences from ``voorkeuren.json``
-    (written by both input paths) via ``SociogramMaker.from_preference_data``, so the
-    sociogram is available for both the Excel and web-form input paths. The processing
-    page detects completion by polling for ``sociogram.html`` on disk (via
-    ``sociogram_ready`` in ``/status``), so this thread does not report progress itself.
-    """
-    with ctx.app_obj.app_context():
-        with bind_log_context(
-            school=ctx.school_id,
-            process=ctx.process_name,
-            run=str(ctx.run_id),
-            phase="sociogram",
-        ):
-            try:  # pylint: disable=broad-exception-caught
-                preference_data, _ = load_voorkeuren(ctx.school_id, ctx.process_name)
-                sg = sociogram.SociogramMaker.from_preference_data(preference_data)
-                fig, g, pos = sg.plot_sociogram()
-                logger.info("Sociogram created")
-                fig = sociogram.networkx_to_plotly(g, pos)
-                html = fig.to_html(full_html=False, include_plotlyjs="cdn")
-                logger.info("HTML created")
-                with open(
-                    get_file_path(ctx.school_id, ctx.process_name, "sociogram.html"),
-                    "w",
-                    encoding="utf-8",
-                ) as fh:
-                    fh.write(html)
-            except Exception:  # pylint: disable=broad-exception-caught
-                logger.exception("Could not create sociogram")

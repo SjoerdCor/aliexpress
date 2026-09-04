@@ -101,6 +101,14 @@ class TestErrorMessages:
         msg = readableerror_to_validation_message(exc)
         assert "Jan" in msg and "100%" in msg
 
+    def test_self_preference_form_names_student(self):
+        """A self-target gets a direct, actionable form message."""
+        exc = ValidationError("self_preference_form", {"leerling": "Anna Bos"})
+        msg = readableerror_to_validation_message(exc)
+
+        assert "Anna Bos" in msg
+        assert "zichzelf" in msg
+
     def test_balance_caps_too_tight_single_change_is_natural_dutch(self):
         """A single proposed increase gets a natural singular message."""
         exc = FeasibilityError(

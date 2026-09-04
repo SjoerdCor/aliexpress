@@ -133,6 +133,10 @@ input[type="submit"]:hover {
   margin-left: auto;
 }
 
+.preferences-sociogram-link {
+  margin: 1.5rem 0 0;
+}
+
 .next-steps {
   display: flex;
   flex-direction: column;
@@ -454,20 +458,14 @@ input[type="submit"]:hover {
   opacity: 1;
 }
 
-/* The sociogram button on the processing page, a child of #wait-activities: carries
-   the HTML `hidden` attribute until progress.json reports sociogram_ready, then it is
-   unhidden and stays visible. Using `hidden` (not an opacity fade) means it reserves
-   no layout space while waiting, so it never leaves a blank gap above the interim
-   result when that arrives first. */
+/* The sociogram button on the processing page is available immediately from the
+   canonical preferences. */
 .sociogram-card {
   margin: 0 0 1rem;
 }
 
-/* The "Terwijl je wacht" section groups the sociogram button and the interim result.
-   It carries the HTML `hidden` attribute in the template and only becomes visible once
-   the first wait activity is ready (sociogram or interim result) — never a heading with
-   nothing underneath. Its children carry their own `hidden` attribute and reveal in a
-   fixed order (sociogram button, then interim result) with no layout jump. */
+/* The "Terwijl je wacht" section groups the immediately available sociogram button
+   and the optional interim result. */
 .wait-activities {
   margin-top: 1.5rem;
 }
@@ -1184,14 +1182,6 @@ table.dataframe th {
     padding-left: 0.5rem;
     border-left: 2px solid #c0ccee;
     margin-top: 0.4rem;
-}
-
-.button--secondary {
-    background-color: #7a9cdf;
-}
-
-.button--secondary:hover {
-    background-color: #5a7bbf;
 }
 
 /* Legacy placeholder — no longer used but kept for smooth diff */

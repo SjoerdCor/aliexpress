@@ -276,6 +276,10 @@ def readableerror_to_validation_message(exc: Exception) -> str:
             "{leerling} heeft een te hoge minimale tevredenheid. "
             "Die mag hoogstens 100% zijn."
         ),
+        "self_preference_form": (
+            "{leerling} kan geen voorkeur voor zichzelf opgeven. Kies een andere "
+            "leerling of groep."
+        ),
         # Used by the roster step ("Wie gaat mee") when validating hand-added students.
         "incomplete_new_student": (
             "Maak elke nieuwe leerling af: vul voornaam, achternaam én geslacht in."

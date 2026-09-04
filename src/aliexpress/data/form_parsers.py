@@ -194,13 +194,20 @@ def reconcile_dangling(
         datareader.matching_key(f"{p['roepnaam']} {p['achternaam']}")
         for p in participants
     } | {datareader.matching_key(g) for g in group_labels}
+    group_keys = {datareader.matching_key(g) for g in group_labels}
     removed = []
     for student in draft_state["students"]:
         owner = f"{student['roepnaam']} {student['achternaam']}".strip()
+        owner_key = datareader.matching_key(owner)
         for kind in ("graag_met", "liever_niet_met"):
             kept = []
             for preference in student.get(kind, []):
-                if datareader.matching_key(preference["target"]) in valid_keys:
+                target_key = datareader.matching_key(preference["target"])
+                if target_key == owner_key and target_key not in group_keys:
+                    # Self-targets are invalid input, not a dangling classmate. Drop them
+                    # from a draft without claiming that the target left the roster.
+                    continue
+                if target_key in valid_keys:
                     kept.append(preference)
                 else:
                     removed.append((owner, preference["target"]))
