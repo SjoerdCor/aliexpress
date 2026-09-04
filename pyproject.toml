@@ -33,6 +33,7 @@ dev = [
     "pylint==3.3.7",
     "faker==37.6.0",
     "pytest-playwright==0.8.0",
+    "pytest-xdist==3.8.0",
 ]
 
 [build-system]
