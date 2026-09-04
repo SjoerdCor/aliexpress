@@ -402,7 +402,7 @@ durations-profile toont geen van deze vaste waits meer bij de traagste tests.
 
 **Commit:** `test: run browser suite safely in parallel`
 
-## Slice 6 — kleine pytest-testmon-pilot
+## Slice 6 — kleine pytest-testmon-pilot (niet behouden)
 
 Testmon is logisch als vierde, zeer korte ontwikkellus bovenop gerichte bestandsruns. Het
 gebruikt coverage-informatie om per test bij te houden welke Python-code is uitgevoerd en
@@ -454,7 +454,19 @@ uv run pytest tests --ignore=tests/integration --ignore=tests/browser -q --no-co
 Niet opnemen in globale `addopts`, pre-push of merge. Als de pilot weinig oplevert, verwijder
 de dependency en `.gitignore`-regel weer in dezelfde slice; dat is een geldige uitkomst.
 
-**Optionele commit:** `test: add opt-in affected-test loop with testmon`
+### Pilotuitkomst (4 september 2026)
+
+De eerste opbouwrun selecteerde alle 512 snelle tests en was groen in 46,15 s. Een kleine
+wijziging in `validation_messages.py` selecteerde 21 afhankelijke tests, maar de testmon-run
+duurde 5,24 s met `-n 6 --dist load` en 7,80 s met `-n 0`; het relevante testbestand draaide
+29 tests in 0,21 s. De volledige snelle suite duurde ongeveer 24,4 s.
+
+Omdat handmatig een bekend testbestand kiezen duidelijk sneller en eenvoudiger is, blijft
+testmon niet behouden. De dependency, `.gitignore`-regel en lokale `.testmondata` zijn na de
+pilot verwijderd. De beperkingen rond templates, static assets en testdata bevestigen deze
+keuze.
+
+**Uitkomst:** testmon niet behouden; de pilotwijzigingen zijn teruggedraaid.
 
 ## Slice 7 — nice-to-have: slow-test meteen in een eigen merge-lane
 
