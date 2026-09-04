@@ -239,13 +239,24 @@ gestarte tests over van een worker met veel resterend werk. Een reeds lopende so
 niet worden gesplitst of verplaatst. `load` stuurt pending tests naar iedere beschikbare
 worker zonder gegarandeerde volgorde.
 
+De tijden hieronder zijn de door pytest gerapporteerde runtimes in seconden. Alle runs
+bevatten 511 tests en waren groen. De n=0-waarde is de warme nulmeting uit deze
+implementatiesessie.
+
 | Workers | Scheduler | Run 1 | Run 2 | Run 3 | Mediaan | Groen? |
 |---:|---|---:|---:|---:|---:|---|
-| 0 | geen | | | | | |
-| 2 | worksteal | | | | | |
-| 4 | worksteal | | | | | |
-| 6 | worksteal | | | | | |
-| winnaar | load | | | | | |
+| 0 | geen | 98,35 | - | - | 98,35 | Ja |
+| 2 | worksteal | 24,47 | - | - | 24,47 | Ja |
+| 4 | worksteal | 15,15 | 45,98 | 15,29 | 15,29 | Ja |
+| 6 | worksteal | 12,52 | 24,55 | 12,35 | 12,52 | Ja |
+| 6 | load | 12,49 | 12,60 | 12,48 | 12,49 | Ja |
+
+De n=2-configuratie viel na de eerste meting af als duidelijk tragere kandidaat. De twee
+bevestigingsrondes voor n=4 en n=6 bleven groen, maar lieten aanzienlijke runtimevariatie
+door de solverbelasting zien; daarom zijn medianen gebruikt. Bij n=6 waren `load` en
+`worksteal` met medianen van respectievelijk 12,49 s en 12,52 s praktisch gelijk (0,24%
+verschil). Volgens de beslisregel kiezen we bij zo'n gelijkstand de eenvoudigere
+xdist-default `load`.
 
 Beslisregel:
 
@@ -256,6 +267,8 @@ Beslisregel:
 
 Dit is een meet-/beslisslice en hoeft geen eigen commit te hebben; leg de uitkomst vast in
 dit plan of de sessienotities.
+
+**Uitkomst:** gebruik voor de snelle Python/Flask-suite `-n 6 --dist load`.
 
 ## Slice 3 — algemene client-fixture goedkoper maken
 
