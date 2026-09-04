@@ -1,5 +1,5 @@
 ---
-status: slice-4-complete
+status: slice-5-complete
 branch: feature/sociogram-cytoscape
 ---
 
@@ -29,7 +29,11 @@ met echte procesdata; volgende commits breiden dat resultaat zichtbaar uit.
   met popup en leesbare referentiedataset zijn gereviewd en geïmplementeerd.
 - [x] Slice 4 — direct beschikbaar in de Procesflow. Canonieke voorkeuren ontsluiten
   het sociogram vóór, tijdens en na de Verdeling; de solverflow is onafhankelijk.
-- [ ] Slice 5 — objectieve layoutkwaliteit op `voorkeuren.xlsx`.
+- [x] Slice 5 — objectieve layoutkwaliteit op `voorkeuren.xlsx`. De referentietest
+  haalt bij 1440 × 1000 deterministisch 23 proxy-kruisingen, geen node-overlap en
+  mediane afstanden van ongeveer 58,4 / 71,6 / 92,7 voor wederzijds positief /
+  eenzijdig positief / negatief; alle zes negatieve paren zijn langer dan de
+  positieve mediaan. De standaardweergave is visueel gecontroleerd.
 - [ ] Slice 6 — schaal, offlinegarantie en verwijderen oude stack.
 
 ## Vaststaande keuzes
