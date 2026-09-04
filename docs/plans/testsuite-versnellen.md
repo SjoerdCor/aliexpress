@@ -148,8 +148,19 @@ Deze sessie werkt op branch `speed-up-tests`. De warme nulmetingen volgens het p
 | Snelle Python/Flask-suite | 511 tests in 98,35 s |
 | Browsersuite | 93 tests in 105,59 s |
 
-Het plan wordt als eerste commit op deze branch vastgelegd. Slice 1 is daarna in uitvoering;
-de implementatiewijzigingen blijven ongecommit voor review.
+Het plan is als eerste commit op deze branch vastgelegd (`1fc6b72`). Slice 1 is
+geïmplementeerd en geverifieerd; de implementatiewijzigingen blijven ongecommit voor review.
+
+Slice-1-verificatie:
+
+| Controle | Resultaat |
+|---|---:|
+| Gerichte suite, `-n 0` | 93 passed in 46,46 s |
+| Gerichte suite, `-n 4 --dist load` | 93 passed in 8,64 s |
+| Volledige snelle suite, `-n 4 --dist load` | 511 passed in 15,19 s |
+| Vooraf ingestelde externe `DATABASE_URL` | genegeerd; externe database niet aangemaakt |
+| Waargenomen databases tijdens `-n 4` | 5 unieke paden: `master`, `gw0`–`gw3` |
+| Achtergebleven `aliexpress-pytest-*.db`-bestanden | 0 |
 
 ## Slice 1 — xdist plus veilige database-isolatie
 
