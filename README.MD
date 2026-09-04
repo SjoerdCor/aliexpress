@@ -33,6 +33,42 @@ uv run playwright install chromium
 The quick loop skips the slow suites with
 `uv run pytest tests/ --ignore=tests/integration --ignore=tests/browser`.
 
+## Lokale mergecontrole (tijdelijk)
+
+Voor een lokale merge kan de merge eerst klaargezet worden zonder hem te committen:
+
+```bash
+git merge --no-ff --no-commit <branch>
+```
+
+Voer daarna in twee terminals tegelijk de volgende lanes uit. De eerste lane start de
+realistische slow-test; de tweede lane voert de overige suites na elkaar uit. De slow-test
+gebruikt geen coverage, zodat alleen de overige lane het gedeelde coverage-rapport schrijft.
+
+Terminal 1 — slow lane:
+
+```bash
+uv run pytest tests/integration/test_integration_herindelen.py::test_herindelen_realistic_scale -q --no-cov -m slow -n 0
+```
+
+Terminal 2 — overige lane:
+
+```bash
+uv run pytest tests --ignore=tests/integration --ignore=tests/browser -q -m "not slow" -n 6 --dist load
+uv run pytest tests/browser -q -n 4 --dist load --cov-append
+uv run pytest tests/integration -q -m "not slow" --cov-append
+```
+
+Voer de volgende opdracht pas uit nadat beide terminals succesvol zijn:
+
+```bash
+git commit
+```
+
+Bij een mislukte controle kan de niet-gecommitte merge worden teruggedraaid met
+`git merge --abort`. Deze werkwijze is bewust tijdelijk en handmatig: een lokale merge wordt
+niet door GitHub gezien en er is nog geen lokale lane-runner.
+
 Create a `.env` file containing at least:
 
 ```
