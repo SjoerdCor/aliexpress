@@ -272,21 +272,13 @@ def test_processing_pending_status_shows_spinner(live_server, tmp_path, page):
 
 @pytest.mark.usefixtures("login")
 def test_processing_shows_sociogram_card_and_no_logs(live_server, tmp_path, page):
-    """The sociogram card appears once /status reports sociogram_ready; no raw log block.
-
-    Stubs /status like ``test_processing_shows_input_overview`` does: the real
-    sociogram thread's readiness races the redirect on the small dataset, so the
-    deterministic assertion comes from a fixed stubbed payload rather than the real run.
-    """
+    """The sociogram card is immediately available; no raw log block is rendered."""
     _make_process(live_server, tmp_path, page, name="sociogramrun")
 
     fake_status = {
         "status_studentdistribution": "running",
         "steps": {"floor": "busy", "balance": "pending", "satisfaction": "pending"},
-        "sociogram_ready": False,
     }
-    # Route handler reads the mutable dict each request, so flipping sociogram_ready
-    # below is picked up by the next 1 s poll without re-registering the route.
     page.route("**/status", lambda route: route.fulfill(json=fake_status))
     page.goto(f"{live_server}/processing")
 
@@ -294,11 +286,6 @@ def test_processing_shows_sociogram_card_and_no_logs(live_server, tmp_path, page
     assert page.locator("#logs").count() == 0
 
     card = page.locator("#sociogram-card")
-    expect(card).to_be_hidden()
-
-    fake_status["sociogram_ready"] = True
-    page.wait_for_timeout(1200)  # let the next 1 s poll pick up the updated stub
-
     expect(card).to_be_visible()
     link = card.locator("a")
     expect(link).to_have_attribute("href", "/sociogram")
@@ -309,25 +296,20 @@ def test_processing_shows_sociogram_card_and_no_logs(live_server, tmp_path, page
 def test_processing_wait_section_groups_sociogram_and_interim(
     live_server, tmp_path, page
 ):
-    """The sociogram button and interim result live in one "Terwijl je wacht" section.
-
-    The section stays hidden (via the HTML `hidden` attribute) until the first wait
-    activity is ready, so the heading never appears above an empty block. Stubs
-    /status like ``test_processing_shows_sociogram_card_and_no_logs`` does.
-    """
+    """The immediate sociogram and optional interim result share the wait section."""
     _make_process(live_server, tmp_path, page, name="waitsectionrun")
 
     fake_status = {
         "status_studentdistribution": "running",
         "steps": {"floor": "busy", "balance": "pending", "satisfaction": "pending"},
-        "sociogram_ready": False,
     }
     page.route("**/status", lambda route: route.fulfill(json=fake_status))
     page.goto(f"{live_server}/processing")
 
     section = page.locator("#wait-activities")
-    expect(section).to_be_hidden()
+    expect(section).to_be_visible()
     assert page.locator("#wait-activities #sociogram-card").count() == 1
+    expect(page.locator("#wait-activities #sociogram-card")).to_be_visible()
     assert page.locator("#wait-activities #interim-result").count() == 1
 
     # The spinner is the closing element of the progress block, so it must precede
@@ -338,10 +320,6 @@ def test_processing_wait_section_groups_sociogram_and_interim(
     )
     assert position & 4
 
-    fake_status["sociogram_ready"] = True
-    page.wait_for_timeout(1200)  # let the next 1 s poll pick up the updated stub
-
-    expect(section).not_to_be_hidden()
     heading = page.locator(".wait-activities-heading")
     expect(heading).to_be_visible()
     expect(heading).to_have_text("Terwijl je wacht")

@@ -359,7 +359,7 @@ class TestFullWizardFormFlow:  # pylint: disable=too-few-public-methods  # one t
         complete successfully.
         """
         required = {
-            "voorkeuren.json": "preferences (read by both solver thread and sociogram thread)",
+            "voorkeuren.json": "preferences read by the solver thread",
             "groups.xlsx": "target groups (read by run_solve_thread via process_files.load_groups)",
             "not_together.json": "separation rules (loaded by start_distribution route)",
             "roster.json": "settled participant list (read by preferences_form on resume)",
@@ -385,11 +385,11 @@ class TestFullWizardFormFlow:  # pylint: disable=too-few-public-methods  # one t
 
     def _step_start_distribution(self, client):
         """POST /start_distribution (the idle panel's "Start verdeling" button), with
-        background threads replaced by no-ops.
+        solver thread replaced by a no-op.
 
         Every balance-maxima family is submitted as Onbeperkt so the form parses without
-        needing real numbers. We replace Thread so neither the solver nor the sociogram
-        actually run — the test only cares that the kickoff route accepts the request
+        needing real numbers. We replace Thread so the solver does not actually run —
+        the test only cares that the kickoff route accepts the request
         (i.e. all input files were found) and enters explicit processing watch mode.
         """
         noop_thread = MagicMock()

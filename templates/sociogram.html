@@ -1,9 +1,8 @@
 {% extends "base.html" %}
-{% set current_step = 5 %}
-
 {% block header %}Sociogram{% endblock %}
 
 {% block content %}
+{% if sociogram_view is not none %}
 <div class="sociogram-toolbar">
     <div class="sociogram-legend" aria-label="Legenda sociogram">
         <span class="sociogram-legend-item">
@@ -17,7 +16,7 @@
         <span class="sociogram-legend-item sociogram-legend-item--weight">
             Lijndikte = absoluut gewicht
         </span>
-        <button id="sociogram-reset" type="button" class="button">Herstel overzicht</button>
+        <button id="sociogram-reset" type="button" class="button">Toon volledig overzicht</button>
     </div>
 </div>
 <div class="sociogram-stage">
@@ -324,7 +323,9 @@
 
         const layout = cy.layout({
             name: 'cose',
-            eles: cy.nodes().union(cy.edges('.layout-relation')),
+            // CoSE models every spring as attractive. Negative relations remain in the
+            // viewmodel and as visible arrows, but must not become attractive springs.
+            eles: cy.nodes().union(cy.edges('.layout-relation[kind != "negative"]')),
             animate: false,
             fit: true,
             padding: 40,
@@ -357,4 +358,5 @@
         achtergrond om de selectie te wissen.
     </p>
 </div>
+{% endif %}
 {% endblock %}

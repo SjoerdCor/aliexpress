@@ -1,5 +1,8 @@
 """Results blueprint: processing, status, sociogram, result, download, and done routes."""
 
+# The route modules intentionally repeat the small active-process guard for HTTP clarity.
+# pylint: disable=duplicate-code
+
 import json
 import logging
 import os
@@ -110,12 +113,7 @@ def status():
     if proc is None or proc.run is None:
         return jsonify({"status_studentdistribution": "unknown"})
     run = proc.run
-    payload = {
-        "status_studentdistribution": run.status,
-        "sociogram_ready": os.path.exists(
-            get_file_path(school_id, process_name, "sociogram.html")
-        ),
-    }
+    payload = {"status_studentdistribution": run.status}
     progress_path = get_file_path(school_id, process_name, "progress.json")
     if os.path.exists(progress_path):
         payload.update(_load_json_snapshot(progress_path))
@@ -147,9 +145,19 @@ def show_sociogram():
     try:
         preference_data, _ = load_voorkeuren(school_id, process_id)
         sociogram_view = asdict(build_sociogram_view(preference_data))
-    except (FileNotFoundError, KeyError, ValueError, json.JSONDecodeError):
-        flash("Sociogram niet beschikbaar: geldige voorkeuren ontbreken.", "error")
-        return redirect(url_for("processes.index"))
+    except (OSError, AttributeError, IndexError, KeyError, TypeError, ValueError):
+        logger.exception(
+            "Could not load sociogram preferences for process %s", process_id
+        )
+        flash(
+            "Sociogram niet beschikbaar: geldige voorkeuren ontbreken of kunnen niet "
+            "worden gelezen. Ga terug naar de voorkeuren en sla ze opnieuw op.",
+            "error",
+        )
+        return render_template(
+            "sociogram.html",
+            sociogram_view=None,
+        )
     return render_template("sociogram.html", sociogram_view=sociogram_view)
 
 

@@ -1,10 +1,13 @@
 """Browser acceptance tests for the Cytoscape sociogram."""
 
 import json
+import math
 
+import pandas as pd
 import pytest
 
 from aliexpress.data import datareader
+from aliexpress.data.preferences_data import PreferenceData
 from aliexpress.web.extensions import db as flask_db
 from aliexpress.web.models import Process
 from aliexpress.web.process_files import save_voorkeuren
@@ -44,6 +47,54 @@ def _make_small_sociogram_process(live_server, tmp_path, page, name):
     _make_sociogram_process(live_server, tmp_path, page, name)
 
 
+def _preference_data_from_edges(edges, student_count=30):
+    """Build canonical data for a focused browser layout regression."""
+    students = [f"s{index}" for index in range(student_count)]
+    records = []
+    index = []
+    counters = {}
+    for source, target, weight in edges:
+        kind = "Graag met" if weight > 0 else "Liever niet met"
+        counters[(source, kind)] = counters.get((source, kind), 0) + 1
+        index.append((source, kind, float(counters[(source, kind)])))
+        records.append({"Waarde": target, "Gewicht": float(weight)})
+    preferences = pd.DataFrame(
+        records,
+        index=pd.MultiIndex.from_tuples(index, names=["Leerling", "TypeWens", "Nr"]),
+        columns=["Waarde", "Gewicht"],
+    )
+    return PreferenceData(
+        preferences=preferences,
+        students_info={student: {} for student in students},
+        student_display={student: f"Leerling {student[1:]}" for student in students},
+        stamgroep_display={},
+        input_sheet=pd.DataFrame(),
+    )
+
+
+def _make_star_layout_process(live_server, tmp_path, page, name):
+    """Open 30 students where one has one positive and one negative preference."""
+    proc = tmp_path / TEST_SCHOOLCODE / name
+    proc.mkdir(parents=True, exist_ok=True)
+    (proc / "relevant_students_and_groups.json").write_text(
+        json.dumps({"candidates": [], "groups_from": []}), encoding="utf-8"
+    )
+    pd.DataFrame(
+        {"Jongens": [0], "Meisjes": [0]},
+        index=pd.Index(["Klas A"], name="Groepen"),
+    ).to_excel(proc / "groups.xlsx")
+    preference_data = _preference_data_from_edges([("s0", "s1", 1), ("s0", "s2", -1)])
+    with app.app_context():
+        save_voorkeuren(TEST_SCHOOLCODE, name, preference_data, source="form")
+        flask_db.session.add(Process(school_id=TEST_SCHOOLCODE, name=name))
+        flask_db.session.commit()
+
+    page.goto(f"{live_server}/processes/select/{name}")
+    page.goto(f"{live_server}/sociogram")
+    page.wait_for_function("() => window.sociogramReady === true")
+    return preference_data
+
+
 def _assert_nodes_inside_canvas(page, snapshot):
     """Assert that rendered node boxes fit inside the Cytoscape canvas."""
     canvas_size = page.evaluate(
@@ -80,6 +131,7 @@ def test_sociogram_renders_real_nodes_and_directed_preferences(
     assert len(snapshot["nodes"]) == 4
     assert len(snapshot["preferences"]) == 1
     assert page.locator("#sociogram canvas").count() >= 1
+    assert page.locator(".stepper").count() == 0
     legend = page.locator(".sociogram-legend")
     assert "Positief: doorgetrokken" in legend.inner_text()
     assert "Negatief: rood en gestreept" in legend.inner_text()
@@ -104,6 +156,34 @@ def test_sociogram_renders_reference_workbook(live_server, tmp_path, page):
 
 
 @pytest.mark.usefixtures("login")
+def test_negative_preference_is_not_closer_than_positive_preference(
+    live_server, tmp_path, page
+):
+    """A 30-student star keeps a negative relation farther away than a positive one."""
+    preference_data = _make_star_layout_process(
+        live_server, tmp_path, page, "relation-distance-run"
+    )
+    snapshot = page.evaluate("window.sociogramSnapshot()")
+
+    distances = []
+    for edge, geometry in zip(
+        preference_data.preferences.itertuples(index=True), snapshot["preferences"]
+    ):
+        source = geometry["source"]
+        target = geometry["target"]
+        distances.append(
+            (
+                edge.Gewicht,
+                math.hypot(target["x"] - source["x"], target["y"] - source["y"]),
+            )
+        )
+
+    positive_distance = next(distance for weight, distance in distances if weight > 0)
+    negative_distance = next(distance for weight, distance in distances if weight < 0)
+    assert negative_distance > positive_distance
+
+
+@pytest.mark.usefixtures("login")
 def test_sociogram_limits_zoom_and_restores_overview(live_server, tmp_path, page):
     """Zoom stays bounded and the reset control returns to the initial view."""
     _make_small_sociogram_process(live_server, tmp_path, page, "zoomrun")
@@ -125,7 +205,7 @@ def test_sociogram_limits_zoom_and_restores_overview(live_server, tmp_path, page
     zoomed_out = page.evaluate("window.sociogramSnapshot()")
     assert zoomed_out["zoom"] >= 0.35
 
-    page.get_by_role("button", name="Herstel overzicht").click()
+    page.get_by_role("button", name="Toon volledig overzicht").click()
     restored = page.evaluate("window.sociogramSnapshot()")
     assert restored["zoom"] == pytest.approx(initial["zoom"], abs=0.05)
 
