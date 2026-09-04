@@ -166,6 +166,11 @@ sits behind a "Voorlopige indeling" ("Tentative distribution") disclosure that s
 distribution doesn't compete for attention with the solve stepper above it; the teacher can open
 it to check progress, and it stays open across updates as the solver keeps refining the result.
 
+The Sociogram is a browser-side view of the canonical preferences. Its Cytoscape.js runtime is
+bundled locally, so opening the Sociogram works offline and sends no student data to a CDN or
+other external service; the version and MIT licence are recorded in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
 ## Distribution modes
 
 When creating a process, the teacher picks one of three modes. The choice shapes the wizard
