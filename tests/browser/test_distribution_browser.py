@@ -68,6 +68,12 @@ def _start_distribution_from_idle_panel(live_server, page):
     page.click('button:has-text("Start verdeling")')
 
 
+def _goto_processing_and_wait_for_next_status(live_server, page):
+    """Load processing and wait for its initial and next real status responses."""
+    page.goto(f"{live_server}/processing")
+    page.wait_for_function("() => window.__statusPollCount >= 2")
+
+
 @pytest.mark.usefixtures("login")
 def test_balance_limits_can_be_changed_unlimited_and_submitted(
     live_server, tmp_path, page
@@ -387,8 +393,7 @@ def test_processing_hides_plateaus_before_reveal_threshold(live_server, tmp_path
         "tiebreak_busy": True,
     }
     page.route("**/status", lambda route: route.fulfill(json=fake_status))
-    page.goto(f"{live_server}/processing")
-    page.wait_for_timeout(1200)  # let a poll happen so hiding is a real assertion
+    _goto_processing_and_wait_for_next_status(live_server, page)
 
     expect(page.locator("#plateaus li")).to_have_count(0)
 
@@ -436,8 +441,7 @@ def test_processing_hides_tiebreak_before_reveal_threshold(live_server, tmp_path
         "tiebreak_busy": True,
     }
     page.route("**/status", lambda route: route.fulfill(json=fake_status))
-    page.goto(f"{live_server}/processing")
-    page.wait_for_timeout(1200)  # let a poll happen so hiding is a real assertion
+    _goto_processing_and_wait_for_next_status(live_server, page)
 
     expect(page.locator("#tiebreak-line")).to_be_hidden()
 
@@ -581,8 +585,7 @@ def test_processing_stays_gated_when_estimate_predicts_a_short_run(
         },
     }
     page.route("**/status", lambda route: route.fulfill(json=fake_status))
-    page.goto(f"{live_server}/processing")
-    page.wait_for_timeout(1200)  # let a poll happen so hiding is a real assertion
+    _goto_processing_and_wait_for_next_status(live_server, page)
 
     expect(page.locator("#plateaus li")).to_have_count(0)
     expect(page.locator("#tiebreak-line")).to_be_hidden()
@@ -716,8 +719,7 @@ def test_processing_hides_interim_result_before_reveal_threshold(
         "interim_result_updated_at": "2026-07-11T12:00:00+00:00",
     }
     page.route("**/status", lambda route: route.fulfill(json=fake_status))
-    page.goto(f"{live_server}/processing")
-    page.wait_for_timeout(1200)  # let a poll happen so hiding is a real assertion
+    _goto_processing_and_wait_for_next_status(live_server, page)
 
     expect(page.locator("#interim-result .gi-card")).to_have_count(0)
 
@@ -814,8 +816,12 @@ def test_processing_interim_result_collapsed_by_default_and_stays_open(
     expect(first_card).to_be_visible()
     assert details.evaluate("el => el.open") is True
 
+    previous_poll_count = page.evaluate("() => window.__statusPollCount")
     fake_status["interim_result_updated_at"] = "2026-07-11T12:00:05+00:00"
-    page.wait_for_timeout(1200)  # let the next poll pick up the updated stub
+    with page.expect_response("**/interim_result"):
+        page.wait_for_function(
+            f"() => window.__statusPollCount > {previous_poll_count}"
+        )
 
     assert details.evaluate("el => el.open") is True
     expect(first_card).to_be_visible()

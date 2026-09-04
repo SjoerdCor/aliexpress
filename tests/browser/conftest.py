@@ -23,6 +23,7 @@ from app import app
 
 TEST_SCHOOLCODE = "browser-school"
 TEST_PASSWORD = "browser-pass"
+TEST_PROCESSING_POLL_INTERVAL_MS = 100
 
 
 @pytest.fixture(scope="session")
@@ -30,6 +31,7 @@ def live_server():
     """Run one Flask server per pytest worker and yield its base URL."""
     app.config["TESTING"] = True
     app.config["SECRET_KEY"] = "browser-test-secret"
+    app.config["PROCESSING_POLL_INTERVAL_MS"] = TEST_PROCESSING_POLL_INTERVAL_MS
     limiter.enabled = False
 
     server = make_server("127.0.0.1", 0, app)

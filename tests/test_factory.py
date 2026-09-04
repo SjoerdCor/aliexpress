@@ -32,6 +32,10 @@ class TestCreateApp:
         assert isinstance(test_app, Flask)
         assert test_app.config["TESTING"] is True
 
+    def test_processing_poll_interval_defaults_to_one_second(self, test_app):
+        """The test-only browser override must not change the production default."""
+        assert test_app.config["PROCESSING_POLL_INTERVAL_MS"] == 1000
+
     def test_db_tables_are_queryable(self, test_app):
         """The database is initialised so that models can be queried."""
         with test_app.app_context():
