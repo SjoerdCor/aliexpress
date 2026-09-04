@@ -21,7 +21,7 @@ uv sync --extra dev
 uv run pre-commit install
 ```
 
-The CP-SAT solver (`ortools`) is installed automatically as a dependency. Run any command inside the environment with `uv run`, for example `uv run pytest tests/` to run the tests.
+The CP-SAT solver (`ortools`) is installed automatically as a dependency. Run any command inside the environment with `uv run`.
 
 The `tests/browser/` suite uses Playwright to drive the real app and cover the page
 JavaScript. It needs the browser installed once:
@@ -30,20 +30,54 @@ JavaScript. It needs the browser installed once:
 uv run playwright install chromium
 ```
 
-The quick loop skips the slow suites with
-`uv run pytest tests/ --ignore=tests/integration --ignore=tests/browser`.
+## Testing
 
-## Lokale mergecontrole (tijdelijk)
+During development, start with the relevant test file. After a test failure, rerun the
+last failures with `--lf`:
 
-Voor een lokale merge kan de merge eerst klaargezet worden zonder hem te committen:
+```powershell
+uv run pytest tests/test_betreffend_bestand.py -q --no-cov -x
+uv run pytest tests --ignore=tests/integration --ignore=tests/browser -q --no-cov --lf
+```
+
+The full fast Python/Flask suite explicitly excludes browser and integration tests. The
+measured configuration uses six pytest workers with the `load` scheduler:
+
+```powershell
+uv run pytest tests --ignore=tests/integration --ignore=tests/browser -q --no-cov -n 6 --dist load
+```
+
+Run the browser suite separately with four workers:
+
+```powershell
+uv run pytest tests/browser -q --no-cov -n 4 --dist load
+```
+
+For full checks, coverage and the default test selection are enabled:
+
+```powershell
+uv run pytest tests/integration
+uv run pytest tests
+uv run pytest tests -m slow
+```
+
+`uv run pytest tests` is the complete non-slow suite, including browser and integration tests.
+The global pytest configuration uses `-m "not slow"` to exclude only the marked slow test;
+that selection does not exclude browser or other integration tests. Therefore, use the explicit
+`--ignore` options above for the fast suite. Run the slow suite separately and deliberately.
+
+## Local merge checks
+
+This repository has no automatic merge runner or CI workflow. For a local merge, prepare the
+merge without committing it first:
 
 ```bash
 git merge --no-ff --no-commit <branch>
 ```
 
-Voer daarna in twee terminals tegelijk de volgende lanes uit. De eerste lane start de
-realistische slow-test; de tweede lane voert de overige suites na elkaar uit. De slow-test
-gebruikt geen coverage, zodat alleen de overige lane het gedeelde coverage-rapport schrijft.
+Then run the following lanes simultaneously in two terminals. The first lane starts the
+realistic slow test; the second lane runs the remaining suites sequentially. The slow test
+does not use coverage, so only the other lane writes the shared coverage report.
 
 Terminal 1 — slow lane:
 
@@ -51,7 +85,7 @@ Terminal 1 — slow lane:
 uv run pytest tests/integration/test_integration_herindelen.py::test_herindelen_realistic_scale -q --no-cov -m slow -n 0
 ```
 
-Terminal 2 — overige lane:
+Terminal 2 — remaining suites:
 
 ```bash
 uv run pytest tests --ignore=tests/integration --ignore=tests/browser -q -m "not slow" -n 6 --dist load
@@ -59,15 +93,14 @@ uv run pytest tests/browser -q -n 4 --dist load --cov-append
 uv run pytest tests/integration -q -m "not slow" --cov-append
 ```
 
-Voer de volgende opdracht pas uit nadat beide terminals succesvol zijn:
+Run the following command only after both terminals have completed successfully:
 
 ```bash
 git commit
 ```
 
-Bij een mislukte controle kan de niet-gecommitte merge worden teruggedraaid met
-`git merge --abort`. Deze werkwijze is bewust tijdelijk en handmatig: een lokale merge wordt
-niet door GitHub gezien en er is nog geen lokale lane-runner.
+If a check fails, abort the uncommitted merge with `git merge --abort`. This process is manual;
+both lanes must complete successfully before committing the merge.
 
 Create a `.env` file containing at least:
 
@@ -119,39 +152,38 @@ Teachers log in at `/login` with that schoolcode and password. They obtain their
 from the administrator who set up ALI Express for their school. The session ends when the
 browser is closed.
 
-## Handmatig testen met synthetische scenario's
+## Manual testing with synthetic scenarios
 
-Start de app vanuit PowerShell in de repository:
+Start the app from PowerShell in the repository:
 
 ```powershell
 uv run python app.py
-# of
+# or
 .\aliexpress.bat
 ```
 
-Is de database leeg, maak dan in een tweede PowerShell een school aan en log in op de app met
-schoolcode `testschool`:
+If the database is empty, open a second PowerShell window, create a school, and log in to the app
+with schoolcode `testschool`:
 
 ```powershell
 uv run flask schools add testschool
 ```
 
-De CLI toont een tijdelijk wachtwoord; wijzig dit bij de eerste login. Maak daarna de
-scenario's aan:
+The CLI displays a temporary password; change it at the first login. Then create the scenarios:
 
 ```powershell
-# doorzetten, standaard 35 leerlingen
+# carry-over, 35 students by default
 uv run python -m tests.testdata testschool doorzetten-2
-# herindelen, 35 leerlingen
+# redistribute, 35 students
 uv run python -m tests.testdata testschool herindelen-2 herindelen 35
-# herindelen met doorzetten, 72 leerlingen
+# redistribute with carry-over, 72 students
 uv run python -m tests.testdata testschool herdoor-2 herindelen_met_doorzetten 72
 ```
 
-Het optionele laatste argument is het aantal leerlingen: deze voorbeelden gebruiken `35` en
-`72`; zonder argument is de standaard `35`. De processen zijn al gevuld tot en met
-**Niet-samen** en kunnen direct via **Opslaan & door naar indelen** en **Start verdeling**
-gedraaid worden.
+The optional final argument is the number of students: these examples use `35` and `72`; the
+default is `35` when the argument is omitted. The processes already include the **Niet-samen**
+constraints and can be run directly through **Opslaan & door naar indelen** and
+**Start verdeling**.
 
 ## How it works
 
