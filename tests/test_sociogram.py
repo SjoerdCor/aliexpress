@@ -1,12 +1,10 @@
-"""Tests for sociogram.SociogramMaker."""
+"""Tests for the sociogram view model and its browser-only implementation."""
 
 # pylint: disable=redefined-outer-name  # standard pytest fixture pattern
-
-import math
+# pylint: disable=duplicate-code  # the canonical helper mirrors browser setup
 
 import pandas as pd
 import pytest
-from pandas.testing import assert_frame_equal
 
 from aliexpress import sociogram
 from aliexpress.data import datareader
@@ -22,31 +20,6 @@ def preference_data():
     processor = datareader.VoorkeurenProcessor(PREFS_PATH)
     processor.process(all_to_groups=GROUPS)
     return processor.to_preference_data()
-
-
-def _students_info_equal(a: dict, b: dict) -> bool:
-    """NaN-aware equality for students_info dicts."""
-    if a.keys() != b.keys():
-        return False
-    for key in a:
-        for field in a[key]:
-            av, bv = a[key][field], b[key][field]
-            nan_a = isinstance(av, float) and math.isnan(av)
-            nan_b = isinstance(bv, float) and math.isnan(bv)
-            if nan_a != nan_b:
-                return False
-            if not nan_a and av != bv:
-                return False
-    return True
-
-
-def test_from_preference_data_matches_constructor(preference_data):
-    """from_preference_data gives same preferences and students_info as the file constructor."""
-    via_file = sociogram.SociogramMaker(PREFS_PATH, GROUPS)
-    via_data = sociogram.SociogramMaker.from_preference_data(preference_data)
-
-    assert_frame_equal(via_data.preferences, via_file.preferences)
-    assert _students_info_equal(via_data.students_info, via_file.students_info)
 
 
 def test_build_sociogram_view_contains_students_and_only_student_preferences(
@@ -211,10 +184,3 @@ def test_build_sociogram_view_keeps_relation_bands_above_weight_nuance():
         relation.target for relation in view.layout_relations
     } == {"alice", "bob", "charlie", "dave"}
     assert len(view.layout_relations) == 3
-
-
-def test_matplotlib_backend_is_agg():
-    """sociogram.py must set the Agg backend to avoid Tk/display errors on headless servers."""
-    import matplotlib  # pylint: disable=import-outside-toplevel
-
-    assert matplotlib.get_backend().lower() == "agg"

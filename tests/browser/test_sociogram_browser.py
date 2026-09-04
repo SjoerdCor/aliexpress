@@ -3,6 +3,7 @@
 import json
 import math
 import statistics
+from urllib.parse import urlsplit
 
 import pandas as pd
 import pytest
@@ -96,6 +97,37 @@ def _make_star_layout_process(live_server, tmp_path, page, name):
     page.goto(f"{live_server}/processes/select/{name}")
     page.goto(f"{live_server}/sociogram")
     page.wait_for_function("() => window.sociogramReady === true")
+    return preference_data
+
+
+def _large_preference_data(student_count=150, preference_count=1000):
+    """Build canonical data for the agreed sociogram scale smoke test."""
+    students = [f"s{index}" for index in range(student_count)]
+    edges = []
+    for preference_number in range(preference_count):
+        source_index, offset = divmod(preference_number, student_count - 1)
+        source = students[source_index % student_count]
+        target = students[(source_index + offset + 1) % student_count]
+        weight = -1.0 if preference_number % 17 == 0 else 1.0
+        edges.append((source, target, weight))
+    return _preference_data_from_edges(edges, student_count)
+
+
+def _make_data_sociogram_process(live_server, tmp_path, page, name, preference_data):
+    """Persist canonical data and open its sociogram in the browser."""
+    proc = tmp_path / TEST_SCHOOLCODE / name
+    proc.mkdir(parents=True, exist_ok=True)
+    (proc / "relevant_students_and_groups.json").write_text(
+        json.dumps({"candidates": [], "groups_from": []}), encoding="utf-8"
+    )
+    with app.app_context():
+        save_voorkeuren(TEST_SCHOOLCODE, name, preference_data, source="form")
+        flask_db.session.add(Process(school_id=TEST_SCHOOLCODE, name=name))
+        flask_db.session.commit()
+
+    page.goto(f"{live_server}/processes/select/{name}")
+    page.set_viewport_size({"width": 1440, "height": 1000})
+    page.goto(f"{live_server}/sociogram")
     return preference_data
 
 
@@ -364,6 +396,39 @@ def test_sociogram_keeps_nodes_inside_canvas(live_server, tmp_path, page):
     _make_small_sociogram_process(live_server, tmp_path, page, "boundsrun")
     snapshot = page.evaluate("window.sociogramSnapshot()")
     _assert_nodes_inside_canvas(page, snapshot)
+
+
+@pytest.mark.usefixtures("login")
+def test_sociogram_uses_only_same_origin_requests(live_server, tmp_path, page):
+    """The sociogram page loads its code and assets without contacting another origin."""
+    _make_small_sociogram_process(live_server, tmp_path, page, "offline-run")
+    requests = []
+    page.on("request", lambda request: requests.append(request.url))
+
+    page.reload()
+    page.wait_for_function("() => window.sociogramReady === true")
+
+    origins = {f"{urlsplit(url).scheme}://{urlsplit(url).netloc}" for url in requests}
+    assert origins == {live_server}
+
+
+@pytest.mark.usefixtures("login")
+def test_sociogram_reaches_ready_at_150_learners_and_1000_preferences(
+    live_server, tmp_path, page
+):
+    """The Cytoscape view reaches ready for the agreed large input size."""
+    preference_data = _large_preference_data()
+    _make_data_sociogram_process(
+        live_server, tmp_path, page, "large-run", preference_data
+    )
+    page.wait_for_function(
+        "() => window.sociogramReady === true",
+        timeout=60_000,
+    )
+    snapshot = page.evaluate("window.sociogramSnapshot()")
+
+    assert len(snapshot["nodes"]) == 150
+    assert len(snapshot["preferences"]) == 1000
 
 
 @pytest.mark.usefixtures("login")
