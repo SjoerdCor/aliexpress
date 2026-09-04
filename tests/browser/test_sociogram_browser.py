@@ -309,7 +309,11 @@ def test_sociogram_renders_real_nodes_and_directed_preferences(
 def test_sociogram_renders_reference_workbook(live_server, tmp_path, page):
     """The reference workbook renders its full social structure in the browser."""
     preference_data = _make_sociogram_process(
-        live_server, tmp_path, page, "reference-run", "testdata/voorkeuren.xlsx"
+        live_server,
+        tmp_path,
+        page,
+        "reference-run",
+        "tests/integration/voorkeuren.xlsx",
     )
     snapshot = page.evaluate("window.sociogramSnapshot()")
 
