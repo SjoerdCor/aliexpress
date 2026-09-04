@@ -1,5 +1,5 @@
 ---
-status: slice-5-complete
+status: slice-6-complete
 branch: feature/sociogram-cytoscape
 ---
 
@@ -34,7 +34,10 @@ met echte procesdata; volgende commits breiden dat resultaat zichtbaar uit.
   mediane afstanden van ongeveer 58,4 / 71,6 / 92,7 voor wederzijds positief /
   eenzijdig positief / negatief; alle zes negatieve paren zijn langer dan de
   positieve mediaan. De standaardweergave is visueel gecontroleerd.
-- [ ] Slice 6 — schaal, offlinegarantie en verwijderen oude stack.
+- [x] Slice 6 — schaal, offlinegarantie en verwijderen oude stack. De lokale browser-
+  en schaalcontroles slagen, productiecode importeert geen oude grafiekstack en de
+  tevredenheidstabel gebruikt Pandas `Styler.map()` zonder impliciete Matplotlib-
+  afhankelijkheid.
 
 ## Vaststaande keuzes
 
@@ -398,6 +401,12 @@ offline en blijft responsief voor de afgesproken omvang.
 
 **Reviewpunt:** een lokale/offline browserrun werkt, de dependencydiff is negatief
 en de volledige suite is groen.
+
+**Resultaat:** Slice 6 voltooid. De sociogramroute gebruikt uitsluitend lokale assets,
+de schaal- en offline-regressies zijn vastgelegd, en de oude Python-grafiekstack is uit
+de productiecode en directe dependencies verwijderd. Ook de resterende impliciete
+Matplotlib-afhankelijkheid van de tevredenheidsweergave is verwijderd: de tabel gebruikt
+een kleine lokale rood-geel-groene CSS-functie via `Styler.map()`.
 
 **Commit:** `refactor(sociogram): verwijder de Python-grafiekstack`
 
