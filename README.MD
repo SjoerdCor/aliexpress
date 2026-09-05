@@ -35,12 +35,13 @@ SECRET_KEY=<a-long-random-secret>
 ADMIN_PASSWORD=<a-long-random-admin-password>
 ```
 
-`local` is the default environment and is intended for the foreground HTTP server on
-the local machine. It deliberately disables debug mode, the reloader and secure-only
-cookies. A hosted deployment must use `ALIEXPRESS_ENV=production` behind HTTPS; use this
-project-specific setting to select the application environment. `ADMIN_PASSWORD` is required in
-both environments. `DATABASE_URL` is optional and defaults to the local SQLite database
-in `instance/app.db`.
+`local` is the default for the foreground `ali-express serve` command and is intended
+for HTTP on the local machine. It deliberately disables debug mode, the reloader and
+secure-only cookies. Direct WSGI factory use defaults safely to `production`; hosted
+deployments should still set `ALIEXPRESS_ENV=production` explicitly and run behind
+HTTPS. `SECRET_KEY` and `ADMIN_PASSWORD` are required in both environments; there is no
+shared development fallback. `DATABASE_URL` is optional and defaults to the local
+SQLite database in `instance/app.db`.
 
 The `tests/browser/` suite uses Playwright to drive the real app and test its JavaScript.
 Playwright Chromium is a test dependency only: the application itself opens the operating
@@ -258,6 +259,10 @@ environment and a local SQLite file; it refuses an external database, unsafe pat
 active instance. It deletes the SQLite database (including its sidecar files) and the
 contents of `instance/storage`, while preserving the directories themselves. The command
 prints the resolved targets before asking for confirmation.
+
+The portable identifier constraints add normalized key columns to the database schema.
+When updating an existing checkout from the earlier schema and its data does not need to
+be preserved, run `reset-local-data` once before starting the updated application.
 
 ## How it works
 

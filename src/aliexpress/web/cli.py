@@ -12,6 +12,7 @@ import string
 
 import click
 from flask.cli import with_appcontext
+from sqlalchemy.exc import IntegrityError
 from werkzeug.security import generate_password_hash
 
 from .extensions import db
@@ -59,7 +60,11 @@ def add_school(schoolcode, naam):
         must_change_password=True,
     )
     db.session.add(school)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError as exc:
+        db.session.rollback()
+        raise click.ClickException(f"School '{schoolcode}' bestaat al.") from exc
     click.echo(f"School '{schoolcode}' ({naam}) aangemaakt.")
     click.echo(f"Tijdelijk wachtwoord (eenmalig zichtbaar): {temp_password}")
     click.echo("De school wordt gevraagd dit te wijzigen bij de eerste login.")

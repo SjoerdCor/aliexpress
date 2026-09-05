@@ -45,9 +45,8 @@ _ENVIRONMENT_CONFIGS = {
 def ensure_secret_key(flask_app):
     """Refuse to start without a signing key.
 
-    An empty SECRET_KEY makes session cookies unsignable (and login state forgeable),
-    so fail fast at startup rather than at the first request. Local supplies a fallback
-    key, so this only bites a misconfigured production deploy.
+    An empty SECRET_KEY makes session cookies unsignable, while a predictable fallback
+    makes login state forgeable. Fail fast in every environment.
     """
     if not flask_app.config.get("SECRET_KEY"):
         raise RuntimeError(
@@ -55,7 +54,7 @@ def ensure_secret_key(flask_app):
         )
 
 
-def _configure_secrets(app, env, test_config):
+def _configure_secrets(app, test_config):
     """Resolve SECRET_KEY/ADMIN_PASSWORD from the environment and fail fast if unusable.
 
     Read here, after ``load_dotenv()``, so ``.env`` is already in ``os.environ``; they
@@ -64,9 +63,7 @@ def _configure_secrets(app, env, test_config):
     non-uv launchers). ``test_config`` is applied before the guards so tests can
     override either value.
     """
-    app.config["SECRET_KEY"] = os.getenv("SECRET_KEY") or (
-        "dev-fallback-secret" if env == "local" else None
-    )
+    app.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
     app.config["ADMIN_PASSWORD"] = os.getenv("ADMIN_PASSWORD")
 
     if test_config is not None:
@@ -97,10 +94,10 @@ def _database_uri():
     return os.getenv("DATABASE_URL", "sqlite:///app.db")
 
 
-def _resolve_environment():
-    """Load project environment variables and select their configuration class."""
+def _resolve_environment(default_environment="production"):
+    """Load project variables and select an explicit or context-safe environment."""
     load_dotenv(dotenv_path=os.path.join(_PROJECT_ROOT, ".env"))
-    environment = os.getenv("ALIEXPRESS_ENV", "local").strip().lower()
+    environment = os.getenv("ALIEXPRESS_ENV", default_environment).strip().lower()
     try:
         return environment, _ENVIRONMENT_CONFIGS[environment]
     except KeyError as exc:
@@ -113,7 +110,7 @@ def _resolve_environment():
 
 def create_reset_application():
     """Return the reset-relevant configuration without runtime side effects."""
-    environment, _config_class = _resolve_environment()
+    environment, _config_class = _resolve_environment(default_environment="local")
     instance_path = get_instance_path()
     return SimpleNamespace(
         instance_path=instance_path,
@@ -125,7 +122,7 @@ def create_reset_application():
     )
 
 
-def create_app(test_config=None):
+def create_app(test_config=None, *, default_environment="production"):
     """Create and configure a Flask application instance.
 
     ``test_config`` is a dict of settings that override the defaults; it is
@@ -134,7 +131,7 @@ def create_app(test_config=None):
     When ``test_config`` is provided the file log handler is also skipped so
     repeated fixture calls do not accumulate duplicate handlers.
     """
-    environment, config_class = _resolve_environment()
+    environment, config_class = _resolve_environment(default_environment)
 
     instance_path = get_instance_path()
 
@@ -148,7 +145,7 @@ def create_app(test_config=None):
     app.config["ALIEXPRESS_ENV"] = environment
     app.config["SQLALCHEMY_DATABASE_URI"] = _database_uri()
 
-    _configure_secrets(app, environment, test_config)
+    _configure_secrets(app, test_config)
 
     if "STORAGE_DIR" not in app.config:
         app.config["STORAGE_DIR"] = os.path.join(app.instance_path, "storage")

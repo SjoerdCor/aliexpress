@@ -86,6 +86,32 @@ def test_local_environment_is_not_overridden_by_flask_environment(
     assert application.config["SESSION_COOKIE_SECURE"] is False
 
 
+def test_local_environment_requires_an_explicit_secret_key(monkeypatch, app_settings):
+    """Local sessions may never use a public, predictable fallback signing key."""
+    monkeypatch.setenv("ALIEXPRESS_ENV", "local")
+    monkeypatch.delenv("SECRET_KEY", raising=False)
+    monkeypatch.setattr(aliexpress, "load_dotenv", lambda **_kwargs: False)
+    settings_without_secret = {
+        key: value for key, value in app_settings.items() if key != "SECRET_KEY"
+    }
+
+    with pytest.raises(RuntimeError, match="SECRET_KEY"):
+        create_app(settings_without_secret)
+
+
+def test_unspecified_wsgi_environment_uses_secure_production_defaults(
+    monkeypatch, app_settings
+):
+    """A WSGI factory call must not silently downgrade to the local HTTP config."""
+    monkeypatch.delenv("ALIEXPRESS_ENV", raising=False)
+    monkeypatch.setattr(aliexpress, "load_dotenv", lambda **_kwargs: False)
+
+    application = create_app(app_settings)
+
+    assert application.config["ALIEXPRESS_ENV"] == "production"
+    assert application.config["SESSION_COOKIE_SECURE"] is True
+
+
 def test_dotenv_is_resolved_from_project_root_when_cwd_changes(
     monkeypatch, app_settings, tmp_path
 ):

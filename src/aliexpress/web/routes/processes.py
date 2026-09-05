@@ -17,6 +17,7 @@ from flask import (
     url_for,
 )
 from flask_login import login_required
+from sqlalchemy.exc import IntegrityError
 
 from ..extensions import db
 from ..identifiers import IdentifierError, normalize_identifier, validate_identifier
@@ -139,8 +140,8 @@ def index():
 
 @processes_bp.route("/create", methods=["POST"])
 @login_required
-def create():
-    """Create a new process"""
+def create():  # pylint: disable=too-many-return-statements
+    """Create a new process."""
     school_id = effective_school_id()
     if school_id is None:
         return redirect(url_for("admin.dashboard"))
@@ -162,7 +163,12 @@ def create():
         return redirect(url_for("processes.index"))
     proc = Process(school_id=school_id, name=process_name)
     db.session.add(proc)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        flash("Proces bestaat al", "error")
+        return redirect(url_for("processes.index"))
     try:
         os.makedirs(proc_path)
     except PermissionError:
