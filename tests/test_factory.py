@@ -5,7 +5,8 @@
 import pytest
 from flask import Flask
 
-from aliexpress import create_app
+import aliexpress as package
+from aliexpress import create_app, create_reset_application
 from aliexpress.web.extensions import db as _db
 from aliexpress.web.models import School
 from aliexpress.web.storage import get_file_path, get_process_path
@@ -41,6 +42,24 @@ class TestCreateApp:
         with test_app.app_context():
             _db.create_all()
             assert School.query.count() == 0
+
+    def test_reset_configuration_has_no_runtime_side_effects(
+        self, monkeypatch, tmp_path
+    ):
+        """Inspecting reset targets does not create directories or initialize a DB."""
+        monkeypatch.setattr(package, "_PROJECT_ROOT", str(tmp_path))
+        monkeypatch.setenv("ALIEXPRESS_ENV", "local")
+        monkeypatch.setenv("DATABASE_URL", "sqlite:///custom.db")
+
+        application = create_reset_application()
+
+        assert application.instance_path == str(tmp_path / "instance")
+        assert application.config == {
+            "ALIEXPRESS_ENV": "local",
+            "SQLALCHEMY_DATABASE_URI": "sqlite:///custom.db",
+            "STORAGE_DIR": str(tmp_path / "instance" / "storage"),
+        }
+        assert not (tmp_path / "instance").exists()
 
 
 class TestStoragePaths:

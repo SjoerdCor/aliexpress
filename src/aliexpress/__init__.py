@@ -7,6 +7,7 @@ The root ``app.py`` is a thin launcher that calls this factory.
 
 import logging
 import os
+from types import SimpleNamespace
 
 from dotenv import load_dotenv
 from flask import Flask, g, render_template, request, session
@@ -75,6 +76,55 @@ def _configure_secrets(app, env, test_config):
     ensure_admin_password(app)
 
 
+def _initialize_filesystem(app, test_config):
+    """Create runtime directories and configure file logging."""
+    os.makedirs(app.instance_path, exist_ok=True)
+    os.makedirs(app.config["STORAGE_DIR"], exist_ok=True)
+    _logger.debug("Created dir if not exists: %s", app.config["STORAGE_DIR"])
+    if test_config is None:
+        log_dir = os.path.join(app.instance_path, "logs")
+        os.makedirs(log_dir, exist_ok=True)
+        add_file_handler(os.path.join(log_dir, "aliexpress.log"))
+
+
+def get_instance_path():
+    """Return the absolute instance path shared by startup and maintenance commands."""
+    return os.path.join(_PROJECT_ROOT, "instance")
+
+
+def _database_uri():
+    """Resolve DATABASE_URL after the project .env file has been loaded."""
+    return os.getenv("DATABASE_URL", "sqlite:///app.db")
+
+
+def _resolve_environment():
+    """Load project environment variables and select their configuration class."""
+    load_dotenv(dotenv_path=os.path.join(_PROJECT_ROOT, ".env"))
+    environment = os.getenv("ALIEXPRESS_ENV", "local").strip().lower()
+    try:
+        return environment, _ENVIRONMENT_CONFIGS[environment]
+    except KeyError as exc:
+        supported = ", ".join(_ENVIRONMENT_CONFIGS)
+        raise RuntimeError(
+            f"ALIEXPRESS_ENV heeft een onbekende waarde {environment!r}; "
+            f"kies uit: {supported}."
+        ) from exc
+
+
+def create_reset_application():
+    """Return the reset-relevant configuration without runtime side effects."""
+    environment, _config_class = _resolve_environment()
+    instance_path = get_instance_path()
+    return SimpleNamespace(
+        instance_path=instance_path,
+        config={
+            "ALIEXPRESS_ENV": environment,
+            "SQLALCHEMY_DATABASE_URI": _database_uri(),
+            "STORAGE_DIR": os.path.join(instance_path, "storage"),
+        },
+    )
+
+
 def create_app(test_config=None):
     """Create and configure a Flask application instance.
 
@@ -84,19 +134,9 @@ def create_app(test_config=None):
     When ``test_config`` is provided the file log handler is also skipped so
     repeated fixture calls do not accumulate duplicate handlers.
     """
-    load_dotenv(dotenv_path=os.path.join(_PROJECT_ROOT, ".env"))
+    environment, config_class = _resolve_environment()
 
-    environment = os.getenv("ALIEXPRESS_ENV", "local").strip().lower()
-    try:
-        config_class = _ENVIRONMENT_CONFIGS[environment]
-    except KeyError as exc:
-        supported = ", ".join(_ENVIRONMENT_CONFIGS)
-        raise RuntimeError(
-            f"ALIEXPRESS_ENV heeft een onbekende waarde {environment!r}; "
-            f"kies uit: {supported}."
-        ) from exc
-
-    instance_path = os.path.join(_PROJECT_ROOT, "instance")
+    instance_path = get_instance_path()
 
     app = Flask(
         __name__,
@@ -106,21 +146,13 @@ def create_app(test_config=None):
 
     app.config.from_object(config_class)
     app.config["ALIEXPRESS_ENV"] = environment
+    app.config["SQLALCHEMY_DATABASE_URI"] = _database_uri()
 
     _configure_secrets(app, environment, test_config)
 
-    os.makedirs(app.instance_path, exist_ok=True)
     if "STORAGE_DIR" not in app.config:
         app.config["STORAGE_DIR"] = os.path.join(app.instance_path, "storage")
-    os.makedirs(app.config["STORAGE_DIR"], exist_ok=True)
-    _logger.debug("Created dir if not exists: %s", app.config["STORAGE_DIR"])
-
-    # File handler only in production: add_file_handler is not idempotent and
-    # would accumulate duplicate handlers if called on every test fixture invocation.
-    if test_config is None:
-        log_dir = os.path.join(app.instance_path, "logs")
-        os.makedirs(log_dir, exist_ok=True)
-        add_file_handler(os.path.join(log_dir, "aliexpress.log"))
+    _initialize_filesystem(app, test_config)
 
     db.init_app(app)
     login_manager.init_app(app)

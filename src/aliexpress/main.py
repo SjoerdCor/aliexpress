@@ -16,6 +16,8 @@ from . import errors
 from .data import datareader
 from .data.datareader import GroupCounts
 from .data.preferences_data import PreferenceData
+from .local_reset import reset_local_data
+from .server_lock import lock_instance
 from .solver import engine, groepsindeling_view, results, solutions
 from .solver._balance import UNCAPPED, BalanceMaxima, GroupBalance
 from .solver.groepsindeling_view import GroepsindelingView
@@ -37,6 +39,22 @@ def create_app():
     from . import create_app as app_factory
 
     return app_factory()
+
+
+def create_reset_application():
+    """Resolve reset configuration without initializing the Flask runtime."""
+    # pylint: disable=import-outside-toplevel
+    from . import create_reset_application as reset_application_factory
+
+    return reset_application_factory()
+
+
+def get_instance_path():
+    """Resolve the instance path without constructing or mutating the application."""
+    # pylint: disable=import-outside-toplevel
+    from . import get_instance_path as resolve_instance_path
+
+    return resolve_instance_path()
 
 
 def _safe_read(fn, *, filetype, technical_message, catch=Exception):
@@ -629,7 +647,24 @@ def solve():
 )
 def serve(host, port, no_browser):
     """Start the local web application in the foreground."""
-    serve_foreground(create_app(), host, port, open_browser=not no_browser)
+    serve_configured(host, port, open_browser=not no_browser)
+
+
+def serve_configured(host="127.0.0.1", port=5000, open_browser=True):
+    """Lock the local instance before application and database initialization."""
+    with lock_instance(get_instance_path()):
+        serve_foreground(create_app(), host, port, open_browser=open_browser)
+
+
+@main.command("reset-local-data")
+@click.option(
+    "--yes",
+    is_flag=True,
+    help="Verwijder de lokale SQLite-database en storage zonder bevestiging.",
+)
+def reset_local_data_command(yes):
+    """Remove local SQLite data and storage contents after safety checks."""
+    reset_local_data(create_reset_application(), yes=yes)
 
 
 if __name__ == "__main__":

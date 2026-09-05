@@ -290,8 +290,8 @@ Windows-only operationele logica.
 Wijzigingen:
 
 - Verwijder `aliexpress.lnk` uit de huidige tree.
-- Verwijder `kill-server.ps1` en `wipe-testomgeving.ps1` nadat hun functies zijn
-  vervangen.
+- Verwijder `kill-server.ps1`; de functie van `wipe-testomgeving.ps1` is in slice 5
+  vervangen door `reset-local-data`.
 - Verwijder `aliexpress.bat`, of reduceer deze na een expliciete UX-beslissing tot een
   dunne adapter die uitsluitend de canonieke Python-CLI start.
 - Voeg `*.lnk` toe aan `.gitignore`.
