@@ -3,7 +3,6 @@
 import dataclasses
 
 import pandas as pd
-from IPython.display import display
 from openpyxl.styles import Alignment, numbers
 from openpyxl.utils import get_column_letter
 
@@ -694,6 +693,11 @@ class SolutionAnalyzer:
 
     def show_all(self, fname="solution.xlsx", to_excel=True):
         """Show all views of the outcome. Only works in Jupyter notebooks"""
+        # Keep the notebook-only dependency out of the application runtime.  The
+        # helper remains available in a development environment with the dev extra,
+        # while importing the web app no longer requires IPython.
+        from IPython.display import display  # pylint: disable=import-outside-toplevel
+
         display(self.display_groepsindeling())
         display(self.group_report)
         display(self.display_student_performance())
