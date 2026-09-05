@@ -38,7 +38,9 @@ def create_app():
     # pylint: disable=import-outside-toplevel
     from . import create_app as app_factory
 
-    return app_factory()
+    # The foreground command is the one context where an omitted environment safely
+    # means local HTTP. Direct/WSGI factory use keeps the secure production default.
+    return app_factory(default_environment="local")
 
 
 def create_reset_application():

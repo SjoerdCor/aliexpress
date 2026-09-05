@@ -21,6 +21,7 @@ _db_fd, _db_path = tempfile.mkstemp(
 )
 os.close(_db_fd)
 os.environ["DATABASE_URL"] = f"sqlite:///{_db_path}"
+os.environ.setdefault("ALIEXPRESS_ENV", "local")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 os.environ.setdefault("ADMIN_PASSWORD", "AdminGeheim!42xyz")
 

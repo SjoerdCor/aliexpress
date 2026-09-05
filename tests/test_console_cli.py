@@ -34,6 +34,23 @@ def test_registered_console_entrypoints_load_the_same_command():
     assert _registered_entry_point("aliexpress").load() is main
 
 
+def test_console_web_factory_uses_local_default(monkeypatch):
+    """Only the foreground CLI opts into local HTTP when no environment is set."""
+    import aliexpress  # pylint: disable=import-outside-toplevel
+
+    application = object()
+    calls = []
+
+    def fake_factory(**kwargs):
+        calls.append(kwargs)
+        return application
+
+    monkeypatch.setattr(aliexpress, "create_app", fake_factory)
+
+    assert main_module.create_app() is application
+    assert calls == [{"default_environment": "local"}]
+
+
 def test_help_lists_the_solve_command():
     """The canonical command must be discoverable without touching application data."""
     result = CliRunner().invoke(main, ["--help"])
