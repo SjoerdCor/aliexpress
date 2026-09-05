@@ -22,7 +22,7 @@ from flask import (
 from flask_login import current_user, login_user
 from werkzeug.security import check_password_hash
 
-from ..extensions import db, limiter
+from ..extensions import limiter
 from ..models import Admin, Process, School
 
 logger = logging.getLogger("aliexpress.admin")
@@ -83,11 +83,14 @@ def dashboard():
 @_admin_required
 def impersonate(schoolcode):
     """Start impersonating a school: all subsequent school routes act as that school."""
-    school = db.session.get(School, schoolcode)
+    try:
+        school = School.by_code(schoolcode)
+    except (TypeError, ValueError):
+        school = None
     if school is None:
         abort(404)
-    session["impersonating_school"] = schoolcode
-    logger.info("Admin started impersonating school '%s'", schoolcode)
+    session["impersonating_school"] = school.schoolcode
+    logger.info("Admin started impersonating school '%s'", school.schoolcode)
     return redirect(url_for("processes.index"))
 
 

@@ -11,12 +11,13 @@ import shutil
 import string
 
 import click
-from flask import current_app
 from flask.cli import with_appcontext
 from werkzeug.security import generate_password_hash
 
 from .extensions import db
+from .identifiers import IdentifierError, validate_identifier
 from .models import School
+from .storage import get_school_path
 
 _PASSWORD_ALPHABET = string.ascii_letters + string.digits
 
@@ -38,7 +39,17 @@ def schools():
 @with_appcontext
 def add_school(schoolcode, naam):
     """Add a school with a temporary password the school must change on first login."""
-    if db.session.get(School, schoolcode):
+    try:
+        schoolcode = validate_identifier(schoolcode, label="schoolcode")
+    except IdentifierError as exc:
+        raise click.ClickException(f"Ongeldige schoolcode: {exc}") from exc
+    try:
+        get_school_path(schoolcode)
+    except PermissionError as exc:
+        raise click.ClickException(
+            "Onveilige opslaglocatie voor deze school; er is niets aangemaakt."
+        ) from exc
+    if School.by_code(schoolcode):
         raise click.ClickException(f"School '{schoolcode}' bestaat al.")
     temp_password = _generate_temp_password()
     school = School(
@@ -59,9 +70,19 @@ def add_school(schoolcode, naam):
 @with_appcontext
 def delete_school(schoolcode):
     """Delete a school and all its data (including saved files)"""
-    school = db.session.get(School, schoolcode)
+    try:
+        schoolcode = validate_identifier(schoolcode, label="schoolcode")
+    except IdentifierError as exc:
+        raise click.ClickException(f"Ongeldige schoolcode: {exc}") from exc
+    school = School.by_code(schoolcode)
     if school is None:
         raise click.ClickException(f"School '{schoolcode}' bestaat niet.")
+    try:
+        storage_dir = get_school_path(school.schoolcode)
+    except PermissionError as exc:
+        raise click.ClickException(
+            "Onveilige opslaglocatie voor deze school; er is niets verwijderd."
+        ) from exc
     click.confirm(
         f"Weet je zeker dat je school '{schoolcode}' ({school.naam}) wilt verwijderen? "
         "Dit verwijdert ook alle processen en resultaten.",
@@ -69,9 +90,6 @@ def delete_school(schoolcode):
     )
     db.session.delete(school)
     db.session.commit()
-    # Resolve via STORAGE_DIR so that a custom storage location (e.g. in tests) is
-    # honoured consistently with storage.py, which derives all paths from this key.
-    storage_dir = os.path.join(current_app.config["STORAGE_DIR"], schoolcode)
     if os.path.isdir(storage_dir):
         shutil.rmtree(storage_dir)
         click.echo(f"Opgeslagen bestanden verwijderd: {storage_dir}")

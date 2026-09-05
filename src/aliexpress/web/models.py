@@ -32,6 +32,7 @@ from sqlalchemy import update
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from .extensions import db
+from .identifiers import identifier_key
 
 # SQLAlchemy declarative models are attribute-only data classes; they legitimately have no
 # public methods (same justification as the Flask config classes in appconfig.py).
@@ -59,6 +60,19 @@ class School(UserMixin, db.Model):
 
     def get_id(self):
         return self.schoolcode
+
+    @classmethod
+    def by_code(cls, schoolcode):
+        """Return a school using the portable, case/Unicode-insensitive key."""
+        key = identifier_key(schoolcode)
+        return next(
+            (
+                school
+                for school in cls.query.all()
+                if identifier_key(school.schoolcode) == key
+            ),
+            None,
+        )
 
 
 class Admin(UserMixin, db.Model):
@@ -94,7 +108,7 @@ class Process(db.Model):
     school_id = db.Column(
         db.String(64), db.ForeignKey("school.schoolcode"), nullable=False, index=True
     )
-    name = db.Column(db.String, nullable=False)
+    name = db.Column(db.String(64), nullable=False)
     created_at = db.Column(
         db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
     )
@@ -107,8 +121,16 @@ class Process(db.Model):
 
     @classmethod
     def by_name(cls, school_id, name):
-        """Return the Process for this school + name, or None when not found."""
-        return cls.query.filter_by(school_id=school_id, name=name).first()
+        """Return a process by its portable, case/Unicode-insensitive name."""
+        key = identifier_key(name)
+        return next(
+            (
+                process
+                for process in cls.query.filter_by(school_id=school_id).all()
+                if identifier_key(process.name) == key
+            ),
+            None,
+        )
 
 
 class Run(db.Model):
