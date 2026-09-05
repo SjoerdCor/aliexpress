@@ -3,15 +3,21 @@
 It has one orchestrating function that can be called from the command line or app"""
 
 import logging
+import threading
+import webbrowser
 from io import BytesIO
 
+import click
 import pandas as pd
 import pandera as pa
+from werkzeug.serving import make_server
 
 from . import errors
 from .data import datareader
 from .data.datareader import GroupCounts
 from .data.preferences_data import PreferenceData
+from .local_reset import reset_local_data
+from .server_lock import lock_instance
 from .solver import engine, groepsindeling_view, results, solutions
 from .solver._balance import UNCAPPED, BalanceMaxima, GroupBalance
 from .solver.groepsindeling_view import GroepsindelingView
@@ -23,6 +29,34 @@ FILE_GROUPS_TO = "groepen.xlsx"
 
 
 logger = logging.getLogger(__name__)
+
+
+def create_app():
+    """Resolve the Flask factory only when the web command is actually invoked."""
+    # Importing the factory at module import time creates a cycle: the factory registers
+    # routes, while some routes import data helpers from this module.
+    # pylint: disable=import-outside-toplevel
+    from . import create_app as app_factory
+
+    # The foreground command is the one context where an omitted environment safely
+    # means local HTTP. Direct/WSGI factory use keeps the secure production default.
+    return app_factory(default_environment="local")
+
+
+def create_reset_application():
+    """Resolve reset configuration without initializing the Flask runtime."""
+    # pylint: disable=import-outside-toplevel
+    from . import create_reset_application as reset_application_factory
+
+    return reset_application_factory()
+
+
+def get_instance_path():
+    """Resolve the instance path without constructing or mutating the application."""
+    # pylint: disable=import-outside-toplevel
+    from . import get_instance_path as resolve_instance_path
+
+    return resolve_instance_path()
 
 
 def _safe_read(fn, *, filetype, technical_message, catch=Exception):
@@ -517,5 +551,123 @@ def distribute_students_once(
     )
 
 
-if __name__ == "__main__":
+def _server_url(host, port):
+    """Return a browser-friendly URL for a bound local server."""
+    browser_host = "localhost" if host in {"0.0.0.0", "::"} else host
+    if ":" in browser_host and not browser_host.startswith("["):
+        browser_host = f"[{browser_host}]"
+    return f"http://{browser_host}:{port}"
+
+
+def serve_foreground(application, host="127.0.0.1", port=5000, open_browser=True):
+    """Run ``application`` in the foreground until Ctrl+C is pressed.
+
+    Binding the server before starting its serving thread makes a successful bind the
+    readiness point for the optional browser launch.  A dedicated Werkzeug server is
+    used instead of Flask's development runner: local users get no debugger or code
+    reloader, and shutdown is handled by the same code path on every supported OS.
+    """
+    application.config.update(DEBUG=False, TESTING=False)
+    application.debug = False
+
+    try:
+        server = make_server(host, port, application, threaded=True)
+    except OSError as exc:
+        raise click.ClickException(
+            f"Kan de lokale server niet starten op {host}:{port}; "
+            "de poort is mogelijk al bezet."
+        ) from exc
+
+    ready = threading.Event()
+    server_errors = []
+
+    def _serve():
+        ready.set()
+        try:
+            server.serve_forever()
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            # A server-thread failure must be reported by the owning main thread.
+            server_errors.append(exc)
+
+    thread = threading.Thread(
+        target=_serve,
+        name="ali-express-server",
+        daemon=True,
+    )
+    thread.start()
+    ready.wait()
+
+    url = _server_url(host, server.server_port)
+    click.echo(f"Server gestart op {url}")
+
+    try:
+        if open_browser:
+            opened = webbrowser.open(url)
+            if not opened:
+                click.echo(
+                    f"Kon de standaardbrowser niet openen; ga naar {url}.",
+                    err=True,
+                )
+        thread.join()
+    except KeyboardInterrupt:
+        click.echo("Server wordt gestopt...")
+    finally:
+        if thread.is_alive():
+            server.shutdown()
+        thread.join()
+        server.server_close()
+
+    if server_errors:
+        raise RuntimeError(
+            "De lokale webserver is onverwacht gestopt."
+        ) from server_errors[0]
+
+
+@click.group()
+def main():
+    """Ali Express command-line interface."""
+
+
+@main.command()
+def solve():
+    """Distribute students using the default input workbooks."""
     distribute_students_once()
+
+
+@main.command()
+@click.option("--host", default="127.0.0.1", show_default=True)
+@click.option(
+    "--port",
+    default=5000,
+    type=click.IntRange(min=0, max=65535),
+    show_default=True,
+)
+@click.option(
+    "--no-browser",
+    is_flag=True,
+    help="Start zonder een browservenster te openen.",
+)
+def serve(host, port, no_browser):
+    """Start the local web application in the foreground."""
+    serve_configured(host, port, open_browser=not no_browser)
+
+
+def serve_configured(host="127.0.0.1", port=5000, open_browser=True):
+    """Lock the local instance before application and database initialization."""
+    with lock_instance(get_instance_path()):
+        serve_foreground(create_app(), host, port, open_browser=open_browser)
+
+
+@main.command("reset-local-data")
+@click.option(
+    "--yes",
+    is_flag=True,
+    help="Verwijder de lokale SQLite-database en storage zonder bevestiging.",
+)
+def reset_local_data_command(yes):
+    """Remove local SQLite data and storage contents after safety checks."""
+    reset_local_data(create_reset_application(), yes=yes)
+
+
+if __name__ == "__main__":
+    main()

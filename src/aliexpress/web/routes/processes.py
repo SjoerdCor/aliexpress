@@ -4,13 +4,11 @@ import functools
 import json
 import logging
 import os
-import re
 import shutil
 
 from flask import (
     Blueprint,
     abort,
-    current_app,
     flash,
     redirect,
     render_template,
@@ -19,10 +17,12 @@ from flask import (
     url_for,
 )
 from flask_login import login_required
+from sqlalchemy.exc import IntegrityError
 
 from ..extensions import db
+from ..identifiers import IdentifierError, normalize_identifier, validate_identifier
 from ..models import Process
-from ..storage import get_process_path
+from ..storage import get_process_path, get_school_path
 from .auth import effective_school_id
 
 logger = logging.getLogger(__name__)
@@ -96,16 +96,22 @@ def year_offset_for_mode(mode: str) -> int:
 
 
 def _is_valid_process_name(name):
-    """True when the name is a safe single path segment (no separators, no traversal)."""
-    return bool(re.match(r"^[\w\- ]+$", name))
+    """True when the name passes the shared portable identifier rules."""
+    try:
+        validate_identifier(name, label="Procesnaam")
+    except (IdentifierError, TypeError):
+        return False
+    return True
 
 
 def _validate_process_name(school_id, process_name, must_exist=True):
     """Return an error message, or None when the name is valid."""
     if not process_name:
         return "Naam is verplicht"
-    if not _is_valid_process_name(process_name):
-        return "Alleen letters, cijfers, spaties, - en _ toegestaan"
+    try:
+        process_name = validate_identifier(process_name, label="Procesnaam")
+    except IdentifierError as exc:
+        return str(exc)
     proc = Process.by_name(school_id, process_name)
     if must_exist and proc is None:
         return "Proces bestaat niet"
@@ -121,9 +127,11 @@ def index():
     school_id = effective_school_id()
     if school_id is None:
         return redirect(url_for("admin.dashboard"))
-    os.makedirs(
-        os.path.join(current_app.config["STORAGE_DIR"], school_id), exist_ok=True
-    )
+    try:
+        os.makedirs(get_school_path(school_id), exist_ok=True)
+    except PermissionError:
+        flash("Ongeldige schoolcode of opslaglocatie.", "error")
+        return render_template("processes.html", processes=[])
     procs = (
         Process.query.filter_by(school_id=school_id).order_by(Process.created_at).all()
     )
@@ -132,8 +140,8 @@ def index():
 
 @processes_bp.route("/create", methods=["POST"])
 @login_required
-def create():
-    """Create a new process"""
+def create():  # pylint: disable=too-many-return-statements
+    """Create a new process."""
     school_id = effective_school_id()
     if school_id is None:
         return redirect(url_for("admin.dashboard"))
@@ -141,14 +149,27 @@ def create():
     if error := _validate_process_name(school_id, process_name, must_exist=False):
         flash(error, "error")
         return redirect(url_for("processes.index"))
+    process_name = normalize_identifier(process_name)
     mode = request.form.get("mode", "forward")
     if mode not in ("forward", "redistribute", "redistribute_and_forward"):
         mode = "forward"
-    proc = Process(school_id=school_id, name=process_name)
-    db.session.add(proc)
-    db.session.commit()
     try:
         proc_path = get_process_path(school_id, process_name)
+    except PermissionError:
+        flash("Ongeldige procesinformatie.", "error")
+        return redirect(url_for("processes.index"))
+    if os.path.lexists(proc_path):
+        flash("De opslag voor dit proces bestaat al; kies een andere naam.", "error")
+        return redirect(url_for("processes.index"))
+    proc = Process(school_id=school_id, name=process_name)
+    db.session.add(proc)
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        flash("Proces bestaat al", "error")
+        return redirect(url_for("processes.index"))
+    try:
         os.makedirs(proc_path)
     except PermissionError:
         flash("Ongeldige procesinformatie.", "error")
@@ -170,10 +191,15 @@ def delete(process_name):
         flash(error, "error")
         return redirect(url_for("processes.index"))
     proc = Process.by_name(school_id, process_name)
+    try:
+        proc_path = get_process_path(school_id, proc.name)
+    except PermissionError:
+        flash("Ongeldige procesinformatie.", "error")
+        return redirect(url_for("processes.index"))
     db.session.delete(proc)
     db.session.commit()
     try:
-        shutil.rmtree(get_process_path(school_id, process_name))
+        shutil.rmtree(proc_path)
     except PermissionError:
         flash("Ongeldige procesinformatie.", "error")
         return redirect(url_for("processes.index"))
@@ -243,9 +269,9 @@ def select(process_id):
     if proc is None:
         abort(404)
 
-    session["process_id"] = process_id
+    session["process_id"] = proc.name
     try:
-        path = get_process_path(school_id, process_id)
+        path = get_process_path(school_id, proc.name)
     except PermissionError:
         flash("Ongeldige procesinformatie.", "error")
         return redirect(url_for("processes.index"))
