@@ -18,7 +18,7 @@ from aliexpress.logging_config import (
     push_log_context,
 )
 from aliexpress.web.admin_seed import ensure_admin_password, seed_admin_from_env
-from aliexpress.web.appconfig import DevelopmentConfig, ProductionConfig
+from aliexpress.web.appconfig import LocalConfig, ProductionConfig
 from aliexpress.web.cli import schools as schools_cli
 from aliexpress.web.extensions import db, limiter, login_manager
 from aliexpress.web.http_errors import register_error_handlers
@@ -32,13 +32,21 @@ from aliexpress.web.routes.wizard import wizard_bp
 configure_logging()
 _logger = logging.getLogger(__name__)
 
+_PROJECT_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
+_ENVIRONMENT_CONFIGS = {
+    "local": LocalConfig,
+    "production": ProductionConfig,
+}
+
 
 def ensure_secret_key(flask_app):
     """Refuse to start without a signing key.
 
     An empty SECRET_KEY makes session cookies unsignable (and login state forgeable),
-    so fail fast at startup rather than at the first request. Development supplies a
-    fallback key in DevelopmentConfig, so this only bites a misconfigured production deploy.
+    so fail fast at startup rather than at the first request. Local supplies a fallback
+    key, so this only bites a misconfigured production deploy.
     """
     if not flask_app.config.get("SECRET_KEY"):
         raise RuntimeError(
@@ -56,7 +64,7 @@ def _configure_secrets(app, env, test_config):
     override either value.
     """
     app.config["SECRET_KEY"] = os.getenv("SECRET_KEY") or (
-        "dev-fallback-secret" if env == "development" else None
+        "dev-fallback-secret" if env == "local" else None
     )
     app.config["ADMIN_PASSWORD"] = os.getenv("ADMIN_PASSWORD")
 
@@ -76,22 +84,30 @@ def create_app(test_config=None):
     When ``test_config`` is provided the file log handler is also skipped so
     repeated fixture calls do not accumulate duplicate handlers.
     """
-    load_dotenv()
+    load_dotenv(dotenv_path=os.path.join(_PROJECT_ROOT, ".env"))
 
-    project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    instance_path = os.path.join(project_root, "instance")
+    environment = os.getenv("ALIEXPRESS_ENV", "local").strip().lower()
+    try:
+        config_class = _ENVIRONMENT_CONFIGS[environment]
+    except KeyError as exc:
+        supported = ", ".join(_ENVIRONMENT_CONFIGS)
+        raise RuntimeError(
+            f"ALIEXPRESS_ENV heeft een onbekende waarde {environment!r}; "
+            f"kies uit: {supported}."
+        ) from exc
+
+    instance_path = os.path.join(_PROJECT_ROOT, "instance")
 
     app = Flask(
         __name__,
-        root_path=project_root,
+        root_path=_PROJECT_ROOT,
         instance_path=instance_path,
     )
 
-    env = os.getenv("FLASK_ENV", "production")
-    config_class = DevelopmentConfig if env == "development" else ProductionConfig
     app.config.from_object(config_class)
+    app.config["ALIEXPRESS_ENV"] = environment
 
-    _configure_secrets(app, env, test_config)
+    _configure_secrets(app, environment, test_config)
 
     os.makedirs(app.instance_path, exist_ok=True)
     if "STORAGE_DIR" not in app.config:

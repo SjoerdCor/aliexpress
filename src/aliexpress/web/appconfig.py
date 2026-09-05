@@ -4,11 +4,12 @@ import os
 
 
 # pylint: disable=too-few-public-methods  # Flask config classes expose settings via class attributes, not methods
-class Config:
-    """Base configuration with default settings."""
+class LocalConfig:
+    """Local HTTP configuration for the foreground user-facing server."""
 
     DEBUG = False
     TESTING = False
+    USE_RELOADER = False
     # The processing page polls this often in production. Browser tests override it
     # through their test server fixture so they can wait for an actual status response
     # without spending a full second on every polling assertion.
@@ -37,14 +38,7 @@ class Config:
     SESSION_COOKIE_SECURE = False
 
 
-class DevelopmentConfig(Config):
-    """Development configuration with debug mode enabled."""
+class ProductionConfig(LocalConfig):
+    """Production configuration for the hosted HTTPS deployment."""
 
-    DEBUG = True
-
-
-class ProductionConfig(Config):
-    """Production configuration with debug mode disabled."""
-
-    DEBUG = False
     SESSION_COOKIE_SECURE = True
