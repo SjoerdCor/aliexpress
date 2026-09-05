@@ -184,7 +184,7 @@ def test_serve_subprocess_smoke_and_clean_stop(tmp_path):
     environment.update(
         {
             "DATABASE_URL": f"sqlite:///{tmp_path / 'app.db'}",
-            "FLASK_ENV": "development",
+            "ALIEXPRESS_ENV": "local",
             "SECRET_KEY": "slice-three-secret",
             "ADMIN_PASSWORD": "A-long-random-slice-three-admin-password-42!",
             "PYTHONPATH": os.pathsep.join(
