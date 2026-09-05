@@ -64,13 +64,10 @@ def test_serve_passes_host_port_and_browser_choice_to_launcher(monkeypatch):
     """``serve`` must expose the portable launcher's user-facing options."""
     called = []
 
-    monkeypatch.setattr(main_module, "create_app", lambda: "application")
     monkeypatch.setattr(
         main_module,
-        "serve_foreground",
-        lambda application, host, port, open_browser: called.append(
-            (application, host, port, open_browser)
-        ),
+        "serve_configured",
+        lambda host, port, open_browser: called.append((host, port, open_browser)),
     )
 
     result = CliRunner().invoke(
@@ -79,7 +76,7 @@ def test_serve_passes_host_port_and_browser_choice_to_launcher(monkeypatch):
     )
 
     assert result.exit_code == 0, result.output
-    assert called == [("application", "127.0.0.2", 43210, False)]
+    assert called == [("127.0.0.2", 43210, False)]
 
 
 def test_serve_foreground_opens_browser_after_binding_without_debug_or_reloader(
