@@ -8,63 +8,108 @@ ALI Express is designed to simplify and optimise the complex process of student 
 
 ## Installation
 
-ALI Express is managed with [uv](https://docs.astral.sh/uv/). Install uv and git, clone this repository, and install the dependencies:
+ALI Express is managed with [uv](https://docs.astral.sh/uv/). Install `uv` and Git,
+clone the repository, and run the commands below from the checkout root. The lockfile
+supports CPython 3.11, 3.12 and 3.13.
 
 ```bash
-uv sync
+git clone https://github.com/SjoerdCor/aliexpress.git aliexpress
+cd aliexpress
+uv sync --locked
 ```
 
-Developers should also install the development tools and pre-commit hooks:
+The CP-SAT solver (`ortools`) is installed automatically. Run project commands through
+`uv`; no manually activated virtual environment is required. Developers and contributors
+should install the development tools as well:
 
 ```bash
-uv sync --extra dev
-uv run pre-commit install
+uv sync --locked --extra dev
+uv run --locked pre-commit install
 ```
 
-The CP-SAT solver (`ortools`) is installed automatically as a dependency. Run any command inside the environment with `uv run`.
+Create `.env` in the checkout root before starting the application:
 
-The `tests/browser/` suite uses Playwright to drive the real app and cover the page
-JavaScript. It needs the browser installed once:
+```
+ALIEXPRESS_ENV=local
+SECRET_KEY=<a-long-random-secret>
+ADMIN_PASSWORD=<a-long-random-admin-password>
+```
+
+`local` is the default environment and is intended for the foreground HTTP server on
+the local machine. It deliberately disables debug mode, the reloader and secure-only
+cookies. A hosted deployment must use `ALIEXPRESS_ENV=production` behind HTTPS; use this
+project-specific setting to select the application environment. `ADMIN_PASSWORD` is required in
+both environments. `DATABASE_URL` is optional and defaults to the local SQLite database
+in `instance/app.db`.
+
+The `tests/browser/` suite uses Playwright to drive the real app and test its JavaScript.
+Playwright Chromium is a test dependency only: the application itself opens the operating
+system's default browser and does not require Chromium.
+
+Install Chromium once for browser tests:
 
 ```bash
-uv run playwright install chromium
+uv run --locked playwright install chromium
 ```
+
+On a fresh Ubuntu 26.04 machine, install Chromium together with its OS dependencies:
+
+```bash
+uv run --locked playwright install --with-deps chromium
+```
+
+The `--with-deps` option is intended for Ubuntu/Linux. Windows and macOS normally use the
+first command; the app itself works with the standard browser configured by the OS.
+
+## Support contract
+
+The first-class support target is a fresh Git checkout using `uv` on:
+
+- Windows x64;
+- Ubuntu x64, including Ubuntu 26.04;
+- macOS x64 and ARM64;
+- CPython 3.11, 3.12 and 3.13.
+
+Windows ARM is not supported because the pinned OR-Tools version has no Windows ARM
+wheel. Python 3.14, a standalone desktop installer/package and a background service are
+outside the current support contract. The local server runs in the foreground and stops
+with `Ctrl+C`.
 
 ## Testing
 
-During development, start with the relevant test file. After a test failure, rerun the
-last failures with `--lf`:
+Run the smallest relevant test first. After a failure, rerun the last failures with
+`--lf`:
 
-```powershell
-uv run pytest tests/test_betreffend_bestand.py -q --no-cov -x
-uv run pytest tests --ignore=tests/integration --ignore=tests/browser -q --no-cov --lf
+```bash
+uv run --locked pytest tests/test_betreffend_bestand.py -q --no-cov -x
+uv run --locked pytest tests --ignore=tests/integration --ignore=tests/browser -q --no-cov --lf
 ```
 
-The full fast Python/Flask suite explicitly excludes browser and integration tests. The
-measured configuration uses six pytest workers with the `load` scheduler:
+The fast Python/Flask suite explicitly excludes browser and integration tests. The measured
+configuration uses six pytest workers with the `load` scheduler:
 
-```powershell
-uv run pytest tests --ignore=tests/integration --ignore=tests/browser -q --no-cov -n 6 --dist load
+```bash
+uv run --locked pytest tests --ignore=tests/integration --ignore=tests/browser -q --no-cov -n 6 --dist load
 ```
 
 Run the browser suite separately with four workers:
 
-```powershell
-uv run pytest tests/browser -q --no-cov -n 4 --dist load
+```bash
+uv run --locked pytest tests/browser -q --no-cov -n 4 --dist load
 ```
 
 For full checks, coverage and the default test selection are enabled:
 
-```powershell
-uv run pytest tests/integration
-uv run pytest tests
-uv run pytest tests -m slow
+```bash
+uv run --locked pytest tests/integration
+uv run --locked pytest tests
+uv run --locked pytest tests -m slow
 ```
 
-`uv run pytest tests` is the complete non-slow suite, including browser and integration tests.
-The global pytest configuration uses `-m "not slow"` to exclude only the marked slow test;
-that selection does not exclude browser or other integration tests. Therefore, use the explicit
-`--ignore` options above for the fast suite. Run the slow suite separately and deliberately.
+`uv run --locked pytest tests` is the complete non-slow suite, including browser and
+integration tests. The global pytest configuration uses `-m "not slow"` to exclude only
+the marked slow test; it does not exclude browser or other integration tests. Use the
+explicit `--ignore` options above for the fast suite and run the slow suite separately.
 
 ## Local merge checks
 
@@ -82,15 +127,15 @@ does not use coverage, so only the other lane writes the shared coverage report.
 Terminal 1 — slow lane:
 
 ```bash
-uv run pytest tests/integration/test_integration_herindelen.py::test_herindelen_realistic_scale -q --no-cov -m slow -n 0
+uv run --locked pytest tests/integration/test_integration_herindelen.py::test_herindelen_realistic_scale -q --no-cov -m slow -n 0
 ```
 
 Terminal 2 — remaining suites:
 
 ```bash
-uv run pytest tests --ignore=tests/integration --ignore=tests/browser -q -m "not slow" -n 6 --dist load
-uv run pytest tests/browser -q -n 4 --dist load --cov-append
-uv run pytest tests/integration -q -m "not slow" --cov-append
+uv run --locked pytest tests --ignore=tests/integration --ignore=tests/browser -q -m "not slow" -n 6 --dist load
+uv run --locked pytest tests/browser -q -n 4 --dist load --cov-append
+uv run --locked pytest tests/integration -q -m "not slow" --cov-append
 ```
 
 Run the following command only after both terminals have completed successfully:
@@ -102,23 +147,12 @@ git commit
 If a check fails, abort the uncommitted merge with `git merge --abort`. This process is manual;
 both lanes must complete successfully before committing the merge.
 
-Create a `.env` file containing at least:
-
-```
-FLASK_ENV=production
-SECRET_KEY=<your-secret-key-here>
-ADMIN_PASSWORD=<your-admin-password-here>
-```
-
-`SECRET_KEY` signs the login session cookie. In production the app refuses to start
-without one; in development a fallback key is used so you can run it without a `.env`.
-
-`ADMIN_PASSWORD` is the password for the single administrator account, which is created
-automatically on startup — there is no admin sign-up or CLI command. The app refuses to
-start if it is missing or too weak (in both development and production; there is no
-fallback). To rotate it, edit `.env` and restart: the stored hash is synced to the new
-value on every startup. The administrator logs in at `/admin/login` with this password
-only (no username).
+`SECRET_KEY` signs the login session cookie. `ADMIN_PASSWORD` is the password for the
+single administrator account, which is created automatically on startup — there is no
+admin sign-up command. The app refuses to start when either required value is missing or
+the admin password is too weak. To rotate the password, edit `.env` and restart; the
+stored hash is synced to the new value. The administrator logs in at `/admin/login` with
+this password only (no username).
 
 ## Logging
 
@@ -138,15 +172,17 @@ Fields in brackets: `school / process / run phase`. A dash (`-`) means no active
 
 Every data route requires logging in as a school, so student data is never reachable without
 authentication. There is no self-registration: an administrator creates each school from the
-command line.
+command line. The command generates a temporary password and shows it once; the school must
+change it at the first login.
 
 ```bash
-uv run flask schools add <schoolcode>
+uv run --locked flask schools add <schoolcode> --naam "Naam van de school"
 ```
 
-`schoolcode` is the short, unique login identifier the school types (a username). The command
-then prompts for the school's full display name (shown in the interface) and a password,
-entered twice and hidden. The password is stored as a hash, never in plain text.
+Omit `--naam` to enter the display name interactively. `schoolcode` is the short, unique
+login identifier the school types. It must be a portable single name: letters, numbers,
+spaces, `-` and `_`, at most 64 characters, and not a Windows-reserved name such as `CON`,
+`NUL`, `COM1` or `LPT1`. Passwords are stored as hashes, never in plain text.
 
 Teachers log in at `/login` with that schoolcode and password. They obtain their credentials
 from the administrator who set up ALI Express for their school. The session ends when the
@@ -154,30 +190,40 @@ browser is closed.
 
 ## Manual testing with synthetic scenarios
 
-Start the app from PowerShell in the repository:
+Start the app from the checkout root:
 
-```powershell
-uv run python app.py
-# or
-.\aliexpress.bat
+```bash
+uv run --locked ali-express serve
 ```
 
-If the database is empty, open a second PowerShell window, create a school, and log in to the app
-with schoolcode `testschool`:
+The command listens on `127.0.0.1:5000`, opens the OS default browser after the server is
+ready, and remains in the foreground. Stop it with `Ctrl+C`. For a headless machine, or
+when you want to open the browser yourself, use:
 
-```powershell
-uv run flask schools add testschool
+```bash
+uv run --locked ali-express serve --no-browser
 ```
 
-The CLI displays a temporary password; change it at the first login. Then create the scenarios:
+Use `--host` and `--port` to select a different listening address or port. A busy port is
+reported without stopping another process. The compatibility launcher `app.py` remains
+available for WSGI imports, but the foreground CLI above is the supported local workflow.
 
-```powershell
+If the database is empty, open a second terminal, create a school, and log in with schoolcode
+`testschool`:
+
+```bash
+uv run --locked flask schools add testschool --naam "Testschool"
+```
+
+Then create the synthetic scenarios:
+
+```bash
 # carry-over, 35 students by default
-uv run python -m tests.testdata testschool doorzetten-2
+uv run --locked python -m tests.testdata testschool doorzetten-2
 # redistribute, 35 students
-uv run python -m tests.testdata testschool herindelen-2 herindelen 35
+uv run --locked python -m tests.testdata testschool herindelen-2 herindelen 35
 # redistribute with carry-over, 72 students
-uv run python -m tests.testdata testschool herdoor-2 herindelen_met_doorzetten 72
+uv run --locked python -m tests.testdata testschool herdoor-2 herindelen_met_doorzetten 72
 ```
 
 The optional final argument is the number of students: these examples use `35` and `72`; the
@@ -185,9 +231,39 @@ default is `35` when the argument is omitted. The processes already include the 
 constraints and can be run directly through **Opslaan & door naar indelen** and
 **Start verdeling**.
 
+## Local commands
+
+The supported operational commands are platform-neutral and work from Bash, PowerShell or
+macOS Terminal:
+
+```bash
+# Open the local app and browser
+uv run --locked ali-express serve
+
+# Run without opening a browser; Ctrl+C still stops the foreground server
+uv run --locked ali-express serve --no-browser
+
+# Solve the default voorkeuren.xlsx and groepen.xlsx in the checkout
+uv run --locked ali-express solve
+
+# Show the resolved deletion targets and ask for confirmation
+uv run --locked ali-express reset-local-data
+
+# Explicit confirmation for an already reviewed local environment
+uv run --locked ali-express reset-local-data --yes
+```
+
+Stop the server before resetting local data. `reset-local-data` only accepts the local
+environment and a local SQLite file; it refuses an external database, unsafe paths or an
+active instance. It deletes the SQLite database (including its sidecar files) and the
+contents of `instance/storage`, while preserving the directories themselves. The command
+prints the resolved targets before asking for confirmation.
+
 ## How it works
 
-Start the app by double-clicking the ALI Express shortcut — a browser window opens automatically. Upload `voorkeuren.xlsx` and `groepen.xlsx`, optionally enter any "niet samen" constraints, and click Run.
+After starting the local server, open the displayed URL if the browser did not open
+automatically. Upload `voorkeuren.xlsx` and `groepen.xlsx`, optionally enter any "niet
+samen" constraints, and click Run.
 
 ALI Express then solves the problem in three steps:
 
