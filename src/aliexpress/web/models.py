@@ -28,10 +28,11 @@ calls ``get_id()`` to store the identity in the session and passes that string b
 from datetime import datetime, timezone
 
 from flask_login import UserMixin
-from sqlalchemy import update
+from sqlalchemy import event, update
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from .extensions import db
+from .identifiers import identifier_key, validate_identifier
 
 # SQLAlchemy declarative models are attribute-only data classes; they legitimately have no
 # public methods (same justification as the Flask config classes in appconfig.py).
@@ -48,6 +49,7 @@ class School(UserMixin, db.Model):
     is_admin = False
 
     schoolcode = db.Column(db.String(64), primary_key=True)
+    schoolcode_key = db.Column(db.Text, nullable=False)
     naam = db.Column(db.String(256), nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
     must_change_password = db.Column(
@@ -56,9 +58,17 @@ class School(UserMixin, db.Model):
     processes = db.relationship(
         "Process", backref="school", cascade="all, delete-orphan"
     )
+    __table_args__ = (
+        db.UniqueConstraint("schoolcode_key", name="uq_school_schoolcode_key"),
+    )
 
     def get_id(self):
         return self.schoolcode
+
+    @classmethod
+    def by_code(cls, schoolcode):
+        """Return a school using the portable, case/Unicode-insensitive key."""
+        return cls.query.filter_by(schoolcode_key=identifier_key(schoolcode)).first()
 
 
 class Admin(UserMixin, db.Model):
@@ -94,7 +104,8 @@ class Process(db.Model):
     school_id = db.Column(
         db.String(64), db.ForeignKey("school.schoolcode"), nullable=False, index=True
     )
-    name = db.Column(db.String, nullable=False)
+    name = db.Column(db.String(64), nullable=False)
+    name_key = db.Column(db.Text, nullable=False)
     created_at = db.Column(
         db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
     )
@@ -102,13 +113,32 @@ class Process(db.Model):
         "Run", backref="process", uselist=False, cascade="all, delete-orphan"
     )
     __table_args__ = (
-        db.UniqueConstraint("school_id", "name", name="uq_process_school_name"),
+        db.UniqueConstraint("school_id", "name_key", name="uq_process_school_name_key"),
     )
 
     @classmethod
     def by_name(cls, school_id, name):
-        """Return the Process for this school + name, or None when not found."""
-        return cls.query.filter_by(school_id=school_id, name=name).first()
+        """Return a process by its portable, case/Unicode-insensitive name."""
+        return cls.query.filter_by(
+            school_id=school_id,
+            name_key=identifier_key(name),
+        ).first()
+
+
+@event.listens_for(School, "before_insert")
+@event.listens_for(School, "before_update")
+def _set_schoolcode_key(_mapper, _connection, school):
+    """Canonicalize and key every ORM write before database constraints run."""
+    school.schoolcode = validate_identifier(school.schoolcode, label="schoolcode")
+    school.schoolcode_key = identifier_key(school.schoolcode)
+
+
+@event.listens_for(Process, "before_insert")
+@event.listens_for(Process, "before_update")
+def _set_process_name_key(_mapper, _connection, process):
+    """Canonicalize and key every process write before database constraints run."""
+    process.name = validate_identifier(process.name, label="Procesnaam")
+    process.name_key = identifier_key(process.name)
 
 
 class Run(db.Model):

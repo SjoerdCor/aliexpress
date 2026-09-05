@@ -7,6 +7,7 @@ The root ``app.py`` is a thin launcher that calls this factory.
 
 import logging
 import os
+from types import SimpleNamespace
 
 from dotenv import load_dotenv
 from flask import Flask, g, render_template, request, session
@@ -18,7 +19,7 @@ from aliexpress.logging_config import (
     push_log_context,
 )
 from aliexpress.web.admin_seed import ensure_admin_password, seed_admin_from_env
-from aliexpress.web.appconfig import DevelopmentConfig, ProductionConfig
+from aliexpress.web.appconfig import LocalConfig, ProductionConfig
 from aliexpress.web.cli import schools as schools_cli
 from aliexpress.web.extensions import db, limiter, login_manager
 from aliexpress.web.http_errors import register_error_handlers
@@ -32,13 +33,20 @@ from aliexpress.web.routes.wizard import wizard_bp
 configure_logging()
 _logger = logging.getLogger(__name__)
 
+_PROJECT_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
+_ENVIRONMENT_CONFIGS = {
+    "local": LocalConfig,
+    "production": ProductionConfig,
+}
+
 
 def ensure_secret_key(flask_app):
     """Refuse to start without a signing key.
 
-    An empty SECRET_KEY makes session cookies unsignable (and login state forgeable),
-    so fail fast at startup rather than at the first request. Development supplies a
-    fallback key in DevelopmentConfig, so this only bites a misconfigured production deploy.
+    An empty SECRET_KEY makes session cookies unsignable, while a predictable fallback
+    makes login state forgeable. Fail fast in every environment.
     """
     if not flask_app.config.get("SECRET_KEY"):
         raise RuntimeError(
@@ -46,7 +54,7 @@ def ensure_secret_key(flask_app):
         )
 
 
-def _configure_secrets(app, env, test_config):
+def _configure_secrets(app, test_config):
     """Resolve SECRET_KEY/ADMIN_PASSWORD from the environment and fail fast if unusable.
 
     Read here, after ``load_dotenv()``, so ``.env`` is already in ``os.environ``; they
@@ -55,9 +63,7 @@ def _configure_secrets(app, env, test_config):
     non-uv launchers). ``test_config`` is applied before the guards so tests can
     override either value.
     """
-    app.config["SECRET_KEY"] = os.getenv("SECRET_KEY") or (
-        "dev-fallback-secret" if env == "development" else None
-    )
+    app.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
     app.config["ADMIN_PASSWORD"] = os.getenv("ADMIN_PASSWORD")
 
     if test_config is not None:
@@ -67,7 +73,56 @@ def _configure_secrets(app, env, test_config):
     ensure_admin_password(app)
 
 
-def create_app(test_config=None):
+def _initialize_filesystem(app, test_config):
+    """Create runtime directories and configure file logging."""
+    os.makedirs(app.instance_path, exist_ok=True)
+    os.makedirs(app.config["STORAGE_DIR"], exist_ok=True)
+    _logger.debug("Created dir if not exists: %s", app.config["STORAGE_DIR"])
+    if test_config is None:
+        log_dir = os.path.join(app.instance_path, "logs")
+        os.makedirs(log_dir, exist_ok=True)
+        add_file_handler(os.path.join(log_dir, "aliexpress.log"))
+
+
+def get_instance_path():
+    """Return the absolute instance path shared by startup and maintenance commands."""
+    return os.path.join(_PROJECT_ROOT, "instance")
+
+
+def _database_uri():
+    """Resolve DATABASE_URL after the project .env file has been loaded."""
+    return os.getenv("DATABASE_URL", "sqlite:///app.db")
+
+
+def _resolve_environment(default_environment="production"):
+    """Load project variables and select an explicit or context-safe environment."""
+    load_dotenv(dotenv_path=os.path.join(_PROJECT_ROOT, ".env"))
+    environment = os.getenv("ALIEXPRESS_ENV", default_environment).strip().lower()
+    try:
+        return environment, _ENVIRONMENT_CONFIGS[environment]
+    except KeyError as exc:
+        supported = ", ".join(_ENVIRONMENT_CONFIGS)
+        raise RuntimeError(
+            f"ALIEXPRESS_ENV heeft een onbekende waarde {environment!r}; "
+            f"kies uit: {supported}."
+        ) from exc
+
+
+def create_reset_application():
+    """Return the reset-relevant configuration without runtime side effects."""
+    environment, _config_class = _resolve_environment(default_environment="local")
+    instance_path = get_instance_path()
+    return SimpleNamespace(
+        instance_path=instance_path,
+        config={
+            "ALIEXPRESS_ENV": environment,
+            "SQLALCHEMY_DATABASE_URI": _database_uri(),
+            "STORAGE_DIR": os.path.join(instance_path, "storage"),
+        },
+    )
+
+
+def create_app(test_config=None, *, default_environment="production"):
     """Create and configure a Flask application instance.
 
     ``test_config`` is a dict of settings that override the defaults; it is
@@ -76,35 +131,25 @@ def create_app(test_config=None):
     When ``test_config`` is provided the file log handler is also skipped so
     repeated fixture calls do not accumulate duplicate handlers.
     """
-    load_dotenv()
+    environment, config_class = _resolve_environment(default_environment)
 
-    project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    instance_path = os.path.join(project_root, "instance")
+    instance_path = get_instance_path()
 
     app = Flask(
         __name__,
-        root_path=project_root,
+        root_path=_PROJECT_ROOT,
         instance_path=instance_path,
     )
 
-    env = os.getenv("FLASK_ENV", "production")
-    config_class = DevelopmentConfig if env == "development" else ProductionConfig
     app.config.from_object(config_class)
+    app.config["ALIEXPRESS_ENV"] = environment
+    app.config["SQLALCHEMY_DATABASE_URI"] = _database_uri()
 
-    _configure_secrets(app, env, test_config)
+    _configure_secrets(app, test_config)
 
-    os.makedirs(app.instance_path, exist_ok=True)
     if "STORAGE_DIR" not in app.config:
         app.config["STORAGE_DIR"] = os.path.join(app.instance_path, "storage")
-    os.makedirs(app.config["STORAGE_DIR"], exist_ok=True)
-    _logger.debug("Created dir if not exists: %s", app.config["STORAGE_DIR"])
-
-    # File handler only in production: add_file_handler is not idempotent and
-    # would accumulate duplicate handlers if called on every test fixture invocation.
-    if test_config is None:
-        log_dir = os.path.join(app.instance_path, "logs")
-        os.makedirs(log_dir, exist_ok=True)
-        add_file_handler(os.path.join(log_dir, "aliexpress.log"))
+    _initialize_filesystem(app, test_config)
 
     db.init_app(app)
     login_manager.init_app(app)

@@ -28,8 +28,9 @@ Ga door met een bestaand proces of creëer een nieuw indelingsproces
         name="process_name"
         placeholder="Naam proces"
         required
-        maxlength="100"
-        pattern="[\w\- ]+"
+        maxlength="64"
+        data-portable-identifier
+        data-identifier-label="Procesnaam"
         title="Alleen letters, cijfers, spaties, - en _ toegestaan"
         id="processName"
     >
@@ -54,17 +55,6 @@ Ga door met een bestaand proces of creëer een nieuw indelingsproces
     <button class="button" type="submit">Begin nieuw indelingsproces</button>
 </form>
 <script>
-    const form = document.getElementById("processForm");
-    const input = document.getElementById("processName");
-
-    form.addEventListener("submit", function(e) {
-        const value = input.value.trim();
-        if (!/^[\w\- ]+$/.test(value)) {
-            alert("Alleen letters, cijfers, spaties, - en _ toegestaan");
-            e.preventDefault();
-            return;
-        }
-    });
     function confirmDelete() {
     return confirm("Weet je zeker dat je dit proces wilt verwijderen? Dit kan niet ongedaan worden gemaakt.");
 }

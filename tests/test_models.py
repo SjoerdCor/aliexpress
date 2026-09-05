@@ -5,6 +5,7 @@
 from datetime import datetime, timezone
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 from werkzeug.security import generate_password_hash
 
 from aliexpress import create_app
@@ -68,6 +69,71 @@ class TestProcessByName:
         """by_name returns None when school_id does not match."""
         result = Process.by_name("andere-school", "test-proces")
         assert result is None
+
+    def test_database_rejects_case_equivalent_process_names(self, school):
+        """The database, not only a route pre-check, enforces portable uniqueness."""
+        _db.session.add_all(
+            [
+                Process(school_id=school.schoolcode, name="Klas"),
+                Process(school_id=school.schoolcode, name="klas"),
+            ]
+        )
+
+        with pytest.raises(IntegrityError):
+            _db.session.commit()
+        _db.session.rollback()
+
+    def test_database_rejects_unicode_equivalent_process_names(self, school):
+        """Canonically equivalent process names share one database identity."""
+        _db.session.add_all(
+            [
+                Process(school_id=school.schoolcode, name="\u00e9cole"),
+                Process(school_id=school.schoolcode, name="e\u0301cole"),
+            ]
+        )
+
+        with pytest.raises(IntegrityError):
+            _db.session.commit()
+        _db.session.rollback()
+
+
+class TestSchoolByCode:
+    """Tests for indexed, portable school-code lookup and uniqueness."""
+
+    def test_database_rejects_case_equivalent_schoolcodes(self, app_ctx):
+        """Case variants cannot bypass the database school-code invariant."""
+        del app_ctx
+        _db.session.add_all(
+            [
+                School(
+                    schoolcode="Klas",
+                    naam="Eerste school",
+                    password_hash=generate_password_hash("x"),
+                ),
+                School(
+                    schoolcode="klas",
+                    naam="Tweede school",
+                    password_hash=generate_password_hash("x"),
+                ),
+            ]
+        )
+
+        with pytest.raises(IntegrityError):
+            _db.session.commit()
+        _db.session.rollback()
+
+    def test_lookup_uses_the_portable_schoolcode_key(self, app_ctx):
+        """Lookup accepts a Unicode-equivalent spelling and returns the canonical row."""
+        del app_ctx
+        school = School(
+            schoolcode="\u00c9cole",
+            naam="School",
+            password_hash=generate_password_hash("x"),
+        )
+        _db.session.add(school)
+        _db.session.commit()
+
+        assert School.by_code("e\u0301COLE") is school
 
 
 class TestRunStartIfInactive:

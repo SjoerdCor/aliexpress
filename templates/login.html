@@ -30,7 +30,9 @@
             <div class="form-group">
                 <label for="schoolcode">Schoolcode</label>
                 <input type="text" id="schoolcode" name="schoolcode" required autofocus
-                    autocomplete="username">
+                    maxlength="64" autocomplete="username"
+                    data-portable-identifier data-identifier-label="Schoolcode"
+                    title="Alleen letters, cijfers, spaties, - en _ toegestaan">
             </div>
             <div class="form-group">
                 <label for="wachtwoord">Wachtwoord</label>
@@ -44,6 +46,7 @@
             beheerder die ALI-Express voor jouw school heeft ingesteld.
         </p>
     </div>
+    <script src="{{ url_for('static', filename='portable-identifiers.js') }}"></script>
 </body>
 
 </html>
