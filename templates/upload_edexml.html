@@ -1,39 +1,51 @@
 {% extends "base.html" %}
 {% set current_step = 1 %}
+{% block extra_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='upload-edexml.css') }}">{% endblock %}
+{% block header %}Leerlinggegevens ophalen{% endblock %}
 {% block content %}
-<p> Upload een zogenaamd EDEXML-bestand.
-  Deze kun je uit alle bekende leerlingadministratiesystemen downloaden. <a href="https://www.google.com/search?q=edexml+exporteren"
-     target="_blank"
-     rel="noopener noreferrer"
-     aria-label="Zoek op Google: hoe uploaden EDEXML bestand invulformulieren leerlingadministratie">
-    Zoek hoe je dat kunt doen (Google)
-  </a>. Selecteer de versie 2.1. Er hoeven geen privacy-gevoelige gegevens te worden geexporteerd.
-In het volgende scherm kun je dan controleren of het allemaal klopt.
-</p>
-<form method="post" enctype="multipart/form-data">
-    <label for="edexml">EDEXML:</label><br>
-    <input type="file" name="edexml" accept=".xml" required><br><br>
+<p class="upload-edexml-intro">Upload het EDEXML-bestand uit je leerlingadministratie. Dit is een standaardbestand waarmee we de leerlingen en groepen voor je klaarzetten.</p>
+
+<form method="post" enctype="multipart/form-data" class="upload-edexml-form">
+    <div class="upload-edexml-field">
+        <label for="edexml">EDEXML-bestand</label>
+        <input id="edexml" type="file" name="edexml" accept=".xml" required aria-describedby="edexml-help">
+        <p id="edexml-help" class="upload-edexml-help">Kies een .xml-bestand in EDEXML-versie 2.1. Kies bij het exporteren ‘Geen privacygevoelige gegevens’.</p>
+    </div>
+
+    <details class="upload-edexml-help-details">
+        <summary>Hoe kom ik aan dit bestand?</summary>
+        <p>Zoek de EDEXML-export in de handleiding van je leerlingadministratiesysteem. Vraag de beheerder van dat systeem om hulp als je de export niet kunt vinden.</p>
+        <p><a href="https://www.google.com/search?q=edexml+exporteren" target="_blank" rel="noopener noreferrer" aria-label="Zoek op hoe je een EDEXML-bestand exporteert ↗ (opent een externe zoekopdracht)">Zoek op hoe je een EDEXML-bestand exporteert ↗</a></p>
+    </details>
+
     {% if mode == "forward" %}
-    <label for="jaargroep">Jaarlaag (huidig) die moet worden ingedeeld</label>
-    <select name="jaargroep" required>
-        {% for year in range(1, 9) %}
-        <option value="{{ year }}">{{ year }}</option>
-        {% endfor %}
-    </select>
+    <fieldset class="upload-edexml-choice">
+        <legend>Welke huidige jaarlaag wil je indelen?</legend>
+        <p id="jaargroep-help" class="upload-edexml-help">Kies de jaarlaag van de leerlingen die volgend schooljaar naar de volgende groepen gaan.</p>
+        <label for="jaargroep">Huidige jaarlaag</label>
+        <select id="jaargroep" name="jaargroep" required aria-describedby="jaargroep-help">
+            {% for year in range(1, 9) %}
+            <option value="{{ year }}">{{ year }}</option>
+            {% endfor %}
+        </select>
+    </fieldset>
     {% elif mode == "redistribute_and_forward" %}
-    <fieldset>
-        <legend>Welke jaarlagen (huidig) deel je opnieuw in? (bijv. 5, 6 en 7)</legend>
+    <fieldset class="upload-edexml-choice" aria-describedby="jaargroepen-help">
+        <legend>Welke huidige jaarlagen wil je indelen?</legend>
+        <p id="jaargroepen-help" class="upload-edexml-help">Selecteer alle jaarlagen die een jaar verder gaan en daarbij opnieuw over de groepen worden verdeeld.</p>
+        <div class="upload-edexml-checkbox-list">
         {% for year in range(1, 9) %}
-        <label>
-            <input type="checkbox" name="jaargroepen" value="{{ year }}">
+        <label for="jaargroep-{{ year }}">
+            <input id="jaargroep-{{ year }}" type="checkbox" name="jaargroepen" value="{{ year }}">
             {{ year }}
-        </label><br>
+        </label>
         {% endfor %}
+        </div>
     </fieldset>
     {% endif %}
+
     <button type="submit" class="button">
-        {% if mode == "redistribute" %}Ga door naar groepskeuze{% else %}Selecteer leerlingen en groepen{% endif %}
+        {% if mode == "redistribute" %}Gegevens inlezen en groepen kiezen →{% else %}Gegevens inlezen en leerlingen controleren →{% endif %}
     </button>
-    <br><br>
-    </form>
+</form>
 {% endblock %}
