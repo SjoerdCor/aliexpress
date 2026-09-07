@@ -117,6 +117,219 @@ input[type="submit"]:hover {
 	background-color: #cc8000;
 }
 
+/* Processes overview: keep each choice readable while making the whole radio label
+   clickable, including its example and secondary system name. */
+.processes-existing,
+.processes-new,
+.process-form {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.process-list {
+  width: 100%;
+  box-sizing: border-box;
+  padding-left: 0;
+  list-style: none;
+}
+
+.process-list-item {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 1rem;
+  min-height: 3rem;
+  margin-bottom: 0.75rem;
+}
+
+.process-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: bold;
+}
+
+.process-actions {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+.process-delete-form {
+  display: inline;
+  margin: 0;
+}
+
+.process-field-help {
+  margin-top: -0.25rem;
+  color: #555;
+  font-size: 0.95rem;
+}
+
+.process-mode-fieldset {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: 100%;
+  box-sizing: border-box;
+  gap: 0.75rem;
+  border: 0;
+  padding: 0;
+  margin: 1.5rem 0;
+}
+
+.process-mode-fieldset legend,
+.process-mode-instruction {
+  grid-column: 1 / -1;
+  font-weight: normal;
+  margin-top: 0;
+}
+
+.process-mode-option {
+  display: flex;
+  align-items: flex-start;
+  min-width: 0;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  margin: 0.75rem 0;
+  border: 1px solid #ccc;
+  border-radius: 1rem;
+  cursor: pointer;
+  font-weight: normal;
+}
+
+.process-mode-option:has(input:checked) {
+  border-color: #9a4f13;
+  box-shadow: 0 0 0 2px rgba(154, 79, 19, 0.2);
+}
+
+.process-mode-option > input[type="radio"] {
+  width: auto;
+  margin: 0.25rem 0 0;
+  flex: 0 0 auto;
+}
+
+.process-mode-icon {
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 2rem;
+  color: #9a4f13;
+}
+
+.process-mode-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.process-mode-copy strong {
+  font-size: 1.05rem;
+}
+
+.process-mode-copy em {
+  font-weight: normal;
+}
+
+.process-mode-name {
+  color: #666;
+  font-size: 0.85rem;
+}
+
+.process-mode-recommended {
+  align-self: flex-start;
+  padding: 0.15rem 0.45rem;
+  border-radius: 0.25rem;
+  background-color: #f1e4d0;
+  color: #6b4f2a;
+  font-size: 0.8rem;
+  font-weight: bold;
+}
+
+.process-heading-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.process-delete-button {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 2px solid #9a2f2f;
+  border-radius: 8px;
+  background: #fff8f0;
+  color: #7d1f1f;
+  font: inherit;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.process-delete-button:hover,
+.process-delete-button:active,
+.process-delete-button:focus-visible {
+  background: #f7d8d8;
+  color: #641717;
+}
+
+.process-delete-button::after {
+  position: absolute;
+  z-index: 2;
+  top: calc(100% + 0.4rem);
+  left: 50%;
+  padding: 0.35rem 0.5rem;
+  border-radius: 4px;
+  background: #333;
+  color: #fff;
+  content: attr(data-tooltip);
+  font-size: 0.875rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%);
+  transition: opacity 0.1s ease;
+}
+
+.process-delete-button:hover::after,
+.process-delete-button:focus::after {
+  opacity: 1;
+}
+
+@media (max-width: 800px) {
+  .process-mode-fieldset {
+    grid-template-columns: 1fr;
+  }
+
+  .process-mode-fieldset legend,
+  .process-mode-instruction,
+  .process-mode-option {
+    grid-column: 1;
+  }
+
+  .process-list-item {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .process-actions {
+    margin-left: 0;
+  }
+}
+
 .step-navigation {
   display: flex;
   justify-content: space-between;

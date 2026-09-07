@@ -113,13 +113,78 @@ class TestProcessesList:
         """An empty BASE_DIR produces an empty process list without errors."""
         assert client.get("/processes").status_code == 200
 
+    def test_empty_list_uses_new_grouping_copy(self, client):
+        """The empty overview names both routes and places the new route below the note."""
+        response = client.get("/processes")
+        page = response.get_data(as_text=True)
+        assert "Jouw groepsindelingen" in page
+        assert (
+            "Ga verder met een bestaande groepsindeling of begin een nieuwe groepsindeling."
+            in page
+        )
+        assert "Je hebt nog geen bestaande groepsindeling." in page
+        assert 'href="/processes?new=1"' in page
+        assert "Begin een nieuwe groepsindeling" in page
+        assert page.index("Je hebt nog geen bestaande groepsindeling.") < page.index(
+            "Begin een nieuwe groepsindeling"
+        )
+        assert 'id="processForm"' not in page
+        assert "Geen processen gevonden" not in page
+
+    def test_mode_options_show_human_descriptions_and_default(self, client):
+        """All three human mode descriptions are visible and the first is selected."""
+        response = client.get("/processes?new=1")
+        page = response.get_data(as_text=True)
+        assert "Leerlingen gaan naar de volgende groepen" in page
+        assert (
+            "Bijvoorbeeld: jaarlaag 5 wordt verdeeld over de bestaande groepen 6/7/8."
+            in page
+        )
+        assert "Bestaande groepen worden opnieuw ingedeeld" in page
+        assert (
+            "Bijvoorbeeld: leerlingen uit 6A, 6B en 6C worden opnieuw verdeeld over "
+            "6A, 6B en 6C."
+        ) in page
+        assert "Leerlingen gaan verder en groepen worden opnieuw ingedeeld" in page
+        assert (
+            "Bijvoorbeeld: jaarlaag 5 gaat naar 6/7/8. Ook de leerlingen uit jaarlaag 6 "
+            "en 7 worden opnieuw verdeeld."
+        ) in page
+        assert page.count('class="process-mode-option"') == 3
+        assert page.count('class="process-mode-recommended"') == 1
+        assert 'name="mode" value="forward" checked' in page
+        assert 'class="info-pop"' not in page
+        assert 'd="M4 12h15m-6-6 6 6-6 6"' in page
+        assert 'd="M6 9a7 7 0 0 1 12.2 1.2' in page
+        assert 'd="M6.4 9.1A7 7 0 0 1 17 8.5' in page
+
+    def test_new_form_explains_name_once_and_delays_character_help(self, client):
+        """The new-state explanation is concise and character help starts hidden."""
+        page = client.get("/processes?new=1").get_data(as_text=True)
+
+        assert (
+            "Een herkenbare naam helpt je de groepsindeling later terug te vinden en "
+            "verder te gaan."
+        ) in page
+        assert page.count("Overgang jaarlaag 5 - 2026.") == 1
+        assert 'id="process-name-rules" class="process-field-help" hidden' in page
+        assert 'aria-describedby="process-name-example"' in page
+        assert 'title="Alleen letters, cijfers, spaties, - en _ toegestaan"' not in page
+
     def test_existing_process_is_shown(self, client):
         """A process that exists in the DB appears in the processes list."""
         with flask_app.app_context():
             make_process_row(SCHOOL_ID, "mijnklas")
         response = client.get("/processes")
         assert response.status_code == 200
-        assert b"mijnklas" in response.data
+        page = response.get_data(as_text=True)
+        assert "mijnklas" in page
+        assert "Verder →" in page
+        assert 'aria-label="Verder met mijnklas"' in page
+        assert 'aria-label="Groepsindeling mijnklas verwijderen"' in page
+        assert 'data-tooltip="Verwijderen"' in page
+        assert 'confirmDelete("mijnklas")' in page
+        assert page.index("mijnklas") < page.index("Begin een nieuwe groepsindeling")
 
 
 class TestSelectProcess:
