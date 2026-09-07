@@ -1,0 +1,105 @@
+/* Page-specific layout for the EDEXML upload step. */
+.upload-edexml-intro,
+.upload-edexml-form {
+  width: 100%;
+  max-width: 65ch;
+}
+
+.upload-edexml-intro,
+.upload-edexml-help,
+.upload-edexml-help-details p {
+  line-height: 1.5;
+}
+
+.upload-edexml-field,
+.upload-edexml-choice {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0 0 1.5rem;
+}
+
+.upload-edexml-field > label,
+.upload-edexml-choice > label {
+  display: block;
+  margin-bottom: 0.35rem;
+}
+
+.upload-edexml-field input[type="file"],
+.upload-edexml-choice select {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-height: 44px;
+  margin: 0;
+}
+
+.upload-edexml-choice {
+  padding: 1rem;
+}
+
+.upload-edexml-choice legend {
+  max-width: 100%;
+  padding: 0 0.25rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.upload-edexml-help {
+  margin: 0.5rem 0 0.75rem;
+  color: #333;
+}
+
+.upload-edexml-help-details {
+  max-width: 65ch;
+  margin: 0 0 1.5rem;
+}
+
+.upload-edexml-help-details summary {
+  display: flex;
+  min-height: 44px;
+  box-sizing: border-box;
+  align-items: center;
+  padding: 0.5rem 0;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.upload-edexml-help-details p {
+  margin: 0.75rem 0;
+}
+
+.upload-edexml-help-details a {
+  overflow-wrap: anywhere;
+}
+
+.upload-edexml-checkbox-list {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.upload-edexml-checkbox-list label {
+  display: flex;
+  min-height: 44px;
+  box-sizing: border-box;
+  align-items: center;
+  gap: 0.65rem;
+  font-weight: 400;
+}
+
+.upload-edexml-checkbox-list input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0;
+}
+
+.upload-edexml-form > .button {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 420px) {
+  .upload-edexml-form > .button {
+    width: 100%;
+  }
+}

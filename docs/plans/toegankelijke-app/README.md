@@ -15,7 +15,7 @@ committen. Bestaand werk wordt per pagina beoordeeld, behouden of bijgestuurd.
 | --- | --- | --- |
 | 1 | [Homepage](01-homepage.md) | Beoordeeld; twee tekstpunten open |
 | 2 | [Jouw groepsindelingen](02-jouw-groepsindelingen.md) | Beoordeeld; verwijderactie open |
-| 3 | Leerlinggegevens ophalen | Nog niet beoordeeld; nog geen plan |
+| 3 | [Leerlinggegevens ophalen](03-leerlinggegevens-ophalen.md) | Implementatiegereed |
 | 4 | Groepen kiezen | Nog niet beoordeeld; nog geen plan |
 | 5 | Leerlingen controleren | Nog niet beoordeeld; nog geen plan |
 | 6 | Groepen voor volgend schooljaar | Nog niet beoordeeld; nog geen plan |

@@ -43,6 +43,27 @@ def _make_edexml_reader(df):
 class TestUploadEdexmlMode:
     """Tests for mode-branching in the upload_edexml route."""
 
+    def test_get_forward_renders_approved_page_copy(self, client, tmp_path):
+        """The default mode renders the approved heading, instructions and controls."""
+        setup_process(client, tmp_path)
+        resp = client.get("/upload_edexml")
+        page = resp.get_data(as_text=True)
+
+        assert resp.status_code == 200
+        for expected in (
+            "<h1>Leerlinggegevens ophalen</h1>",
+            "Upload het EDEXML-bestand uit je leerlingadministratie. Dit is een "
+            "standaardbestand waarmee we de leerlingen en groepen voor je klaarzetten.",
+            '<label for="edexml">EDEXML-bestand</label>',
+            "Kies een .xml-bestand in EDEXML-versie 2.1. Kies bij het exporteren "
+            "‘Geen privacygevoelige gegevens’.",
+            "<summary>Hoe kom ik aan dit bestand?</summary>",
+            "Zoek de EDEXML-export in de handleiding van je leerlingadministratiesysteem. "
+            "Vraag de beheerder van dat systeem om hulp als je de export niet kunt vinden.",
+            "Zoek op hoe je een EDEXML-bestand exporteert ↗",
+        ):
+            assert expected in page
+
     def test_get_forward_mode_shows_jaargroep(self, client, tmp_path):
         """GET /upload_edexml in forward mode shows the jaargroep selector."""
         setup_process(client, tmp_path)
@@ -59,6 +80,19 @@ class TestUploadEdexmlMode:
         resp = client.get("/upload_edexml")
         assert resp.status_code == 200
         assert b"jaargroep" not in resp.data
+
+    def test_get_redistribute_mode_renders_groups_button(self, client, tmp_path):
+        """Herindelen has no year-layer choice and names the next groups screen."""
+        proc_dir = setup_process(client, tmp_path)
+        (proc_dir / "mode.json").write_text(
+            json.dumps({"mode": "redistribute"}), encoding="utf-8"
+        )
+        page = client.get("/upload_edexml").get_data(as_text=True)
+
+        assert "Welke huidige jaarlaag wil je indelen?" not in page
+        assert "Welke huidige jaarlagen wil je indelen?" not in page
+        assert "Gegevens inlezen en groepen kiezen →" in page
+        assert "Gegevens inlezen en leerlingen controleren →" not in page
 
     def test_post_redistribute_valid_edexml_redirects_to_select_groups(
         self, client, tmp_path, monkeypatch
@@ -84,8 +118,7 @@ class TestUploadEdexmlMode:
         self, client, tmp_path
     ):
         """GET /upload_edexml in redistribute_and_forward mode shows jaargroep checkboxes
-        (not the forward-mode dropdown) and the shared "Selecteer leerlingen en groepen"
-        button text."""
+        (not the forward-mode dropdown) and the "leerlingen controleren" button text."""
         proc_dir = setup_process(client, tmp_path)
         (proc_dir / "mode.json").write_text(
             json.dumps({"mode": "redistribute_and_forward"}), encoding="utf-8"
@@ -94,7 +127,12 @@ class TestUploadEdexmlMode:
         assert resp.status_code == 200
         assert b'name="jaargroep"' not in resp.data
         assert resp.data.count(b'name="jaargroepen"') == 8
-        assert "Selecteer leerlingen en groepen".encode() in resp.data
+        assert "Welke huidige jaarlagen wil je indelen?".encode() in resp.data
+        assert (
+            "Selecteer alle jaarlagen die een jaar verder gaan en daarbij opnieuw over de "
+            "groepen worden verdeeld."
+        ).encode() in resp.data
+        assert "Gegevens inlezen en leerlingen controleren →".encode() in resp.data
 
     def test_post_redistribute_and_forward_valid_selection_saves_json_and_redirects_to_roster(
         self, client, tmp_path, monkeypatch

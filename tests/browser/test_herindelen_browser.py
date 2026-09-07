@@ -151,7 +151,8 @@ def test_create_process_redistribute_mode(live_server, tmp_path, page):
     }
     assert page.locator("select[name=jaargroep]").count() == 0
     assert (
-        "Ga door naar groepskeuze" in page.locator("button[type=submit]").inner_text()
+        "Gegevens inlezen en groepen kiezen →"
+        in page.locator("button[type=submit]").inner_text()
     )
 
 
