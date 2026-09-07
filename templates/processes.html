@@ -1,90 +1,128 @@
 {% extends "base.html" %}
 {% set current_step = 0 %}
-{% block header %}Indelingsprocessen{% endblock %}
+{% block header %}{% if show_new %}Nieuwe groepsindeling maken{% else %}Jouw groepsindelingen{% endif %}{% endblock %}
 {% block content %}
-Ga door met een bestaand proces of creëer een nieuw indelingsproces
-<h2>Bestaande processen</h2>
-    <ul>
-        {% for p in processes %}
-            <li>
-                {{ p }}
-                <form method="post" action="{{ url_for('processes.delete', process_name=p) }}" style="display:inline;" onsubmit="return confirmDelete();">
-            <button type="submit" class="delete-btn">✖</button>
-        </form>
-                <a href="{{ url_for('processes.select', process_id=p) }}" class="button button--small">
-                    Ga door
-                </a>
-            </li>
-        {% else %}
-            <li>Geen processen gevonden</li>
-        {% endfor %}
-    </ul>
+{% if show_new %}
+    <p><a href="{{ url_for('processes.index', clear=1) }}" class="button button--secondary">← Jouw groepsindelingen</a></p>
+    <p class="processes-intro">Een herkenbare naam helpt je de groepsindeling later terug te vinden en verder te gaan.</p>
 
-    <h2>Nieuw proces</h2>
-    Als je een nieuw indelinsproces wilt beginnen, kan dat hier. Geef een naam, bijvoorbeeld "overgang obmb 2026". Gebruik alleen letters, cijfers, spaties en streepjes, en maak de naam niet te lang.
-<form id="processForm" method="post" action="{{ url_for('processes.create') }}">
-    <input
-        type="text"
-        name="process_name"
-        placeholder="Naam proces"
-        required
-        maxlength="64"
-        data-portable-identifier
-        data-identifier-label="Procesnaam"
-        title="Alleen letters, cijfers, spaties, - en _ toegestaan"
-        id="processName"
-    >
-    <fieldset>
-        <legend>Verdeelmodus</legend>
-        <label>
-            <input type="radio" name="mode" value="forward" checked>
-            Doorzetten naar volgende groepen
-            <button type="button" class="info-pop" data-help="Eén instromende jaarlaag verdelen over de volgende bouw.">ℹ</button>
-        </label>
-        <label>
-            <input type="radio" name="mode" value="redistribute">
-            Herindelen met dezelfde groepen
-            <button type="button" class="info-pop" data-help="De huidige leerlingen opnieuw over diezelfde groepen verdelen.">ℹ</button>
-        </label>
-        <label>
-            <input type="radio" name="mode" value="redistribute_and_forward">
-            Herindelen met doorzetten
-            <button type="button" class="info-pop" data-help="Leerlingen van gekozen jaarlagen (bij de jaarovergang) over apart gekozen, leeg startende groepen verdelen.">ℹ</button>
-        </label>
-    </fieldset>
-    <button class="button" type="submit">Begin nieuw indelingsproces</button>
-</form>
+    <form id="processForm" class="process-form" method="post" action="{{ url_for('processes.create') }}">
+        <div class="field-group">
+            <label for="processName">Naam van de groepsindeling</label>
+            <input
+                type="text"
+                name="process_name"
+                required
+                maxlength="64"
+                data-portable-identifier
+                data-identifier-label="Procesnaam"
+                id="processName"
+                value="{{ process_draft.get('process_name', '') }}"
+                aria-describedby="process-name-example"
+            >
+            <p id="process-name-example" class="process-field-help">
+                Bijvoorbeeld: Overgang jaarlaag 5 - 2026.
+            </p>
+            <p id="process-name-rules" class="process-field-help" hidden>
+                Gebruik alleen letters, cijfers, spaties, koppeltekens (-) en liggende streepjes (_).
+            </p>
+        </div>
+
+        <fieldset class="process-mode-fieldset">
+            <legend>Wat wil je doen?</legend>
+            <p class="process-mode-instruction">Kies de situatie die past bij de leerlingen die je wilt indelen.</p>
+
+            <label class="process-mode-option">
+                <input type="radio" name="mode" value="forward" {% if process_draft.get('mode', 'forward') == 'forward' %}checked{% endif %}>
+                <svg class="process-mode-icon" aria-hidden="true" viewBox="0 0 24 24" focusable="false"><path d="M4 12h15m-6-6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span class="process-mode-copy">
+                    <strong>Leerlingen gaan naar de volgende groepen</strong>
+                    <em>Bijvoorbeeld: jaarlaag 5 wordt verdeeld over de bestaande groepen 6/7/8.</em>
+                    <span class="process-mode-recommended">Meest gekozen</span>
+                </span>
+            </label>
+
+            <label class="process-mode-option">
+                <input type="radio" name="mode" value="redistribute" {% if process_draft.get('mode') == 'redistribute' %}checked{% endif %}>
+                <svg class="process-mode-icon" aria-hidden="true" viewBox="0 0 24 24" focusable="false"><path d="M6 9a7 7 0 0 1 12.2 1.2L20 12m0 0-3.1-.3M20 12l-.4-3.1M18 15a7 7 0 0 1-12.2-1.2L4 12m0 0 3.1.3M4 12l.4 3.1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span class="process-mode-copy">
+                    <strong>Bestaande groepen worden opnieuw ingedeeld</strong>
+                    <em>Bijvoorbeeld: leerlingen uit 6A, 6B en 6C worden opnieuw verdeeld over 6A, 6B en 6C.</em>
+                </span>
+            </label>
+
+            <label class="process-mode-option">
+                <input type="radio" name="mode" value="redistribute_and_forward" {% if process_draft.get('mode') == 'redistribute_and_forward' %}checked{% endif %}>
+                <svg class="process-mode-icon" aria-hidden="true" viewBox="0 0 24 24" focusable="false"><path d="M6.4 9.1A7 7 0 0 1 17 8.5l1.5 1.5m0 0-3.1-.2m3.1.2.2-3.1M17.6 14.9A7 7 0 0 1 7 15.5L5.5 14m0 0 3.1.2m-3.1-.2-.2 3.1M8 12h13m-3-3 3 3-3 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span class="process-mode-copy">
+                    <strong>Leerlingen gaan verder en groepen worden opnieuw ingedeeld</strong>
+                    <em>Bijvoorbeeld: jaarlaag 5 gaat naar 6/7/8. Ook de leerlingen uit jaarlaag 6 en 7 worden opnieuw verdeeld.</em>
+                </span>
+            </label>
+        </fieldset>
+
+        <button class="button" type="submit">Beginnen →</button>
+    </form>
+{% else %}
+    <p class="processes-intro">Ga verder met een bestaande groepsindeling of begin een nieuwe groepsindeling.</p>
+    <section class="processes-existing" aria-labelledby="existing-processes-heading">
+        <h2 id="existing-processes-heading" class="process-heading-hidden">Bestaande groepsindelingen</h2>
+        <ul class="process-list">
+            {% for p in processes %}
+                <li class="process-list-item">
+                    <span class="process-name">{{ p }}</span>
+                    <div class="process-actions">
+                        <a href="{{ url_for('processes.select', process_id=p) }}" class="button button--small" aria-label="Verder met {{ p }}">Verder →</a>
+                        <form method="post" action="{{ url_for('processes.delete', process_name=p) }}" class="process-delete-form" onsubmit="return confirmDelete({{ p|tojson }});">
+                            <button type="submit" class="delete-btn process-delete-button" aria-label="Groepsindeling {{ p }} verwijderen" data-tooltip="Verwijderen">×</button>
+                        </form>
+                    </div>
+                </li>
+            {% else %}
+                <li class="process-empty"><em>Je hebt nog geen bestaande groepsindeling.</em></li>
+            {% endfor %}
+        </ul>
+    </section>
+    <p class="process-new-action"><a href="{{ url_for('processes.index', new=1) }}" class="button">Begin een nieuwe groepsindeling</a></p>
+{% endif %}
+
 <script>
-    function confirmDelete() {
-    return confirm("Weet je zeker dat je dit proces wilt verwijderen? Dit kan niet ongedaan worden gemaakt.");
-}
-
-    // Click-popovers for the ℹ mode explanations (same pattern as preferences_form).
-    let _openInfoBtn = null;
-    function closeInfoPopover() {
-        document.querySelectorAll('.info-popover').forEach(p => p.remove());
+    function confirmDelete(processName) {
+        return confirm("Weet je zeker dat je ‘" + processName + "’ wilt verwijderen? Alle ingevoerde gegevens en resultaten van deze groepsindeling gaan dan verloren. Dit kan niet ongedaan worden gemaakt.");
     }
-    function showInfoPopover(btn) {
-        const wasOpen = _openInfoBtn === btn;
-        closeInfoPopover();
-        _openInfoBtn = null;
-        if (wasOpen) return;  // second click closes it
-        const pop = document.createElement('div');
-        pop.className = 'info-popover';
-        pop.textContent = btn.dataset.help;
-        btn.insertAdjacentElement('afterend', pop);
-        _openInfoBtn = btn;
-    }
-    document.querySelectorAll('.info-pop').forEach(btn => {
-        btn.addEventListener('click', e => {
-            e.preventDefault();
-            e.stopPropagation();  // keep the surrounding <label> from toggling the radio
-            showInfoPopover(btn);
-        });
-    });
-    document.addEventListener('click', e => {
-        if (!e.target.closest('.info-popover')) { closeInfoPopover(); _openInfoBtn = null; }
-    });
-
 </script>
+{% if show_new %}
+<script>
+    (() => {
+        const input = document.getElementById("processName");
+        const rules = document.getElementById("process-name-rules");
+        const exampleId = "process-name-example";
+
+        function hasInvalidCharacter(value) {
+            const normalized = value.normalize("NFC");
+            return normalized.trim() !== normalized ||
+                [...normalized].some((character) =>
+                    !(/[\p{L}\p{N}]/u.test(character) || "-_ ".includes(character))
+                );
+        }
+
+        function updateNameHelp() {
+            const showRules = hasInvalidCharacter(input.value);
+            rules.hidden = !showRules;
+            input.setAttribute(
+                "aria-describedby",
+                showRules ? `${exampleId} process-name-rules` : exampleId
+            );
+        }
+
+        input.addEventListener("input", updateNameHelp);
+        input.addEventListener("change", updateNameHelp);
+        input.form.addEventListener("invalid", (event) => {
+            if (event.target === input) {
+                updateNameHelp();
+            }
+        }, true);
+    })();
+</script>
+{% endif %}
 {% endblock %}

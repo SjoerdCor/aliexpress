@@ -131,11 +131,30 @@ def index():
         os.makedirs(get_school_path(school_id), exist_ok=True)
     except PermissionError:
         flash("Ongeldige schoolcode of opslaglocatie.", "error")
-        return render_template("processes.html", processes=[])
+        return render_template(
+            "processes.html",
+            processes=[],
+            show_new=False,
+            process_draft={},
+        )
     procs = (
         Process.query.filter_by(school_id=school_id).order_by(Process.created_at).all()
     )
-    return render_template("processes.html", processes=[p.name for p in procs])
+    processes = [p.name for p in procs]
+    if request.args.get("clear") == "1":
+        session.pop("process_draft", None)
+    draft = session.get("process_draft", {})
+    if draft.get("school_id") not in (None, school_id):
+        draft = {}
+    # A saved draft is only relevant while the user is in the new-process state.  It
+    # lets validation failures return to the same state with the name and mode intact.
+    show_new = request.args.get("new") == "1" or bool(draft)
+    return render_template(
+        "processes.html",
+        processes=processes,
+        show_new=show_new,
+        process_draft=draft,
+    )
 
 
 @processes_bp.route("/create", methods=["POST"])
@@ -146,21 +165,28 @@ def create():  # pylint: disable=too-many-return-statements
     if school_id is None:
         return redirect(url_for("admin.dashboard"))
     process_name = request.form.get("process_name", "").strip()
+    mode = request.form.get("mode", "forward")
+    # Preserve the new-process screen and its choices after a validation error.  The
+    # draft is cleared only after a process is actually created.
+    session["process_draft"] = {
+        "school_id": school_id,
+        "process_name": process_name,
+        "mode": mode,
+    }
     if error := _validate_process_name(school_id, process_name, must_exist=False):
         flash(error, "error")
-        return redirect(url_for("processes.index"))
+        return redirect(url_for("processes.index", new=1))
     process_name = normalize_identifier(process_name)
-    mode = request.form.get("mode", "forward")
     if mode not in ("forward", "redistribute", "redistribute_and_forward"):
         mode = "forward"
     try:
         proc_path = get_process_path(school_id, process_name)
     except PermissionError:
         flash("Ongeldige procesinformatie.", "error")
-        return redirect(url_for("processes.index"))
+        return redirect(url_for("processes.index", new=1))
     if os.path.lexists(proc_path):
         flash("De opslag voor dit proces bestaat al; kies een andere naam.", "error")
-        return redirect(url_for("processes.index"))
+        return redirect(url_for("processes.index", new=1))
     proc = Process(school_id=school_id, name=process_name)
     db.session.add(proc)
     try:
@@ -168,14 +194,15 @@ def create():  # pylint: disable=too-many-return-statements
     except IntegrityError:
         db.session.rollback()
         flash("Proces bestaat al", "error")
-        return redirect(url_for("processes.index"))
+        return redirect(url_for("processes.index", new=1))
     try:
         os.makedirs(proc_path)
     except PermissionError:
         flash("Ongeldige procesinformatie.", "error")
-        return redirect(url_for("processes.index"))
+        return redirect(url_for("processes.index", new=1))
     with open(os.path.join(proc_path, "mode.json"), "w", encoding="utf-8") as fh:
         json.dump({"mode": mode}, fh)
+    session.pop("process_draft", None)
     session["process_id"] = process_name
     return redirect(url_for("wizard.upload_edexml"))
 
