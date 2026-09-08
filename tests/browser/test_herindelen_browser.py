@@ -157,15 +157,34 @@ def test_create_process_redistribute_mode(live_server, tmp_path, page):
 
 
 @pytest.mark.usefixtures("login")
-def test_mode_info_popover_shows_explanation(live_server, page):
-    """The ℹ button next to a Verdeelmodus reveals its explanation in a click-popover."""
-    page.goto(f"{live_server}/processes")
-    assert page.locator(".info-popover").count() == 0
-    doorzetten_label = page.locator("label", has_text="Herindelen met doorzetten")
-    doorzetten_label.locator("button.info-pop").click()
-    popover = page.locator(".info-popover")
-    assert popover.count() == 1
-    assert "jaarlagen" in popover.inner_text()
+def test_distribution_modes_show_explanations(live_server, page):
+    """The new-process form visibly explains all three distribution options."""
+    page.goto(f"{live_server}/processes?new=1")
+
+    explanations = [
+        (
+            "Leerlingen gaan naar de volgende groepen",
+            "Bijvoorbeeld: jaarlaag 5 wordt verdeeld over de bestaande groepen 6/7/8.",
+        ),
+        (
+            "Bestaande groepen worden opnieuw ingedeeld",
+            "Bijvoorbeeld: leerlingen uit 6A, 6B en 6C worden opnieuw "
+            "verdeeld over 6A, 6B en 6C.",
+        ),
+        (
+            "Leerlingen gaan verder en groepen worden opnieuw ingedeeld",
+            "Bijvoorbeeld: jaarlaag 5 gaat naar 6/7/8. Ook de leerlingen uit "
+            "jaarlaag 6 en 7 worden opnieuw verdeeld.",
+        ),
+    ]
+
+    options = page.locator(".process-mode-option")
+    assert options.count() == len(explanations)
+    for index, (heading, explanation) in enumerate(explanations):
+        option = options.nth(index)
+        assert option.is_visible()
+        assert option.locator("strong").inner_text() == heading
+        assert option.locator("em").inner_text() == explanation
 
 
 @pytest.mark.usefixtures("login")

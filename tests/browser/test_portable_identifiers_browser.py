@@ -13,7 +13,7 @@ def test_process_name_is_validated_in_browser_without_changing_case(
 ):
     """Client validation rejects reserved names and keeps a valid capitalized name."""
     del login
-    page.goto(f"{live_server}/processes")
+    page.goto(f"{live_server}/processes?new=1")
     field = page.locator("#processName")
 
     field.fill("CON")
@@ -31,7 +31,7 @@ def test_process_name_client_validation_accepts_unicode_and_rejects_overlong_val
 ):
     """NFC-equivalent letters are accepted while the 64-character limit is enforced."""
     del login
-    page.goto(f"{live_server}/processes")
+    page.goto(f"{live_server}/processes?new=1")
     field = page.locator("#processName")
 
     decomposed = "e\u0301cole"
