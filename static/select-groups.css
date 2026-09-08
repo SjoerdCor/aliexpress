@@ -1,0 +1,82 @@
+/* Page-level layout for selecting groups from the uploaded EDEXML. */
+.select-groups-page {
+  width: 100%;
+  min-width: 0;
+}
+
+.select-groups-intro {
+  max-width: 65ch;
+  line-height: 1.5;
+}
+
+.group-selection-fieldset {
+  width: 100%;
+  box-sizing: border-box;
+  border: 0;
+  padding: 0;
+  margin: 0 0 1.5rem;
+}
+
+.group-selection-fieldset legend {
+  padding: 0;
+  margin: 1.75rem 0 0.5rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.group-selection-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  border-top: 1px solid #c9c0ba;
+}
+
+.group-selection-list li {
+  border-bottom: 1px solid #c9c0ba;
+}
+
+.group-selection-list label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 3.5rem;
+  padding: 0.85rem 0.25rem;
+  cursor: pointer;
+  font-weight: 400;
+}
+
+.group-selection-list input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin: 0.1rem 0 0;
+}
+
+.group-selection-list label span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.select-groups-navigation {
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+}
+
+.select-groups-navigation .button {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 680px) {
+  .select-groups-navigation {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+
+  .select-groups-navigation .button {
+    width: 100%;
+    margin: 0;
+  }
+}

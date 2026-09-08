@@ -316,10 +316,12 @@ def _select_groups_post(df, school_id, process_id, mode):
     """Process a POST to /select_groups: validate the selection, then branch on mode."""
     selected = request.form.getlist("groups")
     if len(selected) < 2:
-        warn_and_flash(
-            "Selecteer minimaal twee groepen om te herindelen.",
-            log_detail="too_few_groups_redistribute",
+        message = (
+            "Kies minimaal twee groepen voor volgend schooljaar."
+            if mode == "redistribute_and_forward"
+            else "Kies minimaal twee groepen om opnieuw in te delen."
         )
+        warn_and_flash(message, log_detail="too_few_groups_redistribute")
         return redirect(url_for("wizard.select_groups"))
     if mode == "redistribute_and_forward":
         return _select_groups_post_redistribute_and_forward(

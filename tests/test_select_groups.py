@@ -51,8 +51,8 @@ class TestSelectGroups:
         )
         resp = client.get("/select_groups")
         assert resp.status_code == 200
-        assert b"3A" in resp.data
-        assert b"3B" in resp.data
+        html = resp.data.decode("utf-8")
+        assert re.findall(r'name="groups" value="([^"]+)"', html) == ["3A", "3B"]
 
     def test_get_without_edex_redirects_to_upload(self, client, tmp_path):
         """GET /select_groups without an uploaded EDEXML redirects back to upload."""
@@ -64,7 +64,7 @@ class TestSelectGroups:
     def test_post_fewer_than_two_groups_flashes_error(
         self, client, tmp_path, monkeypatch
     ):
-        """POST /select_groups with only one group selected flashes an error."""
+        """POST /select_groups with one group flashes the mode-specific error."""
         proc_dir = setup_process(client, tmp_path)
         self._write_fake_edex(proc_dir)
         monkeypatch.setattr(
@@ -75,7 +75,9 @@ class TestSelectGroups:
         resp = client.post("/select_groups", data={"groups": ["3A"]})
         assert resp.status_code == 302
         assert resp.headers["Location"].endswith("/select_groups")
-        assert any(cat == "error" for cat, _ in flashes(client))
+        assert flashes(client) == [
+            ("error", "Kies minimaal twee groepen om opnieuw in te delen.")
+        ]
 
     def test_post_valid_selection_saves_json_and_redirects_to_roster(
         self, client, tmp_path, monkeypatch
@@ -100,11 +102,10 @@ class TestSelectGroups:
         assert saved["groups_to"]["3B"] == []
         assert saved["jaargroepen"] == [3]
 
-    def test_get_redistribute_and_forward_shows_adapted_heading_and_back_to_roster(
+    def test_get_redistribute_and_forward_links_back_to_roster(
         self, client, tmp_path, monkeypatch
     ):
-        """GET /select_groups in redistribute_and_forward mode shows the destination-groups
-        heading and a back button to /roster (not /upload_edexml)."""
+        """The combined mode returns to its immediately preceding roster step."""
         proc_dir = setup_process(client, tmp_path)
         (proc_dir / "mode.json").write_text(
             json.dumps({"mode": "redistribute_and_forward"}), encoding="utf-8"
@@ -117,8 +118,28 @@ class TestSelectGroups:
         )
         resp = client.get("/select_groups")
         assert resp.status_code == 200
-        assert "komen deze jaarlagen volgend jaar".encode() in resp.data
         assert b'href="/roster"' in resp.data
+
+    def test_post_fewer_than_two_groups_in_redistribute_and_forward_flashes_adapted_error(
+        self, client, tmp_path, monkeypatch
+    ):
+        """The validation message identifies next year's groups in this mode."""
+        proc_dir = setup_process(client, tmp_path)
+        (proc_dir / "mode.json").write_text(
+            json.dumps({"mode": "redistribute_and_forward"}), encoding="utf-8"
+        )
+        self._write_fake_edex(proc_dir)
+        monkeypatch.setattr(
+            wizard_module.datareader,
+            "EdexReader",
+            _make_edexml_reader(_SELECT_GROUPS_FAKE_DF),
+        )
+        resp = client.post("/select_groups", data={"groups": ["3A"]})
+        assert resp.status_code == 302
+        assert resp.headers["Location"].endswith("/select_groups")
+        assert flashes(client) == [
+            ("error", "Kies minimaal twee groepen voor volgend schooljaar.")
+        ]
 
     def test_post_redistribute_and_forward_sets_groups_to_and_redirects_to_groups_to(
         self, client, tmp_path, monkeypatch

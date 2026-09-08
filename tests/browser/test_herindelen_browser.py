@@ -76,7 +76,7 @@ def _build_herindelen_edexml() -> bytes:
 
 def _create_redistribute_process(live_server, page, name):
     """Drive /processes to create a process with the redistribute mode radio checked."""
-    page.goto(f"{live_server}/processes")
+    page.goto(f"{live_server}/processes?new=1")
     page.fill("#processName", name)
     page.check("input[name='mode'][value='redistribute']")
     page.click("#processForm button[type=submit]")
@@ -108,7 +108,7 @@ def _select_groups(live_server, page, group_names):
 def _create_redistribute_and_forward_process(live_server, page, name):
     """Drive /processes to create a process with the redistribute_and_forward mode radio
     checked."""
-    page.goto(f"{live_server}/processes")
+    page.goto(f"{live_server}/processes?new=1")
     page.fill("#processName", name)
     page.check("input[name='mode'][value='redistribute_and_forward']")
     page.click("#processForm button[type=submit]")
@@ -193,16 +193,17 @@ def test_select_groups_requires_at_least_two(live_server, page):
     first_group = _HERINDELEN_GROUPS[0]["naam"]
     second_group = _HERINDELEN_GROUPS[1]["naam"]
     page.locator(f'input[name=groups][value="{first_group}"]').check()
-    page.click("button[type=submit]")
+    page.get_by_role("button", name="Verder naar leerlingen controleren →").click()
     assert (
-        "Selecteer minimaal twee groepen" in page.locator(".flash-message").inner_text()
+        "Kies minimaal twee groepen om opnieuw in te delen."
+        in page.locator(".flash-message").inner_text()
     )
     assert page.url.endswith("/select_groups")
 
-    # The failed POST redirected to a fresh GET, so no checkbox is still checked.
+    # The failed POST redirects to a fresh form.
     page.locator(f'input[name=groups][value="{first_group}"]').check()
     page.locator(f'input[name=groups][value="{second_group}"]').check()
-    page.click("button[type=submit]")
+    page.get_by_role("button", name="Verder naar leerlingen controleren →").click()
     page.wait_for_url(f"{live_server}/roster")
 
 
@@ -327,5 +328,5 @@ def test_redistribute_and_forward_flow_reaches_select_groups_then_next_step(
 
     for group in _HERINDELEN_GROUPS[:2]:
         page.locator(f'input[name=groups][value="{group["naam"]}"]').check()
-    page.click("button[type=submit]")
+    page.get_by_role("button", name="Verder naar voorkeuren →").click()
     page.wait_for_url(f"{live_server}/preferences_form")
