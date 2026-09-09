@@ -69,7 +69,7 @@ De mate waarin de voorkeuren van een leerling in de verdeling zijn ingewilligd, 
 _Avoid_: score, geluk
 
 **Extra zekerheid**:
-Een ondergrens die de leerkracht per leerling kan eisen aan diens Tevredenheid, in drie betekenisvolle niveaus: *geen eis*, *minstens één voorkeur* (de belangrijkste of een willekeurige voorkeur wordt vervuld) of *belangrijkste voorkeur* (juist de zwaarst gewogen voorkeur wordt gegarandeerd). Anders dan Tevredenheid, die de verdeling maximaliseert maar mag schenden, is een gevraagde extra zekerheid een harde eis. Te veel of te hoge eisen kunnen de verdeling onmogelijk maken.
+Een ondergrens die de leerkracht per leerling kan eisen aan diens Tevredenheid, in drie betekenisvolle niveaus: *Geen extra eis* (leeg), *Minstens tevreden* (50%) of *Alle voorkeuren gehonoreerd* (100%). Anders dan Tevredenheid, die de verdeling maximaliseert maar mag schenden, is een gevraagde extra zekerheid een harde eis. Te veel of te hoge eisen kunnen de verdeling onmogelijk maken.
 _Avoid_: minimale tevredenheid, garantie
 
 **Niet-in-groep-uitsluiting**:

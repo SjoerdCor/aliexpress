@@ -34,15 +34,14 @@ blijft de volledige naam, die de canonieke identiteit is voor server-matching, h
 en de integratietests. De korte naam als opgeslagen identiteit zou al die plekken raken voor
 wat in de kern een weergavewens is.
 
-**Afsluiten van de modal — twee uitkomsten.** De modal kent **"Opslaan"** (bevestigen) én een
-**annuleren** via ×, Esc of backdrop-klik. Annuleren draait de wijzigingen sinds het openen
-terug en sluit zonder op te slaan. (Een eerdere variant met enkel "Opslaan" — geen annuleren —
-is verworpen: een echte annuleer-uitgang is voor leerkrachten de verwachte conventie, en omdat
-er toch al per leerling wordt opgeslagen kan annuleren veilig terugdraaien.)
+**Afsluiten van de modal — twee uitkomsten.** De modal kent **"Voorkeuren opslaan"**
+(bevestigen) én een expliciete knop **"Wijzigingen annuleren"**. Alleen die knop draait de
+wijzigingen sinds het openen terug en sluit zonder op te slaan. Esc en backdrop-klik sluiten
+de modal bewust niet en annuleren niets, zodat een toevallige handeling geen invoer weggooit.
 
 **Opslaan — automatische autosave vs expliciet bij sluiten.** Gekozen: **expliciet bij
-"Opslaan"**. De gedebouncede autosave-trigger (`MutationObserver` + timer) en de aparte
-"Tussentijds opslaan"-knop verdwijnen; elke modal-"Opslaan" post de draft. Omdat de
+"Voorkeuren opslaan"**. De gedebouncede autosave-trigger (`MutationObserver` + timer) en de aparte
+"Tussentijds opslaan"-knop verdwijnen; elke modal-"Voorkeuren opslaan" post de draft. Omdat de
 achtergrond-save het **hele** formulier post, neemt de modal bij openen een momentopname van de
 bewerkbare staat; annuleren herstelt die. Zo geldt de invariant: *buiten een open modal is de
 DOM gelijk aan de laatst opgeslagen draft*, zodat een geannuleerde bewerking niet alsnog
@@ -54,10 +53,10 @@ meelekt bij het opslaan van een volgende leerling.
   Dat is bewust: voor één jaargroep (~30–90 leerlingen) is het laadverschil niet voelbaar,
   en het lichtere alternatief (een client-side datamodel) zou de geteste opslaglaag
   herschrijven. Bij honderden leerlingen per scherm is dát het moment om te meten.
-- Het **POST-mechanisme** voor opslaan blijft (de "Opslaan"-knop hangt eraan); alleen de
+- Het **POST-mechanisme** voor opslaan blijft (de "Voorkeuren opslaan"-knop hangt eraan); alleen de
   automatische trigger gaat weg. De `beforeunload`-waarschuwing blijft als goedkoop vangnet
   voor het enige resterende verliespad: de tab sluiten middenin een open modal.
-- De **validatiepoort** blijft ongewijzigd bij "Volgende → Niet samen" (daar wordt
+- De **validatiepoort** blijft ongewijzigd bij "Verder naar leerlingen spreiden →" (daar wordt
   `voorkeuren.json` gebouwd en gevalideerd); de modal-save is best-effort draft, net als de
   oude autosave.
 - Geen kleur-alleen: betekenis hangt altijd óók aan een teken/glyph of badge, consistent met

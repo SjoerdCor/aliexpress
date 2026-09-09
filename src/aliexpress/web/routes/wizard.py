@@ -589,11 +589,13 @@ def _handle_pref_form_post(school_id, process_id, participants, all_groups_to):
     """Process a POST to /preferences_form and return the response to send.
 
     Two actions: ``autosave`` saves only the draft (best effort, no validation — used by the
-    modal's "Opslaan"); otherwise (``volgende``) build and persist ``voorkeuren.json`` and
-    navigate. Validation errors are flashed and the form re-rendered — the draft is already
-    saved, so nothing is lost.
+    modal's "Voorkeuren opslaan") and ``sociogram`` persists canonical preferences before
+    opening the existing sociogram; otherwise (``volgende``) persists and navigates to the
+    next wizard step. Validation errors are flashed and the form re-rendered — the draft is
+    already saved, so nothing is lost.
     """
-    if request.form.get("action") == "autosave":
+    action = request.form.get("action")
+    if action == "autosave":
         # Best-effort background save of the draft only (never voorkeuren.json, never
         # validated): a reload then restores the work via the normal GET prefill.
         _write_pref_form_state(school_id, process_id, request.form, participants)
@@ -608,6 +610,8 @@ def _handle_pref_form_post(school_id, process_id, participants, all_groups_to):
         return redirect(url_for("wizard.preferences_form"))
     save_voorkeuren(school_id, process_id, preference_data, source="form")
     logger.info("Preferences form accepted: %d participants", len(participants))
+    if action == "sociogram":
+        return redirect(url_for("results.show_sociogram"))
     return redirect(url_for("wizard.not_together_page"))
 
 
@@ -648,12 +652,19 @@ def preferences_form():
     ):
         flash(notice, "info")
 
-    if is_redistribute_mode(get_process_mode(get_process_path(school_id, process_id))):
+    mode = get_process_mode(get_process_path(school_id, process_id))
+    if mode == "forward":
+        prev_url = url_for("wizard.groups_to_page")
+        prev_label = "← Terug naar groepen voor volgend jaar"
+    elif mode == "redistribute":
         prev_url = url_for("roster.roster_page")
-        prev_label = "← Naar Wie gaat mee"
+        prev_label = "← Terug naar leerlingen controleren"
+    elif mode == "redistribute_and_forward":
+        prev_url = url_for("wizard.select_groups")
+        prev_label = "← Terug naar nieuwe groepen kiezen"
     else:
         prev_url = url_for("wizard.groups_to_page")
-        prev_label = "← Naar Groepen naartoe"
+        prev_label = "← Terug naar groepen voor volgend jaar"
 
     return render_template(
         "preferences_form.html",
@@ -664,7 +675,6 @@ def preferences_form():
         short_names=candidatedetermination.unique_display_names(participants),
         prev_url=prev_url,
         prev_label=prev_label,
-        sociogram_available=has_voorkeuren(school_id, process_id),
     )
 
 

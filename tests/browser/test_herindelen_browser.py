@@ -284,7 +284,7 @@ def test_preferences_form_back_button_points_to_roster(live_server, page):
     page.wait_for_url(f"{live_server}/preferences_form")
 
     back = page.locator("a.previous-step")
-    assert back.inner_text().strip() == "← Naar Wie gaat mee"
+    assert back.inner_text().strip() == "← Terug naar leerlingen controleren"
     assert back.get_attribute("href").endswith("/roster")
 
 
@@ -312,7 +312,7 @@ def test_full_redistribute_flow_to_result(live_server, page):
     combo.fill("Bram")
     page.locator("#list-graag_met-h01 .combobox-option").first.click()
     page.locator(".modal-done[data-key='h01']").click()
-    page.click("button:has-text('Naar niet samen')")
+    page.click("button:has-text('Verder naar leerlingen spreiden')")
     page.wait_for_url(f"{live_server}/not_together")
 
     # No niet-samen rules either; saving lands on the idle processing panel, where the
