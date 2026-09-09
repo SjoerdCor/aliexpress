@@ -1,0 +1,93 @@
+/* Roster-specific rules copied from the reviewed setup-page basis. */
+.roster-instructions {
+  max-width: 65ch;
+  line-height: 1.5;
+}
+
+.help-example {
+  color: #333;
+  line-height: 1.5;
+}
+
+.roster-add-section .help-example {
+  border-left: 0;
+  padding-left: 0;
+}
+
+.roster-group {
+  margin-bottom: 1rem;
+}
+
+.roster-instructions + form .step-navigation {
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.roster-instructions + form .step-navigation .previous-step,
+.roster-instructions + form .step-navigation .next-step {
+  max-width: 100%;
+  margin-right: 0;
+  margin-left: 0;
+  overflow-wrap: anywhere;
+}
+
+.candidate-label {
+  min-height: 2.25rem;
+}
+
+.candidate-label input {
+  margin-right: 0.5rem;
+}
+
+.candidate-label .candidate-name {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.new-student-row .ns-edit[hidden],
+.new-student-row .ns-chip[hidden] {
+  display: none !important;
+}
+
+.new-student-row .ns-edit {
+  display: grid;
+  grid-template-columns: max-content minmax(8rem, 1fr) max-content minmax(8rem, 1fr);
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.new-student-row .ns-edit p,
+.new-student-row .ns-edit .ns-confirm,
+.new-student-row .ns-edit .ns-remove {
+  grid-column: 1 / -1;
+}
+
+.new-student-row .ns-chip {
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+
+.new-student-row .ns-chip-label {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 800px) {
+  .new-student-row .ns-edit {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* The instruction heading is useful to assistive technology without repeating the h1. */
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}

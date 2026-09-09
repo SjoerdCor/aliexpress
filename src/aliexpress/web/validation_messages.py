@@ -280,16 +280,20 @@ def readableerror_to_validation_message(exc: Exception) -> str:
             "{leerling} kan geen voorkeur voor zichzelf opgeven. Kies een andere "
             "leerling of groep."
         ),
-        # Used by the roster step ("Wie gaat mee") when validating hand-added students.
-        "incomplete_new_student": (
-            "Maak elke nieuwe leerling af: vul voornaam, achternaam én geslacht in."
+        # Used by the roster step ("Leerlingen controleren") when validating hand-added students.
+        "incomplete_new_student": ("Vul de voornaam, achternaam en het geslacht in."),
+        "open_new_student": (
+            "Bevestig de leerling met ‘Leerling aan de lijst toevoegen’ of verwijder de invoer."
         ),
+        "no_students_selected": ("Selecteer ten minste één leerling die doorgaat."),
         "duplicate_new_student": (
-            'Er bestaat al een leerling "{name}". Geef een onderscheidende naam.'
+            "Er staat al een leerling met de naam ‘{name}’ in de lijst."
         ),
-        "missing_jaargroep_new_student": (
-            "Geef bij elke nieuwe leerling ook de jaargroep aan."
+        "missing_groep_new_student": ("Kies de huidige groep, of kies ‘Anders’."),
+        "invalid_groep_new_student": (
+            "Kies een huidige groep uit de lijst, of kies ‘Anders’."
         ),
+        "missing_jaargroep_new_student": ("Kies ook de huidige jaarlaag."),
         "duplicate_group_names": (
             "Groepsnamen moeten uniek zijn. Dubbel: {duplicates}."
         ),
