@@ -195,7 +195,7 @@ class TestNotTogetherLoadsFromJson:
 
         html = client.get("/not_together").data.decode("utf-8")
 
-        assert "Opslaan &amp; door naar indelen" in html
+        assert "Verder →" in html
         assert "Opslaan &amp; Indeling starten" not in html
 
     def test_missing_json_and_xlsx_redirects_with_error(
@@ -208,7 +208,7 @@ class TestNotTogetherLoadsFromJson:
         response = client.get("/not_together")
 
         assert response.status_code == 302
-        assert response.headers["Location"].endswith("/preferences_excel")
+        assert response.headers["Location"].endswith("/preferences_form")
         assert any(cat == "error" for cat, _ in flashes(client))
 
 
@@ -232,15 +232,29 @@ class TestNotTogetherPage:
             wizard_module.datareader, "VoorkeurenProcessor", lambda _: mock_proc
         )
 
-    def test_missing_files_flashes_error_and_redirects_to_preferences_excel(
+    def test_missing_files_flashes_error_and_redirects_to_preferences_form(
         self, client, tmp_path
     ):
         """not_together_page redirects gracefully when preferences.xlsx is missing."""
         setup_process(client, tmp_path)
         response = client.get("/not_together")
         assert response.status_code == 302
-        assert response.headers["Location"].endswith("/preferences_excel")
+        assert response.headers["Location"].endswith("/preferences_form")
         assert any(cat == "error" for cat, _ in flashes(client))
+
+    def test_missing_files_uses_excel_return_route_when_excel_was_selected(
+        self, client, tmp_path
+    ):
+        """Missing page-8 inputs return to the selected Excel preferences route."""
+        proc_dir = setup_process(client, tmp_path)
+        (proc_dir / "input_method.json").write_text(
+            json.dumps({"method": "excel"}), encoding="utf-8"
+        )
+
+        response = client.get("/not_together")
+
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/preferences_excel")
 
     def test_get_not_together_back_link_points_to_preferences_form_for_form_path(
         self, client, tmp_path, monkeypatch
@@ -269,7 +283,37 @@ class TestNotTogetherPage:
             },
         )
         assert response.status_code == 302
-        assert any(cat == "error" for cat, _ in flashes(client))
+        assert any(
+            cat == "error" and "al aan deze spreiding" in message
+            for cat, message in flashes(client)
+        )
+
+    def test_post_valid_rules_preserves_rule_values_and_redirects_to_processing(
+        self, client, tmp_path, monkeypatch
+    ):
+        """A valid page-8 POST stores all rules and reaches idle processing."""
+        proc_dir = setup_process(client, tmp_path)
+        self._mock_file_reads(monkeypatch)
+
+        response = client.post(
+            "/not_together",
+            data={
+                "n_rules": "2",
+                "rule_students[0]": ["Alice", "Bob"],
+                "rule_max[0]": "1",
+                "rule_students[1]": ["Bob", "Alice"],
+                "rule_max[1]": "2",
+            },
+        )
+
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/processing")
+        saved = json.loads((proc_dir / "not_together.json").read_text(encoding="utf-8"))
+        assert [set(rule["group"]) for rule in saved] == [
+            {"Alice", "Bob"},
+            {"Alice", "Bob"},
+        ]
+        assert [rule["Max_aantal_samen"] for rule in saved] == [1, 2]
 
     def test_post_valid_rules_lands_on_processing_without_starting_a_run(
         self, client, tmp_path, monkeypatch

@@ -20,7 +20,7 @@ committen. Bestaand werk wordt per pagina beoordeeld, behouden of bijgestuurd.
 | 5 | [Leerlingen controleren](05-leerlingen-controleren.md) | Implementatiegereed |
 | 6 | [Groepen voor volgend jaar](06-groepen-voor-volgend-jaar.md) | Implementatiegereed |
 | 7 | [Voorkeuren invullen](07-voorkeuren-invullen.md) | Implementatiegereed na gebruikersreview |
-| 8 | Leerlingen spreiden | Nog niet beoordeeld; nog geen plan |
+| 8 | [Leerlingen spreiden](08-leerlingen-spreiden.md) | Implementatiegereed na gebruikersreview |
 | 9 | Berekening starten en volgen | Nog niet beoordeeld; nog geen plan |
 
 Resultaat, sociogram, afronding, login en beheer krijgen pas een eigen plan wanneer ze aan

@@ -61,19 +61,19 @@ class TestErrorMessages:
         assert "onverwachts" in msg
 
     def test_too_few_students_not_together_returns_correct_dutch_text(self):
-        """'too_few_students_not_together' error mentions the rule index and student minimum."""
+        """'too_few_students_not_together' gives concrete spreading advice."""
         exc = ValidationError("too_few_students_not_together", {"rule_index": 2})
         msg = readableerror_to_validation_message(exc)
-        assert "Niet-samen-regel 2" in msg
-        assert "minstens 2 leerlingen" in msg
+        assert "spreiding" in msg
+        assert "minimaal twee leerlingen" in msg
 
     def test_unknown_student_not_together_returns_student_name(self):
-        """'unknown_student_not_together' error includes the unknown student names."""
+        """'unknown_student_not_together' tells the teacher where to choose participants."""
         exc = ValidationError(
             "unknown_student_not_together", {"unknown_students": "Jan Jansen"}
         )
         msg = readableerror_to_validation_message(exc)
-        assert "Jan Jansen" in msg
+        assert "deelnemers" in msg
 
     def test_too_many_niet_in_form_names_student_and_cap(self):
         """'too_many_niet_in_form' mentions the student and the maximum exclusions."""
