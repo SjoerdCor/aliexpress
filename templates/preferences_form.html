@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% set current_step = 4 %}
 {% block header %}Voorkeuren invullen{% endblock %}
+{% block extra_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='preferences-form.css') }}">{% endblock %}
 
 {% block content %}
 
@@ -21,19 +22,19 @@
 }
 </script>
 
-<details class="instructions-box" open>
-  <summary>Hoe werkt deze pagina?</summary>
-  <p>Vul per leerling de voorkeuren in: kies bij <em>Graag met</em> of
-  <em>Liever niet met</em> een klasgenoot of een groep. Je kunt ook aangeven als
-een leerling niet naar bepaalde groepen mag (bijvoorbeeld vanwege broers/zussen).
-Je kunt ook aangeven als een leerling voorrang moet krijgen in het toewijzen van de
-voorkeuren.<br>
-Denk hier echt aan wat de leerling wil. Onwenselijke combinaties kun je in het
-Niet-samen-bestand invoeren. Ook als iets jou een goede combi lijkt: laat dat aan
-ALI Express, die weegt alles mee. <br>
-Voer zoveel mogelijk positieve voorkeuren in. Dat geeft ALI Express meer flexibiliteit
- om voor iedereen een prima oplossing te vinden.
-</p>
+<p class="page-intro">Open iedere leerling en neem over bij wie die graag in de nieuwe groep wil komen —
+  en bij wie liever niet. Voeg waar mogelijk meerdere positieve voorkeuren toe. Zo geef
+  je ALI Express de ruimte om voor iedereen een zo prettig en evenwichtig mogelijke
+  groepsindeling te maken.</p>
+
+<details class="preference-help" id="preference-help">
+  <summary>Hoe gebruikt ALI Express de voorkeuren?</summary>
+  <div class="preference-help__body">
+    <p>Ga uit van wat de leerling zelf aangeeft. ALI Express weegt alle voorkeuren samen;
+      een voorkeur is dus geen garantie. Een eerste vervulde voorkeur telt het zwaarst.
+      Volgende voorkeuren en het belang dat je kiest tellen ook mee.</p>
+    <p>Wil de school dat leerlingen beslist niet samen komen? Geef dat in de volgende stap aan.</p>
+  </div>
 </details>
 
 <div class="scrim" id="pref-scrim"></div>
@@ -55,38 +56,41 @@ Voer zoveel mogelijk positieve voorkeuren in. Dat geeft ALI Express meer flexibi
   {% endif %}
 
   {# Read-only summary row; clicking it opens this pupil's edit modal. #}
-  <div class="candidate-row" id="row-{{ key }}" data-key="{{ key }}"
-       data-group="{{ candidate.groepsnaam }}" role="button" tabindex="0">
+  <button type="button" class="candidate-row" id="row-{{ key }}" data-key="{{ key }}"
+       data-group="{{ candidate.groepsnaam }}" data-display-name="{{ display_name }}"
+       aria-label="Invullen voor {{ display_name }}">
     <span class="row-id">
       <span class="row-name">{{ short_names.get(display_name, display_name) }}</span>
       <span class="row-badge" id="rowbadge-{{ key }}"></span>
     </span>
     <span class="row-chips" id="rowchips-{{ key }}"></span>
-    <span class="row-edit">Bewerken ✎</span>
-  </div>
+    <span class="row-edit" id="rowaction-{{ key }}">Invullen</span>
+  </button>
 
   {# Hidden per-pupil editor, promoted to an overlay modal via CSS (.is-editing). It
      stays inside the one form so its inputs keep posting and prefill keeps working. #}
-  <div class="candidate-editor" id="editor-{{ key }}">
+  <div class="candidate-editor" id="editor-{{ key }}" role="dialog" aria-modal="true"
+       aria-labelledby="modal-title-{{ key }}" tabindex="-1">
     <div class="modal-head">
-      <h2 class="modal-title">{{ display_name }}</h2>
-      <div class="modal-sub">uit {{ candidate.groepsnaam }}</div>
+      <h2 class="modal-title" id="modal-title-{{ key }}">{{ display_name }}</h2>
+      <div class="modal-sub">Huidige groep: {{ candidate.groepsnaam }}</div>
     </div>
 
     <div class="candidate-content" id="content-{{ key }}">
 
       {# Preference section: combobox that only allows known classmates or groups #}
-      {# tooltip passed as explicit parameter because Jinja2 macros cannot access {% set %} variables from outer scope #}
-      {% macro preference_section(key, owner, soort, label, tooltip) %}
+      {% macro preference_section(key, owner, soort, label) %}
       <div class="preference-section">
-        <p class="preference-section-label">
-          {{ label }}
-          <button type="button" class="info-pop" data-help="{{ tooltip }}">ℹ</button>
-        </p>
+        <h3 class="preference-section-label">{{ label }}</h3>
+        {% if soort == 'graag_met' %}
+        <p class="preference-section-help">Wil deze leerling bij iemand komen die al in een nieuwe groep zit? Kies dan die
+          groep; de leerling die daar al zit, kun je hier niet kiezen.</p>
+        {% endif %}
         <div class="chips-area" id="chips-{{ soort }}-{{ key }}"></div>
         <div class="combobox">
+          <label class="combobox-label" for="combo-{{ soort }}-{{ key }}">Leerling of nieuwe groep zoeken</label>
           <input type="text" class="combobox-input" id="combo-{{ soort }}-{{ key }}"
-                 placeholder="Naam leerling of groep…" autocomplete="off"
+                 placeholder="Zoek een leerling of nieuwe groep…" autocomplete="off"
                  role="combobox" aria-expanded="false" aria-autocomplete="list"
                  data-key="{{ key }}" data-owner="{{ owner }}" data-soort="{{ soort }}">
           <ul class="combobox-list" id="list-{{ soort }}-{{ key }}" role="listbox" hidden></ul>
@@ -95,15 +99,16 @@ Voer zoveel mogelijk positieve voorkeuren in. Dat geeft ALI Express meer flexibi
       </div>
       {% endmacro %}
 
-      {{ preference_section(key, display_name, 'graag_met', 'Graag met',
-           'Kies een klasgenoot of een groep waarbij deze leerling graag in dezelfde klas zit. Je kunt daarna ook een belang van die voorkeur meegeven.') }}
-      {{ preference_section(key, display_name, 'liever_niet_met', 'Liever niet met',
-           'Kies een klasgenoot of een groep waarbij deze leerling liever niet in dezelfde klas zit. Je kunt daarna ook een belang van die voorkeur meegeven.') }}
+      {{ preference_section(key, display_name, 'graag_met', 'Graag bij') }}
+      {{ preference_section(key, display_name, 'liever_niet_met', 'Liever niet bij') }}
 
       {# ── Niet in groep ─────────────────────────────────────────────────── #}
       {% if target_groups | length > 1 %}
       <div class="preference-section">
-        <p class="preference-section-label">Niet in groep <button type="button" class="info-pop" data-help="Een harde grens: deze leerling komt zéker niet in deze groep — bijvoorbeeld omdat er al een oudere broer of zus in zit. Dit is iets anders dan 'liever niet met' een groep, dat een zachte voorkeur is die mag wijken. Je kunt hoogstens (aantal groepen − 1) groepen uitsluiten.">ℹ</button></p>
+        <h3 class="preference-section-label">Mag niet naar</h3>
+        <p class="preference-section-help">Gebruik dit alleen als deze leerling echt niet in een bepaalde nieuwe groep mag
+          komen, bijvoorbeeld omdat er al een broer of zus zit. Dit geldt altijd. Is het alleen
+          een voorkeur, kies de groep dan bij ‘Liever niet bij’.</p>
         <div class="chips-area" id="chips-nieting-{{ key }}"></div>
         <select class="nieting-select" id="nieting-select-{{ key }}"
                 onchange="addNietIn('{{ key }}', {{ target_groups | length - 1 }})">
@@ -121,12 +126,10 @@ Voer zoveel mogelijk positieve voorkeuren in. Dat geeft ALI Express meer flexibi
       {% set ms_pct = (ms * 100) | round | int if ms is not none else 0 %}
       <details class="extra-zekerheid">
         <summary>Extra zekerheid voor deze leerling</summary>
-        <p class="extra-zekerheid-help">Bedoeld voor een leerling die sociaal kwetsbaarder
-          is en zeker bij een vertrouwd iemand moet komen. Let op: dit gaat ten koste van de
-          algehele tevredenheid — om deze leerling zeker te plaatsen, valt de verdeling voor
-          de groep als geheel mogelijk minder gunstig uit. Vooral "Alle voorkeuren
-          gehonoreerd" bij veel leerlingen kan de verdeling onhaalbaar maken. Gebruik het
-          alleen waar het echt nodig is.</p>
+        <p class="extra-zekerheid-help">Bedoeld voor een leerling die sociaal kwetsbaarder is en zeker bij een vertrouwd
+          iemand moet komen. Extra zekerheid beperkt de ruimte bij het indelen van andere
+          leerlingen en kan ervoor zorgen dat geen geldige groepsindeling mogelijk is. Gebruik
+          het daarom alleen waar het echt nodig is.</p>
         <div class="extra-zekerheid-options">
           <label><input type="radio" name="min_sat_{{ key }}" value=""
                  {% if ms_pct <= 0 %}checked{% endif %}> Geen extra eis</label>
@@ -141,26 +144,26 @@ Voer zoveel mogelijk positieve voorkeuren in. Dat geeft ALI Express meer flexibi
 
     <div class="modal-foot">
       <button type="button" class="button button--cancel modal-cancel" data-key="{{ key }}">
-        Annuleren
+        Wijzigingen annuleren
       </button>
       <button type="button" class="button button--primary modal-done" data-key="{{ key }}">
-        Opslaan
+        Voorkeuren opslaan
       </button>
     </div>
   </div>{# .candidate-editor #}
   {% endfor %}
 
-  {% if sociogram_available %}
   <p class="preferences-sociogram-link">
-    <a href="{{ url_for('results.show_sociogram') }}" target="_blank" rel="noopener"
-       class="button">Bekijk het sociogram</a>
+    <button type="submit" name="action" value="sociogram" formtarget="_blank"
+            class="button button--secondary sociogram-action">
+      Bekijk deze voorkeuren in het sociogram ↗
+    </button>
   </p>
-  {% endif %}
 
   <div class="step-navigation">
     <a href="{{ prev_url }}" class="button previous-step">{{ prev_label }}</a>
     <button type="submit" name="action" value="volgende" class="button next-step">
-      Naar niet samen →
+      Verder naar leerlingen spreiden →
     </button>
   </div>
 </form>
@@ -234,7 +237,7 @@ function renderCombo(input) {
   });
   list.hidden = options.length === 0;
   input.setAttribute('aria-expanded', options.length ? 'true' : 'false');
-  // Auto-highlight the first match, so Enter/Tab accept the obvious choice.
+  // Auto-highlight the first match, so Enter accepts the obvious choice.
   input._activeIndex = options.length ? 0 : -1;
   const first = list.querySelector('.combobox-option');
   if (first) first.classList.add('active');
@@ -282,20 +285,22 @@ function initCombobox(input) {
     if (e.key === 'ArrowDown') { e.preventDefault(); moveActive(input, 1); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); moveActive(input, -1); }
     else if (e.key === 'Enter') { e.preventDefault(); acceptActive(input); }
-    else if (e.key === 'Tab') {
-      // Accept the highlighted match while choosing; an empty field lets Tab move focus on.
-      if (!list().hidden && input.value.trim() && acceptActive(input)) e.preventDefault();
-    } else if (e.key === 'Escape') { list().hidden = true; }
+    // Tab moves to the next control. Enter is the explicit keyboard selection.
+    else if (e.key === 'Escape') {
+      list().hidden = true;
+      input.setAttribute('aria-expanded', 'false');
+    }
   });
 }
 
 // Intensity levels per preference kind: a teacher picks an intention, not a number.
-// "Graag met" has four levels, "liever niet met" two. Weight 1 is the unmarked default.
+// "Graag bij" has four levels. For a negative preference the labels describe its
+// importance; the stored weights remain 1 and 2.
 function intensityLevels(soort) {
   return soort === 'graag_met'
     ? [{ w: 0.5, l: 'een beetje' }, { w: 1, l: 'normaal' },
        { w: 2, l: 'heel graag' }, { w: 5, l: 'hartsvriend' }]
-    : [{ w: 1, l: 'liever niet' }, { w: 2, l: 'echt niet' }];
+    : [{ w: 1, l: 'Belangrijk' }, { w: 2, l: 'Heel belangrijk' }];
 }
 
 function intensityLabel(soort, weight) {
@@ -303,7 +308,7 @@ function intensityLabel(soort, weight) {
 }
 
 function intensityCaption(soort) {
-  return soort === 'graag_met' ? 'Hoe graag?' : '';
+  return soort === 'graag_met' ? 'Hoe graag?' : 'Hoe belangrijk is dit?';
 }
 
 function makePreferenceChip(key, soort, name, weight, isGroup) {
@@ -322,7 +327,8 @@ function makePreferenceChip(key, soort, name, weight, isGroup) {
   const del = document.createElement('button');
   del.type = 'button';
   del.className = 'delete-btn chip-del';
-  del.title = 'Verwijder voorkeur';
+  del.title = `Verwijder voorkeur voor ${shortOf(name)}`;
+  del.setAttribute('aria-label', `Verwijder voorkeur voor ${shortOf(name)}`);
   del.textContent = '✖';
   del.onclick = () => { chip.remove(); renderRow(key); };
 
@@ -388,7 +394,7 @@ function intensityEncoding(kind, weight) {
 }
 
 function readonlyChipTitle(kind, soort, name, weight) {
-  const kindLabel = { graag: 'Graag met', liever: 'Liever niet met', nietin: 'Niet in groep' }[kind];
+  const kindLabel = { graag: 'Graag bij', liever: 'Liever niet bij', nietin: 'Mag niet naar' }[kind];
   const word = soort ? intensityLabel(soort, weight) : '';
   return word ? `${kindLabel}: ${name} (${word})` : `${kindLabel}: ${name}`;
 }
@@ -447,10 +453,12 @@ function renderRow(key) {
   const badge = document.getElementById(`rowbadge-${key}`);
   if (badge) {
     if (msValue === '100') {
-      badge.innerHTML = '<span class="badge-zeker badge-zeker--full"'
+      badge.innerHTML = '<span class="badge-zeker badge-zeker--full" role="img"'
+        + ' aria-label="Extra zekerheid: alle voorkeuren gehonoreerd"'
         + ' title="Extra zekerheid: alle voorkeuren gehonoreerd">🛡</span>';
     } else if (hasExtra) {
-      badge.innerHTML = '<span class="badge-zeker badge-zeker--partial"'
+      badge.innerHTML = '<span class="badge-zeker badge-zeker--partial" role="img"'
+        + ' aria-label="Extra zekerheid: minstens tevreden"'
         + ' title="Extra zekerheid: minstens tevreden">🛡</span>';
     } else {
       badge.innerHTML = '';
@@ -462,10 +470,15 @@ function renderRow(key) {
   const row = document.getElementById(`row-${key}`);
   const isEmpty = target.children.length === 0 && !hasExtra;
   if (row) row.classList.toggle('candidate-row--empty', isEmpty);
+  const action = document.getElementById(`rowaction-${key}`);
+  if (action) action.textContent = isEmpty ? 'Invullen' : 'Wijzigen';
+  if (row) row.setAttribute(
+    'aria-label', `${isEmpty ? 'Invullen' : 'Wijzigen'} voor ${row.dataset.displayName}`
+  );
   if (isEmpty) {
     const ph = document.createElement('span');
     ph.className = 'row-placeholder';
-    ph.textContent = '— nog niet ingevuld';
+    ph.textContent = 'nog niet ingevuld';
     target.appendChild(ph);
   }
 
@@ -486,7 +499,7 @@ function updateGroupCounters() {
       .filter(r => r.dataset.group === counter.dataset.group);
     const withPref = rows.filter(r => hasPreference(r.dataset.key));
     counter.textContent = rows.length
-      ? `— ${withPref.length} van ${rows.length} met voorkeur`
+      ? `${withPref.length} van ${rows.length} leerlingen met voorkeuren`
       : '';
   });
 }
@@ -501,8 +514,10 @@ function makeNietInChip(key, group) {
   const del = document.createElement('button');
   del.type = 'button';
   del.className = 'delete-btn chip-del';
+  del.title = `Verwijder uitgesloten groep ${group}`;
+  del.setAttribute('aria-label', `Verwijder uitgesloten groep ${group}`);
   del.textContent = '✖';
-  del.onclick = () => chip.remove();
+  del.onclick = () => { chip.remove(); renderRow(key); };
   const hidden = document.createElement('input');
   hidden.type = 'hidden';
   hidden.name = `nieting_${key}`;
@@ -527,6 +542,7 @@ function addNietIn(key, maxAllowed) {
   }
   errEl.textContent = '';
   chipsContainer.appendChild(makeNietInChip(key, group));
+  renderRow(key);
 }
 
 // ── Prefill from saved state ──────────────────────────────────────────────────
@@ -570,7 +586,8 @@ function setBackgroundInert(editor, on) {
   }
 }
 
-// Snapshot the editable state on open, so a cancel (×/Esc/backdrop) can revert it. The
+// Snapshot the editable state on open, so explicit cancel can revert it. Esc and backdrop
+// clicks deliberately leave the modal and its edits intact. The
 // editor edits live chips, and saveDraft posts the whole form, so an un-reverted cancel
 // would silently persist on the next pupil's save. Reverting keeps the invariant: outside
 // an open modal, the DOM equals the last saved draft.
@@ -671,35 +688,8 @@ document.querySelectorAll('.combobox-input').forEach(initCombobox);
 document.querySelectorAll('.candidate-row').forEach(row => renderRow(row.dataset.key));
 updateGroupCounters();
 
-// ── Click-popovers for the heavier ⓘ explanations (short ones stay hover-title) ──
-let _openInfoBtn = null;
-function closeInfoPopover() {
-  document.querySelectorAll('.info-popover').forEach(p => p.remove());
-}
-function showInfoPopover(btn) {
-  const wasOpen = _openInfoBtn === btn;
-  closeInfoPopover();
-  _openInfoBtn = null;
-  if (wasOpen) return;  // second click closes it
-  const pop = document.createElement('div');
-  pop.className = 'info-popover';
-  pop.textContent = btn.dataset.help;
-  btn.insertAdjacentElement('afterend', pop);
-  _openInfoBtn = btn;
-}
-document.querySelectorAll('.info-pop').forEach(btn => {
-  btn.addEventListener('click', e => {
-    e.preventDefault();
-    e.stopPropagation();  // keep a surrounding <summary> from toggling
-    showInfoPopover(btn);
-  });
-});
-document.addEventListener('click', e => {
-  if (!e.target.closest('.info-popover')) { closeInfoPopover(); _openInfoBtn = null; }
-});
-
 // ── Draft save: closing a pupil's modal persists the work ─────────────────────
-// There is no automatic autosave any more: the modal's only exit ("Opslaan") posts a
+// There is no automatic autosave any more: the modal's explicit "Voorkeuren opslaan" action posts a
 // background draft (never voorkeuren.json), which a reload restores via the normal
 // prefill. beforeunload still warns about the one remaining loss path: closing the tab
 // while a change has not yet been saved (e.g. mid-edit in an open modal).
@@ -722,7 +712,11 @@ document.addEventListener('click', e => {
   form.addEventListener('change', markDirty);
   new MutationObserver(markDirty).observe(form, { childList: true, subtree: true });
 
-  form.addEventListener('submit', () => { submitting = true; });
+  form.addEventListener('submit', event => {
+    // A sociogram submit opens the server response in a new tab. The original tab stays
+    // open, so its beforeunload protection must not be disabled as if it navigated away.
+    submitting = event.submitter?.value !== 'sociogram';
+  });
   window.addEventListener('beforeunload', e => {
     if (dirty && !submitting) { e.preventDefault(); e.returnValue = ''; }
   });

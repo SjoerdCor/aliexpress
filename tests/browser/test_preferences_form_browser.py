@@ -3,7 +3,7 @@
 """Browser tests for the preferences_form page JavaScript.
 
 These cover the JS behaviours that the Flask test client cannot exercise: the read-only
-overview + per-pupil edit modal (open, Opslaan, cancel/revert), the constrained combobox
+overview + per-pupil edit modal (open, save, cancel/revert), the constrained combobox
 (select a known student or group, no free text), chip add/remove, duplicate rules, the
 read-only row projection (chips, intensity, badge, empty accent), and forward navigation.
 The population is fixed by the roster step, so this page only enters preferences.
@@ -39,16 +39,17 @@ CANDIDATES = [
 ]
 
 
-def _open_preferences_form(live_server, tmp_path, page):
+def _open_preferences_form(live_server, tmp_path, page, candidates=None):
     """Set up a process and navigate the browser to /preferences_form.
 
     Two destination groups (Klas A/Klas B) so group targets and niet-in are exercised.
     Returns the process directory so tests can inspect written files.
     """
+    candidates = candidates or CANDIDATES
     proc = tmp_path / TEST_SCHOOLCODE / "browsertest"
     proc.mkdir(parents=True, exist_ok=True)
     (proc / "relevant_students_and_groups.json").write_text(
-        json.dumps({"candidates": CANDIDATES, "groups_from": ["Groep 3"]}),
+        json.dumps({"candidates": candidates, "groups_from": ["Groep 3"]}),
         encoding="utf-8",
     )
     pd.DataFrame(
@@ -60,7 +61,7 @@ def _open_preferences_form(live_server, tmp_path, page):
     )
     # The roster step ran already (form method chosen), so resume lands on the form.
     (proc / "roster.json").write_text(
-        json.dumps({"participants": CANDIDATES}), encoding="utf-8"
+        json.dumps({"participants": candidates}), encoding="utf-8"
     )
     with app.app_context():
         flask_db.session.add(Process(school_id=TEST_SCHOOLCODE, name="browsertest"))
@@ -91,8 +92,26 @@ def test_clicking_pupil_row_opens_edit_modal(live_server, tmp_path, page):
 
 
 @pytest.mark.usefixtures("login")
-def test_modal_opslaan_closes_and_persists(live_server, tmp_path, page):
-    """The modal's only exit, 'Opslaan', closes the modal and saves in the background; a
+def test_native_pupil_row_opens_with_enter_and_space(live_server, tmp_path, page):
+    """Native pupil buttons open the matching dialog from both keyboard activation keys."""
+    _open_preferences_form(live_server, tmp_path, page)
+    row = page.locator("#row-s1")
+
+    row.focus()
+    page.keyboard.press("Enter")
+    assert page.locator("#editor-s1").is_visible()
+    page.click("#editor-s1 .modal-cancel")
+
+    row.focus()
+    page.keyboard.press("Space")
+    assert page.locator("#editor-s1").is_visible()
+    assert page.locator("#editor-s1").get_attribute("role") == "dialog"
+    assert page.locator("#editor-s1").get_attribute("aria-modal") == "true"
+
+
+@pytest.mark.usefixtures("login")
+def test_modal_save_closes_and_persists(live_server, tmp_path, page):
+    """The modal's explicit save closes the modal and saves in the background; a
     reload (without an explicit form save) restores the entered preference."""
     _open_preferences_form(live_server, tmp_path, page)
     _open_pupil_modal(page, "s1")
@@ -252,7 +271,7 @@ def test_badge_distinguishes_two_extra_zekerheid_levels(live_server, tmp_path, p
 
 @pytest.mark.usefixtures("login")
 def test_row_with_nothing_set_shows_neutral_placeholder(live_server, tmp_path, page):
-    """A pupil with nothing set at all gets a neutral 'nog niet ingevuld' accent — not a
+    """A pupil with nothing set at all gets a neutral status — not a
     warning. Adding a preference clears it."""
     _open_preferences_form(live_server, tmp_path, page)
     row = page.locator("#row-s2")
@@ -291,7 +310,7 @@ def test_row_uses_short_name_but_stores_full_target(live_server, tmp_path, page)
 
 @pytest.mark.usefixtures("login")
 def test_no_tussentijds_opslaan_button(live_server, tmp_path, page):
-    """The bottom 'Tussentijds opslaan' button is gone: each modal's 'Opslaan' persists,
+    """The bottom 'Tussentijds opslaan' button is gone: each modal save persists,
     so a separate page-wide save is redundant (ADR 0007)."""
     _open_preferences_form(live_server, tmp_path, page)
     assert page.locator("button[value='opslaan']").count() == 0
@@ -321,7 +340,7 @@ def test_readonly_chip_has_descriptive_hover_title(live_server, tmp_path, page):
     page.click("#chips-graag_met-s1 .intensity-pill:has-text('heel graag')")
     page.click("#editor-s1 .modal-done")
     title = page.locator("#rowchips-s1 .chip--graag").get_attribute("title")
-    assert "Graag met" in title
+    assert "Graag bij" in title
     assert "heel graag" in title
 
 
@@ -362,19 +381,81 @@ def test_group_counter_counts_pupils_with_preference(live_server, tmp_path, page
 
 @pytest.mark.usefixtures("login")
 def test_forward_button_navigates_to_not_together(live_server, tmp_path, page):
-    """'Naar niet samen →' submits the form and redirects to /not_together."""
+    """The primary next action submits the form and redirects to /not_together."""
     _open_preferences_form(live_server, tmp_path, page)
     page.click("button.next-step")
     page.wait_for_url("**/not_together")
 
 
 @pytest.mark.usefixtures("login")
-def test_help_is_collapsible_and_open_by_default(live_server, tmp_path, page):
-    """The page help is a collapsible block, open by default, with a worked example."""
+def test_sociogram_action_posts_current_form_in_new_tab(live_server, tmp_path, page):
+    """The secondary form action opens a sociogram containing the current relationship."""
     _open_preferences_form(live_server, tmp_path, page)
-    help_box = page.locator("details.instructions-box")
+    _open_pupil_modal(page, "s1")
+    page.fill("#combo-graag_met-s1", "Bram")
+    page.press("#combo-graag_met-s1", "Enter")
+    page.click("#editor-s1 .modal-done")
+
+    with page.expect_popup() as popup_info:
+        page.click("button.sociogram-action")
+    popup = popup_info.value
+    popup.wait_for_url("**/sociogram")
+    popup.wait_for_function("window.sociogramReady === true")
+    assert page.url.endswith("/preferences_form")
+    content = popup.content()
+    assert "annabos" in content
+    assert "bramdijk" in content
+
+
+@pytest.mark.usefixtures("login")
+@pytest.mark.parametrize("width", [1280, 390, 320])
+def test_preferences_form_has_no_overflow_at_zoom_and_with_long_names(
+    live_server, tmp_path, page, width
+):
+    """The page and dialog remain reachable at required widths and 200% zoom."""
+    long_candidates = [
+        {
+            "key": "s1",
+            "roepnaam": "Alexandria",
+            "achternaam": "Van der Bovenkamp-Smit",
+            "geslacht": "Meisje",
+            "groepsnaam": "De allerlangste huidige groep met een beschrijvende naam",
+        },
+        {
+            "key": "s2",
+            "roepnaam": "Maximiliaan",
+            "achternaam": "Willemsen-van den Berg",
+            "geslacht": "Jongen",
+            "groepsnaam": "De allerlangste huidige groep met een beschrijvende naam",
+        },
+    ]
+    _open_preferences_form(live_server, tmp_path, page, long_candidates)
+    # Browser zoom halves the effective CSS viewport. Use that effective viewport here so
+    # the check exercises the same responsive breakpoints without changing page content.
+    page.set_viewport_size({"width": width // 2, "height": 720})
+
+    page.locator(".candidate-row").first.click()
+    overflow = page.evaluate(
+        """() => ({
+            width: innerWidth,
+            scroll: document.documentElement.scrollWidth,
+            dialogScroll: document.querySelector('[role="dialog"]').scrollWidth,
+            dialogClient: document.querySelector('[role="dialog"]').clientWidth
+        })"""
+    )
+    assert overflow["scroll"] <= overflow["width"], overflow
+    assert overflow["dialogScroll"] <= overflow["dialogClient"], overflow
+
+
+@pytest.mark.usefixtures("login")
+def test_help_is_collapsible_and_closed_by_default(live_server, tmp_path, page):
+    """The optional preference explanation starts closed and can be opened."""
+    _open_preferences_form(live_server, tmp_path, page)
+    help_box = page.locator("#preference-help")
+    assert not help_box.get_attribute("open")
+    page.locator("#preference-help > summary").click()
     assert help_box.get_attribute("open") is not None
-    assert "voorbeeld" in help_box.inner_text().lower()
+    assert "eerste vervulde voorkeur" in help_box.inner_text()
 
 
 @pytest.mark.usefixtures("login")
@@ -396,15 +477,12 @@ def test_chip_visual_class_per_kind(live_server, tmp_path, page):
 
 
 @pytest.mark.usefixtures("login")
-def test_info_popover_toggles(live_server, tmp_path, page):
-    """Clicking a heavy ⓘ opens a popover; clicking it again closes it."""
+def test_preference_help_has_no_duplicate_info_buttons(live_server, tmp_path, page):
+    """The editor uses visible field help instead of duplicate info popovers."""
     _open_preferences_form(live_server, tmp_path, page)
     _open_pupil_modal(page, "s1")
-    info = page.locator("#editor-s1 .preference-section .info-pop").first
-    info.click()
-    assert page.locator(".info-popover").count() == 1
-    info.click()
-    assert page.locator(".info-popover").count() == 0
+    assert page.locator("#editor-s1 .info-pop").count() == 0
+    assert page.locator("#editor-s1 .preference-section-help").count() == 2
 
 
 @pytest.mark.usefixtures("login")
@@ -447,15 +525,16 @@ def test_keyboard_enter_accepts_highlighted_match(live_server, tmp_path, page):
 
 
 @pytest.mark.usefixtures("login")
-def test_keyboard_tab_accepts_highlighted_match(live_server, tmp_path, page):
-    """Tab accepts the highlighted match while choosing (like Enter)."""
+def test_keyboard_tab_moves_without_accepting_highlighted_match(
+    live_server, tmp_path, page
+):
+    """Tab moves focus without turning a highlighted suggestion into a preference."""
     _open_preferences_form(live_server, tmp_path, page)
     _open_pupil_modal(page, "s1")
     page.fill("#combo-graag_met-s1", "Bram")
     page.press("#combo-graag_met-s1", "Tab")
     chips = page.locator("#chips-graag_met-s1 .preference-chip")
-    assert chips.count() == 1
-    assert "Bram" in chips.first.inner_text()
+    assert chips.count() == 0
 
 
 @pytest.mark.usefixtures("login")
@@ -521,14 +600,17 @@ def test_chip_intensity_pills_set_weight(live_server, tmp_path, page):
 
 
 @pytest.mark.usefixtures("login")
-def test_liever_niet_has_two_intensity_levels(live_server, tmp_path, page):
-    """'Liever niet met' offers two intensity levels (liever niet / echt niet)."""
+def test_liever_niet_has_two_importance_levels(live_server, tmp_path, page):
+    """Negative preferences show the approved importance labels and retain two weights."""
     _open_preferences_form(live_server, tmp_path, page)
     _open_pupil_modal(page, "s1")
     page.fill("#combo-liever_niet_met-s1", "Bram")
     page.press("#combo-liever_niet_met-s1", "Enter")
     page.click("#chips-liever_niet_met-s1 .chip-label")
     assert page.locator("#chips-liever_niet_met-s1 .intensity-pill").count() == 2
+    assert page.locator(
+        "#chips-liever_niet_met-s1 .intensity-pill"
+    ).all_inner_texts() == ["Belangrijk", "Heel belangrijk"]
 
 
 @pytest.mark.usefixtures("login")

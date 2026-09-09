@@ -1,0 +1,447 @@
+/* Page 7: preferences overview and per-pupil editor. */
+
+.page-intro {
+  max-width: 65ch;
+  margin: 0 0 1rem;
+  line-height: 1.5;
+}
+
+.preference-help {
+  max-width: 65ch;
+  margin: 0 0 1rem;
+}
+
+.preference-help > summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.preference-help__body {
+  max-width: 65ch;
+  padding-top: 0.5rem;
+}
+
+.preference-help__body p {
+  margin: 0.5rem 0;
+  line-height: 1.5;
+}
+
+/* The page title is part of this page's narrow-layout contract too. */
+.container > h1 {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+#preferences-form .group-header {
+  min-width: 0;
+  max-width: 100%;
+  margin-top: 1rem;
+}
+
+#preferences-form .group-name {
+  min-width: 0;
+  font-size: 1.05rem;
+  overflow-wrap: anywhere;
+}
+
+#preferences-form .group-counter {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+#preferences-form .candidate-row {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+}
+
+#preferences-form {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+#preferences-form .candidate-row:focus-visible {
+  position: relative;
+  z-index: 1;
+}
+
+#preferences-form .candidate-row .row-id {
+  min-width: 0;
+}
+
+#preferences-form .candidate-row .row-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+#preferences-form .candidate-row .row-chips {
+  min-width: 0;
+}
+
+#preferences-form .candidate-row .row-edit {
+  flex: 0 0 auto;
+}
+
+#preferences-form .candidate-row .chip {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+#preferences-form .combobox {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+#preferences-form .combobox-label {
+  display: block;
+  margin: 0.5rem 0 0.25rem;
+  font-size: 0.95rem;
+}
+
+#preferences-form .combobox-input {
+  min-width: 0;
+}
+
+#preferences-form .combobox-list {
+  max-width: 100%;
+}
+
+#preferences-form .combobox-option {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+#preferences-form .nieting-select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+#preferences-form .preference-section {
+  min-width: 0;
+  margin: 0.25rem 0 1rem;
+}
+
+#preferences-form .preference-section-label {
+  margin: 0.1rem 0 0.15rem;
+}
+
+#preferences-form .preference-section-help {
+  max-width: 65ch;
+  margin: 0.15rem 0 0.45rem;
+  line-height: 1.45;
+}
+
+#preferences-form .chips-area {
+  min-width: 0;
+}
+
+#preferences-form .preference-chip,
+#preferences-form .niet-in-chip {
+  max-width: 100%;
+  flex-wrap: wrap;
+  overflow-wrap: anywhere;
+}
+
+#preferences-form .chip-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+#preferences-form .chip-pills {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  max-width: 100%;
+}
+
+#preferences-form .chip-pills-caption {
+  font-size: 0.8em;
+  color: #555;
+  margin-right: 0.15rem;
+}
+
+#preferences-form .intensity-pill {
+  min-height: 2rem;
+  padding: 0.1rem 0.5rem;
+}
+
+#preferences-form .extra-zekerheid {
+  margin-top: 0.4rem;
+}
+
+#preferences-form .extra-zekerheid > summary {
+  cursor: pointer;
+  color: #555;
+  font-size: 0.95rem;
+}
+
+#preferences-form .extra-zekerheid-help {
+  max-width: 65ch;
+  margin: 0.5rem 0;
+  color: #333;
+  line-height: 1.5;
+}
+
+#preferences-form .extra-zekerheid-options label {
+  display: block;
+  max-width: 100%;
+  margin: 0.35rem 0;
+  font-weight: normal;
+}
+
+/* The read-only rows retain the existing kind/intensity visual language while adding
+   enough wrapping room for long pupil and group names. */
+#preferences-form .candidate-row .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 9px;
+  border-radius: 12px;
+  border: 1px solid;
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+#preferences-form .candidate-row .chip .sign {
+  flex: 0 0 auto;
+  font-weight: 700;
+}
+
+#preferences-form .candidate-row .chip .slot {
+  flex: 0 0 auto;
+  margin-left: 1px;
+  font-weight: 700;
+}
+
+#preferences-form .candidate-row .chip .heart {
+  color: #c0392b;
+}
+
+#preferences-form .candidate-row .chip--graag .sign {
+  color: #1e6b27;
+}
+
+#preferences-form .candidate-row .chip--graag.w-weak {
+  background: #dcefdd;
+  border-color: #a8d3ad;
+  color: #3a5a3e;
+}
+
+#preferences-form .candidate-row .chip--graag.w-normal {
+  background: #bfe6c4;
+  border-color: #7bbd83;
+  color: #143d1a;
+}
+
+#preferences-form .candidate-row .chip--graag.w-strong {
+  background: #8fd49a;
+  border-color: #3f9b50;
+  color: #0c3214;
+  font-weight: 600;
+}
+
+#preferences-form .candidate-row .chip--graag.w-top {
+  background: #6cc47c;
+  border-color: #2f8a40;
+  color: #06270d;
+  font-weight: 600;
+}
+
+#preferences-form .candidate-row .chip--liever .sign {
+  color: #962f1f;
+}
+
+#preferences-form .candidate-row .chip--liever.w-normal {
+  background: #f1c4ba;
+  border-color: #cf8a7b;
+  color: #5a1c10;
+}
+
+#preferences-form .candidate-row .chip--liever.w-strong {
+  background: #e79683;
+  border-color: #c0533c;
+  color: #3f1109;
+  font-weight: 600;
+}
+
+#preferences-form .candidate-row .chip--nietin {
+  background: #d8d8d8;
+  border-color: #a6a6a6;
+  color: #333;
+}
+
+#preferences-form .candidate-row .chip--nietin .sign {
+  color: #555;
+}
+
+#preferences-form .candidate-row .row-placeholder {
+  color: #8a8178;
+  font-style: italic;
+  font-size: 0.9rem;
+}
+
+#preferences-form .candidate-row--empty .row-name {
+  color: #777;
+  font-weight: 500;
+}
+
+#preferences-form .badge-zeker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  font-size: 0.85rem;
+}
+
+#preferences-form .badge-zeker--partial {
+  background: #fff;
+  border: 1px solid #a06a00;
+}
+
+#preferences-form .badge-zeker--full {
+  background: #f1c40f;
+  border: 1px solid #8a6500;
+}
+
+/* Editors stay in the one form and become dialogs without moving their form controls. */
+#preferences-form .candidate-editor {
+  display: none;
+}
+
+#preferences-form .candidate-editor.is-editing {
+  display: block;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  box-sizing: border-box;
+  width: min(560px, calc(100vw - 1rem));
+  max-height: calc(100vh - 1rem);
+  overflow-x: hidden;
+  overflow-y: auto;
+  transform: translate(-50%, -50%);
+  border-radius: 0.75rem;
+  background: #fff;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  z-index: 20;
+}
+
+#preferences-form .candidate-editor .modal-head {
+  padding: 1rem 1.25rem 0.6rem;
+  border-bottom: 1px solid #eee;
+}
+
+#preferences-form .candidate-editor .modal-title {
+  margin: 0;
+  font-size: 1.2rem;
+  overflow-wrap: anywhere;
+}
+
+#preferences-form .candidate-editor .modal-sub {
+  color: #555;
+  overflow-wrap: anywhere;
+}
+
+#preferences-form .candidate-editor .candidate-content {
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 0.6rem 1.25rem;
+  line-height: 1.5;
+}
+
+#preferences-form .candidate-editor .modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.9rem 1.25rem 1.2rem;
+}
+
+.scrim {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 15, 10, 0.45);
+  z-index: 10;
+}
+
+.scrim.open {
+  display: block;
+}
+
+body.modal-open {
+  overflow: hidden;
+}
+
+.preferences-sociogram-link {
+  width: 100%;
+  margin: 1.5rem 0 0;
+}
+
+.sociogram-action {
+  max-width: 100%;
+  white-space: normal;
+}
+
+#preferences-form .step-navigation {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+#preferences-form .step-navigation .previous-step {
+  margin-right: auto;
+}
+
+#preferences-form .step-navigation .next-step {
+  margin-left: auto;
+}
+
+@media (max-width: 680px) {
+  #preferences-form .candidate-row {
+    flex-wrap: wrap;
+  }
+
+  #preferences-form .candidate-row .row-id {
+    flex: 1 1 12rem;
+  }
+
+  #preferences-form .candidate-row .row-chips {
+    flex: 1 1 100%;
+    order: 3;
+  }
+
+  #preferences-form .candidate-editor .modal-head,
+  #preferences-form .candidate-editor .candidate-content,
+  #preferences-form .candidate-editor .modal-foot {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  #preferences-form .candidate-editor .modal-foot > button,
+  #preferences-form .sociogram-action,
+  #preferences-form .step-navigation .button {
+    max-width: 100%;
+    white-space: normal;
+  }
+
+  #preferences-form .step-navigation .previous-step,
+  #preferences-form .step-navigation .next-step {
+    margin-left: 0;
+    margin-right: 0;
+  }
+}
