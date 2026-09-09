@@ -237,15 +237,16 @@ def test_roster_new_student_jaargroep_dropdown(live_server, page):
     row = page.locator(".new-student-row").last
     jaargroep_select = row.locator("[name='new_jaargroep[]']")
     option_labels = jaargroep_select.locator("option").all_inner_texts()
-    assert option_labels == ["— jaarlaag —", "Jaarlaag 6", "Jaarlaag 7"]
+    assert option_labels == ["— kies huidige jaarlaag —", "Jaarlaag 6", "Jaarlaag 7"]
 
     # Error path: confirming without a jaargroep is rejected, the row stays unconfirmed.
     row.locator("[name='new_voornaam[]']").fill("Mila")
     row.locator("[name='new_achternaam[]']").fill("Visser")
     row.locator("[name='new_geslacht[]']").select_option("Meisje")
+    row.locator("[name='new_groep[]']").select_option(_HERINDELEN_GROUPS[0]["naam"])
     row.locator("button.ns-confirm").click()
     assert row.get_attribute("data-confirmed") == "0"
-    assert "jaarlaag" in row.locator(".ns-error").inner_text().lower()
+    assert "jaarlaag" in page.locator("#roster-client-message").inner_text().lower()
 
     # Happy path: picking a jaargroep and confirming turns the row into a chip.
     jaargroep_select.select_option("6")
@@ -270,16 +271,16 @@ def test_roster_back_button_points_to_select_groups(live_server, page):
     _reach_roster(live_server, page, "roster-nav-test")
 
     back = page.locator("a.previous-step")
-    assert back.inner_text().strip() == "← Naar Groepskeuze"
+    assert back.inner_text().strip() == "← Terug naar groepen kiezen"
     assert back.get_attribute("href").endswith("/select_groups")
 
 
 @pytest.mark.usefixtures("login")
 def test_preferences_form_back_button_points_to_roster(live_server, page):
-    """In redistribute mode, /preferences_form's back button returns to "Wie gaat mee"
+    """In redistribute mode, /preferences_form's back button returns to the roster page
     (groups_to is skipped entirely — ``_groups_to_auto_redistribute``)."""
     _reach_roster(live_server, page, "prefs-nav-test")
-    page.click("button:has-text('Naar Voorkeuren')")
+    page.click("button:has-text('Verder naar voorkeuren →')")
     page.wait_for_url(f"{live_server}/preferences_form")
 
     back = page.locator("a.previous-step")
@@ -296,8 +297,8 @@ def test_full_redistribute_flow_to_result(live_server, page):
     """
     _reach_roster(live_server, page, "full-flow-test")
 
-    # "Wie gaat mee": every candidate is checked by default; continue straight through.
-    page.click("button:has-text('Naar Voorkeuren')")
+    # "Leerlingen controleren": every candidate is checked by default; continue straight through.
+    page.click("button:has-text('Verder naar voorkeuren →')")
     page.wait_for_url(f"{live_server}/preferences_form")
 
     # One "graag met" wish for the first pupil (h01, Anna Berg): an empty preference set for
@@ -335,14 +336,14 @@ def test_redistribute_and_forward_flow_reaches_select_groups_then_next_step(
     live_server, page
 ):
     """Herindelen met doorzetten follows its own order: upload (with jaargroep
-    checkboxes) → roster ("Wie gaat mee") → select_groups (destinations) → groups_to
+    checkboxes) → roster ("Leerlingen controleren") → select_groups (destinations) → groups_to
     (auto) → preferences. Complements the redistribute (in_place) coverage above, which
     goes upload → select_groups → roster instead."""
     _create_redistribute_and_forward_process(live_server, page, "redist-forward-test")
     _upload_redistribute_and_forward_edexml(live_server, page, jaargroepen=[6, 7])
 
     # roster.json has not been settled yet: this is the first visit, straight to /select_groups.
-    page.click("button:has-text('Naar Groepskeuze')")
+    page.get_by_role("button", name="Verder naar nieuwe groepen →").click()
     page.wait_for_url(f"{live_server}/select_groups")
 
     for group in _HERINDELEN_GROUPS[:2]:

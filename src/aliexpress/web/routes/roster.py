@@ -1,4 +1,4 @@
-"""Roster blueprint: the shared "Wie gaat mee" step (ADR 0005, reordered by ADR 0006).
+"""Roster blueprint: the shared "Leerlingen controleren" step (ADR 0005, reordered by ADR 0006).
 
 Determines which leerlingen take part in this verdeling — confirming who goes (unticking
 Verlengers) and, rarely, adding an incoming student. It is the first step after the EDEXML
@@ -34,7 +34,7 @@ roster_bp = Blueprint("roster", __name__)
 @require_process
 @require_school
 def roster_page(school_id):
-    """Shared "Wie gaat mee" step: confirm the population, then pick the preference route."""
+    """Confirm the population, then continue to the next wizard step."""
     process_id = session["process_id"]
 
     try:
@@ -47,34 +47,67 @@ def roster_page(school_id):
         return redirect(url_for("wizard.upload_edexml"))
 
     mode = get_process_mode(get_process_path(school_id, process_id))
+    roster_context = {
+        "groups_from": groups_from,
+        "jaargroep_options": jaargroep_options,
+        "mode": mode,
+    }
 
     if request.method == "POST":
         return _handle_roster_post(
-            school_id, process_id, orig_candidates, groups_from, mode
+            school_id, process_id, orig_candidates, roster_context
         )
 
     saved = load_roster(school_id, process_id)
+    checked_keys, new_students = _saved_roster_values(saved, orig_candidates)
+    return _render_roster_page(
+        orig_candidates,
+        checked_keys,
+        new_students,
+        roster_context,
+    )
+
+
+def _saved_roster_values(saved, orig_candidates):
+    """Return saved selections in the shape expected by the roster template."""
     orig_keys = {c["key"] for c in orig_candidates}
     if saved is None:
-        checked_keys = orig_keys  # first visit: everyone goes by default
-        new_students = []
-    else:
-        participants = saved["participants"]
-        checked_keys = {p["key"] for p in participants if p["key"] in orig_keys}
-        new_students = [p for p in participants if p["key"] not in orig_keys]
+        return orig_keys, []  # first visit: everyone goes by default
+    participants = saved["participants"]
+    checked_keys = {p["key"] for p in participants if p["key"] in orig_keys}
+    new_students = [p for p in participants if p["key"] not in orig_keys]
+    return checked_keys, new_students
+
+
+def _navigation(mode):
+    """Return the route and labels for both visible navigation actions."""
 
     if mode == "redistribute":
         prev_url = url_for("wizard.select_groups")
-        prev_label = "← Naar Groepskeuze"
-        next_label = "Naar Voorkeuren →"
+        prev_label = "← Terug naar groepen kiezen"
+        next_label = "Verder naar voorkeuren →"
     elif mode == "redistribute_and_forward":
         prev_url = url_for("wizard.upload_edexml")
-        prev_label = "← Naar Schoolinformatie uploaden"
-        next_label = "Naar Groepskeuze →"
+        prev_label = "← Terug naar leerlinggegevens"
+        next_label = "Verder naar nieuwe groepen →"
     else:
         prev_url = url_for("wizard.upload_edexml")
-        prev_label = "← Naar Schoolinformatie uploaden"
-        next_label = "Naar Groepen naartoe →"
+        prev_label = "← Terug naar leerlinggegevens"
+        next_label = "Verder naar groepen controleren →"
+    return prev_url, prev_label, next_label
+
+
+def _render_roster_page(
+    orig_candidates,
+    checked_keys,
+    new_students,
+    roster_context,
+):
+    """Render saved values or the values from a rejected POST."""
+    groups_from = roster_context["groups_from"]
+    jaargroep_options = roster_context["jaargroep_options"]
+    mode = roster_context["mode"]
+    prev_url, prev_label, next_label = _navigation(mode)
 
     return render_template(
         "roster.html",
@@ -90,15 +123,78 @@ def roster_page(school_id):
     )
 
 
-def _handle_roster_post(school_id, process_id, orig_candidates, groups_from, mode):
-    """Validate + persist the roster, then continue to "Groepen naartoe" (ADR 0006)."""
+def _form_value(values, name, index):
+    """Return one indexed form value, or an empty string for an omitted field."""
+    items = values[name]
+    return items[index] if index < len(items) else ""
+
+
+def _submitted_new_students(form):
+    """Copy new-student form values for a rejected POST without persisting them."""
+    field_names = (
+        "new_key[]",
+        "new_voornaam[]",
+        "new_achternaam[]",
+        "new_geslacht[]",
+        "new_groep[]",
+        "new_jaargroep[]",
+    )
+    values = {name: form.getlist(name) for name in field_names}
+    row_count = max((len(items) for items in values.values()), default=0)
+    students = []
+    for index in range(row_count):
+        students.append(
+            {
+                "key": _form_value(values, "new_key[]", index) or f"new_{index}",
+                "roepnaam": _form_value(values, "new_voornaam[]", index),
+                "achternaam": _form_value(values, "new_achternaam[]", index),
+                "geslacht": _form_value(values, "new_geslacht[]", index),
+                "groepsnaam": _form_value(values, "new_groep[]", index),
+                "jaargroep": _form_value(values, "new_jaargroep[]", index),
+                "confirmed": False,
+            }
+        )
+    return students
+
+
+def _handle_roster_post(
+    school_id,
+    process_id,
+    orig_candidates,
+    roster_context,
+):
+    """Validate + persist the roster, then continue to the next wizard step."""
+    groups_from = roster_context["groups_from"]
+    mode = roster_context["mode"]
     try:
-        validate_new_students(request.form, orig_candidates, mode)
+        validate_new_students(request.form, orig_candidates, mode, groups_from)
     except ValidationError as exc:
         warn_and_flash(to_validation_message(exc), log_detail=exc.code)
-        return redirect(url_for("roster.roster_page"))
+        orig_keys = {candidate["key"] for candidate in orig_candidates}
+        checked_keys = {
+            key for key in request.form.getlist("gaat_over") if key in orig_keys
+        }
+        return _render_roster_page(
+            orig_candidates,
+            checked_keys,
+            _submitted_new_students(request.form),
+            roster_context,
+        )
 
     participants = build_participants(request.form, orig_candidates, groups_from, mode)
+    if not participants:
+        exc = ValidationError("no_students_selected")
+        warn_and_flash(to_validation_message(exc), log_detail=exc.code)
+        orig_keys = {candidate["key"] for candidate in orig_candidates}
+        checked_keys = {
+            key for key in request.form.getlist("gaat_over") if key in orig_keys
+        }
+        return _render_roster_page(
+            orig_candidates,
+            checked_keys,
+            _submitted_new_students(request.form),
+            roster_context,
+        )
     save_roster(school_id, process_id, {"participants": participants})
     logger.info("Roster accepted: %d participants", len(participants))
     if mode == "redistribute_and_forward":

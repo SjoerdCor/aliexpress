@@ -279,17 +279,16 @@ def parse_balance_maxima_form(form) -> BalanceMaxima:
 
 
 def build_new_candidates(
-    form, groups_from: list, default_jaargroep: int | None = None
+    form, _groups_from: list, default_jaargroep: int | None = None
 ) -> list[dict]:
     """Build candidate dicts for incoming students added via the form.
 
     Expects parallel lists ``new_key[]``, ``new_voornaam[]``, ``new_achternaam[]``,
     ``new_geslacht[]`` and optionally ``new_groep[]``, ``new_jaargroep[]``. Incomplete rows
     are skipped. A row's own ``new_jaargroep[]`` wins; otherwise ``default_jaargroep`` is
-    used (the process's single shared jaargroep in doorzetten mode). No ``"jaargroep"`` key
-    is added when neither is available, matching the Excel input path's None-cohort.
+    used (the process's single shared jaargroep in doorzetten mode). The current group is
+    always taken from the submitted form; the first group is never inferred here.
     """
-    fallback = groups_from[0] if groups_from else ""
     candidates = []
     for key, vn, an, geslacht, groep, jaargroep in zip_longest(
         form.getlist("new_key[]"),
@@ -307,7 +306,7 @@ def build_new_candidates(
                 "roepnaam": vn,
                 "achternaam": an,
                 "geslacht": geslacht,
-                "groepsnaam": groep or fallback,
+                "groepsnaam": groep.strip(),
             }
             resolved_jaargroep = (
                 int(jaargroep) if jaargroep.strip() else default_jaargroep
@@ -318,34 +317,50 @@ def build_new_candidates(
     return candidates
 
 
-def validate_new_students(form, orig_candidates, mode: str) -> None:
+def validate_new_students(
+    form, orig_candidates, mode: str, groups_from: list | None = None
+) -> None:
     """Validate hand-added new students; raise ValidationError on the first problem.
 
-    The form is best-effort client-side, so the server is the safety net: a row that was
-    started but left incomplete, or whose name clashes (compared on matching keys, so
-    spelling/case differences still collide) with an existing leerling or another new
-    student, is rejected. Entirely empty rows are ignored. In herindelen mode (``mode ==
-    "redistribute"``), candidates span several jaargroepen, so a new student must say which
-    one explicitly; in doorzetten mode they all share one, so it can be assumed instead
-    (see ``build_new_candidates``'s ``default_jaargroep``).
+    The form is best-effort client-side, so the server is the safety net: a row that is
+    still open, was started but left incomplete, has no explicit current group, or whose
+    name clashes (compared on matching keys, so spelling/case differences still collide)
+    with an existing leerling or another new student, is rejected. Rows without a key and
+    no values are ignored. In herindelen mode (``mode == "redistribute"``), candidates span
+    several jaargroepen, so a new student must say which one explicitly; in doorzetten mode
+    they all share one, so it can be assumed instead (see ``build_new_candidates``'s
+    ``default_jaargroep``).
     """
     existing = {
         datareader.matching_key(f"{c['roepnaam']} {c['achternaam']}")
         for c in orig_candidates
     }
     seen = set()
-    for vn, an, geslacht, jaargroep in zip_longest(
+    allowed_groups = {
+        str(group).strip() for group in (groups_from or []) if str(group).strip()
+    }
+    allowed_groups.add("Anders")
+    for key, vn, an, geslacht, groep, jaargroep in zip_longest(
+        form.getlist("new_key[]"),
         form.getlist("new_voornaam[]"),
         form.getlist("new_achternaam[]"),
         form.getlist("new_geslacht[]"),
+        form.getlist("new_groep[]"),
         form.getlist("new_jaargroep[]"),
         fillvalue="",
     ):
-        vn, an = vn.strip(), an.strip()
-        if not (vn or an or geslacht):
-            continue  # untouched row
+        vn, an, groep = vn.strip(), an.strip(), groep.strip()
+        has_values = bool(vn or an or geslacht or groep or jaargroep)
+        if key and not has_values:
+            raise ValidationError(code="open_new_student")
+        if not has_values:
+            continue
         if not (vn and an and geslacht):
             raise ValidationError(code="incomplete_new_student")
+        if not groep:
+            raise ValidationError(code="missing_groep_new_student")
+        if groep not in allowed_groups:
+            raise ValidationError(code="invalid_groep_new_student")
         if mode == "redistribute" and not jaargroep.strip():
             raise ValidationError(code="missing_jaargroep_new_student")
         key = datareader.matching_key(f"{vn} {an}")

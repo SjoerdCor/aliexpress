@@ -99,6 +99,19 @@ designsysteem, maar een vriendelijkere en beter leesbare versie van de bestaande
 - Solvergedrag, gewichten, opslagbetekenis en verdeelmodi veranderen niet als onderdeel
   van een tekst- of layoutverbetering.
 
+## UI-patronen om later opnieuw te gebruiken (maar niet in dit plan)
+Een eerdere validatieweergave op de rosterpagina werkte prettig doordat de foutmelding
+direct bij de open invoer stond. De leerkracht zag meteen welk veld nog aandacht nodig had,
+terwijl de al ingevulde waarden bleven staan. Dit patroon is geschikt voor een fout die
+met één kleine correctie in een specifieke rij kan worden opgelost. Houd de tekst kort,
+geef een concreet hersteladvies en laat de invoer intact.
+
+Ook de oranje verticale streep naast een korte toelichting werkte goed. De streep maakte
+een voorbeeld of extra context herkenbaar zonder er een aparte kaart of uitklapper van te
+maken. Een lichte achtergrond, beperkte leesbreedte en wat binnenruimte hielden het rustig.
+Dit patroon is bruikbaar voor ondersteunende tekst, maar niet voor een foutmelding of een
+verplichte instructie die de gebruiker eerst moet vinden.
+
 ## Veranderbudget per commit
 
 Een paginacommit is een kleine verticale verbetering: de template, strikt noodzakelijke
