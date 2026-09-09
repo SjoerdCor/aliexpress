@@ -114,9 +114,10 @@ def _validate_process_name(school_id, process_name, must_exist=True):
         return str(exc)
     proc = Process.by_name(school_id, process_name)
     if must_exist and proc is None:
-        return "Proces bestaat niet"
+        return "Er is geen groepsindeling met deze naam."
     if not must_exist and proc is not None:
-        return "Proces bestaat al"
+        return """Er bestaat al een groepsindeling met deze naam.
+        Kies een andere naam voor de nieuwe groepsindeling."""
     return None
 
 
