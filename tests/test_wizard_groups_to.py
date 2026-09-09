@@ -18,10 +18,109 @@ class TestGroupsToPage:
         """GET /groups_to reads the candidates JSON and renders group names in the page."""
         proc_dir = setup_process(client, tmp_path)
         # groups_to is a dict {groupname: [students]}; the template calls .items()
-        write_groups_to_json(proc_dir, {"Klas A": [], "Klas B": []})
+        write_groups_to_json(
+            proc_dir,
+            {
+                "Klas A": [
+                    {
+                        "roepnaam": "Anna",
+                        "achternaam": "Bos",
+                        "geslacht": "Meisje",
+                        "jaargroep": 6,
+                        "blijft_in_groep": True,
+                    }
+                ],
+                "Klas B": [],
+            },
+        )
         response = client.get("/groups_to")
         assert response.status_code == 200
         assert b"Klas A" in response.data
+        assert b"Groepen voor volgend jaar" in response.data
+        assert b"Anna Bos" in response.data
+        assert b'student-year"> (jaarlaag 6)</span>' in response.data
+        html = response.data.decode("utf-8")
+        assert (
+            "Blijven in deze groep: 1 leerling "
+            + chr(183)
+            + " 0 jongens "
+            + chr(183)
+            + " 1 meisje"
+            in html
+        )
+        assert b'class="groups-to-intro"' in response.data
+
+    def test_server_validation_saves_draft_and_uses_approved_messages(
+        self, client, tmp_path
+    ):
+        """Each server-side groups-to validation leaves the submitted draft restorable."""
+        proc_dir = setup_process(client, tmp_path)
+        write_groups_to_json(
+            proc_dir,
+            {
+                "Klas A": make_students("Jongen", "Meisje"),
+                "Klas B": make_students("Meisje"),
+            },
+        )
+
+        response = client.post(
+            "/groups_to",
+            data={
+                "group": ["Klas A"],
+                "group_students[Klas A]": ["1"],
+            },
+        )
+        assert response.status_code == 302
+        assert ("error", "Kies minimaal twee groepen voor volgend jaar.") in flashes(
+            client
+        )
+        saved = json.loads((proc_dir / "groups_to_state.json").read_text("utf-8"))
+        assert saved["original_groups"]["Klas A"]["checked_indices"] == [1]
+        assert saved["disabled_groups"] == ["Klas B"]
+
+        response = client.post(
+            "/groups_to",
+            data={
+                "group": ["Klas A", "Klas A"],
+                "group_students[Klas A]": ["0"],
+            },
+        )
+        assert response.status_code == 302
+        assert (
+            "error",
+            "Iedere groep heeft een unieke naam nodig. Pas de dubbele groepsnaam ‘Klas A’ aan.",
+        ) in flashes(client)
+        saved = json.loads((proc_dir / "groups_to_state.json").read_text("utf-8"))
+        assert saved["original_groups"]["Klas A"]["checked_indices"] == [0]
+
+        response = client.post(
+            "/groups_to",
+            data={
+                "group": ["Klas A"],
+                "new_group": [""],
+                "group_students[Klas A]": ["1"],
+            },
+        )
+        assert response.status_code == 302
+        assert ("error", "Geef iedere nieuwe groep een naam.") in flashes(client)
+        saved = json.loads((proc_dir / "groups_to_state.json").read_text("utf-8"))
+        assert saved["new_groups"] == [""]
+
+        response = client.post(
+            "/groups_to",
+            data={
+                "group": ["Klas A"],
+                "new_group": ["Klas A"],
+                "group_students[Klas A]": ["0"],
+            },
+        )
+        assert response.status_code == 302
+        assert (
+            "error",
+            "Iedere groep heeft een unieke naam nodig. Pas de dubbele groepsnaam ‘Klas A’ aan.",
+        ) in flashes(client)
+        saved = json.loads((proc_dir / "groups_to_state.json").read_text("utf-8"))
+        assert saved["new_groups"] == ["Klas A"]
 
     def test_post_too_few_groups_flashes_error(self, client, tmp_path):
         """POST /groups_to with fewer than 2 groups flashes an error and redirects back."""
@@ -32,7 +131,9 @@ class TestGroupsToPage:
             data={"group": ["Klas A"], "group_students[Klas A]": ["0"]},
         )
         assert response.status_code == 302
-        assert any(cat == "error" for cat, _ in flashes(client))
+        assert ("error", "Kies minimaal twee groepen voor volgend jaar.") in flashes(
+            client
+        )
 
     def test_post_duplicate_group_names_flashes_error(self, client, tmp_path):
         """POST /groups_to with duplicate group names flashes an error and redirects back."""
@@ -44,8 +145,10 @@ class TestGroupsToPage:
         )
         assert response.status_code == 302
         messages = flashes(client)
-        assert any(cat == "error" for cat, _ in messages)
-        assert any("Klas A" in msg for _, msg in messages)
+        assert (
+            "error",
+            "Iedere groep heeft een unieke naam nodig. Pas de dubbele groepsnaam ‘Klas A’ aan.",
+        ) in messages
 
     def test_post_form_choice_records_method_and_redirects_to_form(
         self, client, tmp_path
@@ -110,7 +213,8 @@ class TestGroupsToPage:
         response = client.post(
             "/groups_to",
             data={
-                "group": ["Klas A", "Nieuwe groep 1"],
+                "group": ["Klas A"],
+                "new_group": ["Nieuwe groep 1"],
                 "group_students[Klas A]": ["0", "1", "2"],
             },
         )
@@ -136,7 +240,8 @@ class TestGroupsToPage:
             "/groups_to",
             data={
                 # Klas B switched off (absent from 'group'); a new empty group added.
-                "group": ["Klas A", "Nieuwe groep 1"],
+                "group": ["Klas A"],
+                "new_group": ["Nieuwe groep 1"],
                 "group_students[Klas A]": ["1"],
             },
         )
@@ -166,13 +271,16 @@ class TestGroupsToPage:
             encoding="utf-8",
         )
         html = client.get("/groups_to").data.decode("utf-8")
-        checkboxes = re.findall(r'<input type="checkbox".*?>', html, re.DOTALL)
+        checkboxes = re.findall(
+            r'<input type="checkbox"[^>]*data-gender="[^"]+"[^>]*>', html, re.DOTALL
+        )
         ticked = [c for c in checkboxes if "checked" in c]
         # Exactly one box is ticked: the second student of Klas A (index 1).
         assert len(ticked) == 1
         assert 'value="1"' in ticked[0]
         assert "group-disabled" in html  # Klas B comes in switched off
         assert "Nieuwe groep 1" in html  # restored new group is rendered
+        assert 'name="group"' in html
 
 
 class TestGroupsToRedistribute:

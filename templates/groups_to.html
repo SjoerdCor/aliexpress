@@ -1,180 +1,265 @@
 {% extends "base.html" %}
 {% set current_step = 3 %}
+{% block extra_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='groups-to.css') }}">
+{% endblock %}
+{% block header %}Groepen voor volgend jaar{% endblock %}
+{% macro count_text(total, boys, girls) -%}
+Blijven in deze groep: {{ total }} {% if total == 1 %}leerling{% else %}leerlingen{% endif %} · {{ boys }} {% if boys == 1 %}jongen{% else %}jongens{% endif %} · {{ girls }} {% if girls == 1 %}meisje{% else %}meisjes{% endif %}
+{%- endmacro %}
 {% block content %}
-<h2>Hoeveel jongens en meisjes blijven er in elke groep achter?</h2>
-<div class="instructions-box">
-  <p>
-    Voor een eerlijke verdeling moet ALI Express weten waarmee elke toekomstige groep al
-    begint: hoeveel <strong>jongens</strong>, hoeveel <strong>meisjes</strong> en hoeveel
-    leerlingen in totaal er volgend jaar achterblijven. Die telling staat bovenaan elke
-    groep — dáár draait deze stap om.
+<main class="groups-to-page">
+  <p class="groups-to-intro">
+    In deze groepen zitten volgend schooljaar al leerlingen. ALI Express telt hen mee, zodat de groepsindeling straks zo evenwichtig mogelijk kan worden.
   </p>
-  <p>
-    De lijsten zijn alvast ingevuld met wie er volgens de schooladministratie achterblijft.
-    <strong>Vink aan of uit</strong> tot de telling klopt — denk aan zittenblijvers of leerlingen
-    die van school wisselen. Een groep die geen bestemming is, kun je uitzetten; onderaan
-    kun je een nieuwe (lege) groep toevoegen.
-  </p>
-</div>
 
-<form method="post" onsubmit="return validateForm()">
-  <div id="groups-to">
-    {% for groupname, students in groups_to.items() %}
-      {% set checked_idx = state.original_groups.get(groupname, {}).get('checked_indices', []) if state else none %}
-      {% set is_disabled = state and groupname in state.disabled_groups %}
-      <div class="group-block {% if is_disabled %}group-disabled{% endif %}" data-group="{{ groupname }}">
-        <input type="hidden" name="group" value="{{ groupname }}" class="group-name-field">
+  <section class="groups-to-guidance" aria-labelledby="groups-to-guidance-heading">
+    <h2 id="groups-to-guidance-heading">Controleer welke leerlingen blijven</h2>
+    <p>
+      De leerlingen uit de schooladministratie staan alvast aangevinkt. Laat het vinkje staan als een leerling volgend schooljaar in deze groep blijft. Haal het vinkje weg als de leerling deze groep verlaat. De aantallen bij de groep worden meteen bijgewerkt.
+    </p>
+    <p>
+      Staat een groep volgend schooljaar niet in deze groepsindeling? Zet ‘Deze groep gebruiken’ dan uit.
+    </p>
+  </section>
 
-        <div class="group-header">
-          <strong class="group-title">{{ groupname }}</strong>
-          <span class="group-count" aria-live="polite"></span>
-          <button type="button" class="button button--small group-disable">Groep uitzetten</button>
-        </div>
-
-        <ul class="student-list">
-          {% for s in students %}
-            <li>
-              <label>
-                <input type="checkbox"
-                       name="group_students[{{ groupname }}]"
-                       value="{{ loop.index0 }}"
-                       data-gender="{{ s.geslacht }}"
-                       {% if state %}{% if loop.index0 in checked_idx %}checked{% endif %}
-                       {% elif s.blijft_in_groep %}checked{% endif %}>
-                {{ s.roepnaam }} {{ s.achternaam }} ({{ s.jaargroep }})
-              </label>
-            </li>
-          {% endfor %}
-        </ul>
-      </div>
-    {% endfor %}
-  </div>
-
-  <div id="new-groups">
-    {% if state %}
-      {% for name in state.new_groups %}
-        <div class="group-block">
+  <form id="groups-to-form" method="post" novalidate>
+    <div id="groups-to">
+      {% for groupname, students in groups_to.items() %}
+        {% set checked_idx = state.original_groups.get(groupname, {}).get('checked_indices', []) if state else none %}
+        {% set is_disabled = state and groupname in state.disabled_groups %}
+        {% set counts = namespace(boys=0, girls=0) %}
+        {% for student in students %}
+          {% set is_checked = (state and loop.index0 in checked_idx) or (not state and student.blijft_in_groep) %}
+          {% if is_checked and student.geslacht == "Jongen" %}{% set counts.boys = counts.boys + 1 %}{% endif %}
+          {% if is_checked and student.geslacht == "Meisje" %}{% set counts.girls = counts.girls + 1 %}{% endif %}
+        {% endfor %}
+        {% set total = counts.boys + counts.girls %}
+        {% set details_id = "group-students-" ~ loop.index %}
+        <section class="groups-to-group group-block{% if is_disabled %} group-disabled{% endif %}" data-group="{{ groupname }}">
           <div class="group-header">
-            <input type="text" name="group" class="group-name-field group-name-input" value="{{ name }}" required>
-            <span class="group-count">Jongens: 0 · Meisjes: 0 · Totaal: 0</span>
-            <button type="button" class="button button--small group-remove">Verwijderen</button>
+            <h3 class="group-title">{{ groupname }}</h3>
+            <label class="group-toggle">
+              <input type="checkbox"
+                     name="group"
+                     value="{{ groupname }}"
+                     data-group-toggle
+                     aria-controls="{{ details_id }}"
+                     {% if not is_disabled %}checked{% endif %}>
+              Deze groep gebruiken
+            </label>
+            <p class="group-count" aria-live="polite">{{ count_text(total, counts.boys, counts.girls) }}</p>
           </div>
-          <ul class="student-list">
-            <li class="empty-hint">Geen achterblijvers — deze groep wordt gevuld met te verdelen leerlingen.</li>
-          </ul>
-        </div>
+
+          <div id="{{ details_id }}" class="group-students"{% if is_disabled %} hidden{% endif %}>
+            <ul class="student-list">
+              {% for student in students %}
+                {% set student_checked = (state and loop.index0 in checked_idx) or (not state and student.blijft_in_groep) %}
+                <li>
+                  <label>
+                    <input type="checkbox"
+                           name="group_students[{{ groupname }}]"
+                           value="{{ loop.index0 }}"
+                           data-gender="{{ student.geslacht }}"
+                           {% if student_checked %}checked{% endif %}>
+                    <span>{{ student.roepnaam }} {{ student.achternaam }}{% if student.jaargroep is defined and student.jaargroep is not none %}<span class="student-year"> (jaarlaag {{ student.jaargroep }})</span>{% endif %}</span>
+                  </label>
+                </li>
+              {% endfor %}
+            </ul>
+          </div>
+        </section>
       {% endfor %}
-    {% endif %}
-  </div>
-
-  <button class="button" type="button" onclick="addEmptyGroup()">+ Nieuwe lege groep</button>
-
-  <p class="instructions-box">Kies daarna hoe u de voorkeuren invult.
-    <strong>Aanbevolen: gebruik het formulier</strong> — dat gaat sneller en vereist geen
-    download. Kies Excel als u liever offline werkt in een spreadsheetprogramma.</p>
-
-  {# This is the last step before preferences; each button records the chosen route. #}
-  <div class="step-navigation">
-    <a href="{{ url_for('roster.roster_page') }}" class="button previous-step">← Naar Wie gaat mee</a>
-    <div class="next-steps">
-      <button type="submit" name="action" value="form" class="button">Voorkeuren via formulier →</button>
-      <button type="submit" name="action" value="excel" class="button button--cancel">Voorkeuren via Excel →</button>
     </div>
-  </div>
-</form>
+
+    <div id="new-groups">
+      {% if state %}
+        {% for name in state.new_groups %}
+          {% set input_id = "new-group-" ~ loop.index %}
+          <section class="groups-to-group group-block new-group">
+            <div class="group-header">
+              <div class="group-name-control">
+                <label for="{{ input_id }}">Naam van de groep</label>
+                <input id="{{ input_id }}" type="text" name="new_group" class="group-name-field group-name-input" value="{{ name }}" required>
+              </div>
+              <button type="button" class="button button--secondary group-remove">Nieuwe groep verwijderen</button>
+              <p class="group-count" aria-live="polite">{{ count_text(0, 0, 0) }}</p>
+            </div>
+            <ul class="student-list">
+              <li class="empty-hint">Deze groep begint leeg.</li>
+            </ul>
+          </section>
+        {% endfor %}
+      {% endif %}
+    </div>
+
+    <details class="groups-to-add">
+      <summary>Ontbreekt er een groep?</summary>
+      <div class="groups-to-add-content">
+        <p>Voeg een groep toe die volgend schooljaar nieuw is en nog niet in de lijst staat. De groep begint zonder leerlingen die er al blijven.</p>
+        <button id="add-empty-group" class="button button--secondary" type="button">+ Lege groep toevoegen</button>
+      </div>
+    </details>
+
+    <section class="groups-to-routes" aria-labelledby="groups-to-routes-heading">
+      <h2 id="groups-to-routes-heading">Hoe wil je de voorkeuren invullen?</h2>
+      <p>We raden het formulier in ALI Express aan. Dat gaat sneller en je hoeft niets te downloaden. Werk je liever offline in een spreadsheet? Kies dan Excel.</p>
+    </section>
+
+    <div id="groups-to-client-message" class="flash-message error" role="alert" tabindex="-1" hidden>
+      <span class="closebtn" onclick="this.parentElement.style.display='none';">&times;</span>
+      <span class="groups-to-client-message-text"></span>
+    </div>
+
+    <div class="step-navigation groups-to-navigation">
+      <a href="{{ url_for('roster.roster_page') }}" class="button previous-step">← Terug naar leerlingen controleren</a>
+      <div class="next-steps">
+        <button type="submit" name="action" value="form" class="button">
+          Voorkeuren invullen in ALI Express → <span class="recommended-badge">Aanbevolen</span>
+        </button>
+        <button type="submit" name="action" value="excel" class="button button--cancel">Voorkeuren invullen via Excel →</button>
+      </div>
+    </div>
+  </form>
+</main>
 
 <script>
-  function genderCount(groupBlock) {
-    let boys = 0, girls = 0;
-    groupBlock.querySelectorAll(".student-list input[type=checkbox]").forEach(cb => {
-      if (!cb.checked) return;
-      if (cb.dataset.gender === "Jongen") boys++;
-      else if (cb.dataset.gender === "Meisje") girls++;
-    });
-    return { boys, girls, total: boys + girls };
+(function () {
+  const page = document.querySelector(".groups-to-page");
+  const form = document.getElementById("groups-to-form");
+  if (!page || !form) return;
+
+  function countText(total, boys, girls) {
+    const learner = total === 1 ? "leerling" : "leerlingen";
+    const boy = boys === 1 ? "jongen" : "jongens";
+    const girl = girls === 1 ? "meisje" : "meisjes";
+    return `Blijven in deze groep: ${total} ${learner} · ${boys} ${boy} · ${girls} ${girl}`;
   }
 
   function updateCount(groupBlock) {
-    const { boys, girls, total } = genderCount(groupBlock);
-    groupBlock.querySelector(".group-count").textContent =
-      `Jongens: ${boys} · Meisjes: ${girls} · Totaal: ${total}`;
+    let boys = 0;
+    let girls = 0;
+    groupBlock.querySelectorAll(".group-students input[type=checkbox]").forEach((checkbox) => {
+      if (!checkbox.checked) return;
+      if (checkbox.dataset.gender === "Jongen") boys += 1;
+      if (checkbox.dataset.gender === "Meisje") girls += 1;
+    });
+    groupBlock.querySelector(".group-count").textContent = countText(boys + girls, boys, girls);
   }
 
-  function setGroupEnabled(groupBlock, enabled) {
-    // Only the group's identity is dropped from the submission when switched off; its
-    // checkboxes stay enabled so their ticks are remembered and restored on return.
-    // Interaction is blocked via the .group-disabled CSS, not by disabling them.
+  function setGroupVisibility(groupBlock, enabled) {
     groupBlock.classList.toggle("group-disabled", !enabled);
-    groupBlock.querySelector(".group-name-field").disabled = !enabled;
-    const btn = groupBlock.querySelector(".group-disable");
-    if (btn) btn.textContent = enabled ? "Groep uitzetten" : "Groep aanzetten";
+    groupBlock.querySelector(".group-students").hidden = !enabled;
   }
 
-  let newGroupSeq = 0;
+  function usedGroupNames() {
+    const names = new Set();
+    page.querySelectorAll(".groups-to-group[data-group]").forEach((block) => names.add(block.dataset.group.trim()));
+    page.querySelectorAll(".new-group .group-name-field").forEach((input) => names.add(input.value.trim()));
+    return names;
+  }
+
+  function nextGroupName() {
+    const used = usedGroupNames();
+    let number = 1;
+    while (used.has(`Nieuwe groep ${number}`)) number += 1;
+    return `Nieuwe groep ${number}`;
+  }
+
   function addEmptyGroup() {
-    newGroupSeq++;
-    const block = document.createElement("div");
-    block.className = "group-block";
+    const number = page.querySelectorAll(".new-group").length + 1;
+    const inputId = `new-group-${Date.now()}-${number}`;
+    const block = document.createElement("section");
+    block.className = "groups-to-group group-block new-group";
     block.innerHTML = `
       <div class="group-header">
-        <input type="text" name="group" class="group-name-field group-name-input"
-               value="Nieuwe groep ${newGroupSeq}" required>
-        <span class="group-count">Jongens: 0 · Meisjes: 0 · Totaal: 0</span>
-        <button type="button" class="button button--small group-remove">Verwijderen</button>
+        <div class="group-name-control">
+          <label for="${inputId}">Naam van de groep</label>
+          <input id="${inputId}" type="text" name="new_group" class="group-name-field group-name-input" value="${nextGroupName()}" required>
+        </div>
+        <button type="button" class="button button--secondary group-remove">Nieuwe groep verwijderen</button>
+        <p class="group-count" aria-live="polite">${countText(0, 0, 0)}</p>
       </div>
       <ul class="student-list">
-        <li class="empty-hint">Geen achterblijvers — deze groep wordt gevuld met te verdelen leerlingen.</li>
+        <li class="empty-hint">Deze groep begint leeg.</li>
       </ul>`;
-    document.getElementById("new-groups").appendChild(block);
+    page.querySelector("#new-groups").appendChild(block);
+    block.querySelector(".group-name-input").focus();
   }
 
-  document.addEventListener("DOMContentLoaded", function () {
-    // Restored groups can come in switched off; apply that state to disable their inputs.
-    document.querySelectorAll("#groups-to .group-block.group-disabled")
-      .forEach(block => setGroupEnabled(block, false));
-    // Continue numbering new groups after any that were restored from a previous visit.
-    newGroupSeq = document.querySelectorAll("#new-groups .group-block").length;
-    document.querySelectorAll("#groups-to .group-block").forEach(updateCount);
+  function showValidation(message) {
+    const validation = document.getElementById("groups-to-client-message");
+    validation.querySelector(".groups-to-client-message-text").textContent = message;
+    validation.style.display = "";
+    validation.hidden = false;
+    validation.focus({ preventScroll: true });
+  }
 
-    document.addEventListener("change", function (e) {
-      if (e.target.matches(".student-list input[type=checkbox]")) {
-        updateCount(e.target.closest(".group-block"));
-      }
+  function activeGroups() {
+    return [...page.querySelectorAll(".groups-to-group")].filter((block) => {
+      const toggle = block.querySelector("[data-group-toggle]");
+      return !toggle || toggle.checked;
     });
+  }
 
-    document.addEventListener("click", function (e) {
-      if (e.target.matches(".group-disable")) {
-        const block = e.target.closest(".group-block");
-        setGroupEnabled(block, block.classList.contains("group-disabled"));
-      }
-      if (e.target.matches(".group-remove")) {
-        e.target.closest(".group-block").remove();
-      }
-    });
-  });
+  function groupName(block) {
+    const input = block.querySelector(".group-name-field");
+    return input ? input.value.trim() : block.dataset.group.trim();
+  }
 
   function validateForm() {
-    const activeBlocks = Array.from(document.querySelectorAll(".group-block"))
-      .filter(b => !b.classList.contains("group-disabled"));
-
-    if (activeBlocks.length < 2) {
-      alert("Er moeten minstens twee groepen aanwezig zijn om leerlingen over te verdelen.");
+    const active = activeGroups();
+    if (active.length < 2) {
+      showValidation("Kies minimaal twee groepen voor volgend jaar.");
       return false;
     }
 
-    const names = activeBlocks.map(b => b.querySelector(".group-name-field").value.trim());
-    if (names.some(n => n === "")) {
-      alert("Elke groep moet een naam hebben.");
+    const names = active.map(groupName);
+    if (names.some((name) => name === "")) {
+      showValidation("Geef iedere nieuwe groep een naam.");
       return false;
     }
 
-    const duplicates = [...new Set(names.filter((n, i) => names.indexOf(n) !== i))];
-    if (duplicates.length > 0) {
-      alert("Elke groepsnaam moet uniek zijn. Dubbel: " + duplicates.join(", "));
+    const duplicate = names.find((name, index) => names.indexOf(name) !== index);
+    if (duplicate !== undefined) {
+      showValidation(`Iedere groep heeft een unieke naam nodig. Pas de dubbele groepsnaam ‘${duplicate}’ aan.`);
       return false;
     }
-
     return true;
   }
+
+  page.querySelectorAll(".groups-to-group[data-group]").forEach((groupBlock) => {
+    const toggle = groupBlock.querySelector("[data-group-toggle]");
+    setGroupVisibility(groupBlock, toggle.checked);
+    updateCount(groupBlock);
+  });
+
+  page.addEventListener("change", (event) => {
+    const toggle = event.target.closest("[data-group-toggle]");
+    if (toggle) {
+      setGroupVisibility(toggle.closest(".groups-to-group"), toggle.checked);
+      return;
+    }
+    const studentCheckbox = event.target.closest(".group-students input[type=checkbox]");
+    if (studentCheckbox) updateCount(studentCheckbox.closest(".groups-to-group"));
+  });
+
+  page.addEventListener("click", (event) => {
+    const removeButton = event.target.closest(".group-remove");
+    if (removeButton) removeButton.closest(".new-group").remove();
+  });
+
+  document.getElementById("add-empty-group").addEventListener("click", addEmptyGroup);
+  form.addEventListener("submit", (event) => {
+    if (!validateForm()) event.preventDefault();
+  });
+
+  const serverError = document.querySelector("body > .flash-message.error");
+  if (serverError) {
+    serverError.setAttribute("role", "alert");
+    serverError.setAttribute("tabindex", "-1");
+    serverError.focus();
+  }
+})();
 </script>
 {% endblock %}
