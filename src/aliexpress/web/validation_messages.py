@@ -238,28 +238,23 @@ def readableerror_to_validation_message(exc: Exception) -> str:
             "Laat de maker dit onderzoeken."
         ),
         "duplicate_student_not_together": (
-            "Niet-samen-regel {rule_index} bevat dezelfde leerling meerdere keren."
+            "Deze leerling is al aan deze spreiding toegevoegd. Kies een andere leerling."
         ),
-        "missing_max_samen_not_together": (
-            "Vul het maximale aantal samen in voor regel {rule_index}."
-        ),
+        "missing_max_samen_not_together": ("Vul het maximum in voor deze spreiding."),
         "too_few_students_not_together": (
-            "Niet-samen-regel {rule_index} heeft minder dan 2 leerlingen. "
-            "Voeg minstens 2 leerlingen toe."
+            "Voeg minimaal twee leerlingen aan deze spreiding toe."
         ),
-        "invalid_max_samen_not_together": (
-            "Niet-samen-regel {rule_index}: het maximale aantal samen moet minstens 1 zijn."
-        ),
+        "invalid_max_samen_not_together": ("Het maximum moet minimaal 1 zijn."),
         "unknown_student_not_together": (
-            "In de niet-samen-regels staan onbekende leerlingen: {unknown_students}. "
-            "Controleer of de namen overeenkomen met het voorkeuren-bestand."
+            "Kies leerlingen uit de deelnemers aan deze groepsindeling."
         ),
         "too_strict_not_together": (
-            "Niet-samen-regel {rule_index}: met {n_groups} groepen is het niet mogelijk om "
-            "{n_students} leerlingen te verdelen met maximaal {max_samen} bij elkaar."
+            "Deze spreiding is niet uitvoerbaar: {n_students} leerlingen kunnen niet over "
+            "{n_groups} nieuwe groepen worden verdeeld met maximaal {max_samen} van hen "
+            "samen. Verhoog het maximum of pas de leerlingen aan."
         ),
         "invalid_max_samen_type_not_together": (
-            "Niet-samen-regel {rule_index}: het maximale aantal samen moet een geheel getal zijn."
+            "Vul een geheel getal van minimaal 1 in als maximum."
         ),
         "too_many_niet_in_form": (
             "{leerling} mag niet in te veel groepen geweigerd worden: met {n_groepen} "

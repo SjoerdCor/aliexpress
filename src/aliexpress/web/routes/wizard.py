@@ -110,19 +110,16 @@ def _pref_form_post_data(school_id, process_id, form, participants, all_groups_t
 
 
 def _not_together_get_context(school_id, process_id):
-    """Return (existing_rules, prev_url) for a GET to /not_together."""
+    """Return the saved spreads for a GET to /not_together."""
     rules = load_not_together(school_id, process_id)
     existing_rules = [
-        {"group": list(r["group"]), "Max_aantal_samen": r["Max_aantal_samen"]}
+        {
+            "group": sorted(r["group"], key=str.casefold),
+            "Max_aantal_samen": r["Max_aantal_samen"],
+        }
         for r in rules
     ]
-    input_method = load_input_method(school_id, process_id)
-    prev_url = (
-        url_for("wizard.preferences_excel")
-        if input_method == "excel"
-        else url_for("wizard.preferences_form")
-    )
-    return existing_rules, prev_url
+    return existing_rules
 
 
 @wizard_bp.route("/input_templates/<path:filename>")
@@ -687,23 +684,29 @@ def not_together_page():
     if school_id is None:
         return redirect(url_for("admin.dashboard"))
     process_id = session["process_id"]
+    previous_preferences_endpoint = (
+        "wizard.preferences_excel"
+        if load_input_method(school_id, process_id) == "excel"
+        else "wizard.preferences_form"
+    )
+    previous_preferences_url = url_for(previous_preferences_endpoint)
 
     try:
         groups_to, _ = load_groups(school_id, process_id)
         students = load_student_names(school_id, process_id, groups_to)
     except Exception as exc:  # pylint: disable=broad-exception-caught
         _flash_upload_error(exc)
-        return redirect(url_for("wizard.preferences_excel"))
+        return redirect(previous_preferences_url)
     n_groups = len(groups_to)
 
     if request.method == "GET":
-        existing_rules, prev_url = _not_together_get_context(school_id, process_id)
+        existing_rules = _not_together_get_context(school_id, process_id)
         return render_template(
             "not_together.html",
             students=students,
             n_groups=n_groups,
             existing_rules=existing_rules,
-            prev_preferences_url=prev_url,
+            prev_preferences_url=previous_preferences_url,
         )
 
     n_rules = int(request.form.get("n_rules", 0))
