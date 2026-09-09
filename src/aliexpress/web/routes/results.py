@@ -6,7 +6,7 @@
 import json
 import logging
 import os
-from dataclasses import asdict
+from dataclasses import asdict, replace
 
 from flask import (
     Blueprint,
@@ -26,7 +26,12 @@ from ...main import build_input_summary
 from ...sociogram import build_sociogram_view
 from ...solver._balance import default_balance_maxima
 from ..models import Process
-from ..process_files import load_balance_maxima, load_groups, load_voorkeuren
+from ..process_files import (
+    load_balance_maxima,
+    load_groups,
+    load_not_together,
+    load_voorkeuren,
+)
 from ..storage import get_file_path
 from .auth import effective_school_id
 from .processes import require_process
@@ -34,6 +39,61 @@ from .processes import require_process
 logger = logging.getLogger(__name__)
 
 results_bp = Blueprint("results", __name__)
+
+_PROCESSING_BALANCE_LABELS = {
+    "Groepsgrootte per jaarlaag": "Maximaal verschil in groepsgrootte per jaarlaag",
+    "Groepsgrootte totaal": "Maximaal verschil in groepsgrootte over de hele groep",
+    "Jongens/meisjes per jaarlaag": (
+        "Maximaal verschil tussen jongens en meisjes per jaarlaag"
+    ),
+    "Jongens/meisjes totaal": (
+        "Maximaal verschil tussen jongens en meisjes over de hele groep"
+    ),
+    "Zelfde stamgroep totaal": (
+        "Maximaal aantal leerlingen uit dezelfde huidige groep in één nieuwe groep"
+    ),
+    "Zelfde stamgroep per sekse": (
+        "Maximaal aantal jongens of meisjes uit dezelfde huidige groep in één nieuwe groep"
+    ),
+}
+
+
+def _n_students_with_preferences(preference_data) -> int:
+    """Count students with a positive or negative preference for the summary."""
+    preferences = preference_data.preferences
+    if preferences.empty:
+        return 0
+    kinds = preferences.index.get_level_values("TypeWens")
+    students = preferences.index.get_level_values("Leerling")
+    return len(
+        {
+            student
+            for student, kind in zip(students, kinds)
+            if kind in {"Graag met", "Liever niet met"}
+        }
+    )
+
+
+def _processing_summary(groups_to, preference_data, group_display):
+    """Build the page summary while keeping source groups in input order."""
+    summary = build_input_summary(
+        groups_to,
+        preference_data.students_info,
+        preference_data.stamgroep_display,
+    )
+    source_groups = {}
+    for student_info in preference_data.students_info.values():
+        group_key = student_info["Stamgroep"]
+        group_name = preference_data.stamgroep_display.get(group_key, group_key)
+        source_groups[group_name] = source_groups.get(group_name, 0) + 1
+    return replace(summary, source_groups=source_groups), list(group_display.values())
+
+
+def _processing_error_message(message: str) -> str:
+    """Expand abbreviated balance labels in the processing-page flash."""
+    for short_label, full_label in _PROCESSING_BALANCE_LABELS.items():
+        message = message.replace(f"‘{short_label}’", f"‘{full_label}’")
+    return message
 
 
 def _load_json_snapshot(path):
@@ -69,18 +129,22 @@ def processing():
         return redirect(url_for("results.result_page"))
 
     preference_data, _ = load_voorkeuren(school_id, process_id)
-    groups_to, _ = load_groups(school_id, process_id)
-    summary = build_input_summary(
-        groups_to,
-        preference_data.students_info,
-        preference_data.stamgroep_display,
+    groups_to, group_display = load_groups(school_id, process_id)
+    summary, target_group_names = _processing_summary(
+        groups_to, preference_data, group_display
     )
+    processing_data = {
+        "n_preferences": _n_students_with_preferences(preference_data),
+        "n_spread_rules": len(load_not_together(school_id, process_id)),
+    }
 
     if run_status in ("pending", "running"):
         return render_template(
             "processing.html",
             mode="running",
             summary=summary,
+            target_group_names=target_group_names,
+            processing_data=processing_data,
             recalculation=False,
             balance_limits_open=False,
         )
@@ -90,10 +154,14 @@ def processing():
         maxima = load_balance_maxima(school_id, process_id)
     else:
         maxima = default_balance_maxima(preference_data.students_info, groups_to)
+    if run_status == "error" and proc.run.message:
+        flash(_processing_error_message(proc.run.message), "error")
     return render_template(
         "processing.html",
         mode="idle",
         summary=summary,
+        target_group_names=target_group_names,
+        processing_data=processing_data,
         maxima=maxima,
         recalculation=run_status == "done",
         balance_limits_open=run_status == "error",
@@ -120,17 +188,6 @@ def status():
     if run.status == "error" and run.message:
         payload["message"] = run.message
     return jsonify(payload)
-
-
-@results_bp.route("/handle-error", methods=["POST"])
-@login_required
-def handle_error():
-    """Show information about errors to user"""
-    data = request.get_json()
-    flash(data["message"], "error")
-
-    # By not redirecting here but in JS, this is more flexible
-    return "", 204
 
 
 @results_bp.route("/sociogram")
