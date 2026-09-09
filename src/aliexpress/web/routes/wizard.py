@@ -372,6 +372,33 @@ def _groups_to_auto_redistribute(school_id, process_id, groups_to):
     return redirect(url_for("wizard.preferences_form"))
 
 
+def _parse_groups_to_request(groups_to):
+    """Parse submitted existing and newly added groups while preserving draft state."""
+    original_group_names = request.form.getlist("group")
+    new_group_names = request.form.getlist("new_group")
+    submitted_names = original_group_names + new_group_names
+    seen, duplicates = set(), []
+    for name in submitted_names:
+        if name in seen:
+            duplicates.append(name)
+        seen.add(name)
+
+    parse_form = request.form.copy()
+    parse_form.setlist("group", submitted_names)
+    draft_submission = parse_groups_to_form(parse_form, groups_to)
+    if new_group_names:
+        draft_submission.state["new_groups"] = new_group_names
+        draft_submission.state["disabled_groups"] = [
+            name for name in groups_to if name not in original_group_names
+        ]
+
+    return (
+        draft_submission,
+        duplicates,
+        any(not name.strip() for name in submitted_names),
+    )
+
+
 @wizard_bp.route("/groups_to", methods=["GET", "POST"])
 @login_required
 @require_process
@@ -394,27 +421,31 @@ def groups_to_page():
             state=load_groups_to_state(school_id, process_id),
         )
 
-    submitted_names = request.form.getlist("group")
-    seen, duplicates = set(), []
-    for name in submitted_names:
-        if name in seen:
-            duplicates.append(name)
-        seen.add(name)
+    draft_submission, duplicates, missing_group_name = _parse_groups_to_request(
+        groups_to
+    )
+    validation = None
     if duplicates:
-        exc = ValidationError(
-            "duplicate_group_names", {"duplicates": ", ".join(duplicates)}
+        validation = (
+            "Iedere groep heeft een unieke naam nodig. "
+            f"Pas de dubbele groepsnaam ‘{duplicates[0]}’ aan.",
+            "duplicate_group_names",
         )
-        warn_and_flash(to_validation_message(exc), log_detail=exc.code)
+    elif missing_group_name:
+        validation = ("Geef iedere nieuwe groep een naam.", "missing_group_name")
+    elif len(draft_submission.distribution) < 2:
+        validation = (
+            "Kies minimaal twee groepen voor volgend jaar.",
+            "too_few_groups",
+        )
+
+    if validation:
+        save_groups_to_state(school_id, process_id, draft_submission.state)
+        message, log_detail = validation
+        warn_and_flash(message, log_detail=log_detail)
         return redirect(url_for("wizard.groups_to_page"))
 
-    submission = parse_groups_to_form(request.form, groups_to)
-    if len(submission.distribution) < 2:
-        warn_and_flash(
-            "Er moeten minsten twee groepen zijn om de leerlingen over te verdelen",
-            log_detail="too_few_groups",
-        )
-        return redirect(url_for("wizard.groups_to_page"))
-
+    submission = draft_submission
     save_groups_excel(school_id, process_id, submission.distribution)
     save_groups_to_state(school_id, process_id, submission.state)
     logger.info(

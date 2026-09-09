@@ -1,0 +1,232 @@
+/* Page-local layout for the groups-to step. */
+.groups-to-page {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+}
+
+.groups-to-page h2 {
+  margin-top: 2rem;
+}
+
+.groups-to-intro,
+.groups-to-guidance,
+.groups-to-add,
+.groups-to-routes {
+  max-width: 65ch;
+  line-height: 1.5;
+}
+
+.groups-to-guidance {
+  margin-top: 1.75rem;
+}
+
+.groups-to-guidance h2,
+.groups-to-routes h2 {
+  font-size: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.groups-to-page .group-block {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 2px solid #ffcc99;
+  border-radius: 0.5rem;
+}
+
+.groups-to-page .group-block.group-disabled {
+  opacity: 1;
+  background: #f7f7f7;
+}
+
+.groups-to-page .group-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.groups-to-page .group-title {
+  min-width: 0;
+  margin: 0;
+  font-size: 1.2rem;
+  overflow-wrap: anywhere;
+}
+
+.groups-to-page .group-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  min-width: 0;
+  cursor: pointer;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.groups-to-page .group-toggle input,
+.groups-to-page .student-list input {
+  flex: 0 0 auto;
+  width: 1.35rem;
+  height: 1.35rem;
+  margin: 0.15rem 0 0;
+}
+
+.groups-to-page .group-count {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #333;
+  font-size: 1rem;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.groups-to-page .group-students[hidden] {
+  display: none;
+}
+
+.groups-to-page .student-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(18rem, 100%), 1fr));
+  gap: 0.25rem 1rem;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.groups-to-page .student-list li,
+.groups-to-page .student-list label {
+  min-width: 0;
+}
+
+.groups-to-page .student-list label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  min-height: 2.75rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.groups-to-page .student-list label span {
+  min-width: 0;
+}
+
+.groups-to-page .student-year {
+  color: #666;
+  font-size: 0.9em;
+  font-weight: 400;
+}
+
+.groups-to-page .group-name-control {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 0.25rem;
+}
+
+.groups-to-page .group-name-control label {
+  font-weight: 700;
+}
+
+.groups-to-page .group-name-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 0.45rem 0.6rem;
+  border: 2px solid #6f625a;
+  border-radius: 0.35rem;
+  font-size: 1.1rem;
+}
+
+.groups-to-page .group-remove {
+  align-self: end;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.groups-to-page .empty-hint {
+  color: #555;
+  font-style: italic;
+}
+
+.groups-to-page .groups-to-add {
+  margin-top: 2rem;
+}
+
+.groups-to-page .groups-to-add > summary {
+  width: fit-content;
+  cursor: pointer;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.groups-to-page .groups-to-add-content {
+  padding-top: 0.5rem;
+}
+
+.groups-to-page .groups-to-routes {
+  margin-top: 2.5rem;
+}
+
+.groups-to-page .recommended-badge {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.15rem 0.35rem;
+  border-radius: 0.25rem;
+  background: #fff;
+  color: #5e2a00;
+  font-size: 0.85em;
+  line-height: 1.2;
+  vertical-align: 0.08em;
+}
+
+.groups-to-page .groups-to-navigation {
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.groups-to-page .groups-to-navigation .previous-step,
+.groups-to-page .groups-to-navigation .next-steps {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.groups-to-page .groups-to-navigation .next-steps {
+  align-items: stretch;
+}
+
+.groups-to-page .groups-to-navigation .next-steps .button {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 680px) {
+  .groups-to-page .group-header {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .groups-to-page .group-toggle,
+  .groups-to-page .group-remove {
+    grid-column: 1;
+  }
+
+  .groups-to-page .groups-to-navigation {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .groups-to-page .groups-to-navigation .previous-step,
+  .groups-to-page .groups-to-navigation .next-steps,
+  .groups-to-page .groups-to-navigation .next-steps .button {
+    width: 100%;
+    max-width: none;
+  }
+}
