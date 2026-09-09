@@ -110,7 +110,7 @@ class TestStartDistribution:
     def test_detailed_conflict_keeps_multiline_message_in_processing_flow(
         self, client, tmp_path, monkeypatch
     ):
-        """A detailed diagnosis follows the existing status and flash-message path."""
+        """A detailed diagnosis is rendered through the normal flash convention."""
         proc_dir = setup_process(client, tmp_path)
         write_minimal_voorkeuren_json(proc_dir)
         write_minimal_groups_xlsx(proc_dir)
@@ -149,15 +149,19 @@ class TestStartDistribution:
         assert "extra zekerheid" in status["message"]
         assert "\n" in status["message"]
 
-        client.post("/handle-error", json={"message": status["message"]})
         html = client.get("/processing").data.decode("utf-8")
-        assert "Piet" in html
-        assert "Graag met Sam" in html
+        reloaded = client.get("/processing").data.decode("utf-8")
+        for page in (html, reloaded):
+            assert "Piet" in page
+            assert "Graag met Sam" in page
+            assert page.count('class="flash-message error"') == 1
+            assert 'class="calculation-error"' not in page
+        assert flashes(client) == []
 
     def test_balance_cap_error_returns_to_idle_with_message_and_saved_limits(
         self, client, tmp_path, monkeypatch
     ):
-        """The processing error flow shows the cap tip and keeps entered limits."""
+        """The processing flash shows the cap tip and preserves the saved limits."""
         proc_dir = setup_process(client, tmp_path)
         write_minimal_voorkeuren_json(proc_dir)
         write_minimal_groups_xlsx(proc_dir)
@@ -183,13 +187,20 @@ class TestStartDistribution:
         assert "Zelfde stamgroep totaal" in status["message"]
         assert "van 1 naar 2 (+1)" in status["message"]
 
-        client.post("/handle-error", json={"message": status["message"]})
         processing = client.get("/processing")
         assert processing.status_code == 200
         html = processing.data.decode("utf-8")
         assert "Met deze grenzen is geen geldige indeling mogelijk." in html
-        assert "Start verdeling" in html
+        assert "Berekening starten →" in html
+        assert (
+            "Maximaal aantal leerlingen uit dezelfde huidige groep in één nieuwe groep"
+            in html
+        )
+        assert "Zelfde stamgroep totaal" not in html
         assert re.search(r'name="maxima_max_clique"[^>]*value="1"', html)
+        assert html.count('class="flash-message error"') == 1
+        assert 'class="calculation-error"' not in html
+        assert flashes(client) == []
 
     def test_not_together_json_is_loaded_when_present(
         self, client, tmp_path, monkeypatch

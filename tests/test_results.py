@@ -6,7 +6,10 @@ import json
 import re
 from dataclasses import asdict
 
+import pandas as pd
+
 import aliexpress.web.routes.results as results_module
+from aliexpress.data.preferences_form import Preference, PreferenceKind, StudentEntry
 from aliexpress.solver._balance import BalanceMaxima
 from aliexpress.web.extensions import db
 from aliexpress.web.models import Process, Run
@@ -72,7 +75,7 @@ class TestProcessingIdlePanel:  # pylint: disable=too-few-public-methods  # one 
         assert response.status_code == 200
         html = response.data.decode("utf-8")
         assert 'name="maxima_max_clique"' in html
-        assert "Start verdeling" in html
+        assert "Berekening starten →" in html
         assert "leerlingen" in html
 
 
@@ -115,9 +118,9 @@ class TestProcessingRunStates:
         html = response.data.decode("utf-8")
         assert re.search(r'name="maxima_max_diff_n_students_year"[^>]*value="6"', html)
         assert re.search(r'name="maxima_max_clique"[^>]*value="4"', html)
-        assert "Start nieuwe indeling" in html
-        assert "Start verdeling" not in html
-        assert "Een nieuwe indeling vervangt het huidige resultaat." in html
+        assert "Opnieuw berekenen →" in html
+        assert "Berekening starten →" not in html
+        assert "Een nieuwe berekening vervangt de huidige groepsindeling." in html
         assert re.search(
             r'href="/download"[^>]*>Download huidige groepsindeling</a>', html
         )
@@ -150,10 +153,10 @@ class TestProcessingRunStates:
         assert response.status_code == 302
         assert response.headers["Location"].endswith("/result")
 
-    def test_pending_run_shows_progress_view_with_server_summary(
+    def test_pending_run_shows_progress_view_without_ready_summary(
         self, client, tmp_path
     ):
-        """A pending run is active already and must not show the Start button."""
+        """A pending run is active already and must not show the ready summary or Start button."""
         proc_dir = _setup_process(client, tmp_path)
         write_minimal_voorkeuren_json(proc_dir)
         write_minimal_groups_xlsx(proc_dir)
@@ -168,12 +171,9 @@ class TestProcessingRunStates:
 
         assert response.status_code == 200
         html = response.data.decode("utf-8")
-        assert "Groepsindeling aan het uitrekenen" in html
-        assert (
-            'id="input-overview" class="input-overview input-overview--visible"' in html
-        )
-        assert "2 leerlingen" in html
-        assert "Start verdeling" not in html
+        assert "ALI Express berekent je groepsindeling" in html
+        assert 'id="input-overview"' not in html
+        assert "Berekening starten →" not in html
 
     def test_error_run_reuses_saved_balance_maxima(self, client, tmp_path):
         """An error page shows the limits chosen for the failed attempt."""
@@ -201,7 +201,11 @@ class TestProcessingRunStates:
         assert 'value="6"' in html
         assert 'value="7"' in html
         assert 'value="None"' not in html
-        assert re.search(r'name="maxima_max_clique_sex_unlimited"\s+checked', html)
+        assert re.search(r'name="maxima_max_clique_sex_unlimited"[^>]*\schecked', html)
+        assert "Mislukt" in html
+        assert 'class="flash-message error"' in html
+        assert "Dit kun je aanpassen" not in html
+        assert 'class="calculation-error"' not in html
         details_tag = re.search(
             r'<details class="instructions-box"[^>]*>', html
         ).group()
@@ -246,7 +250,7 @@ class TestStatus:
         assert data["steps"] == {"floor": "busy"}
 
     def test_error_run_includes_message(self, client, tmp_path):
-        """An errored run exposes its friendly message for the frontend to flash."""
+        """An errored run exposes its friendly message for the processing page."""
         _setup_process(client, tmp_path)
         with flask_app.app_context():
             proc = Process.query.filter_by(
@@ -257,6 +261,79 @@ class TestStatus:
         data = client.get("/status").get_json()
         assert data["status_studentdistribution"] == "error"
         assert data["message"] == "Mislukt"
+
+
+class TestProcessingSummary:  # pylint: disable=too-few-public-methods
+    """The ready summary is complete, semantic, and does not start a run."""
+
+    def test_ready_get_is_read_only_and_renders_server_summary_once(
+        self, client, tmp_path
+    ):
+        """A ready GET renders the full summary once without starting a run."""
+        proc_dir = _setup_process(client, tmp_path)
+        students = [
+            StudentEntry(
+                "Alexandra van de Water",
+                "Meisje",
+                "Oude groep met een bijzonder lange naam",
+                None,
+                preferences=[
+                    Preference("Bram van den Berg", 1.0, PreferenceKind.TOGETHER)
+                ],
+            ),
+            StudentEntry(
+                "Bram van den Berg",
+                "Jongen",
+                "Oude groep met een bijzonder lange naam",
+                None,
+                preferences=[
+                    Preference("Alexandra van de Water", 1.0, PreferenceKind.APART)
+                ],
+            ),
+            StudentEntry(
+                "Cato de Vries",
+                "Meisje",
+                "Andere lange huidige groep",
+                0.5,
+                excluded_groups=["Een nieuwe groep met een lange naam"],
+            ),
+        ]
+        write_minimal_voorkeuren_json(
+            proc_dir,
+            students=students,
+            all_to_groups=[
+                "eennieuwegroepmeteenlangenaam",
+                "nogenieuwegroepmeteenlangenaam",
+            ],
+        )
+        write_minimal_groups_xlsx(proc_dir)
+
+        html = client.get("/processing").get_data(as_text=True)
+
+        assert "Klaar om je groepsindeling te berekenen" in html
+        assert "Oude groep met een bijzonder lange naam" in html
+        pd.DataFrame(
+            {"Jongens": [1, 1], "Meisjes": [1, 0]},
+            index=pd.Index(
+                [
+                    "Een nieuwe groep met een lange naam",
+                    "Nog een nieuwe groep met een lange naam",
+                ],
+                name="Groepen",
+            ),
+        ).to_excel(proc_dir / "groups.xlsx")
+        html = client.get("/processing").get_data(as_text=True)
+        assert "Nieuwe groepen (2)" in html
+        assert "Een nieuwe groep met een lange naam" in html
+        assert "Nog een nieuwe groep met een lange naam" in html
+        assert "2 leerlingen met één of meer voorkeuren" in html
+        assert "Huidige jaarlaag" not in html
+        assert "voor 2 van 3" not in html
+        assert html.count('id="input-overview"') == 1
+        assert not (proc_dir / "progress.json").exists()
+        with flask_app.app_context():
+            proc = Process.by_name(SCHOOL_ID, "testproces")
+            assert proc.run is None
 
 
 class TestResultPage:
@@ -427,25 +504,3 @@ class TestDownload:
         response = client.get("/download")
         assert response.status_code == 200
         assert "attachment" in response.headers.get("Content-Disposition", "")
-
-
-class TestHandleError:
-    """Tests for POST /handle-error."""
-
-    def test_valid_message_returns_204(self, client):
-        """A valid JSON POST to /handle-error returns HTTP 204 No Content."""
-        response = client.post(
-            "/handle-error",
-            json={"message": "Er ging iets mis"},
-            content_type="application/json",
-        )
-        assert response.status_code == 204
-
-    def test_valid_message_is_flashed(self, client):
-        """The message from /handle-error is stored as a flash for the next request."""
-        client.post(
-            "/handle-error",
-            json={"message": "Er ging iets mis"},
-            content_type="application/json",
-        )
-        assert any(msg == "Er ging iets mis" for _, msg in flashes(client))

@@ -145,7 +145,8 @@ def test_estimate_phase_a_before_balance_finishes(tmp_path):
     assert data["estimate"]["phase"] == "a"
     assert data["estimate"]["seconds"] is None
     assert data["estimate"]["text"] == (
-        "Aan het rekenen… dit duurt meestal minder dan een minuut, soms enkele minuten."
+        "Meestal is de berekening binnen een minuut klaar. Bij grotere of ingewikkelde "
+        "verdelingen kan het langer duren."
     )
 
 
@@ -211,7 +212,8 @@ def test_estimate_text_rounding_seconds_under_a_minute(tmp_path):
 
     data = _assert_parsable(path)
     assert (
-        data["estimate"]["text"] == "naar verwachting nog ~30 seconden (ruwe schatting)"
+        data["estimate"]["text"]
+        == "Naar verwachting nog ongeveer 30 seconden. Deze schatting kan veranderen."
     )
 
 
@@ -227,7 +229,8 @@ def test_estimate_text_rounding_260_seconds_to_5_minutes(tmp_path):
     # phase c: max(11 - 1, 1) * 26.0 == 260.0, rounds up to 5 minutes.
     assert data["estimate"]["seconds"] == 260.0
     assert (
-        data["estimate"]["text"] == "naar verwachting nog ~5 minuten (ruwe schatting)"
+        data["estimate"]["text"]
+        == "Naar verwachting nog ongeveer 5 minuten. Deze schatting kan veranderen."
     )
 
 
@@ -241,7 +244,9 @@ def test_estimate_text_singular_minute(tmp_path):
     # phase c: max(11 - 1, 1) * 6.0 == 60.0 -> exactly one minute after rounding up.
     data = _assert_parsable(path)
     assert data["estimate"]["seconds"] == 60.0
-    assert data["estimate"]["text"] == "naar verwachting nog ~1 minuut (ruwe schatting)"
+    assert data["estimate"]["text"] == (
+        "Naar verwachting nog ongeveer 1 minuut. Deze schatting kan veranderen."
+    )
 
 
 def test_interim_result_view_updated_at_changes_on_every_call(tmp_path):
