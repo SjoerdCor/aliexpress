@@ -163,7 +163,13 @@ def test_process_route_treats_case_variants_as_the_same_name(client):
 
     assert first.status_code == 302
     assert second.status_code == 302
-    assert flashes(client) == [("error", "Proces bestaat al")]
+    assert flashes(client) == [
+        (
+            "error",
+            "Er bestaat al een groepsindeling met deze naam.\n"
+            "        Kies een andere naam voor de nieuwe groepsindeling.",
+        )
+    ]
     with flask_app.app_context():
         process = Process.by_name(SCHOOL_ID, "klas")
         assert process.name == "Klas"
@@ -178,7 +184,13 @@ def test_process_route_treats_unicode_equivalents_as_the_same_name(client):
 
     assert first.status_code == 302
     assert second.status_code == 302
-    assert flashes(client) == [("error", "Proces bestaat al")]
+    assert flashes(client) == [
+        (
+            "error",
+            "Er bestaat al een groepsindeling met deze naam.\n"
+            "        Kies een andere naam voor de nieuwe groepsindeling.",
+        )
+    ]
 
 
 def test_process_route_rejects_overlong_name_without_mutating_storage(client, tmp_path):

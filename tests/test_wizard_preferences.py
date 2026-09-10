@@ -136,13 +136,13 @@ class TestPreferencesExcel:
         assert "Anna" in joined and "Bram" in joined
 
 
-class TestPreferencesFormSociogramLink:  # pylint: disable=too-few-public-methods
-    """The form-input overview also exposes the canonical sociogram."""
+class TestPreferencesFormSociogramAction:  # pylint: disable=too-few-public-methods
+    """The form-input overview can save current input and open the sociogram."""
 
-    def test_get_shows_sociogram_link_after_preferences_are_saved(
+    def test_get_shows_sociogram_action_after_preferences_are_saved(
         self, client, tmp_path
     ):
-        """The form overview links to the sociogram once canonical preferences exist."""
+        """The form overview posts current preferences before opening the sociogram."""
         proc_dir = setup_process(client, tmp_path)
         pd.DataFrame(
             {"Jongens": [1, 1], "Meisjes": [1, 0]},
@@ -155,8 +155,8 @@ class TestPreferencesFormSociogramLink:  # pylint: disable=too-few-public-method
 
         html = client.get("/preferences_form").data.decode("utf-8")
 
-        assert 'href="/sociogram"' in html
-        assert 'target="_blank"' in html
+        assert 'name="action" value="sociogram"' in html
+        assert 'formtarget="_blank"' in html
 
 
 class TestNotTogetherLoadsFromJson:

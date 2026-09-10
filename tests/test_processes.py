@@ -63,12 +63,18 @@ class TestCreateProcess:
         ]
 
     def test_existing_name_gives_bestaat_al(self, client):
-        """Bug 2: creating a duplicate must yield 'Proces bestaat al', not 'bestaat niet'."""
+        """Creating a duplicate explains that the group allocation already exists."""
         with flask_app.app_context():
             make_process_row(SCHOOL_ID, "mijnproces")
         response = client.post("/processes/create", data={"process_name": "mijnproces"})
         assert response.status_code == 302
-        assert flashes(client) == [("error", "Proces bestaat al")]
+        assert flashes(client) == [
+            (
+                "error",
+                "Er bestaat al een groepsindeling met deze naam.\n"
+                "        Kies een andere naam voor de nieuwe groepsindeling.",
+            )
+        ]
 
     def test_happy_path_creates_directory(self, client, tmp_path):
         """A valid new name creates the process directory and redirects to upload."""
@@ -84,10 +90,12 @@ class TestDeleteProcess:
     """Tests for POST /processes/delete/<process_name>."""
 
     def test_nonexistent_name_gives_bestaat_niet(self, client):
-        """Bug 2: deleting a missing process must yield 'Proces bestaat niet', not 'bestaat al'."""
+        """Deleting a missing process explains that no group allocation was found."""
         response = client.post("/processes/delete/spookproces")
         assert response.status_code == 302
-        assert flashes(client) == [("error", "Proces bestaat niet")]
+        assert flashes(client) == [
+            ("error", "Er is geen groepsindeling met deze naam.")
+        ]
 
     def test_invalid_chars_gives_format_error(self, client):
         """A name with a slash hits the router before validation; expect 302 or 404."""
@@ -507,11 +515,13 @@ class TestSchoolIsolation:
         ]
 
     def test_cannot_delete_other_schools_process(self, client):
-        """POST /processes/delete/<name> flashes 'bestaat niet' for another school's process."""
+        """Deleting another school's process uses the same not-found response."""
         self._create_other_school_process()
         response = client.post("/processes/delete/geheimproces")
         assert response.status_code == 302
-        assert flashes(client) == [("error", "Proces bestaat niet")]
+        assert flashes(client) == [
+            ("error", "Er is geen groepsindeling met deze naam.")
+        ]
 
     def test_cannot_see_other_schools_process_in_list(self, client):
         """GET /processes does not include processes from other schools."""
