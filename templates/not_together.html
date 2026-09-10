@@ -117,6 +117,10 @@ function setActiveStudentOption(input, index) {
 function renderStudentOptions(input) {
   const card = input.closest('.rule-card');
   const list = card.querySelector('.student-combobox-list');
+  if (input._hideOptionsTimeout) {
+    window.clearTimeout(input._hideOptionsTimeout);
+    input._hideOptionsTimeout = null;
+  }
   const query = input.value.trim().toLocaleLowerCase('nl');
   const selected = new Set(getChipNames(card));
   const options = Array.from(studentNames)
@@ -336,7 +340,12 @@ function addRule() {
   input.setAttribute('aria-expanded', 'false');
   input.addEventListener('focus', () => renderStudentOptions(input));
   input.addEventListener('input', () => renderStudentOptions(input));
-  input.addEventListener('blur', () => window.setTimeout(() => hideStudentOptions(card), 150));
+  input.addEventListener('blur', () => {
+    input._hideOptionsTimeout = window.setTimeout(() => {
+      hideStudentOptions(card);
+      input._hideOptionsTimeout = null;
+    }, 150);
+  });
   input.addEventListener('keydown', event => {
     const options = Array.from(card.querySelectorAll('.student-combobox-list .combobox-option'));
     if (event.key === 'ArrowDown' && options.length) {
