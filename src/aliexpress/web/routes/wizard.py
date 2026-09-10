@@ -369,6 +369,23 @@ def _groups_to_auto_redistribute(school_id, process_id, groups_to):
     return redirect(url_for("wizard.preferences_form"))
 
 
+def _clean_groups_to_display_names(submission):
+    """Trim group display names before persisting a groups-to submission.
+
+    The raw names are still used while parsing the form, because they are also part of
+    the checkbox field names for existing groups.  Once the student selections have
+    been reconstructed, the names written to the draft and to Excel are display names
+    with surrounding whitespace removed.
+    """
+    submission.distribution = {
+        datareader.display_name(name): counts
+        for name, counts in submission.distribution.items()
+    }
+    submission.state["new_groups"] = [
+        datareader.display_name(name) for name in submission.state["new_groups"]
+    ]
+
+
 def _parse_groups_to_request(groups_to):
     """Parse submitted existing and newly added groups while preserving draft state."""
     original_group_names = request.form.getlist("group")
@@ -376,9 +393,12 @@ def _parse_groups_to_request(groups_to):
     submitted_names = original_group_names + new_group_names
     seen, duplicates = set(), []
     for name in submitted_names:
-        if name in seen:
-            duplicates.append(name)
-        seen.add(name)
+        key = datareader.matching_key(name)
+        if not key:
+            continue
+        if key in seen:
+            duplicates.append(datareader.display_name(name))
+        seen.add(key)
 
     parse_form = request.form.copy()
     parse_form.setlist("group", submitted_names)
@@ -388,11 +408,12 @@ def _parse_groups_to_request(groups_to):
         draft_submission.state["disabled_groups"] = [
             name for name in groups_to if name not in original_group_names
         ]
+    _clean_groups_to_display_names(draft_submission)
 
     return (
         draft_submission,
         duplicates,
-        any(not name.strip() for name in submitted_names),
+        any(not datareader.matching_key(name) for name in submitted_names),
     )
 
 
