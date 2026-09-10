@@ -159,7 +159,7 @@ def test_serve_foreground_opens_browser_after_binding_without_debug_or_reloader(
     ]
 
 
-def test_serve_reports_a_busy_port_without_touching_browser(monkeypatch):
+def test_serve_reports_a_busy_port_without_touching_browser(monkeypatch, tmp_path):
     """A bind failure must be a clear CLI error, not a process-management action."""
     browser_calls = []
 
@@ -168,6 +168,7 @@ def test_serve_reports_a_busy_port_without_touching_browser(monkeypatch):
         "create_app",
         lambda: SimpleNamespace(config={}, debug=True),
     )
+    monkeypatch.setattr(main_module, "get_instance_path", lambda: tmp_path)
 
     def fake_make_server(*_args, **_kwargs):
         raise OSError("address already in use")
@@ -206,11 +207,16 @@ def test_serve_subprocess_smoke_and_clean_stop(tmp_path):
             ),
         }
     )
+    bootstrap = (
+        "import aliexpress.main as main_module; "
+        f"main_module.get_instance_path = lambda: {str(tmp_path)!r}; "
+        "main_module.main()"
+    )
     with subprocess.Popen(
         [
             sys.executable,
             "-c",
-            "from aliexpress.main import main; main()",
+            bootstrap,
             "serve",
             "--host",
             "127.0.0.1",

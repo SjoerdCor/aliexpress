@@ -133,14 +133,18 @@ def test_empty_new_student_row_blocks_submit(live_server, tmp_path, page):
     page.get_by_role("button", name="+ Leerling toevoegen").click()
     page.locator("button[type=submit]").click()
     assert "/roster" in page.url
-    assert "Bevestig de leerling" in page.locator("#roster-client-message").inner_text()
+    assert (
+        "Klik op ‘Leerling aan de lijst toevoegen’ om deze leerling te bevestigen"
+        in page.locator("#roster-client-message").inner_text()
+    )
 
 
 @pytest.mark.usefixtures("login")
 def test_roster_requires_one_participant(live_server, tmp_path, page):
     """Continuing with every existing leerling unticked is rejected."""
     _open_roster(live_server, tmp_path, page)
-    page.locator('input[name="gaat_over"]:not([hidden])').uncheck()
+    for checkbox in page.locator('input[name="gaat_over"]:not([hidden])').all():
+        checkbox.uncheck()
     page.locator("button[type=submit]").click()
     assert (
         "Selecteer ten minste één leerling die doorgaat."
