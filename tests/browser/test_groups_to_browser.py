@@ -161,6 +161,30 @@ def test_keyboard_validation_and_group_controls(open_groups_to, page):
     assert error.evaluate("element => document.activeElement === element")
 
 
+def test_client_validation_uses_matching_key_for_duplicate_names(open_groups_to, page):
+    """Client validation follows server normalization for case, spaces and symbols."""
+    open_groups_to(
+        {
+            "Klas A": [student("Jongen")],
+            "Klas B": [student("Meisje")],
+        }
+    )
+    page.locator(".groups-to-add > summary").click()
+    page.click('button:has-text("Lege groep toevoegen")')
+    new_group = page.locator("#new-groups input.group-name-input").last
+    error_text = page.locator(
+        "#groups-to-client-message .groups-to-client-message-text"
+    )
+
+    for duplicate_name in ("klas a", "Klas  A", "Klas <A>"):
+        new_group.fill(duplicate_name)
+        page.click("button:has-text('Voorkeuren invullen via Excel')")
+        assert error_text.inner_text() == (
+            "Iedere groep heeft een unieke naam nodig. "
+            f"Pas de dubbele groepsnaam ‘{duplicate_name}’ aan."
+        )
+
+
 def test_server_validation_redirect_restores_draft_and_focuses_error(
     open_groups_to, page
 ):

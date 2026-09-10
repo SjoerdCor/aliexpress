@@ -152,17 +152,26 @@ Blijven in deze groep: {{ total }} {% if total == 1 %}leerling{% else %}leerling
     groupBlock.querySelector(".group-students").hidden = !enabled;
   }
 
+  // Keep this in sync with datareader.matching_key(); the server remains authoritative.
+  function matchingKey(value) {
+    return value
+      .replace(/[<>&"'`=\/\\]/g, "")
+      .trim()
+      .toLowerCase()
+      .replace(/ /g, "");
+  }
+
   function usedGroupNames() {
     const names = new Set();
-    page.querySelectorAll(".groups-to-group[data-group]").forEach((block) => names.add(block.dataset.group.trim()));
-    page.querySelectorAll(".new-group .group-name-field").forEach((input) => names.add(input.value.trim()));
+    page.querySelectorAll(".groups-to-group[data-group]").forEach((block) => names.add(matchingKey(block.dataset.group.trim())));
+    page.querySelectorAll(".new-group .group-name-field").forEach((input) => names.add(matchingKey(input.value.trim())));
     return names;
   }
 
   function nextGroupName() {
     const used = usedGroupNames();
     let number = 1;
-    while (used.has(`Nieuwe groep ${number}`)) number += 1;
+    while (used.has(matchingKey(`Nieuwe groep ${number}`))) number += 1;
     return `Nieuwe groep ${number}`;
   }
 
@@ -215,12 +224,21 @@ Blijven in deze groep: {{ total }} {% if total == 1 %}leerling{% else %}leerling
     }
 
     const names = active.map(groupName);
-    if (names.some((name) => name === "")) {
+    if (names.some((name) => matchingKey(name) === "")) {
       showValidation("Geef iedere nieuwe groep een naam.");
       return false;
     }
 
-    const duplicate = names.find((name, index) => names.indexOf(name) !== index);
+    const seen = new Set();
+    let duplicate;
+    for (const name of names) {
+      const key = matchingKey(name);
+      if (seen.has(key)) {
+        duplicate = name;
+        break;
+      }
+      seen.add(key);
+    }
     if (duplicate !== undefined) {
       showValidation(`Iedere groep heeft een unieke naam nodig. Pas de dubbele groepsnaam ‘${duplicate}’ aan.`);
       return false;

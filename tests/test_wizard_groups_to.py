@@ -7,6 +7,7 @@ import json
 import re
 
 import pandas as pd
+import pytest
 
 from tests.helpers import flashes, make_students, setup_process, write_groups_to_json
 
@@ -150,6 +151,41 @@ class TestGroupsToPage:
             "Iedere groep heeft een unieke naam nodig. Pas de dubbele groepsnaam ‘Klas A’ aan.",
         ) in messages
 
+    @pytest.mark.parametrize("duplicate_name", ["klas a", "Klas  A", "Klas <A>"])
+    def test_post_duplicate_group_names_uses_matching_key(
+        self, client, tmp_path, duplicate_name
+    ):
+        """Case, spaces and matching_key-removed characters are duplicate spellings."""
+        proc_dir = setup_process(client, tmp_path)
+        write_groups_to_json(
+            proc_dir,
+            {
+                "Klas A": make_students("Jongen", "Meisje"),
+                "Klas B": make_students("Jongen"),
+            },
+        )
+
+        response = client.post(
+            "/groups_to",
+            data={
+                "group": ["Klas A", "Klas B"],
+                "new_group": [duplicate_name],
+                "group_students[Klas A]": ["1"],
+                "group_students[Klas B]": ["0"],
+            },
+        )
+
+        assert response.status_code == 302
+        assert (
+            "error",
+            "Iedere groep heeft een unieke naam nodig. "
+            f"Pas de dubbele groepsnaam ‘{duplicate_name.strip()}’ aan.",
+        ) in flashes(client)
+        saved = json.loads((proc_dir / "groups_to_state.json").read_text("utf-8"))
+        assert saved["new_groups"] == [duplicate_name.strip()]
+        assert saved["original_groups"]["Klas A"]["checked_indices"] == [1]
+        assert saved["original_groups"]["Klas B"]["checked_indices"] == [0]
+
     def test_post_form_choice_records_method_and_redirects_to_form(
         self, client, tmp_path
     ):
@@ -214,7 +250,7 @@ class TestGroupsToPage:
             "/groups_to",
             data={
                 "group": ["Klas A"],
-                "new_group": ["Nieuwe groep 1"],
+                "new_group": ["  Nieuwe groep 1  "],
                 "group_students[Klas A]": ["0", "1", "2"],
             },
         )
@@ -225,6 +261,8 @@ class TestGroupsToPage:
         assert saved.loc["Klas A", "Meisjes"] == 2
         assert saved.loc["Nieuwe groep 1", "Jongens"] == 0
         assert saved.loc["Nieuwe groep 1", "Meisjes"] == 0
+        state = json.loads((proc_dir / "groups_to_state.json").read_text("utf-8"))
+        assert state["new_groups"] == ["Nieuwe groep 1"]
 
     def test_post_persists_restore_state(self, client, tmp_path):
         """POST writes groups_to_state.json capturing ticks, disabled and new groups."""
