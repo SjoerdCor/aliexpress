@@ -2,6 +2,11 @@
 
 Webapplicatie waarmee basisscholen leerlingen verdelen over nieuwe groepen, op basis van voorkeuren van leerlingen en balans-eisen per groep.
 
+## Product design
+
+For application-wide UX, UI, writing and accessibility guidance, see
+[`docs/design-principles.md`](docs/design-principles.md).
+
 ## Language
 
 **Leerling**:
