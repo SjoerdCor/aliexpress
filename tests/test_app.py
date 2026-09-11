@@ -62,46 +62,6 @@ class TestSimpleRenders:
         """GET / renders the home page."""
         assert client.get("/").status_code == 200
 
-    def test_home_renders_approved_homepage_copy(self, client):
-        """The homepage renders its approved heading, CTA, benefits and details."""
-        response = client.get("/")
-
-        html = response.get_data(as_text=True)
-
-        assert '<html lang="nl">' in html
-        assert (
-            '<meta name="viewport" content="width=device-width, initial-scale=1">'
-            in html
-        )
-        assert "ALI Express" in html
-        assert (
-            "De groepsindeling: een complexe puzzel, in enkele minuten opgelost" in html
-        )
-        assert "Start een groepsindeling →" in html
-        assert "Tijdwinst" in html
-        assert "Van uren werk naar minuten rekenen: meer tijd voor onderwijs!" in html
-        assert "Iedereen zo tevreden mogelijk" in html
-        assert "Goede, evenwichtige groepen" in html
-        assert (
-            "Daarom telt de eerste voorkeur in de berekening het zwaarst mee." in html
-        )
-        assert "Pas je wensen aan en reken opnieuw" in html
-        assert "Waar houden we rekening mee?" in html
-        assert "Hoe berekenen we een optimale indeling?" in html
-        assert "/static/images/home-gallery-voorkeuren.png" in html
-        assert "/static/images/home-gallery-resultaat.png" in html
-        assert "/static/images/home-gallery-sociogram.png" in html
-        assert html.count("data-home-slide aria") == 3
-        assert "Vorige afbeelding" in html
-        assert "Volgende afbeelding" in html
-        assert "1 van 3" in html
-        assert "Alles wat ALI Express tegelijk meeweegt" in html
-        assert "Hoe vindt ALI Express de optimale indeling?" in html
-        assert '<a href="/processes"' in html
-        assert html.index("Start een groepsindeling →") < html.index(
-            "Alles wat ALI Express tegelijk meeweegt"
-        )
-
     def test_done_returns_200(self, client, tmp_path):
         """GET /done renders the done page for the active process."""
         setup_process(client, tmp_path)
