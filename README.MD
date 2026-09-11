@@ -230,7 +230,10 @@ uv run --locked python -m tests.testdata testschool herdoor-2 herindelen_met_doo
 The optional final argument is the number of students: these examples use `35` and `72`; the
 default is `35` when the argument is omitted. The processes already include the **Niet-samen**
 constraints and can be run directly through **Opslaan & door naar indelen** and
-**Start verdeling**.
+**Start verdeling**. In all three modes, generated preferences mostly target classmates from
+the same current group, with occasional cross-group and destination-group preferences.
+Positive preferences are more likely to be reciprocal at higher intensities. All generated
+weights use the fixed intensity levels available in the web form.
 
 ## Local commands
 
