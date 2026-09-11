@@ -6,7 +6,7 @@ from playwright.sync_api import expect
 
 @pytest.mark.parametrize("viewport", [(1366, 768), (390, 844)])
 def test_home_gallery_is_keyboard_and_touch_operable(live_server, page, viewport):
-    """The three homepage examples can be changed without hiding content offscreen."""
+    """The four homepage examples can be changed without hiding content offscreen."""
     width, height = viewport
     page.set_viewport_size({"width": width, "height": height})
     page.goto(live_server)
@@ -17,23 +17,28 @@ def test_home_gallery_is_keyboard_and_touch_operable(live_server, page, viewport
 
     expect(page.locator(".home-cta a")).to_have_attribute("href", "/processes")
     expect(gallery).to_be_visible()
-    expect(slides).to_have_count(3)
+    expect(slides).to_have_count(4)
     if width == 1366:
         assert page.locator(".container").bounding_box()["width"] <= 960
-    expect(status).to_have_text("1 van 3")
+    expect(status).to_have_text("1 van 4")
     expect(slides.nth(0)).to_be_visible()
     expect(slides.nth(1)).to_be_hidden()
     expect(slides.nth(2)).to_be_hidden()
 
+    autoplay = gallery.locator("[data-home-gallery-toggle]")
+    expect(autoplay).to_have_text("Pauzeren")
+    autoplay.click()
+    expect(autoplay).to_have_text("Afspelen")
+
     gallery.locator("[data-home-gallery-next]").click()
-    expect(status).to_have_text("2 van 3")
+    expect(status).to_have_text("2 van 4")
     expect(slides.nth(1)).to_be_visible()
 
     gallery.focus()
     page.keyboard.press("ArrowRight")
-    expect(status).to_have_text("3 van 3")
+    expect(status).to_have_text("3 van 4")
     page.keyboard.press("ArrowLeft")
-    expect(status).to_have_text("2 van 3")
+    expect(status).to_have_text("2 van 4")
 
     viewport = gallery.locator(".home-gallery-viewport")
     viewport.scroll_into_view_if_needed()
@@ -46,12 +51,31 @@ def test_home_gallery_is_keyboard_and_touch_operable(live_server, page, viewport
     page.mouse.down()
     page.mouse.move(end_x, y)
     page.mouse.up()
-    expect(status).to_have_text("3 van 3")
+    expect(status).to_have_text("3 van 4")
 
     overflow = page.evaluate(
         """() => ({width: innerWidth, scroll: document.documentElement.scrollWidth})"""
     )
     assert overflow["scroll"] <= overflow["width"], overflow
+
+
+def test_home_gallery_automatically_advances(live_server, page):
+    """The gallery advances on its own over a mouseover with reduced motion enabled."""
+    page.emulate_media(reduced_motion="reduce")
+    page.goto(live_server)
+    gallery = page.locator("[data-home-gallery]")
+    status = gallery.locator("[data-home-gallery-status]")
+
+    expect(status).to_have_text("1 van 4")
+    gallery.scroll_into_view_if_needed()
+    box = gallery.bounding_box()
+    assert box is not None
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.wait_for_timeout(4500)
+    expect(status).to_have_text("2 van 4")
+
+    gallery.locator("[data-home-gallery-next]").click()
+    expect(status).to_have_text("3 van 4")
 
 
 @pytest.mark.usefixtures("login")

@@ -75,28 +75,36 @@
         <h2 id="home-gallery-title">Bekijk wat je krijgt</h2>
         <div class="home-gallery-carousel" data-home-gallery role="region" aria-roledescription="carrousel" aria-label="Voorbeelden van ALI Express" tabindex="0">
             <div class="home-gallery-viewport">
-                <figure class="home-gallery-slide is-active" id="home-gallery-slide-1" data-home-slide aria-roledescription="dia" aria-label="1 van 3">
+                <figure class="home-gallery-slide is-active" id="home-gallery-slide-1" data-home-slide aria-roledescription="dia" aria-label="1 van 4">
                     <img src="{{ url_for('static', filename='images/home-gallery-voorkeuren.png') }}" width="1200" height="800" alt="Voorbeeld van het voorkeurenformulier voor leerling Daan, met een voorkeur voor Jack.">
                     <figcaption>Een voorkeur voor één leerling invoeren, rechtstreeks in het formulier.</figcaption>
                 </figure>
-                <figure class="home-gallery-slide" id="home-gallery-slide-2" data-home-slide aria-roledescription="dia" aria-label="2 van 3" hidden>
-                    <img src="{{ url_for('static', filename='images/home-gallery-resultaat.png') }}" width="1200" height="800" alt="Voorbeeld van een voltooide groepsindeling met Daan geselecteerd, met tevredenheidsscore en vervulde voorkeuren zichtbaar.">
-                    <figcaption>De voltooide groepsindeling met Daan geselecteerd: zijn tevredenheid en vervulde wensen zijn direct zichtbaar.</figcaption>
+                <figure class="home-gallery-slide" id="home-gallery-slide-2" data-home-slide aria-roledescription="dia" aria-label="2 van 4" hidden>
+                    <img src="{{ url_for('static', filename='images/home-gallery-resultaat.png') }}" width="1200" height="800" alt="Voorbeeld van een voltooide groepsindeling met vier groepskaarten en leerlingen per groep.">
+                    <figcaption>De groepskaarten geven direct overzicht van de nieuwe groepsindeling.</figcaption>
                 </figure>
-                <figure class="home-gallery-slide" id="home-gallery-slide-3" data-home-slide aria-roledescription="dia" aria-label="3 van 3" hidden>
+                <figure class="home-gallery-slide" id="home-gallery-slide-3" data-home-slide aria-roledescription="dia" aria-label="3 van 4" hidden>
+                    <img src="{{ url_for('static', filename='images/home-gallery-tevredenheid.png') }}" width="1200" height="800" alt="Voorbeeld van leerlingtevredenheid na de groepsindeling, met verschillende percentages waarvan de meeste positief zijn.">
+                    <figcaption>De tevredenheid per leerling: de meeste leerlingen zijn positief, en we zien wie welke voorkeuren gehonoreerd krijgt.</figcaption>
+                </figure>
+                <figure class="home-gallery-slide" id="home-gallery-slide-4" data-home-slide aria-roledescription="dia" aria-label="4 van 4" hidden>
                     <img src="{{ url_for('static', filename='images/home-gallery-sociogram.png') }}" width="1200" height="800" alt="Voorbeeld van een sociogram met fictieve leerlingen en pijlen voor positieve en negatieve voorkeuren.">
                     <figcaption>Het sociogram laat zien hoe de voorkeuren tussen leerlingen samenhangen.</figcaption>
                 </figure>
             </div>
             <div class="home-gallery-controls">
                 <button type="button" class="home-gallery-button home-gallery-previous" data-home-gallery-previous aria-label="Vorige afbeelding">← Vorige</button>
-                <p class="home-gallery-status" data-home-gallery-status aria-live="polite">1 van 3</p>
+                <p class="home-gallery-status" data-home-gallery-status aria-live="polite">1 van 4</p>
                 <button type="button" class="home-gallery-button home-gallery-next" data-home-gallery-next aria-label="Volgende afbeelding">Volgende →</button>
+            </div>
+            <div class="home-gallery-autoplay">
+                <button type="button" class="home-gallery-button home-gallery-toggle" data-home-gallery-toggle aria-pressed="false">Pauzeren</button>
             </div>
             <div class="home-gallery-dots" role="tablist" aria-label="Kies een voorbeeld">
                 <button type="button" role="tab" aria-selected="true" aria-controls="home-gallery-slide-1" data-home-gallery-dot>1</button>
                 <button type="button" role="tab" aria-selected="false" aria-controls="home-gallery-slide-2" data-home-gallery-dot>2</button>
                 <button type="button" role="tab" aria-selected="false" aria-controls="home-gallery-slide-3" data-home-gallery-dot>3</button>
+                <button type="button" role="tab" aria-selected="false" aria-controls="home-gallery-slide-4" data-home-gallery-dot>4</button>
             </div>
         </div>
     </section>
@@ -151,9 +159,31 @@
         const slides = [...gallery.querySelectorAll("[data-home-slide]")];
         const dots = [...gallery.querySelectorAll("[data-home-gallery-dot]")];
         const status = gallery.querySelector("[data-home-gallery-status]");
+        const autoplayToggle = gallery.querySelector("[data-home-gallery-toggle]");
+        const autoplayDelay = 4000;
         let activeIndex = 0;
+        let autoplayTimer = null;
+        let autoplayPaused = false;
         let pointerStartX = null;
         let pointerStartY = null;
+
+        const updateAutoplayToggle = () => {
+            autoplayToggle.setAttribute("aria-pressed", String(autoplayPaused));
+            autoplayToggle.textContent = autoplayPaused ? "Afspelen" : "Pauzeren";
+        };
+
+        const scheduleAutoplay = () => {
+            if (autoplayTimer !== null) window.clearTimeout(autoplayTimer);
+            autoplayTimer = null;
+            if (
+                autoplayPaused ||
+                document.visibilityState === "hidden"
+            ) return;
+            autoplayTimer = window.setTimeout(() => {
+                autoplayTimer = null;
+                showSlide(activeIndex + 1);
+            }, autoplayDelay);
+        };
 
         const showSlide = (nextIndex) => {
             activeIndex = (nextIndex + slides.length) % slides.length;
@@ -168,11 +198,19 @@
                 dot.tabIndex = index === activeIndex ? 0 : -1;
             });
             status.textContent = `${activeIndex + 1} van ${slides.length}`;
+            scheduleAutoplay();
         };
 
         gallery.querySelector("[data-home-gallery-previous]").addEventListener("click", () => showSlide(activeIndex - 1));
         gallery.querySelector("[data-home-gallery-next]").addEventListener("click", () => showSlide(activeIndex + 1));
         dots.forEach((dot, index) => dot.addEventListener("click", () => showSlide(index)));
+        autoplayToggle.addEventListener("click", () => {
+            autoplayPaused = !autoplayPaused;
+            updateAutoplayToggle();
+            scheduleAutoplay();
+        });
+
+        document.addEventListener("visibilitychange", scheduleAutoplay);
 
         gallery.addEventListener("keydown", (event) => {
             if (event.key === "ArrowLeft") {
@@ -211,6 +249,7 @@
             pointerStartY = null;
         });
 
+        updateAutoplayToggle();
         showSlide(0);
     })();
 </script>

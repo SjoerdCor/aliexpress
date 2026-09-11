@@ -20,6 +20,7 @@ from aliexpress.web.extensions import db as flask_db
 from aliexpress.web.models import Process, Run
 from aliexpress.web.process_files import save_voorkeuren
 from app import app
+from scripts.generate_home_gallery_assets import START_DISTRIBUTION_TEST_ID
 from tests.browser.conftest import TEST_SCHOOLCODE
 from tests.helpers import make_interim_view
 
@@ -65,7 +66,7 @@ def _start_distribution_from_idle_panel(live_server, page):
     tests that only care about the solve itself, not the balance-limits UI.
     """
     page.goto(f"{live_server}/processing")
-    page.click('button:has-text("Groepsindeling berekenen →")', no_wait_after=True)
+    page.get_by_test_id(START_DISTRIBUTION_TEST_ID).click(no_wait_after=True)
     page.wait_for_url("**/processing?watch=1", timeout=60000)
 
 
@@ -108,7 +109,7 @@ def test_balance_limits_can_be_changed_unlimited_and_submitted(
     expect(unlimited_number).to_have_value("")
     assert page.locator(".balance-field [title]").count() == 0
 
-    page.click('button:has-text("Groepsindeling berekenen →")')
+    page.get_by_test_id(START_DISTRIBUTION_TEST_ID).click()
     page.wait_for_url("**/result", timeout=60000)
 
     saved = json.loads((proc / "balance_limits.json").read_text("utf-8"))
@@ -127,7 +128,7 @@ def test_balance_limit_without_number_stays_on_form(live_server, tmp_path, page)
     number.fill("")
     assert number.evaluate("element => element.validity.valueMissing") is True
 
-    page.click('button:has-text("Groepsindeling berekenen →")')
+    page.get_by_test_id(START_DISTRIBUTION_TEST_ID).click()
     page.wait_for_timeout(250)
 
     assert page.url == f"{live_server}/processing"
@@ -199,18 +200,14 @@ def test_completed_distribution_can_be_adjusted_and_run_again(
 
     details = page.locator("details.instructions-box")
     assert details.evaluate("element => element.open") is True
-    expect(
-        page.get_by_role("button", name="Groepsindeling berekenen →")
-    ).to_be_visible()
+    expect(page.get_by_test_id(START_DISTRIBUTION_TEST_ID)).to_be_visible()
 
     clique_limit = page.locator('input[name="maxima_max_clique"]')
     saved_limit = int(clique_limit.input_value())
     loosened_limit = saved_limit + 1
     clique_limit.fill(str(loosened_limit))
 
-    page.get_by_role("button", name="Groepsindeling berekenen →").click(
-        no_wait_after=True
-    )
+    page.get_by_test_id(START_DISTRIBUTION_TEST_ID).click(no_wait_after=True)
     page.wait_for_url("**/processing?watch=1", timeout=60000)
     page.wait_for_url("**/result", timeout=240000)
 
