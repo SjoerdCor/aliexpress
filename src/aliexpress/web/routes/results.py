@@ -29,9 +29,11 @@ from ..models import Process
 from ..process_files import (
     load_balance_maxima,
     load_groups,
+    load_input_method,
     load_not_together,
     load_voorkeuren,
 )
+from ..result_view import build_result_page_view
 from ..storage import get_file_path, get_process_path
 from ..wizard_steps import wizard_context
 from .auth import effective_school_id
@@ -169,7 +171,9 @@ def processing():
         processing_data=processing_data,
         maxima=maxima,
         recalculation=run_status == "done",
-        balance_limits_open=run_status == "error",
+        balance_limits_open=(
+            run_status == "error" or request.args.get("edit") == "differences"
+        ),
         **wizard_context(process_mode, "processing"),
     )
 
@@ -250,32 +254,33 @@ def interim_result():
 @login_required
 @require_process
 def result_page():
-    """Display the result: the group-card view-model plus the three analysis tables.
+    """Display the result: group cards plus transient native analysis view-models.
 
-    Loads the analysis tables from ``result_tables.json`` and the structured group cards +
-    klassenoverzicht from ``groepsindeling_view.json`` (when present); the template renders the
-    cards from the view-model and the three tables as tabs.
+    The native analyses are derived from the current structured group-card view in memory.
     """
     school_id = effective_school_id()
     if school_id is None:
         return redirect(url_for("admin.dashboard"))
     process_id = session["process_id"]
-    path = get_file_path(school_id, process_id, "result_tables.json")
-    if not os.path.exists(path):
+    view_path = get_file_path(school_id, process_id, "groepsindeling_view.json")
+    if not os.path.exists(view_path):
         flash("Resultaat niet beschikbaar.", "error")
         return redirect(url_for("processes.index"))
-    with open(path, encoding="utf-8") as fh:
-        dataframes = json.load(fh)
-    view_path = get_file_path(school_id, process_id, "groepsindeling_view.json")
-    groepsindeling_view = None
-    if os.path.exists(view_path):
-        with open(view_path, encoding="utf-8") as fh:
-            groepsindeling_view = json.load(fh)
+    with open(view_path, encoding="utf-8") as fh:
+        groepsindeling_view = json.load(fh)
     process_mode = get_process_mode(get_process_path(school_id, process_id))
+    preference_endpoint = (
+        "wizard.preferences_excel"
+        if load_input_method(school_id, process_id) == "excel"
+        else "wizard.preferences_form"
+    )
     return render_template(
         "result.html",
-        dataframes=dataframes,
         groepsindeling_view=groepsindeling_view,
+        result_page_view=build_result_page_view(groepsindeling_view),
+        preferences_url=url_for(preference_endpoint),
+        spread_url=url_for("wizard.not_together_page"),
+        differences_url=url_for("results.processing", edit="differences"),
         **wizard_context(process_mode, "result"),
     )
 
@@ -292,13 +297,7 @@ def download():
     path = get_file_path(school_id, process_id, "results.xlsx")
     if not os.path.exists(path):
         flash("Groepsindeling niet gevonden. Mogelijk nog aan het berekenen", "error")
-        process_mode = get_process_mode(get_process_path(school_id, process_id))
-        return render_template(
-            "result.html",
-            dataframes={},
-            groepsindeling_view=None,
-            **wizard_context(process_mode, "result"),
-        )
+        return redirect(url_for("results.result_page"))
 
     return send_file(
         path,

@@ -197,7 +197,7 @@ def test_forward_route_steps_and_navigation_labels(live_server, page):
     page.wait_for_url("**/result", timeout=60000)
     assert_wizard_page(page, "forward", "Resultaat bekijken")
 
-    page.get_by_role("link", name="Verder naar Klaar! →").click()
+    page.get_by_role("link", name="Ja, ik ben tevreden!").click()
     page.wait_for_url("**/done")
     assert_wizard_page(page, "forward", "Klaar!")
 

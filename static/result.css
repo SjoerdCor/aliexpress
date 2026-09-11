@@ -1,0 +1,469 @@
+/* Result page: a calm, narrow-layout presentation layer around the shared group cards. */
+
+.result-page {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 72rem;
+  min-width: 0;
+}
+
+.result-page p,
+.result-page ul,
+.result-page ol,
+.result-page section,
+.result-page details,
+.result-page table {
+  max-width: 100%;
+}
+
+.result-intro {
+  max-width: 70ch;
+  margin-bottom: 1.5rem;
+  font-size: 1.1rem;
+}
+
+/* The shared macro still renders these for the interim result. On this page their
+   native replacements below are the accessible, direct presentation. */
+.result-page .gi-balans,
+.result-page .gi-legend-details {
+  display: none;
+}
+
+.result-page .gi,
+.result-page .gi-cards,
+.result-page .gi-card,
+.result-page .gi-card-body,
+.result-page .gi-col {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.result-page .gi-cards {
+  grid-template-columns: repeat(auto-fit, minmax(min(19rem, 100%), 1fr));
+  gap: 1rem;
+  margin: 1rem 0 1.5rem;
+}
+
+.result-page .gi-card-title,
+.result-page .gi-card-totals,
+.result-page .gi-jl-label,
+.result-page .gi-lbl,
+.result-page .gi-chip,
+.result-page .gi-pop,
+.result-page .gi-pop-name,
+.result-page .gi-pop-meta {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.result-page .gi-chip {
+  box-sizing: border-box;
+}
+
+.result-page .gi-pop {
+  box-sizing: border-box;
+  max-width: calc(100vw - 2rem);
+}
+
+.result-card-explanation {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  margin: 0 0 1.5rem;
+  border: 1px solid #d8cec4;
+  border-radius: 0.75rem;
+  background: #fffaf5;
+}
+
+.result-card-explanation > summary {
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.result-card-explanation-body {
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: 0 1rem 1rem;
+}
+
+.result-card-explanation-body > p:first-child {
+  max-width: 70ch;
+  margin-top: 0;
+}
+
+.result-legend-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.result-legend-grid > div {
+  min-width: 0;
+}
+
+.result-legend-grid h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+.result-legend-grid p {
+  margin: 0.65rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+.result-legend-grid .gi-pref {
+  display: inline-flex;
+  margin: 0.1rem 0.2rem 0.1rem 0;
+  vertical-align: middle;
+}
+
+.result-legend-badges .gi-badge {
+  margin: 0.1rem 0.2rem 0.1rem 0;
+}
+
+.result-section,
+.result-decision {
+  width: 100%;
+  min-width: 0;
+  margin-top: 2rem;
+}
+
+.result-section h2,
+.result-decision h2 {
+  margin-bottom: 0.75rem;
+}
+
+.result-disclosure {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  margin: 1rem 0;
+  padding: 0.9rem 1rem;
+  border: 1px solid #d8cec4;
+  border-radius: 0.75rem;
+  background: #fff;
+}
+
+.result-disclosure > summary {
+  max-width: 100%;
+  cursor: pointer;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.result-disclosure-intro {
+  max-width: 70ch;
+  margin: 1rem 0;
+}
+
+.result-table-scroll {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  margin-top: 1rem;
+  overflow-x: auto;
+}
+
+.result-table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.result-table caption {
+  margin-bottom: 0.5rem;
+  text-align: left;
+  font-weight: 700;
+}
+
+.result-balance-summary-table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.result-table-scroll > h3 {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 1.05rem;
+}
+
+.result-table th,
+.result-table td {
+  padding: 0.55rem 0.7rem;
+  border: 1px solid #d8cec4;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.result-table thead th {
+  background: #fff4e9;
+}
+
+.result-table tbody th {
+  background: #faf7f3;
+}
+
+.result-balance .result-table th {
+  font-weight: 400;
+}
+
+.result-student-list {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 1rem 0 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+.result-student {
+  box-sizing: border-box;
+  min-width: 0;
+  cursor: default;
+}
+
+.result-preference {
+  max-width: 100%;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+}
+
+.result-preference-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.result-preference-status {
+  flex: 0 0 auto;
+  font-weight: 700;
+}
+
+.result-student .chip-intensity {
+  flex: 0 0 auto;
+  margin-left: 1px;
+  font-weight: 700;
+}
+
+.result-preference--ok {
+  border-color: #7bbd83;
+  background: #bfe6c4;
+  color: #143a1a;
+}
+
+.result-preference--no {
+  border-color: #cf8a7b;
+  background: #f1c4ba;
+  color: #551a11;
+}
+
+.result-student .row-name {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow-wrap: anywhere;
+}
+
+.result-student .row-placeholder {
+  overflow-wrap: anywhere;
+}
+
+.result-student .row-badge {
+  flex: 0 0 auto;
+}
+
+.result-student .row-id {
+  justify-content: space-between;
+}
+
+.result-student .chip-intensity {
+  font-style: normal;
+}
+
+.result-student .row-chips {
+  min-width: 0;
+}
+
+.result-student .result-preference {
+  box-sizing: border-box;
+  white-space: normal;
+}
+
+.result-origin > p {
+  max-width: 70ch;
+}
+
+.result-sociogram-link {
+  max-width: 70ch;
+  margin: 2rem 0;
+  overflow-wrap: anywhere;
+}
+
+.result-sociogram-link a {
+  color: var(--color-secondary);
+}
+
+.result-download .button {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.result-download-intro {
+  max-width: 70ch;
+  margin: 0;
+}
+
+.result-decision > .result-download {
+  margin: 0.5rem 0 1.5rem;
+  padding: 0;
+  border-top: 0;
+}
+
+.result-decision-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: start;
+  margin-top: 1rem;
+}
+
+.result-adjustment {
+  min-width: 0;
+  background: #fffaf5;
+}
+
+.result-adjustment > summary {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-height: var(--layout-control-min-size);
+  padding: 0.625rem 1rem;
+  border: 2px solid var(--color-primary);
+  border-radius: var(--layout-control-radius);
+  background: var(--color-primary);
+  color: var(--color-primary-ink);
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.result-adjustment > summary:hover,
+.result-adjustment > summary:active {
+  border-color: var(--color-primary-hover);
+  background: var(--color-primary-hover);
+  color: var(--color-primary-ink);
+}
+
+.result-adjustment-body {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.result-adjustment-body section {
+  min-width: 0;
+}
+
+.result-adjustment-body h3 {
+  margin-top: 0;
+  overflow-wrap: anywhere;
+}
+
+.result-adjustment-body p,
+.result-adjustment-body a {
+  overflow-wrap: anywhere;
+}
+
+.result-adjustment-body .button {
+  width: 100%;
+}
+
+.result-finish-action {
+  width: 100%;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.result-decision-finish {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.result-download {
+  margin-top: 0;
+  padding-top: 1rem;
+  border-top: 1px solid #e0d6cc;
+}
+
+@media (max-width: 680px) {
+  .result-page .gi-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .result-page .gi-jm-cols {
+    grid-template-columns: 1fr;
+  }
+
+  .result-adjustment-body {
+    grid-template-columns: 1fr;
+  }
+
+  .result-legend-grid,
+  .result-decision-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .result-student .row-id,
+  .result-student .row-chips {
+    flex-basis: 100%;
+  }
+
+  .result-student .row-id {
+    width: 100%;
+  }
+}
+
+@media (max-width: 680px) {
+  /* The shared popover remains beside chips on /processing. Result chips expand their
+     own card so a long detail never escapes a narrow result viewport. */
+  .result-page .gi-chip.is-open {
+    display: block;
+  }
+
+  .result-page .gi-chip .gi-pop {
+    display: none;
+  }
+
+  .result-page .gi-chip.is-open .gi-pop,
+  .result-page .gi-chip.is-open .gi-pop.gi-pop--left {
+    position: static;
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    margin-top: 0.55rem;
+    transform: none;
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .result-page .gi-pop::before {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .result-page *,
+  .result-page *::before,
+  .result-page *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+  }
+}

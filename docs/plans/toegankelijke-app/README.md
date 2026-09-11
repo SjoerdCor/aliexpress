@@ -22,8 +22,9 @@ committen. Bestaand werk wordt per pagina beoordeeld, behouden of bijgestuurd.
 | 7 | [Voorkeuren invullen](07-voorkeuren-invullen.md) | Geïmplementeerd op deze branch |
 | 8 | [Leerlingen spreiden](08-leerlingen-spreiden.md) | Geïmplementeerd op deze branch |
 | 9 | [Groepsindeling berekenen en volgen](09-berekening-starten-en-volgen.md) | Geïmplementeerd op deze branch |
+| 10 | [Resultaat bekijken](10-resultaat-bekijken.md) | Implementatiegereed na gebruikersreview |
 
-Resultaat, sociogram, afronding, login en beheer krijgen pas een eigen plan wanneer ze aan
+Sociogram, afronding, login en beheer krijgen pas een eigen plan wanneer ze aan
 de beurt zijn. De homepage-gallery mag beelden van resultaat en sociogram gebruiken, maar
 verandert die pagina's niet.
 
