@@ -5,7 +5,7 @@
 ## Doel
 
 Een leerkracht kiest de bestaande groepen uit het EDEXML-bestand die opnieuw worden
-ingedeeld of waarin leerlingen volgend schooljaar starten. De pagina moet de keuze op
+ingedeeld of waarin leerlingen in de nieuwe indeling terechtkomen. De pagina moet de keuze op
 320 px, bij 200% zoom en met toetsenbord volledig bruikbaar houden.
 
 ## Huidige toestand

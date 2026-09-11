@@ -14,11 +14,11 @@ moet voor alle drie verdeelmodi begrijpelijk zijn zonder kennis van de techniek.
 
 | Verdeelmodus | Vorige stap | Volgende stap |
 | --- | --- | --- |
-| Doorzetten | Leerlinggegevens ophalen | Groepen controleren |
+| Doorzetten | Schoolinformatie | Groepen controleren |
 | Herindelen met dezelfde groepen | Groepen kiezen | Voorkeuren invullen |
-| Herindelen met doorzetten | Leerlinggegevens ophalen | Nieuwe groepen kiezen |
+| Herindelen met doorzetten | Schoolinformatie | Groepen controleren |
 
-De pagina heet nu `Wie gaat mee?`; de gedeelde progress-strip gebruikt die naam ook.
+De pagina heet nu `Leerlingen controleren`; de gedeelde progress-strip gebruikt die naam ook.
 Nieuwe leerlingen krijgen nu stilzwijgend de eerste huidige groep als geen groep is
 gekozen. De server vergelijkt namen al op een volledige interne naamssleutel. De korte
 displaynaam wordt pas later automatisch afgeleid; een leerkracht hoeft geen voorletters

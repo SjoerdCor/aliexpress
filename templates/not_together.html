@@ -1,14 +1,13 @@
 {% extends "base.html" %}
-{% set current_step = 5 %}
-{% block header %}Leerlingen spreiden{% endblock %}
+{% block header %}{{ current_step_label }}{% endblock %}
 {% block extra_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='not-together.css') }}">{% endblock %}
 
 {% block content %}
 <main class="not-together-page">
   <div class="not-together-intro">
-    <p>Wil je voorkomen dat bepaalde leerlingen allemaal in dezelfde nieuwe groep komen?
+    <p>Wil je voorkomen dat bepaalde leerlingen allemaal in dezelfde groep komen?
       Maak hieronder een spreiding. Voeg de leerlingen toe en kies hoeveel van hen er maximaal
-      in één nieuwe groep mogen komen. ALI Express houdt zich bij de groepsindeling altijd aan
+      in één groep mogen komen. ALI Express houdt zich bij de groepsindeling altijd aan
       dat maximum.</p>
     <p>Geen spreiding nodig? Dan kun je meteen verder.</p>
   </div>
@@ -18,12 +17,12 @@
     <article class="not-together-example">
       <h3>Twee leerlingen uit elkaar houden</h3>
       <p>Twee leerlingen leiden elkaar vaak af als ze samen zitten. Voeg hen toe en kies
-        maximaal 1. Ze komen dan niet samen in een nieuwe groep.</p>
+        maximaal 1. Ze komen dan niet samen in een groep.</p>
     </article>
     <article class="not-together-example">
       <h3>Extra ondersteuning over de groepen verdelen</h3>
       <p>Zes leerlingen hebben extra ondersteuning nodig. Voeg hen toe en kies maximaal 2.
-        Per nieuwe groep komen dan maximaal twee van hen.</p>
+        Per groep komen dan maximaal twee van hen.</p>
     </article>
   </section>
 
@@ -46,11 +45,9 @@
     </div>
 
     <div class="step-navigation not-together-navigation">
-      <a href="{{ prev_preferences_url }}" class="button button--secondary previous-step">
-        ← Terug naar voorkeuren
-      </a>
+      <a href="{{ prev_url }}" class="button button--secondary previous-step">{{ prev_label }}</a>
       <button type="submit" class="button next-step">
-        Verder →
+        {{ next_label }}
       </button>
     </div>
   </form>
@@ -256,7 +253,7 @@ function validateCard(card) {
   if (chipCount(card) > maxValue * nGroups) {
     setEditing(card);
     showClientError(
-      `Deze spreiding is niet uitvoerbaar: verdeel de leerlingen over ${nGroups} nieuwe groepen of verhoog het maximum.`,
+      `Deze spreiding is niet uitvoerbaar: verdeel de leerlingen over ${nGroups} groepen of verhoog het maximum.`,
       maxInput
     );
     return false;
@@ -378,8 +375,8 @@ function addRule() {
   maxInput.min = '1';
   maxInput.step = '1';
   maxInput.value = '1';
-  maxInput.setAttribute('aria-label', 'Maximumaantal van deze leerlingen per nieuwe groep');
-  maxLabel.append('Maximaal ', maxInput, ' van deze leerlingen per nieuwe groep');
+  maxInput.setAttribute('aria-label', 'Maximumaantal van deze leerlingen per groep');
+  maxLabel.append('Maximaal ', maxInput, ' van deze leerlingen per groep');
 
   const confirmButton = document.createElement('button');
   confirmButton.type = 'button';

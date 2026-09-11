@@ -12,6 +12,9 @@ import pytest
 
 from tests.browser.conftest import TEST_SCHOOLCODE
 from tests.browser.test_roster_browser import _open_roster
+from tests.browser.wizard_route_helpers import assert_wizard_page
+
+SOLVE_TIMEOUT_MS = 240000
 
 # Three combi groups (jaargroep 6 and 7 mixed, as real combination classes are), twelve
 # students total. A group's own <jaargroep> is dropped by EdexReader.get_full_df (the
@@ -95,6 +98,13 @@ def _upload_herindelen_edexml(live_server, page):
     )
     page.click("button[type=submit]")
     page.wait_for_url(f"{live_server}/select_groups")
+    assert_wizard_page(page, "redistribute", "Groepen kiezen")
+    assert page.locator("a.previous-step").inner_text().strip() == (
+        "← Terug naar Schoolinformatie"
+    )
+    assert page.locator("button.next-step").inner_text().strip() == (
+        "Verder naar Leerlingen controleren →"
+    )
 
 
 def _select_groups(live_server, page, group_names):
@@ -145,13 +155,15 @@ def test_create_process_redistribute_mode(live_server, tmp_path, page):
     jaargroep field on the upload page."""
     _create_redistribute_process(live_server, page, "modus-test")
 
+    assert_wizard_page(page, "redistribute", "Schoolinformatie")
+
     proc = tmp_path / TEST_SCHOOLCODE / "modus-test"
     assert json.loads((proc / "mode.json").read_text("utf-8")) == {
         "mode": "redistribute"
     }
     assert page.locator("select[name=jaargroep]").count() == 0
     assert (
-        "Gegevens inlezen en groepen kiezen →"
+        "Verder naar Groepen kiezen →"
         in page.locator("button[type=submit]").inner_text()
     )
 
@@ -163,7 +175,7 @@ def test_distribution_modes_show_explanations(live_server, page):
 
     explanations = [
         (
-            "Leerlingen gaan naar de volgende groepen",
+            "Leerlingen gaan naar de groepen in de nieuwe indeling",
             "Bijvoorbeeld: jaarlaag 5 wordt verdeeld over de bestaande groepen 6/7/8.",
         ),
         (
@@ -212,7 +224,7 @@ def test_select_groups_requires_at_least_two(live_server, page):
     first_group = _HERINDELEN_GROUPS[0]["naam"]
     second_group = _HERINDELEN_GROUPS[1]["naam"]
     page.locator(f'input[name=groups][value="{first_group}"]').check()
-    page.get_by_role("button", name="Verder naar leerlingen controleren →").click()
+    page.get_by_role("button", name="Verder naar Leerlingen controleren →").click()
     assert (
         "Kies minimaal twee groepen om opnieuw in te delen."
         in page.locator(".flash-message").inner_text()
@@ -222,7 +234,7 @@ def test_select_groups_requires_at_least_two(live_server, page):
     # The failed POST redirects to a fresh form.
     page.locator(f'input[name=groups][value="{first_group}"]').check()
     page.locator(f'input[name=groups][value="{second_group}"]').check()
-    page.get_by_role("button", name="Verder naar leerlingen controleren →").click()
+    page.get_by_role("button", name="Verder naar Leerlingen controleren →").click()
     page.wait_for_url(f"{live_server}/roster")
 
 
@@ -271,7 +283,7 @@ def test_roster_back_button_points_to_select_groups(live_server, page):
     _reach_roster(live_server, page, "roster-nav-test")
 
     back = page.locator("a.previous-step")
-    assert back.inner_text().strip() == "← Terug naar groepen kiezen"
+    assert back.inner_text().strip() == "← Terug naar Groepen kiezen"
     assert back.get_attribute("href").endswith("/select_groups")
 
 
@@ -280,26 +292,31 @@ def test_preferences_form_back_button_points_to_roster(live_server, page):
     """In redistribute mode, /preferences_form's back button returns to the roster page
     (groups_to is skipped entirely — ``_groups_to_auto_redistribute``)."""
     _reach_roster(live_server, page, "prefs-nav-test")
-    page.click("button:has-text('Verder naar voorkeuren →')")
+    page.click("button:has-text('Verder naar Voorkeuren invullen →')")
     page.wait_for_url(f"{live_server}/preferences_form")
 
     back = page.locator("a.previous-step")
-    assert back.inner_text().strip() == "← Terug naar leerlingen controleren"
+    assert back.inner_text().strip() == "← Terug naar Leerlingen controleren"
     assert back.get_attribute("href").endswith("/roster")
 
 
 @pytest.mark.usefixtures("login")
 def test_full_redistribute_flow_to_result(live_server, page):
-    """End-to-end herindelen run: process creation through the result page, on a mini
+    """End-to-end herindelen run: process creation through Klaar!, on a mini
     instance (3 groups, 12 students, 2 jaargroepen). Mirrors
-    test_distribution_browser.py's forward-mode equivalent; CP-SAT solves an instance this
-    small in well under a second, but the wait is given a generous timeout regardless.
+    test_distribution_browser.py's forward-mode equivalent. The solver normally finishes
+    quickly for this small instance, but the browser test allows a few minutes on CI.
     """
-    _reach_roster(live_server, page, "full-flow-test")
+    _create_redistribute_process(live_server, page, "full-flow-test")
+    assert_wizard_page(page, "redistribute", "Schoolinformatie")
+    _upload_herindelen_edexml(live_server, page)
+    _select_groups(live_server, page, [g["naam"] for g in _HERINDELEN_GROUPS])
+    assert_wizard_page(page, "redistribute", "Leerlingen controleren")
 
     # "Leerlingen controleren": every candidate is checked by default; continue straight through.
-    page.click("button:has-text('Verder naar voorkeuren →')")
+    page.click("button:has-text('Verder naar Voorkeuren invullen →')")
     page.wait_for_url(f"{live_server}/preferences_form")
+    assert_wizard_page(page, "redistribute", "Voorkeuren invullen")
 
     # One "graag met" wish for the first pupil (h01, Anna Berg): an empty preference set for
     # every single pupil in the whole process is a valid end state per the page's own JS, but
@@ -312,15 +329,21 @@ def test_full_redistribute_flow_to_result(live_server, page):
     combo.fill("Bram")
     page.locator("#list-graag_met-h01 .combobox-option").first.click()
     page.locator(".modal-done[data-key='h01']").click()
-    page.click("button:has-text('Verder naar leerlingen spreiden')")
+    page.click("button:has-text('Verder naar Leerlingen spreiden')")
     page.wait_for_url(f"{live_server}/not_together")
+    assert_wizard_page(page, "redistribute", "Leerlingen spreiden")
 
     # No niet-samen rules either; saving lands on the idle processing panel, where the
     # balance-maxima defaults are prefilled — submitting it unmodified starts the solve.
-    page.get_by_role("button", name="Verder →").click()
+    page.get_by_role("button", name="Verder naar Groepsindeling berekenen →").click()
     page.wait_for_url(f"{live_server}/processing")
-    page.get_by_role("button", name="Berekening starten →").click()
-    page.wait_for_url("**/result", timeout=60000)
+    assert_wizard_page(page, "redistribute", "Groepsindeling berekenen")
+    page.get_by_role("button", name="Groepsindeling berekenen →").click(
+        no_wait_after=True
+    )
+    page.wait_for_url("**/processing?watch=1", timeout=60000)
+    page.wait_for_url("**/result", timeout=SOLVE_TIMEOUT_MS)
+    assert_wizard_page(page, "redistribute", "Resultaat bekijken")
 
     # The klassenoverzicht now renders as the structured balance table: one row per
     # jaarlaag, with the three groups as columns.
@@ -330,6 +353,10 @@ def test_full_redistribute_flow_to_result(live_server, page):
     assert baltable.locator("tbody th", has_text="Jaarlaag 6").count() == 1
     assert baltable.locator("tbody th", has_text="Jaarlaag 7").count() == 1
 
+    page.get_by_role("link", name="Verder naar Klaar! →").click()
+    page.wait_for_url("**/done")
+    assert_wizard_page(page, "redistribute", "Klaar!")
+
 
 @pytest.mark.usefixtures("login")
 def test_redistribute_and_forward_flow_reaches_select_groups_then_next_step(
@@ -337,16 +364,68 @@ def test_redistribute_and_forward_flow_reaches_select_groups_then_next_step(
 ):
     """Herindelen met doorzetten follows its own order: upload (with jaargroep
     checkboxes) → roster ("Leerlingen controleren") → select_groups (destinations) → groups_to
-    (auto) → preferences. Complements the redistribute (in_place) coverage above, which
-    goes upload → select_groups → roster instead."""
+    (auto) → preferences → result → done. Complements the redistribute (in_place) coverage
+    above, which goes upload → select_groups → roster instead."""
     _create_redistribute_and_forward_process(live_server, page, "redist-forward-test")
+    assert_wizard_page(page, "redistribute_and_forward", "Schoolinformatie")
     _upload_redistribute_and_forward_edexml(live_server, page, jaargroepen=[6, 7])
 
+    assert_wizard_page(page, "redistribute_and_forward", "Leerlingen controleren")
+
     # roster.json has not been settled yet: this is the first visit, straight to /select_groups.
-    page.get_by_role("button", name="Verder naar nieuwe groepen →").click()
+    page.get_by_role("button", name="Verder naar Groepen controleren →").click()
     page.wait_for_url(f"{live_server}/select_groups")
+    assert_wizard_page(page, "redistribute_and_forward", "Groepen controleren")
+    assert page.locator("a.previous-step").inner_text().strip() == (
+        "← Terug naar Leerlingen controleren"
+    )
+    assert page.locator("button.next-step").inner_text().strip() == (
+        "Verder naar Voorkeuren invullen →"
+    )
 
     for group in _HERINDELEN_GROUPS[:2]:
         page.locator(f'input[name=groups][value="{group["naam"]}"]').check()
-    page.get_by_role("button", name="Verder naar voorkeuren →").click()
+    page.get_by_role("button", name="Verder naar Voorkeuren invullen →").click()
     page.wait_for_url(f"{live_server}/preferences_form")
+    assert_wizard_page(page, "redistribute_and_forward", "Voorkeuren invullen")
+    assert page.locator("a.previous-step").inner_text().strip() == (
+        "← Terug naar Groepen controleren"
+    )
+    assert page.locator("button.next-step").inner_text().strip() == (
+        "Verder naar Leerlingen spreiden →"
+    )
+
+    page.locator("#row-h01").click()
+    combo = page.locator("#combo-graag_met-h01")
+    combo.click()
+    combo.fill("Bram")
+    page.locator("#list-graag_met-h01 .combobox-option").first.click()
+    page.locator(".modal-done[data-key='h01']").click()
+
+    page.get_by_role("button", name="Verder naar Leerlingen spreiden →").click()
+    page.wait_for_url(f"{live_server}/not_together")
+    assert_wizard_page(page, "redistribute_and_forward", "Leerlingen spreiden")
+    assert page.locator("a.previous-step").inner_text().strip() == (
+        "← Terug naar Voorkeuren invullen"
+    )
+    assert page.locator("button.next-step").inner_text().strip() == (
+        "Verder naar Groepsindeling berekenen →"
+    )
+
+    page.get_by_role("button", name="Verder naar Groepsindeling berekenen →").click()
+    page.wait_for_url(f"{live_server}/processing")
+    assert_wizard_page(page, "redistribute_and_forward", "Groepsindeling berekenen")
+    assert page.locator("a.previous-step").inner_text().strip() == (
+        "← Terug naar Leerlingen spreiden"
+    )
+
+    page.get_by_role("button", name="Groepsindeling berekenen →").click(
+        no_wait_after=True
+    )
+    page.wait_for_url("**/processing?watch=1", timeout=60000)
+    page.wait_for_url("**/result", timeout=SOLVE_TIMEOUT_MS)
+    assert_wizard_page(page, "redistribute_and_forward", "Resultaat bekijken")
+
+    page.get_by_role("link", name="Verder naar Klaar! →").click()
+    page.wait_for_url("**/done")
+    assert_wizard_page(page, "redistribute_and_forward", "Klaar!")

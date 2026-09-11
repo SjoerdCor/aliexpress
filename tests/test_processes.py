@@ -143,7 +143,7 @@ class TestProcessesList:
         """All three human mode descriptions are visible and the first is selected."""
         response = client.get("/processes?new=1")
         page = response.get_data(as_text=True)
-        assert "Leerlingen gaan naar de volgende groepen" in page
+        assert "Leerlingen gaan naar de groepen in de nieuwe indeling" in page
         assert (
             "Bijvoorbeeld: jaarlaag 5 wordt verdeeld over de bestaande groepen 6/7/8."
             in page
@@ -231,7 +231,7 @@ class TestSelectProcess:
 
     def test_process_with_json_redirects_to_roster(self, client, tmp_path):
         """After the EDEXML upload (only the candidates JSON present) the process resumes at
-        the "Wie gaat mee" step (ADR 0006)."""
+        the "Leerlingen controleren" step (ADR 0006)."""
         proc_dir = tmp_path / SCHOOL_ID / "procesmetjson"
         proc_dir.mkdir(parents=True, exist_ok=True)
         (proc_dir / "relevant_students_and_groups.json").write_text(
@@ -244,7 +244,7 @@ class TestSelectProcess:
         assert response.headers["Location"].endswith("/roster")
 
     def test_process_with_roster_redirects_to_groups_to(self, client, tmp_path):
-        """A settled roster but no groups.xlsx yet resumes at "Groepen naartoe" (ADR 0006)."""
+        """A settled roster but no groups.xlsx yet resumes at "Groepen controleren" (ADR 0006)."""
         proc_dir = tmp_path / SCHOOL_ID / "procesmetroster2"
         proc_dir.mkdir(parents=True, exist_ok=True)
         (proc_dir / "roster.json").write_text(

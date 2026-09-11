@@ -98,7 +98,7 @@ class TestPreferencesExcel:
         return proc_dir
 
     def test_get_redirects_to_roster_when_no_roster_yet(self, client, tmp_path):
-        """Without a settled roster the page sends the teacher to 'Wie gaat mee' first."""
+        """Without a settled roster the page sends the teacher to learner checking first."""
         self._setup(client, tmp_path, with_roster=False)
         response = client.get("/preferences_excel")
         assert response.status_code == 302
@@ -195,7 +195,7 @@ class TestNotTogetherLoadsFromJson:
 
         html = client.get("/not_together").data.decode("utf-8")
 
-        assert "Verder →" in html
+        assert "Verder naar Groepsindeling berekenen →" in html
         assert "Opslaan &amp; Indeling starten" not in html
 
     def test_missing_json_and_xlsx_redirects_with_error(

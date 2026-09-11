@@ -75,7 +75,7 @@ class TestProcessingIdlePanel:  # pylint: disable=too-few-public-methods  # one 
         assert response.status_code == 200
         html = response.data.decode("utf-8")
         assert 'name="maxima_max_clique"' in html
-        assert "Berekening starten →" in html
+        assert "Groepsindeling berekenen →" in html
         assert "leerlingen" in html
 
 
@@ -118,8 +118,8 @@ class TestProcessingRunStates:
         html = response.data.decode("utf-8")
         assert re.search(r'name="maxima_max_diff_n_students_year"[^>]*value="6"', html)
         assert re.search(r'name="maxima_max_clique"[^>]*value="4"', html)
-        assert "Opnieuw berekenen →" in html
-        assert "Berekening starten →" not in html
+        assert "Groepsindeling berekenen →" in html
+        assert "Groepsindeling opnieuw berekenen →" not in html
         assert "Een nieuwe berekening vervangt de huidige groepsindeling." in html
         assert re.search(
             r'href="/download"[^>]*>Download huidige groepsindeling</a>', html
@@ -171,9 +171,9 @@ class TestProcessingRunStates:
 
         assert response.status_code == 200
         html = response.data.decode("utf-8")
-        assert "ALI Express berekent je groepsindeling" in html
+        assert "Groepsindeling berekenen" in html
         assert 'id="input-overview"' not in html
-        assert "Berekening starten →" not in html
+        assert "Groepsindeling berekenen →" not in html
 
     def test_error_run_reuses_saved_balance_maxima(self, client, tmp_path):
         """An error page shows the limits chosen for the failed attempt."""
@@ -310,7 +310,7 @@ class TestProcessingSummary:  # pylint: disable=too-few-public-methods
 
         html = client.get("/processing").get_data(as_text=True)
 
-        assert "Klaar om je groepsindeling te berekenen" in html
+        assert "Groepsindeling berekenen" in html
         assert "Oude groep met een bijzonder lange naam" in html
         pd.DataFrame(
             {"Jongens": [1, 1], "Meisjes": [1, 0]},
@@ -323,7 +323,7 @@ class TestProcessingSummary:  # pylint: disable=too-few-public-methods
             ),
         ).to_excel(proc_dir / "groups.xlsx")
         html = client.get("/processing").get_data(as_text=True)
-        assert "Nieuwe groepen (2)" in html
+        assert "Groepen in deze indeling (2)" in html
         assert "Een nieuwe groep met een lange naam" in html
         assert "Nog een nieuwe groep met een lange naam" in html
         assert "2 leerlingen met één of meer voorkeuren" in html
@@ -383,9 +383,9 @@ class TestResultPage:
 
         html = client.get("/result").data.decode("utf-8")
 
-        assert "\u2190 Nog niet helemaal... opnieuw invoeren" in html
+        assert "← Terug naar Groepsindeling berekenen" in html
         assert re.search(
-            r'href="/processing"[^>]*>\u2190 Nog niet helemaal\.\.\. opnieuw invoeren</a>',
+            r'href="/processing"[^>]*>← Terug naar Groepsindeling berekenen</a>',
             html,
         )
         assert "/processing?watch=" not in html

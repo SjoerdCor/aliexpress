@@ -1,4 +1,4 @@
-# Pagina 9 — Berekening starten en volgen
+# Pagina 9 — Groepsindeling berekenen en volgen
 
 **Status:** implementatiegereed na gebruikersreview
 
@@ -34,7 +34,7 @@ Controleer de object-id opnieuw en vertrouw niet blind op het veranderlijke numm
 
 Gericht bruikbaar uit die stash:
 
-- de gestructureerde invoersamenvatting met namen van huidige en nieuwe groepen;
+- de gestructureerde invoersamenvatting met namen van huidige groepen en groepen in deze indeling;
 - de concrete koppeling van labels aan de zes balansvelden;
 - de foutmelding op basis van de al opgeslagen `Run.message`;
 - de processing-specifieke responsieve stijlen;
@@ -55,7 +55,7 @@ Niet overnemen:
 
 ## Klaar om te rekenen
 
-Gebruik als h1 **Klaar om je groepsindeling te berekenen**.
+Gebruik als h1 **Groepsindeling berekenen**.
 
 Toon daaronder als gewone tekst:
 
@@ -71,7 +71,7 @@ aantallen en namen, geen volledige voorkeuren of volledige spreidingsregels:
 - **Leerlingen:** `{aantal}` te verdelen leerlingen, met de aantallen jongens en meisjes;
 - **Huidige groepen:** een geneste lijst met volledige groepsnaam en leerlingaantal;
 - **Huidige jaarlaag/jaarlagen:** alleen tonen wanneer jaarlaaggegevens aanwezig zijn;
-- **Nieuwe groepen (`{aantal}`):** een geneste lijst met alle volledige groepsnamen;
+- **Groepen in deze indeling (`{aantal}`):** een geneste lijst met alle volledige groepsnamen;
 - **Voorkeuren:** `{aantal}` leerlingen met één of meer positieve of negatieve
   voorkeuren; tel een niet-in-groep-uitsluiting of alleen extra zekerheid niet als
   voorkeur;
@@ -109,15 +109,15 @@ Geef iedere balansfamilie naast haar legend een korte uitleg.
 
 **Jongens en meisjes**
 
-> We streven binnen iedere nieuwe groep naar een zo evenwichtig mogelijke verdeling
+> We streven binnen iedere groep in deze indeling naar een zo evenwichtig mogelijke verdeling
 > tussen jongens en meisjes. Je kunt het verschil begrenzen per jaarlaag en over de hele
 > groep.
 
 **Leerlingen uit dezelfde huidige groep**
 
-> We verspreiden leerlingen uit dezelfde huidige groep over de nieuwe groepen. Je kunt
+> We verspreiden leerlingen uit dezelfde huidige groep over de groepen in deze indeling. Je kunt
 > apart begrenzen hoeveel leerlingen in totaal, en hoeveel jongens of meisjes, samen in
-> één nieuwe groep komen.
+> één groep in de nieuwe indeling komen.
 
 Houd de twee veldlabels per familie daarna beknopt maar zelfstandig begrijpelijk, met het
 onderscheid **per jaarlaag** en **over de hele groep**. Gebruik **Geen maximum** bij alle
@@ -127,16 +127,16 @@ standaardwaarden, parsing en `None`-betekenis van Geen maximum blijven intact.
 
 Gebruik de navigatieacties:
 
-- **← Terug naar leerlingen spreiden**;
-- **Berekening starten →**;
-- bij een bestaand resultaat **Opnieuw berekenen →**.
+- **← Terug naar Leerlingen spreiden**;
+- **Groepsindeling berekenen →**;
+- bij een bestaand resultaat opnieuw **Groepsindeling berekenen →**.
 
 Bij opnieuw rekenen blijft de waarschuwing zichtbaar dat een nieuwe berekening de huidige
 groepsindeling vervangt, met de bestaande downloadactie vóór de startknop.
 
 ## Tijdens het rekenen
 
-Gebruik als h1 **ALI Express berekent je groepsindeling** en als introductie:
+Gebruik als h1 **Groepsindeling berekenen** en als introductie:
 
 > ALI Express vergelijkt veel mogelijke groepsindelingen en verbetert de beste
 > tussenstand stap voor stap. Je hoeft niets te doen. Je kunt deze pagina openlaten of
@@ -185,7 +185,7 @@ starten. Balansgrenzen krijgen in deze flash dezelfde volledige, begrijpelijke l
 de velden op de pagina; interne verkortingen zoals `Zelfde stamgroep totaal` zijn niet
 zichtbaar voor de gebruiker.
 
-Laat het normale formulier, de bewaarde grenzen, de terugactie en **Berekening starten →**
+Laat het normale formulier, de bewaarde grenzen, de terugactie en **Groepsindeling berekenen →**
 beschikbaar. Voeg geen foutcode-sidecar, contextuele foutlink, sessiestaat of nieuwe route
 toe. Laat de browser bij status `error` rechtstreeks teruggaan naar `/processing`; de
 route toont de opgeslagen melding via de bestaande error-flash.
@@ -238,7 +238,8 @@ voortgangsdata, ETA-formules, datamodel, sessiebetekenis of opslagbetekenis.
 - Een gewone GET in de klaarstaat is alleen-lezen en start geen `Run` of
   voortgangsbestand.
 - De open samenvatting toont de afgesproken categorieën als lijst, met correcte aantallen,
-  bron- en doelgroepsnamen en volledig omlopende lange namen. Zij suggereert niet dat een
+  namen van huidige groepen en groepen in de nieuwe indeling en volledig omlopende lange
+  namen. Zij suggereert niet dat een
   leerling zonder voorkeur onvolledig is.
 - Tijdens pending/running ontbreekt de klaar-samenvatting en het startformulier; alle drie
   fasen blijven aanwezig terwijl hun toestand wordt bijgewerkt.

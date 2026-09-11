@@ -250,7 +250,7 @@ def readableerror_to_validation_message(exc: Exception) -> str:
         ),
         "too_strict_not_together": (
             "Deze spreiding is niet uitvoerbaar: {n_students} leerlingen kunnen niet over "
-            "{n_groups} nieuwe groepen worden verdeeld met maximaal {max_samen} van hen "
+            "{n_groups} groepen worden verdeeld met maximaal {max_samen} van hen "
             "samen. Verhoog het maximum of pas de leerlingen aan."
         ),
         "invalid_max_samen_type_not_together": (

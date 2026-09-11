@@ -1,15 +1,7 @@
 {% extends "base.html" %}
-{% set current_step = 6 %}
-
 {% block title %}ALI-Express{% endblock %}
 {% block extra_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='processing.css') }}">{% endblock %}
-{% block header %}
-{% if mode == "running" %}
-ALI Express berekent je groepsindeling
-{% else %}
-Klaar om je groepsindeling te berekenen
-{% endif %}
-{% endblock %}
+{% block header %}{{ current_step_label }}{% endblock %}
 
 {% block content %}
 <div class="processing-page"
@@ -43,7 +35,7 @@ Klaar om je groepsindeling te berekenen
         </li>
         {% endif %}
         <li>
-            <strong>Nieuwe groepen ({{ summary.n_target_groups }}):</strong>
+            <strong>Groepen in deze indeling ({{ summary.n_target_groups }}):</strong>
             <ul>
             {% for naam in target_group_names %}
                 <li>{{ naam }}</li>
@@ -126,7 +118,7 @@ Klaar om je groepsindeling te berekenen
 
         <fieldset class="balance-fieldset">
             <legend>Jongens en meisjes</legend>
-            <p>We streven binnen iedere nieuwe groep naar een zo evenwichtig mogelijke verdeling tussen jongens en meisjes. Je kunt het verschil begrenzen per jaarlaag en over de hele groep.</p>
+            <p>We streven binnen iedere groep naar een zo evenwichtig mogelijke verdeling tussen jongens en meisjes. Je kunt het verschil begrenzen per jaarlaag en over de hele groep.</p>
             <div class="balance-field">
                 <label for="maxima-max-gender-year">Maximaal verschil tussen jongens en meisjes per jaarlaag</label>
                 <div class="balance-controls">
@@ -145,16 +137,16 @@ Klaar om je groepsindeling te berekenen
 
         <fieldset class="balance-fieldset">
             <legend>Leerlingen uit dezelfde huidige groep</legend>
-            <p>We verspreiden leerlingen uit dezelfde huidige groep over de nieuwe groepen. Je kunt apart begrenzen hoeveel leerlingen in totaal, en hoeveel jongens of meisjes, samen in één nieuwe groep komen.</p>
+            <p>We verspreiden leerlingen uit dezelfde huidige groep over de groepen in de nieuwe indeling. Je kunt apart begrenzen hoeveel leerlingen in totaal, en hoeveel jongens of meisjes, samen in één groep in de nieuwe indeling komen.</p>
             <div class="balance-field">
-                <label for="maxima-max-clique">Maximaal aantal leerlingen uit dezelfde huidige groep in één nieuwe groep</label>
+                <label for="maxima-max-clique">Maximaal aantal leerlingen uit dezelfde huidige groep in één groep in de nieuwe indeling</label>
                 <div class="balance-controls">
                     <input id="maxima-max-clique" type="number" name="maxima_max_clique" min="1" step="1" required value="{{ maxima.max_clique if maxima.max_clique is not none else '' }}">
                     <label class="unlimited-label" for="maxima-max-clique-unlimited"><input id="maxima-max-clique-unlimited" data-number-id="maxima-max-clique" type="checkbox" name="maxima_max_clique_unlimited"{% if maxima.max_clique is none %} checked{% endif %}> Geen maximum</label>
                 </div>
             </div>
             <div class="balance-field">
-                <label for="maxima-max-clique-sex">Maximaal aantal jongens of meisjes uit dezelfde huidige groep in één nieuwe groep</label>
+                <label for="maxima-max-clique-sex">Maximaal aantal jongens of meisjes uit dezelfde huidige groep in één groep in de nieuwe indeling</label>
                 <div class="balance-controls">
                     <input id="maxima-max-clique-sex" type="number" name="maxima_max_clique_sex" min="1" step="1" required value="{{ maxima.max_clique_sex if maxima.max_clique_sex is not none else '' }}">
                     <label class="unlimited-label" for="maxima-max-clique-sex-unlimited"><input id="maxima-max-clique-sex-unlimited" data-number-id="maxima-max-clique-sex" type="checkbox" name="maxima_max_clique_sex_unlimited"{% if maxima.max_clique_sex is none %} checked{% endif %}> Geen maximum</label>
@@ -171,8 +163,8 @@ Klaar om je groepsindeling te berekenen
     {% endif %}
 
     <div class="step-navigation">
-        <a href="{{ url_for('wizard.not_together_page') }}" class="button button--secondary previous-step">← Terug naar leerlingen spreiden</a>
-        <button type="submit" class="button next-step">{% if recalculation %}Opnieuw berekenen →{% else %}Berekening starten →{% endif %}</button>
+        <a href="{{ prev_url }}" class="button button--secondary previous-step">{{ prev_label }}</a>
+        <button type="submit" class="button next-step">{{ current_step_label }} →</button>
     </div>
 </form>
 {% endif %}

@@ -1,17 +1,12 @@
 {% extends "base.html" %}
-{% set current_step = 3 if mode == "redistribute_and_forward" else 1 %}
 {% block extra_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='select-groups.css') }}">{% endblock %}
 {% block header %}
-{% if mode == "redistribute_and_forward" %}
-Naar welke groepen gaan de leerlingen volgend schooljaar?
-{% else %}
-Welke groepen wil je opnieuw indelen?
-{% endif %}
+{{ current_step_label }}
 {% endblock %}
 {% block content %}
 <div class="select-groups-page">
 {% if mode == "redistribute_and_forward" %}
-<p class="select-groups-intro">Kies de groepen waarin de leerlingen volgend schooljaar terechtkomen. Binnen deze groepsindeling beginnen de gekozen groepen leeg. We vullen ze met de leerlingen die je zojuist hebt gecontroleerd.</p>
+<p class="select-groups-intro">Kies de groepen waarin de leerlingen terechtkomen. Binnen deze indeling beginnen de gekozen groepen leeg. We vullen ze met de leerlingen die je zojuist hebt gecontroleerd.</p>
 {% else %}
 <p class="select-groups-intro">Kies de groepen die je opnieuw wilt indelen. Daarna controleer je welke leerlingen meedoen. We verdelen die leerlingen opnieuw over dezelfde groepen.</p>
 {% endif %}
@@ -32,13 +27,8 @@ Welke groepen wil je opnieuw indelen?
   </fieldset>
 
   <div class="select-groups-navigation step-navigation">
-    {% if mode == "redistribute_and_forward" %}
-    <a href="{{ url_for('roster.roster_page') }}" class="button previous-step">← Terug naar leerlingen controleren</a>
-    <button type="submit" class="button next-step">Verder naar voorkeuren →</button>
-    {% else %}
-    <a href="{{ url_for('wizard.upload_edexml') }}" class="button previous-step">← Terug naar leerlinggegevens</a>
-    <button type="submit" class="button next-step">Verder naar leerlingen controleren →</button>
-    {% endif %}
+    <a href="{{ prev_url }}" class="button previous-step">{{ prev_label }}</a>
+    <button type="submit" class="button next-step">{{ next_label }}</button>
   </div>
 </form>
 </div>

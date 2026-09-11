@@ -2,9 +2,9 @@
 
 Determines which leerlingen take part in this verdeling — confirming who goes (unticking
 Verlengers) and, rarely, adding an incoming student. It is the first step after the EDEXML
-upload and continues to "Groepen naartoe"; the choice of how to enter preferences (web form
-or Excel) now lives on that next page, its immediate predecessor (ADR 0006). The resolved
-population is persisted as ``roster.json`` and consumed by both preference routes.
+upload and continues to "Groepen controleren"; the choice of how to enter preferences (web
+form or Excel) now lives on that next page, its immediate predecessor (ADR 0006). The
+resolved population is persisted as ``roster.json`` and consumed by both preference routes.
 """
 
 import logging
@@ -19,6 +19,7 @@ from ..flashing import warn_and_flash
 from ..process_files import load_candidates, load_roster, save_roster
 from ..storage import get_process_path
 from ..validation_messages import to_validation_message
+from ..wizard_steps import wizard_context
 from .processes import get_process_mode, require_process, require_school
 
 logger = logging.getLogger(__name__)
@@ -79,24 +80,6 @@ def _saved_roster_values(saved, orig_candidates):
     return checked_keys, new_students
 
 
-def _navigation(mode):
-    """Return the route and labels for both visible navigation actions."""
-
-    if mode == "redistribute":
-        prev_url = url_for("wizard.select_groups")
-        prev_label = "← Terug naar groepen kiezen"
-        next_label = "Verder naar voorkeuren →"
-    elif mode == "redistribute_and_forward":
-        prev_url = url_for("wizard.upload_edexml")
-        prev_label = "← Terug naar leerlinggegevens"
-        next_label = "Verder naar nieuwe groepen →"
-    else:
-        prev_url = url_for("wizard.upload_edexml")
-        prev_label = "← Terug naar leerlinggegevens"
-        next_label = "Verder naar groepen controleren →"
-    return prev_url, prev_label, next_label
-
-
 def _render_roster_page(
     orig_candidates,
     checked_keys,
@@ -107,7 +90,7 @@ def _render_roster_page(
     groups_from = roster_context["groups_from"]
     jaargroep_options = roster_context["jaargroep_options"]
     mode = roster_context["mode"]
-    prev_url, prev_label, next_label = _navigation(mode)
+    wizard = wizard_context(mode, "roster")
 
     return render_template(
         "roster.html",
@@ -115,11 +98,9 @@ def _render_roster_page(
         checked_keys=checked_keys,
         new_students=new_students,
         groups_from=groups_from,
-        prev_url=prev_url,
-        prev_label=prev_label,
-        next_label=next_label,
         mode=mode,
         jaargroep_options=jaargroep_options,
+        **wizard,
     )
 
 

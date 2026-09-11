@@ -136,7 +136,7 @@ def test_spread_delete_renumbers_and_posts_saved_rules(live_server, tmp_path, pa
         "Spreiding 2",
     ]
 
-    page.get_by_role("button", name="Verder →").click()
+    page.get_by_role("button", name="Verder naar Groepsindeling berekenen →").click()
     page.wait_for_url("**/processing")
     saved = json.loads((proc / "not_together.json").read_text(encoding="utf-8"))
     assert [set(rule["group"]) for rule in saved] == [
@@ -150,7 +150,7 @@ def test_empty_spread_is_not_silently_removed_on_continue(live_server, tmp_path,
     """Continuing with an empty spread gives repair advice and keeps the card."""
     _open_not_together(live_server, tmp_path, page)
     page.get_by_role("button", name="Spreiding toevoegen").click()
-    page.get_by_role("button", name="Verder →").click()
+    page.get_by_role("button", name="Verder naar Groepsindeling berekenen →").click()
 
     expect(page.locator("#not-together-client-message")).to_contain_text(
         "Voeg minimaal twee leerlingen toe"

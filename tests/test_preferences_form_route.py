@@ -89,12 +89,12 @@ class TestPreferencesForm:
     @pytest.mark.parametrize(
         "case",
         (
-            ("forward", "/groups_to", "← Terug naar groepen voor volgend jaar"),
-            ("redistribute", "/roster", "← Terug naar leerlingen controleren"),
+            ("forward", "/groups_to", "← Terug naar Groepen controleren"),
+            ("redistribute", "/roster", "← Terug naar Leerlingen controleren"),
             (
                 "redistribute_and_forward",
                 "/select_groups",
-                "← Terug naar nieuwe groepen kiezen",
+                "← Terug naar Groepen controleren",
             ),
         ),
     )
@@ -127,7 +127,7 @@ class TestPreferencesForm:
         assert "Bram Dijk" in display_names
 
     def test_get_redirects_to_roster_when_no_roster_yet(self, client, tmp_path):
-        """Without a settled roster the page sends the teacher to 'Wie gaat mee' first."""
+        """Without a settled roster the page sends the teacher to learner checking first."""
         proc_dir = self._setup(client, tmp_path)
         (proc_dir / "roster.json").unlink()
         response = client.get("/preferences_form")

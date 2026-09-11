@@ -1,7 +1,6 @@
 {% extends "base.html" %}
-{% set current_step = 1 %}
 {% block extra_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='upload-edexml.css') }}">{% endblock %}
-{% block header %}Leerlinggegevens ophalen{% endblock %}
+{% block header %}{{ current_step_label }}{% endblock %}
 {% block content %}
 <p class="upload-edexml-intro">Upload het EDEXML-bestand uit je leerlingadministratie. Dit is een standaardbestand waarmee we de leerlingen en groepen voor je klaarzetten.</p>
 
@@ -21,7 +20,7 @@
     {% if mode == "forward" %}
     <fieldset class="upload-edexml-choice">
         <legend>Welke huidige jaarlaag wil je indelen?</legend>
-        <p id="jaargroep-help" class="upload-edexml-help">Kies de jaarlaag van de leerlingen die volgend schooljaar naar de volgende groepen gaan.</p>
+        <p id="jaargroep-help" class="upload-edexml-help">Kies de jaarlaag van de leerlingen die naar de groepen in de nieuwe indeling gaan.</p>
         <label for="jaargroep">Huidige jaarlaag</label>
         <select id="jaargroep" name="jaargroep" required aria-describedby="jaargroep-help">
             {% for year in range(1, 9) %}
@@ -32,7 +31,7 @@
     {% elif mode == "redistribute_and_forward" %}
     <fieldset class="upload-edexml-choice" aria-describedby="jaargroepen-help">
         <legend>Welke huidige jaarlagen wil je indelen?</legend>
-        <p id="jaargroepen-help" class="upload-edexml-help">Selecteer alle jaarlagen die een jaar verder gaan en daarbij opnieuw over de groepen worden verdeeld.</p>
+        <p id="jaargroepen-help" class="upload-edexml-help">Selecteer alle jaarlagen die een jaar verder gaan en opnieuw over de groepen in deze indeling worden verdeeld.</p>
         <div class="upload-edexml-checkbox-list">
         {% for year in range(1, 9) %}
         <label for="jaargroep-{{ year }}">
@@ -44,8 +43,8 @@
     </fieldset>
     {% endif %}
 
-    <button type="submit" class="button">
-        {% if mode == "redistribute" %}Gegevens inlezen en groepen kiezen →{% else %}Gegevens inlezen en leerlingen controleren →{% endif %}
+    <button type="submit" class="button next-step">
+        {{ next_label }}
     </button>
 </form>
 {% endblock %}

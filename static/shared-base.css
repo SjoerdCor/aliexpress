@@ -102,8 +102,12 @@ ol {
 }
 
 h1 {
+  box-sizing: border-box;
+  min-width: 0;
   width: 100%;
+  max-width: 100%;
   line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 button,
@@ -180,7 +184,7 @@ input[type="submit"]:active {
 /* Keep the shared wizard progress strip reachable when the viewport is narrow. */
 .stepper {
   display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--step-count, 6), minmax(0, 1fr));
   width: 100%;
   box-sizing: border-box;
   gap: 0.25rem;
@@ -218,7 +222,7 @@ summary:focus-visible,
   }
 
   .stepper {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(min(var(--step-count, 6), 4), minmax(0, 1fr));
     row-gap: 0.75rem;
   }
 

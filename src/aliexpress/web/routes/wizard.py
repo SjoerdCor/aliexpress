@@ -63,6 +63,7 @@ from ..process_files import (
 from ..storage import get_process_path
 from ..tasks import ThreadContext, run_solve_thread
 from ..validation_messages import to_validation_message
+from ..wizard_steps import wizard_context
 from .auth import effective_school_id
 from .processes import get_process_mode, is_redistribute_mode, require_process
 
@@ -232,7 +233,9 @@ def upload_edexml():
                 mode = get_process_mode(get_process_path(school_id, process_id))
             except PermissionError:
                 pass
-        return render_template("upload_edexml.html", mode=mode)
+        return render_template(
+            "upload_edexml.html", mode=mode, **wizard_context(mode, "upload_edexml")
+        )
     # POST
     if not process_id:
         flash("Geen actief proces geselecteerd.", "error")
@@ -314,7 +317,7 @@ def _select_groups_post(df, school_id, process_id, mode):
     selected = request.form.getlist("groups")
     if len(selected) < 2:
         message = (
-            "Kies minimaal twee groepen voor volgend schooljaar."
+            "Kies minimaal twee groepen voor deze indeling."
             if mode == "redistribute_and_forward"
             else "Kies minimaal twee groepen om opnieuw in te delen."
         )
@@ -344,6 +347,10 @@ def select_groups():
             log_detail="missing_edex_for_select_groups",
         )
         return redirect(url_for("wizard.upload_edexml"))
+    if mode == "forward":
+        # Doorzetten reaches the roster directly after the EDEXML upload; group
+        # selection is only part of the two herindelen routes.
+        return redirect(url_for("roster.roster_page"))
     try:
         edexml = load_edexml(school_id, process_id)
         df = datareader.EdexReader(edexml).get_full_df()
@@ -352,7 +359,12 @@ def select_groups():
         return redirect(url_for("wizard.upload_edexml"))
     if request.method == "GET":
         groups = sorted(df["groepsnaam"].unique().tolist())
-        return render_template("select_groups.html", groups=groups, mode=mode)
+        return render_template(
+            "select_groups.html",
+            groups=groups,
+            mode=mode,
+            **wizard_context(mode, "select_groups"),
+        )
     return _select_groups_post(df, school_id, process_id, mode)
 
 
@@ -433,10 +445,12 @@ def groups_to_page():
         return _groups_to_auto_redistribute(school_id, process_id, groups_to)
 
     if request.method == "GET":
+        wizard = wizard_context(mode, "groups_to")
         return render_template(
             "groups_to.html",
             groups_to=groups_to,
             state=load_groups_to_state(school_id, process_id),
+            **wizard,
         )
 
     draft_submission, duplicates, missing_group_name = _parse_groups_to_request(
@@ -453,7 +467,7 @@ def groups_to_page():
         validation = ("Geef iedere nieuwe groep een naam.", "missing_group_name")
     elif len(draft_submission.distribution) < 2:
         validation = (
-            "Kies minimaal twee groepen voor volgend jaar.",
+            "Kies minimaal twee groepen voor deze indeling.",
             "too_few_groups",
         )
 
@@ -499,15 +513,17 @@ def preferences_excel():
     process_id = session["process_id"]
     saved_roster = load_roster(school_id, process_id)
     if saved_roster is None:
-        # The population must be settled first; send the teacher to "Wie gaat mee".
+        # The population must be settled first; send the teacher to "Leerlingen controleren".
         return redirect(url_for("roster.roster_page"))
     participants = saved_roster["participants"]
 
     if request.method == "GET":
+        mode = get_process_mode(get_process_path(school_id, process_id))
         return render_template(
             "preferences_excel.html",
             preferences_uploaded=has_preferences_excel(school_id, process_id),
             sociogram_available=has_voorkeuren(school_id, process_id),
+            **wizard_context(mode, "preferences_form"),
         )
 
     if not participants:
@@ -645,7 +661,7 @@ def preferences_form():
 
     saved_roster = load_roster(school_id, process_id)
     if saved_roster is None:
-        # The population must be settled first; send the teacher to "Wie gaat mee".
+        # The population must be settled first; send the teacher to "Leerlingen controleren".
         return redirect(url_for("roster.roster_page"))
     try:
         groups_to, group_display = load_groups(school_id, process_id)
@@ -671,18 +687,6 @@ def preferences_form():
         flash(notice, "info")
 
     mode = get_process_mode(get_process_path(school_id, process_id))
-    if mode == "forward":
-        prev_url = url_for("wizard.groups_to_page")
-        prev_label = "← Terug naar groepen voor volgend jaar"
-    elif mode == "redistribute":
-        prev_url = url_for("roster.roster_page")
-        prev_label = "← Terug naar leerlingen controleren"
-    elif mode == "redistribute_and_forward":
-        prev_url = url_for("wizard.select_groups")
-        prev_label = "← Terug naar nieuwe groepen kiezen"
-    else:
-        prev_url = url_for("wizard.groups_to_page")
-        prev_label = "← Terug naar groepen voor volgend jaar"
 
     return render_template(
         "preferences_form.html",
@@ -691,8 +695,7 @@ def preferences_form():
         group_display=group_display,
         draft_state=draft_state,
         short_names=candidatedetermination.unique_display_names(participants),
-        prev_url=prev_url,
-        prev_label=prev_label,
+        **wizard_context(mode, "preferences_form"),
     )
 
 
@@ -705,6 +708,7 @@ def not_together_page():
     if school_id is None:
         return redirect(url_for("admin.dashboard"))
     process_id = session["process_id"]
+    mode = get_process_mode(get_process_path(school_id, process_id))
     previous_preferences_endpoint = (
         "wizard.preferences_excel"
         if load_input_method(school_id, process_id) == "excel"
@@ -727,7 +731,9 @@ def not_together_page():
             students=students,
             n_groups=n_groups,
             existing_rules=existing_rules,
-            prev_preferences_url=previous_preferences_url,
+            **wizard_context(
+                mode, "not_together", previous_endpoint=previous_preferences_endpoint
+            ),
         )
 
     n_rules = int(request.form.get("n_rules", 0))

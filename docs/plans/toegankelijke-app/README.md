@@ -15,13 +15,13 @@ committen. Bestaand werk wordt per pagina beoordeeld, behouden of bijgestuurd.
 | --- | --- | --- |
 | 1 | [Homepage](01-homepage.md) | Geïmplementeerd op deze branch |
 | 2 | [Jouw groepsindelingen](02-jouw-groepsindelingen.md) | Geïmplementeerd op deze branch |
-| 3 | [Leerlinggegevens ophalen](03-leerlinggegevens-ophalen.md) | Geïmplementeerd op deze branch |
+| 3 | [Schoolinformatie](03-leerlinggegevens-ophalen.md) | Geïmplementeerd op deze branch |
 | 4 | [Groepen kiezen](04-groepen-kiezen.md) | Geïmplementeerd op deze branch |
 | 5 | [Leerlingen controleren](05-leerlingen-controleren.md) | Geïmplementeerd op deze branch |
-| 6 | [Groepen voor volgend jaar](06-groepen-voor-volgend-jaar.md) | Geïmplementeerd op deze branch |
+| 6 | [Groepen controleren](06-groepen-controleren.md) | Geïmplementeerd op deze branch |
 | 7 | [Voorkeuren invullen](07-voorkeuren-invullen.md) | Geïmplementeerd op deze branch |
 | 8 | [Leerlingen spreiden](08-leerlingen-spreiden.md) | Geïmplementeerd op deze branch |
-| 9 | [Berekening starten en volgen](09-berekening-starten-en-volgen.md) | Geïmplementeerd op deze branch |
+| 9 | [Groepsindeling berekenen en volgen](09-berekening-starten-en-volgen.md) | Geïmplementeerd op deze branch |
 
 Resultaat, sociogram, afronding, login en beheer krijgen pas een eigen plan wanneer ze aan
 de beurt zijn. De homepage-gallery mag beelden van resultaat en sociogram gebruiken, maar
