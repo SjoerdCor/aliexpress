@@ -109,9 +109,15 @@ hergebruikt, met homepage-eigen CSS-klassen en aria-hidden="true". Neem het labe
 
 ### Galerij
 
-Behoud de bestaande drie afbeeldingen, bijschriften, toegankelijkheidsattributen,
-vorige/volgende-bediening, status, toetsenbordbediening en swipebediening. Verplaats de
-galerij alleen naar haar afgesproken positie na de toepassingssituaties. Verander de
+Behoud de bestaande voorbeelden, bijschriften, toegankelijkheidsattributen,
+vorige/volgende-bediening, status, toetsenbordbediening en swipebediening. De resultaatdia
+toont alleen de groepskaarten. Voeg daarnaast een aparte dia toe met de leerlingtevredenheid:
+meerdere percentages blijven zichtbaar en de meeste leerlingen zijn positief. Het sociogram
+blijft als vierde voorbeeld beschikbaar. Verplaats de galerij alleen naar haar afgesproken
+positie na de toepassingssituaties. Laat de galerij automatisch doorgaan, maar bied ook een
+duidelijke pauze-/afspeelknop. Autoplay blijft ook actief wanneer de aanwijzer boven de
+galerij staat en pauzeert wanneer de pagina niet zichtbaar is. De dia’s wisselen zonder
+visuele animatie, zodat een voorkeur voor minder beweging wordt gerespecteerd. Verander de
 bestaande JavaScriptlogica niet zonder functionele noodzaak.
 
 ### Tevredenheid
@@ -209,8 +215,8 @@ Automatiseer alleen blijvend gebruikersgedrag:
 - GET / rendert succesvol voor de bestaande relevante authenticatietoestanden;
 - de primaire CTA is zichtbaar, navigeert naar /processes en staat op 1366×768 zonder
   vooraf scrollen in het openingsscherm;
-- de galerij behoudt drie navigeerbare slides en werkt met zichtbare knoppen, toetsenbord en
-  swipe/touch;
+- de galerij behoudt vier navigeerbare slides en werkt met zichtbare knoppen, toetsenbord en
+  swipe/touch, en gaat automatisch door met een pauze-/afspeelknop;
 - de pagina en haar driedelige layouts veroorzaken op 390 px geen horizontale overflow.
 
 Controleer redactionele en visuele acceptatie handmatig in de browser:

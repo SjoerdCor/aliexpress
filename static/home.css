@@ -184,6 +184,12 @@
   justify-self: end;
 }
 
+.home-gallery-autoplay {
+  display: flex;
+  justify-content: center;
+  margin-top: 0.75rem;
+}
+
 .home-gallery-status {
   margin: 0;
   color: var(--color-secondary);
