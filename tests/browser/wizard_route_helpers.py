@@ -41,7 +41,15 @@ def assert_wizard_page(page, mode, active_label):
     assert page.locator(".step").all_inner_texts() == list(labels)
     assert page.locator(".step.active").count() == 1
     assert page.locator(".step.active").inner_text().strip() == active_label
-    assert page.locator("h1").inner_text().strip() == active_label
+    expected_heading = (
+        "Je groepsindeling is klaar!"
+        if active_label == "Resultaat bekijken"
+        else active_label
+    )
+    assert page.locator("h1").inner_text().strip() == expected_heading
+
+    if active_label == "Resultaat bekijken":
+        return
 
     current_index = labels.index(active_label)
     previous = page.locator("a.previous-step")

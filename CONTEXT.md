@@ -1,6 +1,6 @@
 # ALI Express
 
-Webapplicatie waarmee basisscholen leerlingen verdelen over nieuwe groepen, op basis van voorkeuren van leerlingen en balans-eisen per groep.
+Webapplicatie waarmee basisscholen groepsindelingen maken op basis van voorkeuren van leerlingen en balans-eisen per groep.
 
 ## Product design
 
@@ -14,7 +14,7 @@ Een kind dat wordt ingedeeld in een nieuwe groep.
 _Avoid_: student, kind, pupil
 
 **Verlenger**:
-Een leerling die niet meegaat in deze verdeling maar nog een jaar in dezelfde (kleuter)groep blijft. Op de stap "Leerlingen controleren" staat elke leerling standaard aangevinkt; een verlenger wordt uitgevinkt en doet dan niet mee aan de verdeling. Geen apart soort leerling — een eigenschap van deze ene verdeling.
+Een leerling die niet meegaat in deze groepsindeling maar nog een jaar in dezelfde (kleuter)groep blijft. Op de stap "Leerlingen controleren" staat elke leerling standaard aangevinkt; een verlenger wordt uitgevinkt en doet dan niet mee aan de groepsindeling. Geen apart soort leerling — een eigenschap van deze ene groepsindeling.
 _Avoid_: blijver, zittenblijver
 
 **Jaarlaag**:
@@ -54,7 +54,7 @@ De Verdeelmodus waarin niet de huidige bewoners van de gekozen groepen worden he
 _Avoid_: overgang, doorschuiven, promotie-herindeling
 
 **Groep**:
-Een klas leerlingen. In een verdeling worden leerlingen vanuit hun huidige groep over bestemmingsgroepen verdeeld; "groep" is op zichzelf rolneutraal — of een groep herkomst of bestemming is, volgt uit de context, niet uit het woord.
+Een klas leerlingen. In een groepsindeling worden leerlingen vanuit hun huidige groep over bestemmingsgroepen verdeeld; "groep" is op zichzelf rolneutraal — of een groep herkomst of bestemming is, volgt uit de context, niet uit het woord.
 _Avoid_: klas (ambigu tussen oud en nieuw)
 
 **UI-terminologie voor groepen**:
@@ -64,23 +64,23 @@ voor een groep die de gebruiker daadwerkelijk toevoegt. Gebruik **bestemmingsgro
 de gebruikersinterface; dat blijft een interne domeinterm.
 
 **Bestemmingsgroep**:
-De groep waarin een leerling door de verdeling wordt geplaatst. Een bestemmingsgroep kan al leerlingen bevatten die er blijven; de verdeling verdeelt de overige leerlingen over de bestemmingsgroepen, rekening houdend met die huidige aantallen jongens en meisjes.
+De groep waarin een leerling door de groepsindeling wordt geplaatst. Een bestemmingsgroep kan al leerlingen bevatten die er blijven; de groepsindeling deelt de overige leerlingen in, rekening houdend met die huidige aantallen jongens en meisjes.
 _Avoid_: nieuwe groep, doelgroep
 
 **Voorkeur**:
-Het verlangen van een leerling om wel of niet bij een bepaald doel in dezelfde groep te zitten. Het doel is meestal een klasgenoot, maar kan ook een bestemmingsgroep zijn — bijv. wanneer de gewenste klasgenoot al in die groep zit en dus niet zelf wordt verdeeld (we kennen die niet bij naam, alleen de groep). Een voorkeur komt vanuit de leerling en gaat als gewogen factor de tevredenheid in: de verdeling mag een voorkeur schenden als het geheel daar beter van wordt. Staat tegenover de Niet-samen-regel.
+Het verlangen van een leerling om wel of niet bij een bepaald doel in dezelfde groep te zitten. Het doel is meestal een klasgenoot, maar kan ook een bestemmingsgroep zijn — bijv. wanneer de gewenste klasgenoot al in die groep zit en dus niet zelf wordt ingedeeld (we kennen die niet bij naam, alleen de groep). Een voorkeur komt vanuit de leerling en gaat als gewogen factor de tevredenheid in: de groepsindeling mag een voorkeur schenden als het geheel daar beter van wordt. Staat tegenover de Spreidingsregel.
 _Avoid_: wens, keuze
 
-**Niet-samen-regel**:
+**Spreidingsregel**:
 Een harde eis vanuit de school/leerkracht dat hoogstens een bepaald aantal van een groepje leerlingen samen in één bestemmingsgroep komt — bijv. zorgleerlingen die samen te veel van de groep vragen, of een dynamiek die de leerkracht onwenselijk vindt. Anders dan een Voorkeur (vanuit de leerling, meegewogen) komt deze regel vanuit de school en wordt altijd gerespecteerd.
-_Avoid_: harde voorkeur, blacklist
+_Avoid_: niet-samen-regel, harde voorkeur, blacklist
 
 **Tevredenheid**:
-De mate waarin de voorkeuren van een leerling in de verdeling zijn ingewilligd, op een verzadigende schaal (iedereen krijgt voorkeur 1 voor wie dan ook voorkeur 2 krijgt). Positieve voorkeuren ("graag met") lopen van 0% (geen enkele ingewilligd) tot 100% (alle ingewilligd); een leerling zonder voorkeuren geldt als volledig tevreden (100%). Een geschonden vermij-voorkeur ("liever niet met") is echter erger dan een misgelopen graag-met-voorkeur: ze maakt een leerling actief ontevreden en drukt de tevredenheid onder 0%. Een leerling met uitsluitend vermij-voorkeuren is 100% tevreden zolang hij van iedereen wordt weggehouden, maar zakt bij de eerste schending onder 0% — tot −100% als alle vermij-voorkeuren geschonden zijn. De optimalisatie maximaliseert de tevredenheid lexicografisch over de minst tevreden leerlingen, en tilt zo een leerling met een geschonden vermij-voorkeur (negatief) vóór een leerling die enkel een graag-met-voorkeur misloopt (0%).
+De mate waarin de voorkeuren van een leerling in de groepsindeling zijn ingewilligd, op een verzadigende schaal (iedereen krijgt voorkeur 1 voor wie dan ook voorkeur 2 krijgt). Positieve voorkeuren ("graag met") lopen van 0% (geen enkele ingewilligd) tot 100% (alle ingewilligd); een leerling zonder voorkeuren geldt als volledig tevreden (100%). Een geschonden vermij-voorkeur ("liever niet met") is echter erger dan een misgelopen graag-met-voorkeur: ze maakt een leerling actief ontevreden en drukt de tevredenheid onder 0%. Een leerling met uitsluitend vermij-voorkeuren is 100% tevreden zolang hij van iedereen wordt weggehouden, maar zakt bij de eerste schending onder 0% — tot −100% als alle vermij-voorkeuren geschonden zijn. De optimalisatie maximaliseert de tevredenheid lexicografisch over de minst tevreden leerlingen, en tilt zo een leerling met een geschonden vermij-voorkeur (negatief) vóór een leerling die enkel een graag-met-voorkeur misloopt (0%).
 _Avoid_: score, geluk
 
 **Extra zekerheid**:
-Een ondergrens die de leerkracht per leerling kan eisen aan diens Tevredenheid, in drie betekenisvolle niveaus: *Geen extra eis* (leeg), *Minstens tevreden* (50%) of *Alle voorkeuren gehonoreerd* (100%). Anders dan Tevredenheid, die de verdeling maximaliseert maar mag schenden, is een gevraagde extra zekerheid een harde eis. Te veel of te hoge eisen kunnen de verdeling onmogelijk maken.
+Een ondergrens die de leerkracht per leerling kan eisen aan diens Tevredenheid, in drie betekenisvolle niveaus: *Geen extra eis* (leeg), *Minstens tevreden* (50%) of *Alle voorkeuren gehonoreerd* (100%). Anders dan Tevredenheid, die de groepsindeling maximaliseert maar mag schenden, is een gevraagde extra zekerheid een harde eis. Te veel of te hoge eisen kunnen de groepsindeling onmogelijk maken.
 _Avoid_: minimale tevredenheid, garantie
 
 **Niet-in-groep-uitsluiting**:
@@ -88,27 +88,34 @@ Een harde eis dat een specifieke leerling niet in een bepaalde bestemmingsgroep 
 _Avoid_: niet in, verbod
 
 **Relaxatievloer**:
-De minimale Tevredenheid die de verdeling voor iedere leerling probeert te halen voordat ze de balans-eisen per groep gaat versoepelen. De balans wordt alleen zover gebroken als nodig om zoveel mogelijk leerlingen boven die vloer te krijgen, en daarna zo strak mogelijk gehouden: de grootste afwijking gaat eerst omlaag (afwijkingen worden gespreid, niet op één criterium gestapeld), waarbij een afwijking per Jaarlaag ongeveer dubbel zo zwaar telt als een afwijking over de hele groep. De vloer is strikt positieve tevredenheid: een puur-positieve leerling haalt hem met minstens één ingewilligde voorkeur, een leerling met vermij-voorkeuren alleen als geen ervan geschonden wordt.
+De minimale Tevredenheid die de groepsindeling voor iedere leerling probeert te halen voordat ze de balans-eisen per groep gaat versoepelen. De balans wordt alleen zover gebroken als nodig om zoveel mogelijk leerlingen boven die vloer te krijgen, en daarna zo strak mogelijk gehouden: de grootste afwijking gaat eerst omlaag (afwijkingen worden gespreid, niet op één criterium gestapeld), waarbij een afwijking per Jaarlaag ongeveer dubbel zo zwaar telt als een afwijking over de hele groep. De vloer is strikt positieve tevredenheid: een puur-positieve leerling haalt hem met minstens één ingewilligde voorkeur, een leerling met vermij-voorkeuren alleen als geen ervan geschonden wordt.
 _Avoid_: ondergrens (dat is Extra zekerheid), minimale relaxatie
 
 **Balansgrens**:
 Een maximum dat de school per proces kan zetten op één balans-criterium — hoeveel de groepen op dat criterium maximaal mogen verschillen (groepsgrootte, jongens/meisjes en samen-uit-dezelfde-stamgroep, elk per Jaarlaag en over de hele groep). Anders dan de Relaxatievloer, die de balans juist *breekt* om Tevredenheid te halen, *begrenst* een Balansgrens dat breken. Hard: hij wint van de Relaxatievloer, waardoor een leerling onder de vloer kan komen. Standaard staat er een ruime, uit de invoer berekende waarde; de school kan strakker zetten of op Onbeperkt (geen grens). Staat los van een vaste balans, die élke waarde vastpint i.p.v. alleen de bovenkant te begrenzen. Alleen de maxima bestaan nu; minima kunnen later symmetrisch volgen.
 _Avoid_: klassenbalans-limiet, vaste balans, cap
 
-**Verdeling**:
+**UI-terminologie voor verschillen tussen groepen**:
+Gebruik in de gebruikersinterface **maximale verschillen tussen groepen** wanneer de
+velden zelf worden uitgelegd. Gebruik voor een actie **ruimte voor verschillen tussen
+groepen aanpassen**. Toon de interne term **balansgrens** niet aan de gebruiker.
+
+**Groepsindeling**:
 Het resultaat van de optimalisatie: de toewijzing van alle leerlingen aan groepen.
-_Avoid_: indeling, uitkomst
+Gebruik **groepsindeling** als de volledige naam en **indeling** wanneer uit de directe
+context al duidelijk is dat het om de groepsindeling gaat.
+_Avoid_: verdeling, uitkomst
 
 **Sociogram**:
-Een visualisatie van de relaties tussen leerlingen, afgeleid uit hun voorkeuren. Het is een tweede analyse over dezelfde invoer als de Verdeling en staat daar los van: de optimalisatie maakt een Verdeling, het sociogram maakt een relatiegrafiek. Beide zijn "wat je met de ingelezen voorkeuren doet" — peers, geen onderdeel van elkaar.
+Een visualisatie van de relaties tussen leerlingen, afgeleid uit hun voorkeuren. Het is een tweede analyse over dezelfde invoer als de Groepsindeling en staat daar los van: de optimalisatie maakt een Groepsindeling, het sociogram maakt een relatiegrafiek. Beide zijn "wat je met de ingelezen voorkeuren doet" — peers, geen onderdeel van elkaar.
 _Avoid_: grafiek, netwerk, plaatje
 
 **Tussenstand**:
-De beste kandidaat-verdeling die de optimalisatie tot nu toe heeft gevonden, getoond tijdens het rekenen: de voorlopige indeling met namen plus samenvattende aantallen per groep. Nadrukkelijk voorlopig — zowel de toewijzing als de tevredenheid kan nog veranderen (ook verbeteren) tot de Verdeling definitief is.
+De beste kandidaat-groepsindeling die de optimalisatie tot nu toe heeft gevonden, getoond tijdens het rekenen: de voorlopige indeling met namen plus samenvattende aantallen per groep. Nadrukkelijk voorlopig — zowel de toewijzing als de tevredenheid kan nog veranderen (ook verbeteren) tot de Groepsindeling definitief is.
 _Avoid_: tussenresultaat, voorlopig resultaat
 
 **Proces**:
-Één verdelingsrun voor een school, geïdentificeerd door naam. Bevat de invoerbestanden, status en resultaten van die run.
+Eén traject voor een groepsindeling van een school, geïdentificeerd door naam. Bevat de invoerbestanden, status en resultaten van die groepsindeling.
 _Avoid_: run, sessie, taak
 
 **School**:

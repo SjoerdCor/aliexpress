@@ -9,6 +9,7 @@ import json
 import xml.etree.ElementTree as ET
 
 import pytest
+from playwright.sync_api import expect
 
 from tests.browser.conftest import TEST_SCHOOLCODE
 from tests.browser.test_roster_browser import _open_roster
@@ -345,15 +346,27 @@ def test_full_redistribute_flow_to_result(live_server, page):
     page.wait_for_url("**/result", timeout=SOLVE_TIMEOUT_MS)
     assert_wizard_page(page, "redistribute", "Resultaat bekijken")
 
-    # The klassenoverzicht now renders as the structured balance table: one row per
-    # jaarlaag, with the three groups as columns.
-    baltable = page.locator(".gi-baltable")
-    assert baltable.count() == 1
-    assert baltable.locator("th.gi-grp").count() == 3  # one column per group
-    assert baltable.locator("tbody th", has_text="Jaarlaag 6").count() == 1
-    assert baltable.locator("tbody th", has_text="Jaarlaag 7").count() == 1
+    summary_table = page.get_by_role("table", name="Samenvatting van de verschillen")
+    expect(summary_table).to_be_visible()
+    expect(
+        summary_table.get_by_role("columnheader", name="Hele groep of jaarlaag")
+    ).to_be_visible()
+    balance_details = page.locator("details").filter(
+        has_text="Bekijk waar de verschillen zitten"
+    )
+    balance_details.locator("summary").click()
+    size_table = page.get_by_role(
+        "table", name="Aantallen leerlingen per groep en jaarlaag"
+    )
+    sex_table = page.get_by_role(
+        "table", name="Aantallen jongens en meisjes per groep en jaarlaag"
+    )
+    expect(size_table).to_be_visible()
+    expect(sex_table).to_be_visible()
+    expect(size_table.get_by_role("rowheader", name="Jaarlaag 6")).to_be_visible()
+    expect(size_table.get_by_role("rowheader", name="Jaarlaag 7")).to_be_visible()
 
-    page.get_by_role("link", name="Verder naar Klaar! →").click()
+    page.get_by_role("link", name="Ja, ik ben tevreden!").click()
     page.wait_for_url("**/done")
     assert_wizard_page(page, "redistribute", "Klaar!")
 
@@ -426,6 +439,6 @@ def test_redistribute_and_forward_flow_reaches_select_groups_then_next_step(
     page.wait_for_url("**/result", timeout=SOLVE_TIMEOUT_MS)
     assert_wizard_page(page, "redistribute_and_forward", "Resultaat bekijken")
 
-    page.get_by_role("link", name="Verder naar Klaar! →").click()
+    page.get_by_role("link", name="Ja, ik ben tevreden!").click()
     page.wait_for_url("**/done")
     assert_wizard_page(page, "redistribute_and_forward", "Klaar!")

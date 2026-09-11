@@ -157,16 +157,13 @@ def test_processing_to_result_to_download(live_server, tmp_path, page):
     # The processing page polls /status and redirects here once the solve is done.
     page.wait_for_url("**/result", timeout=60000)
 
-    # The three analysis tables are rendered as tabs.
-    assert page.locator(".tab").count() == 3
-
     # The artifacts were written to the process dir before "done".
     assert (proc / "results.xlsx").exists()
     assert (proc / "result_tables.json").exists()
     assert (proc / "groepsindeling_view.json").exists()
 
     with page.expect_download() as download_info:
-        page.click("text=Download groepsindeling")
+        page.get_by_role("link", name="Download als Excel-bestand").click()
     assert download_info.value.suggested_filename == "results.xlsx"
 
 
@@ -182,10 +179,13 @@ def test_completed_distribution_can_be_adjusted_and_run_again(
     _start_distribution_from_idle_panel(live_server, page)
     page.wait_for_url("**/result", timeout=60000)
 
-    page.get_by_role("link", name="← Terug naar Groepsindeling berekenen").click(
-        no_wait_after=True
-    )
-    page.wait_for_url(f"{live_server}/processing")
+    page.locator("details").filter(has_text="Nog niet helemaal").locator(
+        "summary"
+    ).click()
+    page.get_by_role(
+        "link", name="Ruimte voor verschillen tussen groepen aanpassen"
+    ).first.click(no_wait_after=True)
+    page.wait_for_url(f"{live_server}/processing?edit=differences")
 
     download_link = page.get_by_role("link", name="Download huidige groepsindeling")
     expect(download_link).to_have_attribute("href", "/download")
@@ -195,16 +195,14 @@ def test_completed_distribution_can_be_adjusted_and_run_again(
     with page.expect_download() as download_info:
         download_link.click()
     assert download_info.value.suggested_filename == "results.xlsx"
-    assert page.url == f"{live_server}/processing"
+    assert page.url == f"{live_server}/processing?edit=differences"
 
     details = page.locator("details.instructions-box")
-    assert details.evaluate("element => element.open") is False
+    assert details.evaluate("element => element.open") is True
     expect(
         page.get_by_role("button", name="Groepsindeling berekenen →")
     ).to_be_visible()
 
-    details.locator("summary").click()
-    assert details.evaluate("element => element.open") is True
     clique_limit = page.locator('input[name="maxima_max_clique"]')
     saved_limit = int(clique_limit.input_value())
     loosened_limit = saved_limit + 1
@@ -667,7 +665,7 @@ def test_result_group_cards_and_popover(live_server, tmp_path, page):
 
     # Group cards render with at least one chip.
     assert page.locator(".gi-card").count() >= 1
-    first_chip = page.locator(".gi-chip").first
+    first_chip = page.locator(".gi-chip[tabindex='0']").first
     first_chip.wait_for()
 
     # Popover opens on click and is visible.
@@ -685,15 +683,15 @@ def test_result_group_cards_and_popover(live_server, tmp_path, page):
     page.locator("h1").click()
     assert not pop.is_visible()
 
-    # The legend is a collapsible <details> that starts open.
-    legend = page.locator("details.gi-legend-details")
-    assert legend.count() == 1
-    assert legend.evaluate("el => el.open") is True
-
-    # The klassenoverzicht is present with both balance columns.
-    assert page.locator(".gi-baltable").count() == 1
-    assert page.locator(".gi-baltable th", has_text="Grootteverschil").count() == 1
-    assert page.locator(".gi-baltable th", has_text="Onbalans").count() == 1
+    # The balance summary and the three secondary analyses are native HTML.
+    expect(
+        page.get_by_role("heading", name="Hoe evenwichtig zijn de groepen?")
+    ).to_be_visible()
+    student_details = page.locator("details").filter(
+        has_text="Tevredenheid en voorkeuren per leerling"
+    )
+    assert student_details.count() == 1
+    assert student_details.evaluate("el => el.open") is False
 
 
 @pytest.mark.usefixtures("login")
