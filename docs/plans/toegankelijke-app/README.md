@@ -13,7 +13,7 @@ committen. Bestaand werk wordt per pagina beoordeeld, behouden of bijgestuurd.
 
 | Volgorde | Plan | Status |
 | --- | --- | --- |
-| 1 | [Homepage](01-homepage.md) | Geïmplementeerd op deze branch |
+| 1 | [Homepage](01-homepage.md) | Vervolgverbetering implementatiegereed |
 | 2 | [Jouw groepsindelingen](02-jouw-groepsindelingen.md) | Geïmplementeerd op deze branch |
 | 3 | [Schoolinformatie](03-leerlinggegevens-ophalen.md) | Geïmplementeerd op deze branch |
 | 4 | [Groepen kiezen](04-groepen-kiezen.md) | Geïmplementeerd op deze branch |

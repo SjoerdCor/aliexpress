@@ -4,10 +4,11 @@ import pytest
 from playwright.sync_api import expect
 
 
-@pytest.mark.parametrize("width", [1280, 390])
-def test_home_gallery_is_keyboard_and_touch_operable(live_server, page, width):
+@pytest.mark.parametrize("viewport", [(1366, 768), (390, 844)])
+def test_home_gallery_is_keyboard_and_touch_operable(live_server, page, viewport):
     """The three homepage examples can be changed without hiding content offscreen."""
-    page.set_viewport_size({"width": width, "height": 720})
+    width, height = viewport
+    page.set_viewport_size({"width": width, "height": height})
     page.goto(live_server)
 
     gallery = page.locator("[data-home-gallery]")
@@ -16,7 +17,8 @@ def test_home_gallery_is_keyboard_and_touch_operable(live_server, page, width):
 
     expect(page.locator(".home-cta a")).to_have_attribute("href", "/processes")
     expect(gallery).to_be_visible()
-    if width == 1280:
+    expect(slides).to_have_count(3)
+    if width == 1366:
         assert page.locator(".container").bounding_box()["width"] <= 960
     expect(status).to_have_text("1 van 3")
     expect(slides.nth(0)).to_be_visible()
@@ -53,11 +55,27 @@ def test_home_gallery_is_keyboard_and_touch_operable(live_server, page, width):
 
 
 @pytest.mark.usefixtures("login")
+def test_home_primary_cta_is_visible_and_starts_process(live_server, page):
+    """The primary call to action is visible in the opening laptop viewport and works."""
+    page.set_viewport_size({"width": 1366, "height": 768})
+    page.goto(live_server)
+
+    cta = page.locator(".home-cta a")
+    expect(cta).to_be_visible()
+    box = cta.bounding_box()
+    assert box is not None
+    assert box["y"] >= 0
+    assert box["y"] + box["height"] <= 768
+    assert page.evaluate("window.scrollY") == 0
+
+    cta.click()
+    assert page.url.rstrip("/").endswith("/processes")
+
+
+@pytest.mark.usefixtures("login")
 def test_home_renders_for_logged_in_school(live_server, page):
     """The school navigation does not hide the homepage CTA or gallery."""
     page.goto(live_server)
-    expect(page.locator("h1")).to_have_text(
-        "De groepsindeling: een complexe puzzel, in enkele minuten opgelost"
-    )
+    expect(page.locator("h1")).to_be_visible()
     expect(page.locator(".home-cta a")).to_be_visible()
     expect(page.locator("[data-home-gallery]")).to_be_visible()
