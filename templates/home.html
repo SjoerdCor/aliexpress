@@ -164,6 +164,7 @@
         let activeIndex = 0;
         let autoplayTimer = null;
         let autoplayPaused = false;
+        let galleryInViewport = false;
         let pointerStartX = null;
         let pointerStartY = null;
 
@@ -177,6 +178,7 @@
             autoplayTimer = null;
             if (
                 autoplayPaused ||
+                !galleryInViewport ||
                 document.visibilityState === "hidden"
             ) return;
             autoplayTimer = window.setTimeout(() => {
@@ -211,6 +213,16 @@
         });
 
         document.addEventListener("visibilitychange", scheduleAutoplay);
+
+        if ("IntersectionObserver" in window) {
+            const galleryObserver = new IntersectionObserver(([entry]) => {
+                galleryInViewport = entry.intersectionRatio >= 0.1;
+                scheduleAutoplay();
+            }, {threshold: [0.1]});
+            galleryObserver.observe(gallery);
+        } else {
+            galleryInViewport = true;
+        }
 
         gallery.addEventListener("keydown", (event) => {
             if (event.key === "ArrowLeft") {
