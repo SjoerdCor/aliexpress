@@ -39,6 +39,10 @@ class TestSelectGroups:
 
     def _write_fake_edex(self, proc_dir):
         (proc_dir / "edex.xml").write_bytes(b"fake")
+        if not (proc_dir / "mode.json").exists():
+            (proc_dir / "mode.json").write_text(
+                json.dumps({"mode": "redistribute"}), encoding="utf-8"
+            )
 
     def test_get_shows_groups_from_edexml(self, client, tmp_path, monkeypatch):
         """GET /select_groups shows checkboxes for each group found in the EDEXML."""
@@ -138,7 +142,7 @@ class TestSelectGroups:
         assert resp.status_code == 302
         assert resp.headers["Location"].endswith("/select_groups")
         assert flashes(client) == [
-            ("error", "Kies minimaal twee groepen voor volgend schooljaar.")
+            ("error", "Kies minimaal twee groepen voor deze indeling.")
         ]
 
     def test_post_redistribute_and_forward_sets_groups_to_and_redirects_to_groups_to(
@@ -192,8 +196,8 @@ class TestSelectGroups:
     def test_get_redistribute_and_forward_marks_step_3_active_in_stepper(
         self, client, tmp_path, monkeypatch
     ):
-        """GET /select_groups in redistribute_and_forward mode is reached after "Wie gaat
-        mee" (step 2), so the stepper must mark step 3 ("Groepen voor volgend jaar")
+        """GET /select_groups in redistribute_and_forward mode is reached after "Leerlingen
+        controleren" (step 2), so the stepper must mark "Groepen controleren"
         as active, not step 1 ("Schoolinformatie")."""
         proc_dir = setup_process(client, tmp_path)
         (proc_dir / "mode.json").write_text(
@@ -207,14 +211,13 @@ class TestSelectGroups:
         )
         resp = client.get("/select_groups")
         html = resp.data.decode("utf-8")
-        assert re.search(r"step active\">\s*<span>Groepen voor volgend jaar<", html)
+        assert re.search(r"step active\">\s*<span>Groepen controleren<", html)
         assert re.search(r"step done\">\s*<span>Schoolinformatie<", html)
 
     def test_get_redistribute_marks_step_1_active_in_stepper(
         self, client, tmp_path, monkeypatch
     ):
-        """Regression: GET /select_groups in plain redistribute mode still marks step 1
-        ("Schoolinformatie") as active, unchanged from before."""
+        """A direct legacy group-choice URL uses the in-place group-choice step."""
         proc_dir = setup_process(client, tmp_path)
         self._write_fake_edex(proc_dir)
         monkeypatch.setattr(
@@ -224,7 +227,23 @@ class TestSelectGroups:
         )
         resp = client.get("/select_groups")
         html = resp.data.decode("utf-8")
-        assert re.search(r"step active\">\s*<span>Schoolinformatie<", html)
+        assert re.search(
+            r"step active\">\s*<span>Groepen kiezen<",
+            html,
+        )
+
+    def test_get_forward_redirects_to_roster_after_upload(self, client, tmp_path):
+        """A direct /select_groups visit in Doorzetten follows the actual route."""
+        proc_dir = setup_process(client, tmp_path)
+        (proc_dir / "edex.xml").write_bytes(b"fake")
+        (proc_dir / "mode.json").write_text(
+            json.dumps({"mode": "forward"}), encoding="utf-8"
+        )
+
+        resp = client.get("/select_groups")
+
+        assert resp.status_code == 302
+        assert resp.headers["Location"].endswith("/roster")
 
     def test_post_persists_every_jaargroep_in_a_combination_class(
         self, client, tmp_path, monkeypatch

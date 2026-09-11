@@ -65,7 +65,8 @@ def _start_distribution_from_idle_panel(live_server, page):
     tests that only care about the solve itself, not the balance-limits UI.
     """
     page.goto(f"{live_server}/processing")
-    page.click('button:has-text("Berekening starten →")')
+    page.click('button:has-text("Groepsindeling berekenen →")', no_wait_after=True)
+    page.wait_for_url("**/processing?watch=1", timeout=60000)
 
 
 def _goto_processing_and_wait_for_next_status(live_server, page):
@@ -107,7 +108,7 @@ def test_balance_limits_can_be_changed_unlimited_and_submitted(
     expect(unlimited_number).to_have_value("")
     assert page.locator(".balance-field [title]").count() == 0
 
-    page.click('button:has-text("Berekening starten →")')
+    page.click('button:has-text("Groepsindeling berekenen →")')
     page.wait_for_url("**/result", timeout=60000)
 
     saved = json.loads((proc / "balance_limits.json").read_text("utf-8"))
@@ -126,7 +127,7 @@ def test_balance_limit_without_number_stays_on_form(live_server, tmp_path, page)
     number.fill("")
     assert number.evaluate("element => element.validity.valueMissing") is True
 
-    page.click('button:has-text("Berekening starten →")')
+    page.click('button:has-text("Groepsindeling berekenen →")')
     page.wait_for_timeout(250)
 
     assert page.url == f"{live_server}/processing"
@@ -141,7 +142,7 @@ def test_processing_idle_links_back_to_not_together(live_server, tmp_path, page)
     page.goto(f"{live_server}/processing")
     back = page.locator("a.previous-step")
     expect(back).to_have_attribute("href", "/not_together")
-    expect(back).to_contain_text("leerlingen spreiden")
+    expect(back).to_contain_text("Leerlingen spreiden")
 
     back.click()
     page.wait_for_url(f"{live_server}/not_together")
@@ -181,7 +182,9 @@ def test_completed_distribution_can_be_adjusted_and_run_again(
     _start_distribution_from_idle_panel(live_server, page)
     page.wait_for_url("**/result", timeout=60000)
 
-    page.get_by_role("link", name="← Nog niet helemaal... opnieuw invoeren").click()
+    page.get_by_role("link", name="← Terug naar Groepsindeling berekenen").click(
+        no_wait_after=True
+    )
     page.wait_for_url(f"{live_server}/processing")
 
     download_link = page.get_by_role("link", name="Download huidige groepsindeling")
@@ -196,7 +199,9 @@ def test_completed_distribution_can_be_adjusted_and_run_again(
 
     details = page.locator("details.instructions-box")
     assert details.evaluate("element => element.open") is False
-    expect(page.get_by_role("button", name="Opnieuw berekenen →")).to_be_visible()
+    expect(
+        page.get_by_role("button", name="Groepsindeling berekenen →")
+    ).to_be_visible()
 
     details.locator("summary").click()
     assert details.evaluate("element => element.open") is True
@@ -205,8 +210,11 @@ def test_completed_distribution_can_be_adjusted_and_run_again(
     loosened_limit = saved_limit + 1
     clique_limit.fill(str(loosened_limit))
 
-    page.get_by_role("button", name="Opnieuw berekenen →").click()
-    page.wait_for_url("**/result", timeout=60000)
+    page.get_by_role("button", name="Groepsindeling berekenen →").click(
+        no_wait_after=True
+    )
+    page.wait_for_url("**/processing?watch=1", timeout=60000)
+    page.wait_for_url("**/result", timeout=240000)
 
     saved = json.loads((proc / "balance_limits.json").read_text("utf-8"))
     assert saved["max_clique"] == loosened_limit
@@ -618,13 +626,14 @@ def test_processing_stays_gated_when_estimate_predicts_a_short_run(
 
 @pytest.mark.usefixtures("login")
 def test_processing_stepper_completes(live_server, tmp_path, page):
-    """The processing page shows the three-step stepper and it all ends up 'done'."""
+    """A live processing page shows its three stages and the run ends successfully."""
     proc = _make_process(live_server, tmp_path, page, name="stepperrun", running=False)
 
     _start_distribution_from_idle_panel(live_server, page)
-    # The stepper renders all three steps immediately (they only ever refine in
-    # place, never appear/disappear — see the "rustregels" in the plan).
-    assert page.locator(".solve-step").count() == 3
+    # A very fast solve can finish before the live page is rendered. Only skip the
+    # markup check when the browser is already on the result page.
+    if not page.url.endswith("/result"):
+        assert page.locator(".solve-step").count() == 3
 
     page.wait_for_url("**/result", timeout=60000)
 

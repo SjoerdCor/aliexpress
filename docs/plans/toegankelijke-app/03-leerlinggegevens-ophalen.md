@@ -1,4 +1,4 @@
-# Leerlinggegevens ophalen
+# Schoolinformatie
 
 Status: Implementatiegereed na gebruikersakkoord op inhoud, modi en afbakening.
 

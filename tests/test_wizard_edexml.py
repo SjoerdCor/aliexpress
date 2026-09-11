@@ -51,7 +51,7 @@ class TestUploadEdexmlMode:
 
         assert resp.status_code == 200
         for expected in (
-            "<h1>Leerlinggegevens ophalen</h1>",
+            "<h1>Schoolinformatie</h1>",
             "Upload het EDEXML-bestand uit je leerlingadministratie. Dit is een "
             "standaardbestand waarmee we de leerlingen en groepen voor je klaarzetten.",
             '<label for="edexml">EDEXML-bestand</label>',
@@ -91,8 +91,8 @@ class TestUploadEdexmlMode:
 
         assert "Welke huidige jaarlaag wil je indelen?" not in page
         assert "Welke huidige jaarlagen wil je indelen?" not in page
-        assert "Gegevens inlezen en groepen kiezen →" in page
-        assert "Gegevens inlezen en leerlingen controleren →" not in page
+        assert "Verder naar Groepen kiezen →" in page
+        assert "Verder naar Leerlingen controleren →" not in page
 
     def test_post_redistribute_valid_edexml_redirects_to_select_groups(
         self, client, tmp_path, monkeypatch
@@ -129,10 +129,10 @@ class TestUploadEdexmlMode:
         assert resp.data.count(b'name="jaargroepen"') == 8
         assert "Welke huidige jaarlagen wil je indelen?".encode() in resp.data
         assert (
-            "Selecteer alle jaarlagen die een jaar verder gaan en daarbij opnieuw over de "
-            "groepen worden verdeeld."
+            "Selecteer alle jaarlagen die een jaar verder gaan en opnieuw over de groepen "
+            "in deze indeling worden verdeeld."
         ).encode() in resp.data
-        assert "Gegevens inlezen en leerlingen controleren →".encode() in resp.data
+        assert "Verder naar Leerlingen controleren →".encode() in resp.data
 
     def test_post_redistribute_and_forward_valid_selection_saves_json_and_redirects_to_roster(
         self, client, tmp_path, monkeypatch

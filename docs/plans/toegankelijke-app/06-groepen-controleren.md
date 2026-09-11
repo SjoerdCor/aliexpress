@@ -1,10 +1,10 @@
-# Groepen voor volgend jaar
+# Groepen controleren
 
 **Status:** implementatiegereed na gebruikersreview
 
 ## Doel
 
-Een leerkracht controleert welke leerlingen volgend schooljaar al in de groepen zitten,
+Een leerkracht controleert welke leerlingen al in de groepen in deze indeling zitten,
 kan een groep buiten de groepsindeling laten en kan een ontbrekende lege groep toevoegen.
 ALI Express gebruikt de gecontroleerde aantallen om de leerlingen daarna over zo
 evenwichtig mogelijke groepen te verdelen.
@@ -29,17 +29,17 @@ onnodig ingewikkeld.
 
 ## Goedgekeurde tekst en interactie
 
-- H1 en derde voortgangsstap: **Groepen voor volgend jaar**.
+- H1 en derde voortgangsstap: **Groepen controleren**.
 - Intro, zonder gekleurd kader:
-  **In deze groepen zitten volgend schooljaar al leerlingen. ALI Express telt hen mee,
+  **In deze groepen zitten al leerlingen die in deze indeling blijven. ALI Express telt hen mee,
   zodat de groepsindeling straks zo evenwichtig mogelijk kan worden.**
 - Instructiekop: **Controleer welke leerlingen blijven**.
 - Instructie:
   **De leerlingen uit de schooladministratie staan alvast aangevinkt. Laat het vinkje
-  staan als een leerling volgend schooljaar in deze groep blijft. Haal het vinkje weg
+  staan als een leerling in deze groep blijft. Haal het vinkje weg
   als de leerling deze groep verlaat. De aantallen bij de groep worden meteen bijgewerkt.**
 - Uitleg bij groepen uitschakelen:
-  **Staat een groep volgend schooljaar niet in deze groepsindeling? Zet ‘Deze groep
+  **Staat een groep niet in deze groepsindeling? Zet ‘Deze groep
   gebruiken’ dan uit.**
 - Gebruik per bestaande groep een native checkbox **Deze groep gebruiken**. Uitgevinkt
   betekent dat de groep niet in `group` wordt gepost. De eerder gekozen leerlingen
@@ -50,7 +50,7 @@ onnodig ingewikkeld.
   **jaarlaag {nummer}**.
 - Kop toevoegactie: **Ontbreekt er een groep?**
 - Uitleg toevoegactie:
-  **Voeg een groep toe die volgend schooljaar nieuw is en nog niet in de lijst staat.
+  **Voeg een groep toe die nog niet in de lijst staat en in deze indeling moet komen.
   De groep begint zonder leerlingen die er al blijven.**
 - Knop: **+ Lege groep toevoegen**.
 - Een toegevoegde groep krijgt een duidelijke automatische naam `Nieuwe groep N`.
@@ -63,11 +63,11 @@ onnodig ingewikkeld.
 - Primaire actie, zichtbaar gemarkeerd als **Aanbevolen**:
   **Voorkeuren invullen in ALI Express →**.
 - Secundaire actie: **Voorkeuren invullen via Excel →**.
-- Terugactie: **← Terug naar leerlingen controleren**.
+- Terugactie: **← Terug naar Leerlingen controleren**.
 
 Gebruik voor server- en clientvalidatie deze herstelteksten:
 
-- **Kies minimaal twee groepen voor volgend jaar.**
+- **Kies minimaal twee groepen voor deze indeling.**
 - **Geef iedere nieuwe groep een naam.**
 - **Iedere groep heeft een unieke naam nodig. Pas de dubbele groepsnaam ‘{name}’ aan.**
 

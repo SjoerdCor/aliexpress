@@ -41,7 +41,7 @@ def _write_long_processing_input(proc):
         index=pd.Index(
             [
                 "Doelgroep met een uitzonderlijk lange naam",
-                "Andere nieuwe groep met een uitzonderlijk lange naam",
+                "Andere groep in deze indeling met een uitzonderlijk lange naam",
             ],
             name="Groepen",
         ),
@@ -85,7 +85,7 @@ def test_processing_controls_are_keyboard_focusable_and_motion_is_reduced(
     page.set_viewport_size({"width": 390, "height": 900})
     page.goto(f"{live_server}/processing")
 
-    start = page.get_by_role("button", name="Berekening starten →")
+    start = page.get_by_role("button", name="Groepsindeling berekenen →")
     start.focus()
     expect(start).to_be_focused()
     summary = page.get_by_text("Geavanceerd: maximale verschillen tussen groepen")

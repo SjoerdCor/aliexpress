@@ -3,6 +3,8 @@
 import pytest
 from playwright.sync_api import expect
 
+from tests.browser.wizard_route_helpers import assert_wizard_page
+
 
 def _create_process(live_server, page, mode="forward", name="upload-browser-test"):
     """Create a process through the normal process form and open the upload step."""
@@ -48,12 +50,10 @@ def test_forward_upload_page_is_responsive_and_keyboard_operable(
     page.set_viewport_size({"width": width, "height": 720})
     _create_process(live_server, page, name=f"upload-forward-{width}")
 
-    expect(page.locator("h1")).to_have_text("Leerlinggegevens ophalen")
+    assert_wizard_page(page, "forward", "Schoolinformatie")
     file_input = page.get_by_label("EDEXML-bestand", exact=True)
     year_select = page.get_by_label("Huidige jaarlaag")
-    submit = page.get_by_role(
-        "button", name="Gegevens inlezen en leerlingen controleren →"
-    )
+    submit = page.get_by_role("button", name="Verder naar Leerlingen controleren →")
     expect(file_input).to_have_attribute("accept", ".xml")
     expect(year_select).to_be_visible()
     expect(submit).to_be_visible()
@@ -61,7 +61,7 @@ def test_forward_upload_page_is_responsive_and_keyboard_operable(
         "Welke huidige jaarlaag wil je indelen?"
     )
     expect(page.locator("#jaargroep-help")).to_have_text(
-        "Kies de jaarlaag van de leerlingen die volgend schooljaar naar de volgende groepen gaan."
+        "Kies de jaarlaag van de leerlingen die naar de groepen in de nieuwe indeling gaan."
     )
 
     for control in (file_input, year_select, submit):
@@ -94,13 +94,16 @@ def test_redistribute_upload_modes_show_their_approved_controls(
     page.set_viewport_size({"width": 390, "height": 720})
     _create_process(live_server, page, mode=mode, name=f"upload-{mode}-browser-test")
 
-    expect(page.locator("h1")).to_have_text("Leerlinggegevens ophalen")
+    assert_wizard_page(page, mode, "Schoolinformatie")
     expect(page.get_by_label("EDEXML-bestand", exact=True)).to_be_visible()
     expect(page.locator("select[name=jaargroep]")).to_have_count(0)
     if mode == "redistribute":
         expect(page.locator("input[name=jaargroepen]")).to_have_count(0)
         expect(
-            page.get_by_role("button", name="Gegevens inlezen en groepen kiezen →")
+            page.get_by_role(
+                "button",
+                name=("Verder naar Groepen kiezen →"),
+            )
         ).to_be_visible()
         expect(page.locator("fieldset")).to_have_count(0)
     else:
@@ -109,13 +112,11 @@ def test_redistribute_upload_modes_show_their_approved_controls(
             "Welke huidige jaarlagen wil je indelen?"
         )
         expect(page.locator("#jaargroepen-help")).to_have_text(
-            "Selecteer alle jaarlagen die een jaar verder gaan en daarbij opnieuw over de "
-            "groepen worden verdeeld."
+            "Selecteer alle jaarlagen die een jaar verder gaan en opnieuw over de groepen "
+            "in deze indeling worden verdeeld."
         )
         expect(
-            page.get_by_role(
-                "button", name="Gegevens inlezen en leerlingen controleren →"
-            )
+            page.get_by_role("button", name="Verder naar Leerlingen controleren →")
         ).to_be_visible()
         for year in range(1, 9):
             expect(page.locator(f"label[for='jaargroep-{year}']")).to_be_visible()

@@ -1,25 +1,24 @@
 {% extends "base.html" %}
-{% set current_step = 3 %}
 {% block extra_styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='groups-to.css') }}">
 {% endblock %}
-{% block header %}Groepen voor volgend jaar{% endblock %}
+{% block header %}{{ current_step_label }}{% endblock %}
 {% macro count_text(total, boys, girls) -%}
 Blijven in deze groep: {{ total }} {% if total == 1 %}leerling{% else %}leerlingen{% endif %} · {{ boys }} {% if boys == 1 %}jongen{% else %}jongens{% endif %} · {{ girls }} {% if girls == 1 %}meisje{% else %}meisjes{% endif %}
 {%- endmacro %}
 {% block content %}
 <main class="groups-to-page">
   <p class="groups-to-intro">
-    In deze groepen zitten volgend schooljaar al leerlingen. ALI Express telt hen mee, zodat de groepsindeling straks zo evenwichtig mogelijk kan worden.
+    In deze groepen zitten al leerlingen die in deze indeling blijven. ALI Express telt hen mee, zodat de groepsindeling straks zo evenwichtig mogelijk kan worden.
   </p>
 
   <section class="groups-to-guidance" aria-labelledby="groups-to-guidance-heading">
     <h2 id="groups-to-guidance-heading">Controleer welke leerlingen blijven</h2>
     <p>
-      De leerlingen uit de schooladministratie staan alvast aangevinkt. Laat het vinkje staan als een leerling volgend schooljaar in deze groep blijft. Haal het vinkje weg als de leerling deze groep verlaat. De aantallen bij de groep worden meteen bijgewerkt.
+      De leerlingen uit de schooladministratie staan alvast aangevinkt. Laat het vinkje staan als een leerling in deze groep blijft. Haal het vinkje weg als de leerling deze groep verlaat. De aantallen bij de groep worden meteen bijgewerkt.
     </p>
     <p>
-      Staat een groep volgend schooljaar niet in deze groepsindeling? Zet ‘Deze groep gebruiken’ dan uit.
+      Staat een groep niet in deze groepsindeling? Zet ‘Deze groep gebruiken’ dan uit.
     </p>
   </section>
 
@@ -96,7 +95,7 @@ Blijven in deze groep: {{ total }} {% if total == 1 %}leerling{% else %}leerling
     <details class="groups-to-add">
       <summary>Ontbreekt er een groep?</summary>
       <div class="groups-to-add-content">
-        <p>Voeg een groep toe die volgend schooljaar nieuw is en nog niet in de lijst staat. De groep begint zonder leerlingen die er al blijven.</p>
+        <p>Voeg een groep toe die nog niet in de lijst staat en in deze indeling moet komen. De groep begint zonder leerlingen die er al blijven.</p>
         <button id="add-empty-group" class="button button--secondary" type="button">+ Lege groep toevoegen</button>
       </div>
     </details>
@@ -112,12 +111,12 @@ Blijven in deze groep: {{ total }} {% if total == 1 %}leerling{% else %}leerling
     </div>
 
     <div class="step-navigation groups-to-navigation">
-      <a href="{{ url_for('roster.roster_page') }}" class="button previous-step">← Terug naar leerlingen controleren</a>
+      <a href="{{ prev_url }}" class="button previous-step">{{ prev_label }}</a>
       <div class="next-steps">
-        <button type="submit" name="action" value="form" class="button">
-          Voorkeuren invullen in ALI Express → <span class="recommended-badge">Aanbevolen</span>
+        <button type="submit" name="action" value="form" class="button next-step">
+          {{ next_step.label }} in ALI Express → <span class="recommended-badge">Aanbevolen</span>
         </button>
-        <button type="submit" name="action" value="excel" class="button button--cancel">Voorkeuren invullen via Excel →</button>
+        <button type="submit" name="action" value="excel" class="button button--cancel next-step">{{ next_step.label }} via Excel →</button>
       </div>
     </div>
   </form>
@@ -219,7 +218,7 @@ Blijven in deze groep: {{ total }} {% if total == 1 %}leerling{% else %}leerling
   function validateForm() {
     const active = activeGroups();
     if (active.length < 2) {
-      showValidation("Kies minimaal twee groepen voor volgend jaar.");
+      showValidation("Kies minimaal twee groepen voor deze indeling.");
       return false;
     }
 

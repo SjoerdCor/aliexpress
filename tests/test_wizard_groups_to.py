@@ -37,7 +37,7 @@ class TestGroupsToPage:
         response = client.get("/groups_to")
         assert response.status_code == 200
         assert b"Klas A" in response.data
-        assert b"Groepen voor volgend jaar" in response.data
+        assert b"Groepen controleren" in response.data
         assert b"Anna Bos" in response.data
         assert b'student-year"> (jaarlaag 6)</span>' in response.data
         html = response.data.decode("utf-8")
@@ -72,7 +72,7 @@ class TestGroupsToPage:
             },
         )
         assert response.status_code == 302
-        assert ("error", "Kies minimaal twee groepen voor volgend jaar.") in flashes(
+        assert ("error", "Kies minimaal twee groepen voor deze indeling.") in flashes(
             client
         )
         saved = json.loads((proc_dir / "groups_to_state.json").read_text("utf-8"))
@@ -132,7 +132,7 @@ class TestGroupsToPage:
             data={"group": ["Klas A"], "group_students[Klas A]": ["0"]},
         )
         assert response.status_code == 302
-        assert ("error", "Kies minimaal twee groepen voor volgend jaar.") in flashes(
+        assert ("error", "Kies minimaal twee groepen voor deze indeling.") in flashes(
             client
         )
 

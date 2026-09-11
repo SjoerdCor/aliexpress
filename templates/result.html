@@ -1,8 +1,7 @@
 {% extends "base.html" %}
 {% import "partials/groepsindeling.html" as gi %}
-{% set current_step = 7 %}
 
-{% block header %}Groepsindeling klaar!{% endblock %}
+{% block header %}{{ current_step_label }}{% endblock %}
 
 {% block content %}
 
@@ -35,8 +34,8 @@
 <p><br>Ben je er tevreden mee?</p>
 
 <div class="step-navigation">
-    <a href="{{ url_for('results.processing') }}" class="button previous-step">← Nog niet helemaal... opnieuw invoeren</a>
-    <a href="{{ url_for('results.done') }}" class="button next-step">Ja, ik ben tevreden! →</a>
+    <a href="{{ prev_url }}" class="button previous-step">{{ prev_label }}</a>
+    <a href="{{ next_url }}" class="button next-step">{{ next_label }}</a>
 </div>
 <script>
     function showTab(index) {

@@ -5,7 +5,7 @@
 ## Doel
 
 Een leerkracht of IB'er neemt per leerling over bij wie die graag of liever niet in de
-nieuwe groep komt, kan uitzonderingen en extra zekerheid vastleggen en kan de actuele
+groep komt, kan uitzonderingen en extra zekerheid vastleggen en kan de actuele
 voorkeuren tussentijds in het sociogram bekijken. De pagina moet warm, begrijpelijk en
 snel bruikbaar zijn voor iemand die ALI Express nog niet kent.
 
@@ -18,7 +18,7 @@ solvergedrag, gewichten en de betekenis van opgeslagen voorkeuren blijven ongewi
 - De uitleg staat in een afwijkend geel/perzikkleurig blok en mengt de hoofdtaak met
   uitzonderingen, technische uitleg en een verwijzing naar een niet-bestaand
   `Niet-samen-bestand`.
-- De mogelijkheid om een nieuwe groep als voorkeur te kiezen staat achter een info-i.
+- De mogelijkheid om een groep als voorkeur te kiezen staat achter een info-i.
   Juist het belangrijke geval — de gewenste leerling zit al in bijvoorbeeld Blauw en
   kan daarom niet bij naam worden gekozen — is daardoor gemakkelijk te missen.
 - `sociogram_available` kijkt alleen of eerder canonieke voorkeuren zijn opgeslagen.
@@ -39,7 +39,7 @@ solvergedrag, gewichten en de betekenis van opgeslagen voorkeuren blijven ongewi
 - H1 en vierde voortgangsstap: **Voorkeuren invullen**.
 - Intro, als gewone tekst zonder gekleurd kader:
 
-  **Open iedere leerling en neem over bij wie die graag in de nieuwe groep wil komen —
+  **Open iedere leerling en neem over bij wie die graag in de groep wil komen —
   en bij wie liever niet. Voeg waar mogelijk meerdere positieve voorkeuren toe. Zo geef
   je ALI Express de ruimte om voor iedereen een zo prettig en evenwichtig mogelijke
   groepsindeling te maken.**
@@ -62,11 +62,11 @@ solvergedrag, gewichten en de betekenis van opgeslagen voorkeuren blijven ongewi
 
 - Kop: volledige leerlingnaam; subregel: **Huidige groep: {groepsnaam}**.
 - Gebruik de veldkoppen **Graag bij** en **Liever niet bij**.
-- Gebruik bij beide zoekvelden het zichtbare label **Leerling of nieuwe groep zoeken**
-  en de placeholder **Zoek een leerling of nieuwe groep…**.
+- Gebruik bij beide zoekvelden het zichtbare label **Leerling of groep zoeken**
+  en de placeholder **Zoek een leerling of groep…**.
 - Toon onder **Graag bij** als gewone, altijd zichtbare tekst:
 
-  **Wil deze leerling bij iemand komen die al in een nieuwe groep zit? Kies dan die
+  **Wil deze leerling bij iemand komen die al in een groep in de nieuwe indeling zit? Kies dan die
   groep; de leerling die daar al zit, kun je hier niet kiezen.**
 
   Zet dit niet in de intro en niet achter een info-i. Hoewel de tekst in iedere modal in
@@ -74,7 +74,7 @@ solvergedrag, gewichten en de betekenis van opgeslagen voorkeuren blijven ongewi
   handelingen veroorzaken.
 - Noem de harde groepsuitsluiting **Mag niet naar** en leg uit:
 
-  **Gebruik dit alleen als deze leerling echt niet in een bepaalde nieuwe groep mag
+  **Gebruik dit alleen als deze leerling echt niet in een bepaalde groep in de nieuwe indeling mag
   komen, bijvoorbeeld omdat er al een broer of zus zit. Dit geldt altijd. Is het alleen
   een voorkeur, kies de groep dan bij ‘Liever niet bij’.**
 
@@ -111,11 +111,11 @@ solvergedrag, gewichten en de betekenis van opgeslagen voorkeuren blijven ongewi
 
   | Verdeelmodus | Terugactie | Route |
   | --- | --- | --- |
-  | Doorzetten | **← Terug naar groepen voor volgend jaar** | `/groups_to` |
-  | Herindelen met dezelfde groepen | **← Terug naar leerlingen controleren** | `/roster` |
-  | Herindelen met doorzetten | **← Terug naar nieuwe groepen kiezen** | `/select_groups` |
+  | Doorzetten | **← Terug naar Groepen controleren** | `/groups_to` |
+  | Herindelen met dezelfde groepen | **← Terug naar Leerlingen controleren** | `/roster` |
+  | Herindelen met doorzetten | **← Terug naar Groepen controleren** | `/select_groups` |
 
-- Primaire vervolgactie: **Verder naar leerlingen spreiden →**. De redirect blijft
+- Primaire vervolgactie: **Verder naar Leerlingen spreiden →**. De redirect blijft
   `/not_together`; wijzig die volgende pagina niet in deze slice.
 - Toon **Bekijk deze voorkeuren in het sociogram ↗** altijd als secundaire formulieractie.
   Deze actie:
@@ -207,7 +207,7 @@ Neem niet over:
 - **Wijzigingen annuleren** herstelt de momentopname. Esc en backdrop behouden de invoer
   en laten de modal open.
 - Tab vanuit de combobox kiest niet ongemerkt de gemarkeerde suggestie; Enter wel.
-- Een deelnemende leerling en een nieuwe groep kunnen als voorkeur worden gekozen en
+- Een deelnemende leerling en een groep kunnen als voorkeur worden gekozen en
   behouden hun bestaande opgeslagen identiteit en gewicht.
 - Een handmatig ongeldige POST geeft een normale flashmelding en bewaart de draft.
 - Vanuit een toestand met een oud of leeg canoniek voorkeurenbestand opent de
@@ -243,7 +243,7 @@ Neem niet over:
 ## Acceptatie
 
 - De goedgekeurde introductie staat zonder geel/perzikkleurig kader op de pagina.
-- De belangrijke uitleg over een leerling die al in een nieuwe groep zit staat kort en
+- De belangrijke uitleg over een leerling die al in een groep in de nieuwe indeling zit staat kort en
   zichtbaar bij **Graag bij**, zonder info-i.
 - Extra zekerheid legt zowel het doel voor een sociaal kwetsbare leerling als het risico
   voor de totale groepsindeling uit; 100% betekent **Alle voorkeuren gehonoreerd**.

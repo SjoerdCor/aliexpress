@@ -1,7 +1,6 @@
 {% extends "base.html" %}
-{% set current_step = 2 %}
 {% block extra_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='roster.css') }}">{% endblock %}
-{% block header %}Leerlingen controleren{% endblock %}
+{% block header %}{{ current_step_label }}{% endblock %}
 
 {% block content %}
 
@@ -25,9 +24,9 @@
   {% if mode == "redistribute" %}
   <p>De leerlingen uit de gekozen groepen staan alvast aangevinkt. Laat het vinkje staan als een leerling opnieuw moet worden ingedeeld. Haal het vinkje weg als een leerling niet aan deze groepsindeling meedoet.</p>
   {% elif mode == "redistribute_and_forward" %}
-  <p>De leerlingen uit de gekozen jaarlagen staan alvast aangevinkt. Laat het vinkje staan als een leerling meegaat naar de nieuwe groepen. Haal het vinkje weg als een leerling niet aan deze groepsindeling meedoet.</p>
+  <p>De leerlingen uit de gekozen jaarlagen staan alvast aangevinkt. Laat het vinkje staan als een leerling meegaat naar de groepen in de nieuwe indeling. Haal het vinkje weg als een leerling niet aan deze groepsindeling meedoet.</p>
   {% else %}
-  <p>De leerlingen uit de vorige stap staan alvast aangevinkt. Laat het vinkje staan als een leerling meegaat naar de nieuwe groepen. Haal het vinkje weg als een leerling niet meegaat, bijvoorbeeld omdat die blijft zitten.</p>
+  <p>De leerlingen uit de vorige stap staan alvast aangevinkt. Laat het vinkje staan als een leerling meegaat naar de groepen in de nieuwe indeling. Haal het vinkje weg als een leerling niet meegaat, bijvoorbeeld omdat die blijft zitten.</p>
   {% endif %}
 </section>
 

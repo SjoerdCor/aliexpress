@@ -191,10 +191,10 @@ class TestStartDistribution:
         assert processing.status_code == 200
         html = processing.data.decode("utf-8")
         assert "Met deze grenzen is geen geldige indeling mogelijk." in html
-        assert "Berekening starten →" in html
+        assert "Groepsindeling berekenen →" in html
         assert (
-            "Maximaal aantal leerlingen uit dezelfde huidige groep in één nieuwe groep"
-            in html
+            "Maximaal aantal leerlingen uit dezelfde huidige groep in één groep in de "
+            "nieuwe indeling" in html
         )
         assert "Zelfde stamgroep totaal" not in html
         assert re.search(r'name="maxima_max_clique"[^>]*value="1"', html)

@@ -4,9 +4,9 @@
 
 ## Doel
 
-Een leerkracht of IB'er kan optioneel vastleggen welke leerlingen bewust over de nieuwe
-groepen moeten worden gespreid. De pagina legt in gewone taal uit waarom dat nuttig kan
-zijn, maakt het ingestelde maximum ondubbelzinnig en houdt duidelijk dat ALI Express dit
+Een leerkracht of IB'er kan optioneel vastleggen welke leerlingen bewust over de groepen
+in de nieuwe indeling moeten worden gespreid. De pagina legt in gewone taal uit waarom dat
+nuttig kan zijn, maakt het ingestelde maximum ondubbelzinnig en houdt duidelijk dat ALI Express dit
 maximum altijd respecteert.
 
 Deze slice verandert geen solvergedrag, opslagbetekenis, verdeelmodus of vervolgstap. Een
@@ -47,9 +47,9 @@ Gebruik als h1 **Leerlingen spreiden**.
 
 Toon de intro als gewone lopende tekst, dus zonder perzikkleurige box:
 
-> Wil je voorkomen dat bepaalde leerlingen allemaal in dezelfde nieuwe groep komen?
+> Wil je voorkomen dat deze leerlingen allemaal in dezelfde groep komen?
 > Maak hieronder een spreiding. Voeg de leerlingen toe en kies hoeveel van hen er maximaal
-> in één nieuwe groep mogen komen. ALI Express houdt zich bij de groepsindeling altijd aan
+> per groep mogen komen. ALI Express houdt zich bij de groepsindeling altijd aan
 > dat maximum.
 >
 > Geen spreiding nodig? Dan kun je meteen verder.
@@ -60,15 +60,15 @@ patroon met een oranje verticale lijn uit het appbrede ontwerp, zonder perzikkle
 > **Twee leerlingen uit elkaar houden**
 >
 > Twee leerlingen leiden elkaar vaak af als ze samen zitten. Voeg hen toe en kies maximaal
-> 1. Ze komen dan niet samen in een nieuwe groep.
+> 1. Ze komen dan niet samen in één groep.
 >
 > **Extra ondersteuning over de groepen verdelen**
 >
 > Zes leerlingen hebben extra ondersteuning nodig. Voeg hen toe en kies maximaal 2. Per
-> nieuwe groep komen dan maximaal twee van hen.
+> groep komen dan maximaal twee van hen.
 
 Gebruik in iedere spreiding het doorlopende veldlabel **Maximaal [invoer] van deze
-leerlingen per nieuwe groep**. De toegankelijke naam van de cijferinvoer beschrijft het
+leerlingen per groep**. De toegankelijke naam van de cijferinvoer beschrijft het
 volledige maximum, niet alleen `Maximaal`.
 
 Gebruik verder deze korte acties:
@@ -76,8 +76,8 @@ Gebruik verder deze korte acties:
 - **Spreiding toevoegen**;
 - **Bevestigen** en, in bevestigde toestand, **Bewerken**;
 - **Spreiding verwijderen**;
-- **← Terug naar voorkeuren**;
-- **Verder →**.
+- **← Terug naar Voorkeuren invullen**;
+- **Verder naar Groepsindeling berekenen →**.
 
 ## Interactie en validatie
 
@@ -93,14 +93,14 @@ Gebruik verder deze korte acties:
   gedrag waarbij een leerling in meer dan één verschillende spreiding kan staan blijft
   intact.
 - Na iedere toegevoegde leerling wordt het maximum bewust opnieuw berekend als
-  `max(1, floor(aantal_leerlingen / aantal_nieuwe_groepen) + 1)`. Deze waarde mag een
+  `max(1, floor(aantal_leerlingen / aantal_groepen_in_deze_indeling) + 1)`. Deze waarde mag een
   handmatige keuze overschrijven. Het verwijderen van een leerling verandert het maximum
   niet.
 - **Bevestigen** is pas succesvol met minstens twee leerlingen en een geldig, uitvoerbaar
   maximum. Daarna verdwijnen de invoer- en chipverwijderacties, wordt het maximum alleen
   lezen en wordt **Bevestigen** vervangen door **Bewerken**. Bewerken heropent dezelfde
   waarden.
-- Een lege of onvolledige spreiding wordt bij **Verder →** niet stil verwijderd. Verwijs
+- Een lege of onvolledige spreiding wordt bij **Verder naar Groepsindeling berekenen →** niet stil verwijderd. Verwijs
   de gebruiker naar bevestigen, aanvullen of verwijderen. Zonder enige spreiding mag de
   gebruiker wel direct verder.
 - Nummer kaarten en geposte velden opnieuw na het verwijderen van een hele spreiding,
@@ -111,7 +111,7 @@ Gebruik verder deze korte acties:
   gefocust en laat alle invoer intact. Toon steeds één concreet hersteladvies en focus
   daarna waar zinvol het betreffende veld of de betreffende actie.
 - Servervalidatie en Flask-flashes blijven als defensieve terugval bestaan. Herschrijf
-  uitsluitend de niet-samen-validatiemeldingen naar `spreiding`, `nieuwe groep` en concreet
+  uitsluitend de niet-samen-validatiemeldingen naar `spreiding`, `groep` en concreet
   hersteladvies; verander de validatieregels zelf niet.
 - Bereken of start de verdeling niet op deze pagina. Een geldige submit bewaart exact
   dezelfde regels en redirect naar de idle verwerkingspagina.
@@ -146,7 +146,7 @@ designwijzigingen.
 
 ## Gedragsacceptatie
 
-- De lege pagina legt taak en optionaliteit begrijpelijk uit en **Verder →** bewaart een
+- De lege pagina legt taak en optionaliteit begrijpelijk uit en **Verder naar Groepsindeling berekenen →** bewaart een
   lege lijst zonder een berekening te starten.
 - De deelnemerskiezer gedraagt zich voor muis en toetsenbord hetzelfde als op de
   voorkeurenpagina; onbekende of dubbele leerlingen worden niet toegevoegd.

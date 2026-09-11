@@ -43,13 +43,13 @@ class TestRosterPage:
         assert b"Bram" in response.data
         assert "Leerlingen controleren".encode("utf-8") in response.data
         assert "Huidige groep: Groen".encode("utf-8") in response.data
-        assert "Terug naar leerlinggegevens".encode("utf-8") in response.data
-        assert "groepen controleren".encode("utf-8") in response.data
+        assert "Terug naar Schoolinformatie".encode("utf-8") in response.data
+        assert "Verder naar Groepen controleren".encode("utf-8") in response.data
         assert b"roster.css" in response.data
 
     def test_post_writes_roster_and_redirects_to_groups_to(self, client, tmp_path):
         """POST /roster writes roster.json with every participant and continues to
-        "Groepen naartoe"; the preference method is chosen there now (ADR 0006), so roster
+        "Groepen controleren"; the preference method is chosen there now (ADR 0006), so roster
         writes no input_method.json."""
         proc_dir = self._setup(client, tmp_path)
         response = client.post("/roster", data={"gaat_over": ["s1", "s2"]})
@@ -273,8 +273,8 @@ class TestRosterRedistributeAndForward:
         self._setup(client, tmp_path)
         html = client.get("/roster").data.decode("utf-8")
         assert "Leerlingen controleren" in html
-        assert "Terug naar leerlinggegevens" in html
-        assert "Verder naar nieuwe groepen" in html
+        assert "Terug naar Schoolinformatie" in html
+        assert "Verder naar Groepen controleren" in html
 
 
 class TestRosterNewStudentJaargroep:

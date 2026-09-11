@@ -32,9 +32,10 @@ from ..process_files import (
     load_not_together,
     load_voorkeuren,
 )
-from ..storage import get_file_path
+from ..storage import get_file_path, get_process_path
+from ..wizard_steps import wizard_context
 from .auth import effective_school_id
-from .processes import require_process
+from .processes import get_process_mode, require_process
 
 logger = logging.getLogger(__name__)
 
@@ -50,10 +51,12 @@ _PROCESSING_BALANCE_LABELS = {
         "Maximaal verschil tussen jongens en meisjes over de hele groep"
     ),
     "Zelfde stamgroep totaal": (
-        "Maximaal aantal leerlingen uit dezelfde huidige groep in één nieuwe groep"
+        "Maximaal aantal leerlingen uit dezelfde huidige groep in één groep in de "
+        "nieuwe indeling"
     ),
     "Zelfde stamgroep per sekse": (
-        "Maximaal aantal jongens of meisjes uit dezelfde huidige groep in één nieuwe groep"
+        "Maximaal aantal jongens of meisjes uit dezelfde huidige groep in één groep in "
+        "de nieuwe indeling"
     ),
 }
 
@@ -122,6 +125,7 @@ def processing():
     if school_id is None:
         return redirect(url_for("admin.dashboard"))
     process_id = session["process_id"]
+    process_mode = get_process_mode(get_process_path(school_id, process_id))
     proc = Process.by_name(school_id, process_id)
     run_status = proc.run.status if proc and proc.run else None
 
@@ -147,6 +151,7 @@ def processing():
             processing_data=processing_data,
             recalculation=False,
             balance_limits_open=False,
+            **wizard_context(process_mode, "processing"),
         )
 
     maxima_path = get_file_path(school_id, process_id, "balance_limits.json")
@@ -165,6 +170,7 @@ def processing():
         maxima=maxima,
         recalculation=run_status == "done",
         balance_limits_open=run_status == "error",
+        **wizard_context(process_mode, "processing"),
     )
 
 
@@ -265,10 +271,12 @@ def result_page():
     if os.path.exists(view_path):
         with open(view_path, encoding="utf-8") as fh:
             groepsindeling_view = json.load(fh)
+    process_mode = get_process_mode(get_process_path(school_id, process_id))
     return render_template(
         "result.html",
         dataframes=dataframes,
         groepsindeling_view=groepsindeling_view,
+        **wizard_context(process_mode, "result"),
     )
 
 
@@ -284,7 +292,13 @@ def download():
     path = get_file_path(school_id, process_id, "results.xlsx")
     if not os.path.exists(path):
         flash("Groepsindeling niet gevonden. Mogelijk nog aan het berekenen", "error")
-        return render_template("result.html", dataframes={})
+        process_mode = get_process_mode(get_process_path(school_id, process_id))
+        return render_template(
+            "result.html",
+            dataframes={},
+            groepsindeling_view=None,
+            **wizard_context(process_mode, "result"),
+        )
 
     return send_file(
         path,
@@ -296,9 +310,15 @@ def download():
 
 @results_bp.route("/done")
 @login_required
+@require_process
 def done():
     """Show done page"""
-    return render_template("done.html")
+    school_id = effective_school_id()
+    if school_id is None:
+        return redirect(url_for("admin.dashboard"))
+    process_id = session["process_id"]
+    process_mode = get_process_mode(get_process_path(school_id, process_id))
+    return render_template("done.html", **wizard_context(process_mode, "done"))
 
 
 @results_bp.route("/download_preferences")

@@ -5,6 +5,7 @@ confirming a new student, editing/removing it, and continuing the wizard.
 """
 
 import json
+import xml.etree.ElementTree as ET
 
 import pandas as pd
 import pytest
@@ -13,6 +14,7 @@ from aliexpress.web.extensions import db as flask_db
 from aliexpress.web.models import Process
 from app import app
 from tests.browser.conftest import TEST_SCHOOLCODE
+from tests.browser.wizard_route_helpers import assert_wizard_page
 
 CANDIDATES = [
     {
@@ -38,7 +40,13 @@ def _open_roster(live_server, tmp_path, page):
     proc.mkdir(parents=True, exist_ok=True)
     # Candidate determination supplies the catch-all option for the roster route.
     (proc / "relevant_students_and_groups.json").write_text(
-        json.dumps({"candidates": CANDIDATES, "groups_from": ["Groep 3", "Anders"]}),
+        json.dumps(
+            {
+                "candidates": CANDIDATES,
+                "groups_from": ["Groep 3", "Anders"],
+                "groups_to": {"Klas A": [], "Klas B": []},
+            }
+        ),
         encoding="utf-8",
     )
     pd.DataFrame(
@@ -51,6 +59,65 @@ def _open_roster(live_server, tmp_path, page):
     page.goto(f"{live_server}/processes/select/browsertest")
     page.wait_for_url("**/roster")
     return proc
+
+
+def _create_forward_process(live_server, page, name):
+    """Create a normal Doorzetten process and open its Schoolinformatie step."""
+    page.goto(f"{live_server}/processes?new=1")
+    page.fill("#processName", name)
+    page.click("#processForm button[type=submit]")
+    page.wait_for_url(f"{live_server}/upload_edexml")
+
+
+def _build_forward_edexml() -> bytes:
+    """Build a small EDEXML file with one source and two next-year groups."""
+    root = ET.Element("EDEX")
+    groups = (
+        ("SOURCE", "Groep 5A", "5"),
+        ("TARGET_A", "Groep 6A", "6"),
+        ("TARGET_B", "Groep 6B", "6"),
+    )
+    groups_element = ET.SubElement(root, "groepen")
+    for key, name, year in groups:
+        group_element = ET.SubElement(groups_element, "groep", key=key)
+        ET.SubElement(group_element, "naam").text = name
+        ET.SubElement(group_element, "jaargroep").text = year
+
+    students_element = ET.SubElement(root, "leerlingen")
+    for key, first_name, last_name, gender in (
+        ("s1", "Anna", "Bos", "2"),
+        ("s2", "Bram", "Dijk", "1"),
+        ("t1", "Cato", "Eik", "2"),
+        ("t2", "Daan", "Fijn", "1"),
+    ):
+        student = ET.SubElement(students_element, "leerling", key=key)
+        ET.SubElement(student, "roepnaam").text = first_name
+        ET.SubElement(student, "achternaam").text = last_name
+        ET.SubElement(student, "geslacht").text = gender
+        year = "5" if key.startswith("s") else "6"
+        group = (
+            "SOURCE"
+            if key.startswith("s")
+            else "TARGET_A" if key == "t1" else "TARGET_B"
+        )
+        ET.SubElement(student, "jaargroep").text = year
+        ET.SubElement(student, "groep", key=group)
+    return ET.tostring(root, encoding="utf-8", xml_declaration=True)
+
+
+def _upload_forward_edexml(live_server, page):
+    """Upload the forward fixture and land on the learner-checking step."""
+    page.set_input_files(
+        "input[name=edexml]",
+        {
+            "name": "edex.xml",
+            "mimeType": "text/xml",
+            "buffer": _build_forward_edexml(),
+        },
+    )
+    page.locator("select[name=jaargroep]").select_option("5")
+    page.click("button[type=submit]")
+    page.wait_for_url(f"{live_server}/roster")
 
 
 def _add_student(page, voornaam, achternaam, geslacht="Meisje", confirm=True):
@@ -93,13 +160,46 @@ def test_origin_group_dropdown_has_single_anders(live_server, tmp_path, page):
 
 @pytest.mark.usefixtures("login")
 def test_forward_keeps_existing_students_in_roster(live_server, tmp_path, page):
-    """Continuing to "Groepen naartoe" must carry the pre-checked existing students into the
+    """Continuing to the group-checking page must carry the pre-checked existing students into the
     roster (regression: the Excel download later reported 'no students')."""
     proc = _open_roster(live_server, tmp_path, page)
     page.locator("button[type=submit]").click()
     page.wait_for_url("**/groups_to")
     roster = json.loads((proc / "roster.json").read_text("utf-8"))
     assert {p["key"] for p in roster["participants"]} == {"s1", "s2"}
+
+
+@pytest.mark.usefixtures("login")
+def test_forward_route_steps_and_navigation_labels(live_server, page):
+    """Doorzetten follows every step from Schoolinformatie through Klaar!."""
+    _create_forward_process(live_server, page, "full-forward-flow")
+    assert_wizard_page(page, "forward", "Schoolinformatie")
+    _upload_forward_edexml(live_server, page)
+    assert_wizard_page(page, "forward", "Leerlingen controleren")
+
+    page.locator("button.next-step").click()
+    page.wait_for_url("**/groups_to")
+    assert_wizard_page(page, "forward", "Groepen controleren")
+
+    page.locator("button[name=action][value=form]").click()
+    page.wait_for_url("**/preferences_form")
+    assert_wizard_page(page, "forward", "Voorkeuren invullen")
+
+    page.locator("button[name=action][value=volgende]").click()
+    page.wait_for_url("**/not_together")
+    assert_wizard_page(page, "forward", "Leerlingen spreiden")
+
+    page.locator("button.next-step").click()
+    page.wait_for_url("**/processing")
+    assert_wizard_page(page, "forward", "Groepsindeling berekenen")
+
+    page.get_by_role("button", name="Groepsindeling berekenen →").click()
+    page.wait_for_url("**/result", timeout=60000)
+    assert_wizard_page(page, "forward", "Resultaat bekijken")
+
+    page.get_by_role("link", name="Verder naar Klaar! →").click()
+    page.wait_for_url("**/done")
+    assert_wizard_page(page, "forward", "Klaar!")
 
 
 @pytest.mark.usefixtures("login")

@@ -111,7 +111,7 @@ def open_groups_to(browser_test_state, live_server, tmp_path, page):
         (proc / "relevant_students_and_groups.json").write_text(
             json.dumps({"groups_to": groups_to}), encoding="utf-8"
         )
-        # "Groepen naartoe" sits after the roster step (ADR 0006) and continues to the
+        # The group-checking page sits after the roster step (ADR 0006) and continues to the
         # preferences page, which needs a settled roster; provide an empty one so the
         # forward navigation lands cleanly instead of bouncing back to /roster.
         (proc / "roster.json").write_text(

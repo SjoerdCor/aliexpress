@@ -133,7 +133,7 @@ def test_keyboard_validation_and_group_controls(open_groups_to, page):
     page.click("button:has-text('Voorkeuren invullen via Excel')")
     error = page.locator("#groups-to-client-message")
     error_text = error.locator(".groups-to-client-message-text")
-    assert error_text.inner_text() == "Kies minimaal twee groepen voor volgend jaar."
+    assert error_text.inner_text() == "Kies minimaal twee groepen voor deze indeling."
     assert error.evaluate("element => document.activeElement === element")
 
     page.locator('.groups-to-group[data-group="Klas A"] [data-group-toggle]').check()
