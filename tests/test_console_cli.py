@@ -208,8 +208,9 @@ def test_serve_subprocess_smoke_and_clean_stop(tmp_path):
         }
     )
     bootstrap = (
+        "import aliexpress; "
+        f"aliexpress.get_instance_path = lambda: {str(tmp_path)!r}; "
         "import aliexpress.main as main_module; "
-        f"main_module.get_instance_path = lambda: {str(tmp_path)!r}; "
         "main_module.main()"
     )
     with subprocess.Popen(
