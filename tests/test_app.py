@@ -1,6 +1,6 @@
 """Tests for app-level concerns: secret key guard, upload size limit, home route, session guard."""
 
-# pylint: disable=redefined-outer-name  # standard pytest fixture pattern
+# pylint: disable=redefined-outer-name, duplicate-code  # pytest fixtures and shared route setup
 
 from io import BytesIO
 from types import SimpleNamespace
@@ -62,8 +62,9 @@ class TestSimpleRenders:
         """GET / renders the home page."""
         assert client.get("/").status_code == 200
 
-    def test_done_returns_200(self, client):
-        """GET /done renders the done page."""
+    def test_done_returns_200(self, client, tmp_path):
+        """GET /done renders the done page for the active process."""
+        setup_process(client, tmp_path)
         assert client.get("/done").status_code == 200
 
     def test_upload_edexml_get_returns_200(self, client):

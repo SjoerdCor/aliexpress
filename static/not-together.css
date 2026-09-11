@@ -1,0 +1,199 @@
+/* Page 8: optional student spreads. Keep this slice independent from the legacy wizard
+   rules so its layout can wrap at narrow widths without changing other pages. */
+
+.not-together-page {
+  width: 100%;
+  min-width: 0;
+}
+
+.not-together-intro,
+.not-together-examples {
+  max-width: 65ch;
+}
+
+.not-together-intro p {
+  margin: 0 0 0.9rem;
+}
+
+.not-together-intro p:last-child {
+  margin-bottom: 0;
+}
+
+.not-together-examples {
+  margin: 1.5rem 0;
+}
+
+.not-together-examples > h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.2rem;
+}
+
+.not-together-example {
+  margin: 0 0 1rem;
+  padding: 0.15rem 0.9rem 0.2rem;
+  border-left: 4px solid #e36c00;
+}
+
+.not-together-example:last-child {
+  margin-bottom: 0;
+}
+
+.not-together-example h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1.05rem;
+}
+
+.not-together-example p {
+  margin: 0;
+}
+
+.rule-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  margin: 0 0 1rem;
+  padding: 1rem;
+  border: 2px solid #e8b36f;
+  border-radius: 0.5rem;
+  background: #fffaf5;
+}
+
+.rule-card[data-state="confirmed"] {
+  border-color: #81c784;
+  background: #f1f8f1;
+}
+
+.rule-title {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.chips-area {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.not-together-page .student-chip {
+  max-width: 100%;
+  box-sizing: border-box;
+  flex-wrap: wrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.not-together-page .student-chip .chip-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.rule-add-area {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.45rem 0.75rem;
+  min-width: 0;
+}
+
+.student-choice-label {
+  flex: 0 0 100%;
+  font-weight: 700;
+}
+
+.not-together-combobox {
+  display: block;
+  width: min(24rem, 100%);
+  min-width: 0;
+}
+
+.not-together-combobox .combobox-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+}
+
+.not-together-combobox .combobox-list {
+  max-width: 100%;
+}
+
+.not-together-combobox .combobox-option {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.rule-max-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  font-weight: 700;
+}
+
+.rule-max-label input[type="number"] {
+  box-sizing: border-box;
+  width: 4.5rem;
+  min-height: 2.75rem;
+  margin: 0;
+  padding: 0.35rem 0.45rem;
+  text-align: center;
+}
+
+.rule-max-label input[type="number"]:read-only {
+  background: #eeeeee;
+  border-color: #aaaaaa;
+}
+
+.confirm-rule-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.rule-delete-btn {
+  justify-self: start;
+  min-height: 2.75rem;
+  padding: 0.4rem 0;
+  color: #8e1f16;
+  text-align: left;
+}
+
+.rule-delete-btn:hover,
+.rule-delete-btn:focus-visible {
+  color: #5f130d;
+}
+
+.not-together-add-rule {
+  margin: 1rem 0;
+}
+
+.not-together-client-message {
+  box-sizing: border-box;
+}
+
+.not-together-client-message .closebtn {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.not-together-navigation {
+  gap: 1rem;
+}
+
+@media (max-width: 680px) {
+  .not-together-navigation {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .not-together-navigation .previous-step,
+  .not-together-navigation .next-step {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+}

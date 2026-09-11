@@ -4,8 +4,8 @@
    docs/plans/groepsindeling-resultaatweergave.md. All selectors are scoped under
    `.gi` so they never collide with the existing `.chip*`/`.tab*`/`.card*` styles. #}
 
-{# Map a satisfaction fraction in [-1, 1] to a red->green colour (RdYlGn steps). #}
-{% macro _satcolor(sat) -%}
+{# Shared satisfaction presentation for the group-card popover and result analysis. #}
+{% macro satisfaction_color(sat) -%}
 {%- set p = (sat * 100) | round | int -%}
 {%- if p >= 90 -%}#1a9850
 {%- elif p >= 75 -%}#66bd63
@@ -17,20 +17,32 @@
 {%- endif -%}
 {%- endmacro %}
 
+{% macro satisfaction_badge(sat, percentage=none, empty_label='Geen wensen') -%}
+{%- if sat is none -%}
+<span class="gi-satdot gi-satdot--none" title="{{ empty_label }}" aria-label="{{ empty_label }}">—</span>
+{%- else -%}
+{%- set pct = percentage -%}
+{%- if pct is none -%}{%- set pct = ((sat * 100) | round | int) ~ '%' -%}{%- endif -%}
+<span class="gi-satdot" style="--c:{{ satisfaction_color(sat) | trim }}" title="Tevredenheid {{ pct }}" aria-label="Tevredenheid {{ pct }}">{{ pct }}</span>
+{%- endif -%}
+{%- endmacro %}
+
+{% macro importance_glyph(kind, weight) -%}
+{%- set w = weight | float -%}
+{%- if kind == 'graag_met' and w <= 0.5 -%}~
+{%- elif kind == 'graag_met' and w >= 5 -%}♥
+{%- elif w >= 2 -%}↑
+{%- endif -%}
+{%- endmacro %}
+
 {# One preference chip: colour shows the outcome (green = honoured, red = not); the trailing
    glyph shows the weight/importance (~ a little, ↑ strong, ♥ best-friend), mirroring the
    weight glyphs in preferences_form.html. No strike-through, no kind colour. #}
 {% macro _pref(pref) %}
 {%- set is_graag = pref.kind == 'graag_met' -%}
-{%- set w = pref.weight -%}
-{%- if is_graag and w <= 0.5 -%}{%- set glyph = '~' -%}
-{%- elif is_graag and w >= 5 -%}{%- set glyph = '♥' -%}
-{%- elif w >= 2 -%}{%- set glyph = '↑' -%}
-{%- else -%}{%- set glyph = '' -%}
-{%- endif -%}
 <span class="gi-pref gi-pref--{{ 'ok' if pref.fulfilled else 'no' }}" title="{{ 'Ingewilligd' if pref.fulfilled else 'Niet ingewilligd' }}">
   <span class="gi-pref-name">{{ 'Graag' if is_graag else 'Liever niet' }} {{ 'in' if pref.target_is_group else 'met' }} {{ pref.target }}</span>
-  {% if glyph %}<span class="gi-slot">{{ glyph }}</span>{% endif %}
+  {% set glyph = importance_glyph(pref.kind, pref.weight) | trim %}{% if glyph %}<span class="gi-slot">{{ glyph }}</span>{% endif %}
 </span>
 {% endmacro %}
 
@@ -39,12 +51,7 @@
   <span class="gi-pop">
     <span class="gi-pop-top">
       <span class="gi-pop-name">{{ chip.full_name }}</span>
-      {% if chip.satisfaction is none %}
-      <span class="gi-satdot gi-satdot--none" title="Geen wensen">—</span>
-      {% else %}
-      {% set pct = (chip.satisfaction * 100) | round | int %}
-      <span class="gi-satdot" style="--c:{{ _satcolor(chip.satisfaction) | trim }}" title="Tevredenheid {{ pct }}%">{{ pct }}%</span>
-      {% endif %}
+      {{ satisfaction_badge(chip.satisfaction) }}
     </span>
     <span class="gi-pop-meta">Uit klas {{ chip.origin_full }}{% if chip.year_group is not none %}, jaarlaag {{ chip.year_group }}{% endif %}</span>
     {% if chip.preferences or chip.not_in %}
@@ -78,7 +85,7 @@
 
 {% macro render(view) %}
 <div class="gi">
-  <div class="gi-cards">
+  <div class="gi-cards" data-testid="group-cards">
     {% for card in view.groups %}
     <div class="gi-card">
       <div class="gi-card-head">

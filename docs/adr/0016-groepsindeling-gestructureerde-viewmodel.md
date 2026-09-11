@@ -49,6 +49,18 @@ en levert precies de naad die de Tussenstand-weergave (reeds in de glossary voor
 - `result_tables.json` bevat voortaan alleen nog de drie analyse-tabellen; de Groepsindeling komt
   uit een nieuw `groepsindeling_view.json`. Tests die de sleutels van `dataframes` toetsen
   (`test_integration_main`, `test_wizard`) verschuiven mee.
+- De resultaatpagina leidt haar native leerlingoverzicht, balanssamenvatting en
+  herkomstmatrix tijdelijk af uit `groepsindeling_view.json`. De opgeslagen pandas-tabellen
+  in `result_tables.json` en de volledige Excel-export blijven behouden voor bestaande
+  downloads en artifactcompatibiliteit; de webpagina heeft geen oude HTML-fallback.
+- De pure transformaties voor deze pagina staan in de Flask-vrije
+  `web/result_view.py`, met één publieke `build_result_page_view()`-ingang. De route blijft
+  verantwoordelijk voor laden, URL's, foutafhandeling en renderen; navigatie-URL's komen
+  afzonderlijk uit de route.
+- De gedeelde groepskaartmacro is de bron voor tevredenheidsbadges en belangtekens in de
+  kaartpopover, de tussenstand en het resultaatleerlingoverzicht. De compacte resultaatrijen
+  gebruiken dezelfde visuele basis als het voorkeurenoverzicht, met resultaatkleuren voor
+  gehonoreerde en niet-gehonoreerde voorkeuren.
 - De gepinde integratie-optima (exacte tevredenheid) blijven ongewijzigd: de solver en de metriek
   worden niet aangeraakt.
 - Het uiterlijke ontwerp is vastgelegd in een POC-referentie naast het implementatieplan

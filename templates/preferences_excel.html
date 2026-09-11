@@ -1,11 +1,10 @@
 {% extends "base.html" %}
-{% set current_step = 4 %}
-{% block header %} Voorkeuren van leerlingen doorgeven{% endblock %}
+{% block header %}{{ current_step_label }}{% endblock %}
 {% block content %}
 
 <h2>Stap 1: Download het invulformulier</h2>
 <p>Het formulier is alvast gevuld met de leerlingen die meegaan (bepaald in de stap
-  <em>Wie gaat mee</em>). Vul daarin per leerling de voorkeuren in.</p>
+  <em>Leerlingen controleren</em>). Vul daarin per leerling de voorkeuren in.</p>
 <form method="post" action="{{ url_for('wizard.preferences_excel') }}">
   <button type="submit" class="button">Download invulformulier</button>
 </form>
@@ -71,8 +70,8 @@
 
 
 <div class="step-navigation">
-    <a href="{{ url_for('wizard.groups_to_page') }}" class="button previous-step">← Naar Groepen naartoe</a>
-    <button type="submit" form="upload-form" class="button next-step">Naar Niet samen →</button>
+    <a href="{{ prev_url }}" class="button previous-step">{{ prev_label }}</a>
+    <button type="submit" form="upload-form" class="button next-step">{{ next_label }}</button>
 </div>
 
 {% endblock %}

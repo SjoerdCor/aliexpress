@@ -1,58 +1,244 @@
 {% extends "base.html" %}
 {% import "partials/groepsindeling.html" as gi %}
-{% set current_step = 7 %}
 
-{% block header %}Groepsindeling klaar!{% endblock %}
+{% block title %}Resultaat bekijken - ALI-Express{% endblock %}
+{% block extra_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='result.css') }}">{% endblock %}
+{% block header %}Je groepsindeling is klaar!{% endblock %}
 
 {% block content %}
-
-<a href="{{ url_for('results.show_sociogram') }}" target="_blank" class="button primary">Bekijk sociogram</a>
-
-<p>Onderzoek de groepsindeling goed en bekijk samen of je er tevreden mee bent </p>
-
-{% if groepsindeling_view %}{{ gi.render(groepsindeling_view) }}{% endif %}
-
-<div class="tabs-wrapper">
-    <div class="tabs">
-        {% for name in dataframes.keys() %}
-        <div class="tab {% if loop.index0 == 0 %}active{% endif %}" onclick="showTab({{ loop.index0 }})">{{ name }}
-        </div>
-        {% endfor %}
+<main class="result-page">
+    <div class="result-intro">
+        <p>ALI Express heeft op basis van je invoer de best haalbare groepsindeling gemaakt.
+            Bekijk de groepen en bespreek met je collega's of deze indeling ook in de praktijk goed werkt.</p>
     </div>
-</div>
 
-<div class="tab-content">
-    {% for html in dataframes.values() %}
-    <div class="tab-pane {% if loop.index0 == 0 %}active{% endif %}" id="tab{{ loop.index0 }}">
-        <div class="table-wrapper">
-            {{ html | safe }}
+    <details class="result-card-explanation">
+        <summary>Uitleg bij de groepskaarten</summary>
+        <div class="result-card-explanation-body">
+            <p>Klik op een leerling om de tevredenheid en voorkeuren te bekijken.</p>
+            <p>Op de kaarten staan alleen de {{ result_page_view.new_count }} nieuw ingedeelde leerlingen met hun
+                naam. De {{ result_page_view.existing_count }} leerlingen die al in deze groepen zaten, staan niet
+                apart op de kaarten, maar tellen wel mee in de totalen en de balans.</p>
+            <div class="result-legend-grid">
+                <div>
+                    <h3>Op de kaart</h3>
+                    <span class="gi-chip gi-chip--static">Voornaam <span class="gi-from">Kik</span></span>
+                    <p>De afkorting naast de naam is de eerste drie letters van de huidige groep.</p>
+                </div>
+                <div>
+                    <h3>In de leerlingdetails</h3>
+                    <p><span class="gi-pref gi-pref--ok"><span aria-hidden="true">✓</span> Gehonoreerd</span>
+                        groen betekent gehonoreerd. <span class="gi-pref gi-pref--no"><span aria-hidden="true">×</span>
+                        Niet gehonoreerd</span> rood betekent niet gehonoreerd.</p>
+                    <p>Het teken toont het belang: <b>~</b> een beetje, <b>↑</b> heel graag of heel belangrijk en
+                        <b>♥</b> hartsvriend.</p>
+                    <p class="result-legend-badges">
+                        <span class="gi-badge badge-zeker--partial">🛡 Minstens tevreden</span>
+                        <span class="gi-badge badge-zeker--full">🛡 Alle voorkeuren gehonoreerd</span>
+                        zijn badges voor extra zekerheid.</p>
+                    <p><span class="gi-satdot" style="--c:#1a9850">100%</span> is de tevredenheidsscore.
+                        <span class="gi-satdot gi-satdot--none">—</span> betekent dat er geen voorkeuren zijn
+                        ingevuld.</p>
+                </div>
+            </div>
         </div>
-    </div>
-    {% endfor %}
-</div>
-<p>Je kunt de groepsindeling hier ook downloaden:</p>
-<a href="{{ url_for('results.download') }}" class="button primary">Download groepsindeling</a>
-<p><br>Ben je er tevreden mee?</p>
+    </details>
 
-<div class="step-navigation">
-    <a href="{{ url_for('results.processing') }}" class="button previous-step">← Nog niet helemaal... opnieuw invoeren</a>
-    <a href="{{ url_for('results.done') }}" class="button next-step">Ja, ik ben tevreden! →</a>
-</div>
-<script>
-    function showTab(index) {
-        const tabs = document.querySelectorAll('.tab');
-        const panes = document.querySelectorAll('.tab-pane');
+    {{ gi.render(groepsindeling_view) }}
 
-        tabs.forEach((tab, i) => {
-            tab.classList.toggle('active', i === index);
-        });
+    <section class="result-section result-balance" aria-labelledby="result-balance-title">
+        <h2 id="result-balance-title">Hoe evenwichtig zijn de groepen?</h2>
+        <table class="result-table result-balance-summary-table">
+                <caption>Samenvatting van de verschillen</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Hele groep of jaarlaag</th>
+                        <th scope="col">Verschil tussen grootste en kleinste groep</th>
+                        <th scope="col">Grootste verschil tussen jongens en meisjes binnen een groep</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in result_page_view.balance_rows %}
+                    <tr>
+                        <th scope="row">{{ row.label }}</th>
+                        <td><strong>{{ row.size_diff_label }}</strong></td>
+                        <td><strong>{{ row.sex_imbalance_label }}</strong></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+        </table>
 
-        panes.forEach((pane, i) => {
-            pane.classList.toggle('active', i === index);
-        });
-    }
-</script>
+        <details class="result-disclosure result-balance-details">
+            <summary>Bekijk waar de verschillen zitten</summary>
+            <div class="result-table-scroll">
+                <h3>Hoe groot zijn de groepen?</h3>
+                <table class="result-table result-balance-size-table">
+                    <caption>Aantallen leerlingen per groep en jaarlaag</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Hele groep of jaarlaag</th>
+                            {% for group in result_page_view.group_order %}
+                            <th scope="col">{{ group }}</th>
+                            {% endfor %}
+                            <th scope="col">Verschil tussen grootste en kleinste groep</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in result_page_view.balance_rows %}
+                        <tr>
+                            <th scope="row">{{ row.label }}</th>
+                            {% for cell in row.size_cells %}
+                            <td>{% if cell.largest or cell.smallest %}<strong>{{ cell.value }}</strong>{% else %}{{ cell.value }}{% endif %}</td>
+                            {% endfor %}
+                            <td><strong>{{ row.size_diff }}</strong></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="result-table-scroll">
+                <h3>Hoe zijn jongens en meisjes over de groepen verdeeld?</h3>
+                <table class="result-table result-balance-sex-table">
+                    <caption>Aantallen jongens en meisjes per groep en jaarlaag</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Hele groep of jaarlaag</th>
+                            {% for group in result_page_view.group_order %}
+                            <th scope="col">{{ group }}</th>
+                            {% endfor %}
+                            <th scope="col">Grootste verschil tussen jongens en meisjes binnen een groep</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in result_page_view.balance_rows %}
+                        <tr>
+                            <th scope="row">{{ row.label }}</th>
+                            {% for cell in row.sex_cells %}
+                            <td>{% if cell.largest %}<strong>{{ cell.boys }} jongens · {{ cell.girls }} meisjes</strong>{% else %}{{ cell.boys }} jongens · {{ cell.girls }} meisjes{% endif %}</td>
+                            {% endfor %}
+                            <td><strong>{{ row.sex_imbalance }}</strong></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </details>
+    </section>
+
+    <section class="result-section" aria-labelledby="student-analysis-title">
+        <details class="result-disclosure" id="student-analysis" data-testid="student-satisfaction">
+            <summary id="student-analysis-title">Tevredenheid en voorkeuren per leerling</summary>
+            <p class="result-disclosure-intro">Tevredenheid laat zien hoe goed de voorkeuren van een leerling
+                zijn uitgekomen. Belangrijkere voorkeuren tellen zwaarder. Daarom is het percentage niet hetzelfde
+                als het aantal gehonoreerde voorkeuren.</p>
+            <ol class="result-student-list">
+                {% for student in result_page_view.students %}
+                <li class="candidate-row result-student">
+                    <span class="row-id">
+                        <span class="row-name">{{ student.name }}</span>
+                        {% if student.has_preferences %}
+                        <span class="row-badge">{{ gi.satisfaction_badge(student.satisfaction, student.satisfaction_percent) }}</span>
+                        {% else %}
+                        <span class="row-badge">{{ gi.satisfaction_badge(none, empty_label="Geen voorkeuren ingevuld") }}</span>
+                        {% endif %}
+                    </span>
+                    {% if student.has_preferences %}
+                    <span class="row-chips">
+                            {% for preference in student.preferences %}
+                            {% set glyph = gi.importance_glyph(preference.kind, preference.weight) | trim %}
+                            <span class="chip result-preference result-preference--{{ 'ok' if preference.fulfilled else 'no' }}">
+                                <span class="result-preference-status" role="img"
+                                    aria-label="{{ 'Gehonoreerd' if preference.fulfilled else 'Niet gehonoreerd' }}">{% if preference.fulfilled %}✓{% else %}×{% endif %}</span>
+                                <span class="result-preference-name">{{ preference.wording }}</span>
+                                {% if glyph %}<span class="chip-intensity" aria-hidden="true">{{ glyph }}</span>{% endif %}
+                            </span>
+                            {% endfor %}
+                    </span>
+                    {% else %}
+                    <span class="row-chips"><span class="row-placeholder">Geen voorkeuren ingevuld</span></span>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ol>
+        </details>
+    </section>
+
+    <section class="result-section result-origin" aria-labelledby="result-origin-title">
+        <h2 id="result-origin-title">Herkomst van leerlingen</h2>
+        <p>Maximaal {{ result_page_view.max_clique }} leerlingen uit dezelfde huidige groep komen samen in één
+            groep in deze groepsindeling.</p>
+        <details class="result-disclosure" id="origin-analysis">
+            <summary>Waar komen de leerlingen vandaan?</summary>
+            <p>Hier zie je vanuit welke huidige groepen de leerlingen over de groepen in deze groepsindeling zijn
+                ingedeeld.</p>
+            <div class="result-table-scroll">
+                <table class="result-table result-origin-table">
+                    <caption>Herkomst van leerlingen per groep</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Huidige groep</th>
+                            {% for group in result_page_view.group_order %}
+                            <th scope="col">{{ group }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in result_page_view.origin_rows %}
+                        <tr>
+                            <th scope="row">{{ row.origin }}</th>
+                            {% for cell in row.cells %}
+                            <td>{{ cell }}</td>
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </details>
+    </section>
+
+    <p class="result-sociogram-link">Wil je zien welke leerlingen graag wel of niet bij elkaar willen zitten?
+        <a href="{{ url_for('results.show_sociogram') }}" target="_blank" rel="noopener"><strong>Bekijk het sociogram ↗</strong></a>
+    </p>
+
+    <section class="result-decision" aria-labelledby="result-decision-title">
+        <p class="result-download-intro">Wil je de groepsindeling <strong>bewaren of delen</strong>?</p>
+        <div class="result-download">
+            <a href="{{ url_for('results.download') }}" class="button button--secondary">Download als Excel-bestand</a>
+        </div>
+        <h2 id="result-decision-title">Ben je tevreden met deze groepsindeling?</h2>
+        <div class="result-decision-actions">
+            <details class="result-adjustment">
+                <summary>← Nog niet helemaal... opnieuw invoeren</summary>
+                <div class="result-adjustment-body">
+                    <section>
+                        <h3>Eén leerling verdient meer aandacht.</h3>
+                        <p>Vul extra voorkeuren in of kies Extra zekerheid voor deze leerling.</p>
+                        <a href="{{ preferences_url }}" class="button">Voorkeuren aanpassen</a>
+                    </section>
+                    <section>
+                        <h3>Een groep lijkt pedagogisch te zwaar.</h3>
+                        <p>Voeg een spreidingsregel toe voor leerlingen die je over de groepen wilt verspreiden.</p>
+                        <a href="{{ spread_url }}" class="button">Leerlingen spreiden aanpassen</a>
+                    </section>
+                    <section>
+                        <h3>Te weinig voorkeuren zijn gehonoreerd.</h3>
+                        <p>Geef ALI Express meer ruimte door grotere verschillen tussen groepen toe te staan.</p>
+                        <a href="{{ differences_url }}" class="button">Ruimte voor verschillen tussen groepen aanpassen</a>
+                    </section>
+                    <section>
+                        <h3>De verschillen zijn te groot.</h3>
+                        <p>Maak de toegestane verschillen tussen groepen kleiner om de groepen evenwichtiger te maken.</p>
+                        <a href="{{ differences_url }}" class="button">Ruimte voor verschillen tussen groepen aanpassen</a>
+                    </section>
+                </div>
+            </details>
+            <div class="result-decision-finish">
+                <a href="{{ next_url }}" class="button result-finish-action">Ja, ik ben tevreden!</a>
+            </div>
+        </div>
+    </section>
+</main>
 
 <script src="{{ url_for('static', filename='gi-popover.js') }}"></script>
-
 {% endblock %}

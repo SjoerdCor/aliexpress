@@ -23,8 +23,8 @@ een `to_html`-string; de template heeft de onderliggende waarden nodig (ADR-0016
 Open de POC-referentie voor het beeld. In woorden:
 
 - **Brede witte container** (de bestaande `.container` uit `base.html`), met de **wizard-stepper**
-  (`current_step = 7`, "Resultaat bekijken" actief), de knop **Bekijk sociogram**, en onderaan de
-  **Download**-knop en de navigatie **← Nog niet helemaal… / Ja, ik ben tevreden! →** — precies de
+  (de centrale stap **Resultaat bekijken** actief), de knop **Bekijk sociogram**, en onderaan de
+  **Download**-knop en de navigatie naar **Groepsindeling berekenen** en **Klaar!** — precies de
   elementen die de huidige `result.html` al heeft.
 - **Volgorde:** eerst de **groepskaarten** (de verdeling is de hoofdmoot), dááronder het
   **klassenoverzicht**, dááronder een **inklapbare legenda** (`<details>`, open bij openen). De drie

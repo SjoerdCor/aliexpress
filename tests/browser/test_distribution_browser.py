@@ -7,6 +7,7 @@ tables render and the workbook downloads. This is the automated end-to-end check
 
 import json
 import shutil
+import time
 from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -19,6 +20,7 @@ from aliexpress.web.extensions import db as flask_db
 from aliexpress.web.models import Process, Run
 from aliexpress.web.process_files import save_voorkeuren
 from app import app
+from scripts.generate_home_gallery_assets import START_DISTRIBUTION_TEST_ID
 from tests.browser.conftest import TEST_SCHOOLCODE
 from tests.helpers import make_interim_view
 
@@ -32,8 +34,7 @@ def _make_process(live_server, tmp_path, page, name="browserrun", running=True):
     plain ``page.goto(".../processing")`` lands straight on the live-progress view — most
     tests here stub ``/status`` themselves and only care about that view's JS. Pass
     ``running=False`` for the handful of tests that drive a real solve: they need the
-    processing page's idle panel (no Run yet) so they can submit its "Start verdeling"
-    form themselves.
+    processing page's idle panel (no Run yet) so they can submit its calculation form.
     """
     proc = tmp_path / TEST_SCHOOLCODE / name
     proc.mkdir(parents=True, exist_ok=True)
@@ -58,14 +59,15 @@ def _make_process(live_server, tmp_path, page, name="browserrun", running=True):
 
 
 def _start_distribution_from_idle_panel(live_server, page):
-    """Navigate to the idle processing panel and click "Start verdeling".
+    """Navigate to the idle processing panel and start the calculation.
 
     The idle panel prefills every balance-maxima field with the data-driven defaults, so
     submitting it unmodified reproduces the previous "start immediately" behaviour for
     tests that only care about the solve itself, not the balance-limits UI.
     """
     page.goto(f"{live_server}/processing")
-    page.click('button:has-text("Start verdeling")')
+    page.get_by_test_id(START_DISTRIBUTION_TEST_ID).click(no_wait_after=True)
+    page.wait_for_url("**/processing?watch=1", timeout=60000)
 
 
 def _goto_processing_and_wait_for_next_status(live_server, page):
@@ -105,9 +107,9 @@ def test_balance_limits_can_be_changed_unlimited_and_submitted(
     expect(unlimited_number).to_have_value("6")
     unlimited.check()
     expect(unlimited_number).to_have_value("")
-    assert page.locator('[title="Placeholder: uitleg volgt."]').count() == 0
+    assert page.locator(".balance-field [title]").count() == 0
 
-    page.click('button:has-text("Start verdeling")')
+    page.get_by_test_id(START_DISTRIBUTION_TEST_ID).click()
     page.wait_for_url("**/result", timeout=60000)
 
     saved = json.loads((proc / "balance_limits.json").read_text("utf-8"))
@@ -126,7 +128,7 @@ def test_balance_limit_without_number_stays_on_form(live_server, tmp_path, page)
     number.fill("")
     assert number.evaluate("element => element.validity.valueMissing") is True
 
-    page.click('button:has-text("Start verdeling")')
+    page.get_by_test_id(START_DISTRIBUTION_TEST_ID).click()
     page.wait_for_timeout(250)
 
     assert page.url == f"{live_server}/processing"
@@ -141,7 +143,7 @@ def test_processing_idle_links_back_to_not_together(live_server, tmp_path, page)
     page.goto(f"{live_server}/processing")
     back = page.locator("a.previous-step")
     expect(back).to_have_attribute("href", "/not_together")
-    expect(back).to_contain_text("niet samen")
+    expect(back).to_contain_text("Leerlingen spreiden")
 
     back.click()
     page.wait_for_url(f"{live_server}/not_together")
@@ -156,16 +158,13 @@ def test_processing_to_result_to_download(live_server, tmp_path, page):
     # The processing page polls /status and redirects here once the solve is done.
     page.wait_for_url("**/result", timeout=60000)
 
-    # The three analysis tables are rendered as tabs.
-    assert page.locator(".tab").count() == 3
-
     # The artifacts were written to the process dir before "done".
     assert (proc / "results.xlsx").exists()
     assert (proc / "result_tables.json").exists()
     assert (proc / "groepsindeling_view.json").exists()
 
     with page.expect_download() as download_info:
-        page.click("text=Download groepsindeling")
+        page.get_by_role("link", name="Download als Excel-bestand").click()
     assert download_info.value.suggested_filename == "results.xlsx"
 
 
@@ -181,8 +180,13 @@ def test_completed_distribution_can_be_adjusted_and_run_again(
     _start_distribution_from_idle_panel(live_server, page)
     page.wait_for_url("**/result", timeout=60000)
 
-    page.get_by_role("link", name="← Nog niet helemaal... opnieuw invoeren").click()
-    page.wait_for_url(f"{live_server}/processing")
+    page.locator("details").filter(has_text="Nog niet helemaal").locator(
+        "summary"
+    ).click()
+    page.get_by_role(
+        "link", name="Ruimte voor verschillen tussen groepen aanpassen"
+    ).first.click(no_wait_after=True)
+    page.wait_for_url(f"{live_server}/processing?edit=differences")
 
     download_link = page.get_by_role("link", name="Download huidige groepsindeling")
     expect(download_link).to_have_attribute("href", "/download")
@@ -192,64 +196,41 @@ def test_completed_distribution_can_be_adjusted_and_run_again(
     with page.expect_download() as download_info:
         download_link.click()
     assert download_info.value.suggested_filename == "results.xlsx"
-    assert page.url == f"{live_server}/processing"
+    assert page.url == f"{live_server}/processing?edit=differences"
 
     details = page.locator("details.instructions-box")
-    assert details.evaluate("element => element.open") is False
-    expect(page.get_by_role("button", name="Start nieuwe indeling")).to_be_visible()
-
-    details.locator("summary").click()
     assert details.evaluate("element => element.open") is True
+    expect(page.get_by_test_id(START_DISTRIBUTION_TEST_ID)).to_be_visible()
+
     clique_limit = page.locator('input[name="maxima_max_clique"]')
     saved_limit = int(clique_limit.input_value())
     loosened_limit = saved_limit + 1
     clique_limit.fill(str(loosened_limit))
 
-    page.get_by_role("button", name="Start nieuwe indeling").click()
-    page.wait_for_url("**/result", timeout=60000)
+    page.get_by_test_id(START_DISTRIBUTION_TEST_ID).click(no_wait_after=True)
+    page.wait_for_url("**/processing?watch=1", timeout=60000)
+    page.wait_for_url("**/result", timeout=240000)
 
     saved = json.loads((proc / "balance_limits.json").read_text("utf-8"))
     assert saved["max_clique"] == loosened_limit
 
 
 @pytest.mark.usefixtures("login")
-def test_processing_shows_input_overview(live_server, tmp_path, page):
-    """The processing page renders the input overview from the /status payload.
-
-    The real solver on the small dataset finishes in about a second, so racing the DOM
-    against the redirect is flaky (and the small fixture has no Jaarlaag to show anyway).
-    Instead we stub /status with a fixed running payload so the JS rendering — including
-    the jaarlagen line and the per-source-group counts — is asserted deterministically.
-    The end-to-end path (real solver -> progress.json -> input_summary) is covered by
-    ``test_processing_stepper_completes``.
-    """
+def test_processing_hides_ready_input_overview_while_running(
+    live_server, tmp_path, page
+):
+    """The running page keeps the ready summary out of the short calculation view."""
     _make_process(live_server, tmp_path, page, name="overviewrun")
 
     fake_status = {
         "status_studentdistribution": "running",
         "steps": {"floor": "busy", "balance": "pending", "satisfaction": "pending"},
-        "stage_seconds": [],
-        "input_summary": {
-            "n_students": 87,
-            "n_boys": 44,
-            "n_girls": 43,
-            "source_groups": {"Klas A": 22, "Klas B": 21, "Klas C": 22, "Klas D": 22},
-            "n_target_groups": 4,
-            "years": [6, 7],
-        },
     }
     page.route("**/status", lambda route: route.fulfill(json=fake_status))
     page.goto(f"{live_server}/processing")
 
-    overview = page.locator("#input-overview")
-    expect(overview).to_have_class("input-overview input-overview--visible")
-    text = overview.inner_text()
-    assert "87 leerlingen (44 jongens, 43 meisjes)" in text
-    assert "jaarlagen 6 en 7" in text
-    # Origin groups are listed with their counts; the target side drops "nieuwe".
-    assert "Klas A (22)" in text
-    assert "→ 4 groepen" in text
-    assert "nieuwe" not in text
+    assert page.locator("#input-overview").count() == 0
+    expect(page.locator('script[src$="/processing.js"]')).to_have_count(1)
 
 
 @pytest.mark.usefixtures("login")
@@ -328,7 +309,7 @@ def test_processing_wait_section_groups_sociogram_and_interim(
 
     heading = page.locator(".wait-activities-heading")
     expect(heading).to_be_visible()
-    expect(heading).to_have_text("Terwijl je wacht")
+    expect(heading).to_have_text("Tijdens het rekenen")
 
 
 @pytest.mark.usefixtures("login")
@@ -344,7 +325,7 @@ def test_processing_shows_plateaus_and_tiebreak(live_server, tmp_path, page):
     _make_process(live_server, tmp_path, page, name="plateaurun")
 
     # started_at 60s in the past clears the 45s reveal threshold, so the plateau
-    # list is expected to render (see the gating in templates/processing.html).
+    # list is expected to render (see the gating in static/processing.js).
     started_at = (datetime.now(timezone.utc) - timedelta(seconds=60)).isoformat()
     fake_status = {
         "status_studentdistribution": "running",
@@ -363,10 +344,10 @@ def test_processing_shows_plateaus_and_tiebreak(live_server, tmp_path, page):
     lines = page.locator("#plateaus li")
     expect(lines).to_have_count(2)
     expect(lines.nth(0)).to_have_text(
-        "Minst tevreden leerling: nu 62% — 34 leerlingen kunnen nog omhoog"
+        "De laagste tevredenheid is nu 62%. Voor 34 leerlingen zoekt ALI Express nog verder."
     )
     expect(lines.nth(1)).to_have_text(
-        "Minst tevreden leerling: nu 78% — 5 leerlingen kunnen nog omhoog"
+        "De laagste tevredenheid is nu 78%. Voor 5 leerlingen zoekt ALI Express nog verder."
     )
     expect(page.locator("#tiebreak-line")).to_be_visible()
 
@@ -421,10 +402,10 @@ def test_processing_shows_plateaus_after_reveal_threshold(live_server, tmp_path,
     lines = page.locator("#plateaus li")
     expect(lines).to_have_count(2)
     expect(lines.nth(0)).to_have_text(
-        "Minst tevreden leerling: nu 62% — 34 leerlingen kunnen nog omhoog"
+        "De laagste tevredenheid is nu 62%. Voor 34 leerlingen zoekt ALI Express nog verder."
     )
     expect(lines.nth(1)).to_have_text(
-        "Minst tevreden leerling: nu 78% — 5 leerlingen kunnen nog omhoog"
+        "De laagste tevredenheid is nu 78%. Voor 5 leerlingen zoekt ALI Express nog verder."
     )
 
 
@@ -487,7 +468,8 @@ def test_processing_shows_static_estimate_line_and_no_elapsed_clock(
     page.goto(f"{live_server}/processing")
 
     expect(page.locator("#eta-line")).to_contain_text(
-        "dit duurt meestal minder dan een minuut, soms enkele minuten"
+        "Meestal is de berekening binnen een minuut klaar. Bij grotere of "
+        "ingewikkelde verdelingen kan het langer duren."
     )
     # No ticking elapsed-time clock anywhere on the page: no element carries an
     # id/class suggestive of a timer/elapsed-seconds display. This is a robust proxy
@@ -500,7 +482,7 @@ def test_processing_shows_dynamic_estimate_text(live_server, tmp_path, page):
     """The estimate line switches to the dynamic ETA text once /status reports one.
 
     started_at="now" so the elapsed-time reveal cannot explain the change; the text
-    change must come from data.estimate alone (see updateEstimate in processing.html).
+    change must come from data.estimate alone (see updateEstimate in static/processing.js).
     """
     _make_process(live_server, tmp_path, page, name="etadynamicrun")
 
@@ -512,15 +494,61 @@ def test_processing_shows_dynamic_estimate_text(live_server, tmp_path, page):
         "estimate": {
             "phase": "c",
             "seconds": 120,
-            "text": "naar verwachting nog ~2 minuten (ruwe schatting)",
+            "text": "Naar verwachting nog ongeveer 2 minuten. Deze schatting kan veranderen.",
         },
     }
     page.route("**/status", lambda route: route.fulfill(json=fake_status))
     page.goto(f"{live_server}/processing")
 
     expect(page.locator("#eta-line")).to_have_text(
-        "naar verwachting nog ~2 minuten (ruwe schatting)"
+        "Naar verwachting nog ongeveer 2 minuten. Deze schatting kan veranderen."
     )
+
+
+@pytest.mark.usefixtures("login")
+def test_processing_polls_sequentially_and_navigates_once(live_server, tmp_path, page):
+    """A slow status response cannot create overlapping polls or redirects."""
+    _make_process(live_server, tmp_path, page, name="sequentialrun")
+    requests = []
+    active_requests = 0
+    maximum_active_requests = 0
+    responses = [
+        {
+            "status_studentdistribution": "running",
+            "steps": {"floor": "busy", "balance": "pending", "satisfaction": "pending"},
+        },
+        {
+            "status_studentdistribution": "running",
+            "steps": {"floor": "done", "balance": "busy", "satisfaction": "pending"},
+        },
+        {"status_studentdistribution": "done"},
+    ]
+
+    def fulfill_status(route):
+        nonlocal active_requests, maximum_active_requests
+        index = len(requests)
+        requests.append(time.monotonic())
+        active_requests += 1
+        maximum_active_requests = max(maximum_active_requests, active_requests)
+        time.sleep(0.2)
+        active_requests -= 1
+        route.fulfill(json=responses[min(index, len(responses) - 1)])
+
+    page.route("**/status", fulfill_status)
+    page.route(
+        "**/result",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="text/html",
+            body="<!doctype html><h1>Resultaat</h1>",
+        ),
+    )
+    page.goto(f"{live_server}/processing")
+    page.wait_for_url("**/result")
+
+    assert len(requests) == 3
+    assert maximum_active_requests == 1
+    assert page.url.endswith("/result")
 
 
 @pytest.mark.usefixtures("login")
@@ -530,7 +558,7 @@ def test_processing_reveals_early_when_estimate_predicts_a_long_run(
     """A high estimate reveals the rich components even before 45s have elapsed.
 
     started_at="now" (elapsed < 45s) but estimate.seconds=120 (> 45): the reveal is
-    driven by the estimate, not just elapsed time (see revealed() in processing.html).
+    driven by the estimate, not just elapsed time (see revealed() in static/processing.js).
     """
     proc = _make_process(live_server, tmp_path, page, name="etaearlyrevealrun")
     view = make_interim_view()
@@ -549,7 +577,7 @@ def test_processing_reveals_early_when_estimate_predicts_a_long_run(
         "estimate": {
             "phase": "c",
             "seconds": 120,
-            "text": "naar verwachting nog ~2 minuten (ruwe schatting)",
+            "text": "Naar verwachting nog ongeveer 2 minuten. Deze schatting kan veranderen.",
         },
     }
     page.route("**/status", lambda route: route.fulfill(json=fake_status))
@@ -581,7 +609,7 @@ def test_processing_stays_gated_when_estimate_predicts_a_short_run(
         "estimate": {
             "phase": "b",
             "seconds": 20,
-            "text": "naar verwachting nog ~20 seconden (ruwe schatting)",
+            "text": "Naar verwachting nog ongeveer 20 seconden. Deze schatting kan veranderen.",
         },
     }
     page.route("**/status", lambda route: route.fulfill(json=fake_status))
@@ -593,13 +621,14 @@ def test_processing_stays_gated_when_estimate_predicts_a_short_run(
 
 @pytest.mark.usefixtures("login")
 def test_processing_stepper_completes(live_server, tmp_path, page):
-    """The processing page shows the three-step stepper and it all ends up 'done'."""
+    """A live processing page shows its three stages and the run ends successfully."""
     proc = _make_process(live_server, tmp_path, page, name="stepperrun", running=False)
 
     _start_distribution_from_idle_panel(live_server, page)
-    # The stepper renders all three steps immediately (they only ever refine in
-    # place, never appear/disappear — see the "rustregels" in the plan).
-    assert page.locator(".solve-step").count() == 3
+    # A very fast solve can finish before the live page is rendered. Only skip the
+    # markup check when the browser is already on the result page.
+    if not page.url.endswith("/result"):
+        assert page.locator(".solve-step").count() == 3
 
     page.wait_for_url("**/result", timeout=60000)
 
@@ -633,7 +662,7 @@ def test_result_group_cards_and_popover(live_server, tmp_path, page):
 
     # Group cards render with at least one chip.
     assert page.locator(".gi-card").count() >= 1
-    first_chip = page.locator(".gi-chip").first
+    first_chip = page.locator(".gi-chip[tabindex='0']").first
     first_chip.wait_for()
 
     # Popover opens on click and is visible.
@@ -651,15 +680,15 @@ def test_result_group_cards_and_popover(live_server, tmp_path, page):
     page.locator("h1").click()
     assert not pop.is_visible()
 
-    # The legend is a collapsible <details> that starts open.
-    legend = page.locator("details.gi-legend-details")
-    assert legend.count() == 1
-    assert legend.evaluate("el => el.open") is True
-
-    # The klassenoverzicht is present with both balance columns.
-    assert page.locator(".gi-baltable").count() == 1
-    assert page.locator(".gi-baltable th", has_text="Grootteverschil").count() == 1
-    assert page.locator(".gi-baltable th", has_text="Onbalans").count() == 1
+    # The balance summary and the three secondary analyses are native HTML.
+    expect(
+        page.get_by_role("heading", name="Hoe evenwichtig zijn de groepen?")
+    ).to_be_visible()
+    student_details = page.locator("details").filter(
+        has_text="Tevredenheid en voorkeuren per leerling"
+    )
+    assert student_details.count() == 1
+    assert student_details.evaluate("el => el.open") is False
 
 
 @pytest.mark.usefixtures("login")
@@ -691,9 +720,11 @@ def test_processing_shows_interim_result(live_server, tmp_path, page):
 
     cards = page.locator("#interim-result .gi-card")
     expect(cards).to_have_count(1)
-    expect(page.locator(".interim-summary-title")).to_have_text("Voorlopige indeling")
+    expect(page.locator(".interim-summary-title")).to_have_text(
+        "Voorlopige groepsindeling"
+    )
     expect(page.locator(".interim-summary-subtext")).to_have_text(
-        "Wordt nog verbeterd…"
+        "ALI Express verbetert deze groepsindeling nog."
     )
 
 

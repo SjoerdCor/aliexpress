@@ -1,4 +1,4 @@
-"""Tests for the /roster wizard step ("Wie gaat mee"): determining the population of
+"""Tests for the /roster wizard step ("Leerlingen controleren"): determining the population of
 leerlingen that take part in this verdeling, shared by both input routes (ADR 0005).
 
 Only synthetic data is used here, never real student data.
@@ -22,7 +22,9 @@ class TestRosterPage:
     def _setup(self, client, tmp_path):
         proc_dir = setup_process(client, tmp_path)
         (proc_dir / "relevant_students_and_groups.json").write_text(
-            json.dumps({"candidates": self.CANDIDATES, "groups_from": ["Groen"]}),
+            json.dumps(
+                {"candidates": self.CANDIDATES, "groups_from": ["Groen", "Anders"]}
+            ),
             encoding="utf-8",
         )
         pd.DataFrame(
@@ -30,21 +32,24 @@ class TestRosterPage:
         ).to_excel(proc_dir / "groups.xlsx")
         return proc_dir
 
-    def test_get_returns_200_with_candidate_names_and_reassuring_intro(
+    def test_get_returns_200_with_candidate_names_and_page_navigation(
         self, client, tmp_path
     ):
-        """GET /roster shows each candidate's name and an intro making clear the list is
-        already loaded, so the teacher need not re-enter anyone."""
+        """GET /roster shows the roster task and its doorzetten navigation."""
         self._setup(client, tmp_path)
         response = client.get("/roster")
         assert response.status_code == 200
         assert b"Anna" in response.data
         assert b"Bram" in response.data
-        assert "Vink aan wie ingedeeld moeten worden".encode("utf-8") in response.data
+        assert "Leerlingen controleren".encode("utf-8") in response.data
+        assert "Huidige groep: Groen".encode("utf-8") in response.data
+        assert "Terug naar Schoolinformatie".encode("utf-8") in response.data
+        assert "Verder naar Groepen controleren".encode("utf-8") in response.data
+        assert b"roster.css" in response.data
 
     def test_post_writes_roster_and_redirects_to_groups_to(self, client, tmp_path):
         """POST /roster writes roster.json with every participant and continues to
-        "Groepen naartoe"; the preference method is chosen there now (ADR 0006), so roster
+        "Groepen controleren"; the preference method is chosen there now (ADR 0006), so roster
         writes no input_method.json."""
         proc_dir = self._setup(client, tmp_path)
         response = client.post("/roster", data={"gaat_over": ["s1", "s2"]})
@@ -86,6 +91,23 @@ class TestRosterPage:
         assert emma["achternaam"] == "Jansen"
         assert emma["geslacht"] == "Meisje"
 
+    def test_post_with_anders_keeps_the_explicit_current_group(self, client, tmp_path):
+        """A student outside the named groups can explicitly choose Anders."""
+        proc_dir = self._setup(client, tmp_path)
+        client.post(
+            "/roster",
+            data={
+                "gaat_over": ["new_0"],
+                "new_key[]": "new_0",
+                "new_voornaam[]": "Mila",
+                "new_achternaam[]": "Visser",
+                "new_geslacht[]": "Meisje",
+                "new_groep[]": "Anders",
+            },
+        )
+        roster = json.loads((proc_dir / "roster.json").read_text("utf-8"))
+        assert roster["participants"][0]["groepsnaam"] == "Anders"
+
     def test_post_incomplete_new_student_flashes_and_does_not_save(
         self, client, tmp_path
     ):
@@ -100,11 +122,43 @@ class TestRosterPage:
                 "new_voornaam[]": "Emma",
                 "new_achternaam[]": "Jansen",
                 "new_geslacht[]": "",
+                "new_groep[]": "Groen",
             },
         )
-        assert response.status_code == 302
-        assert response.headers["Location"].endswith("/roster")
+        assert response.status_code == 200
         assert not (proc_dir / "roster.json").exists()
+        assert b"Vul de voornaam, achternaam en het geslacht in." in response.data
+        assert b'"roepnaam": "Emma"' in response.data
+        assert b'"achternaam": "Jansen"' in response.data
+
+    def test_post_with_no_participants_flashes_and_does_not_save(
+        self, client, tmp_path
+    ):
+        """At least one leerling must remain selected before the roster can continue."""
+        proc_dir = self._setup(client, tmp_path)
+        response = client.post("/roster", data={"gaat_over": []})
+        assert response.status_code == 200
+        assert not (proc_dir / "roster.json").exists()
+        assert (
+            "Selecteer ten minste één leerling die doorgaat."
+            in response.data.decode("utf-8")
+        )
+
+    def test_post_with_open_new_student_flashes_and_does_not_save(
+        self, client, tmp_path
+    ):
+        """An added but still open row must be confirmed or removed first."""
+        proc_dir = self._setup(client, tmp_path)
+        response = client.post(
+            "/roster",
+            data={"gaat_over": ["s1"], "new_key[]": "new_0"},
+        )
+        assert response.status_code == 200
+        assert not (proc_dir / "roster.json").exists()
+        assert (
+            "Bevestig de leerling met ‘Leerling aan de lijst toevoegen’ of verwijder de invoer."
+            in response.data.decode("utf-8")
+        )
 
     def test_get_after_post_restores_verlenger_and_new_student(self, client, tmp_path):
         """GET /roster after a POST reflects the saved roster: a verlenger is unticked and
@@ -138,11 +192,39 @@ class TestRosterPage:
                 "new_voornaam[]": "Anna",
                 "new_achternaam[]": "Bos",
                 "new_geslacht[]": "Meisje",
+                "new_groep[]": "Groen",
             },
         )
-        assert response.status_code == 302
-        assert response.headers["Location"].endswith("/roster")
+        assert response.status_code == 200
         assert not (proc_dir / "roster.json").exists()
+        html = response.data.decode("utf-8")
+        assert "Er staat al een leerling met de naam ‘Anna Bos’ in de lijst." in html
+        assert "Pas de naam aan" not in html
+
+    def test_post_requires_an_explicit_current_group_and_preserves_values(
+        self, client, tmp_path
+    ):
+        """A new student cannot use the old first-group fallback on a rejected POST."""
+        proc_dir = self._setup(client, tmp_path)
+        response = client.post(
+            "/roster",
+            data={
+                "gaat_over": ["s1", "new_0"],
+                "new_key[]": "new_0",
+                "new_voornaam[]": "Emma",
+                "new_achternaam[]": "Jansen",
+                "new_geslacht[]": "Meisje",
+                "new_groep[]": "",
+            },
+        )
+        assert response.status_code == 200
+        assert not (proc_dir / "roster.json").exists()
+        html = response.data.decode("utf-8")
+        assert "Kies de huidige groep, of kies ‘Anders’." in html
+        assert re.search(r'value="s1"\s+checked', html)
+        assert not re.search(r'value="s2"\s+checked', html)
+        assert '"roepnaam": "Emma"' in html
+        assert '"groepsnaam": ""' in html
 
 
 class TestRosterRedistributeAndForward:
@@ -160,7 +242,7 @@ class TestRosterRedistributeAndForward:
             json.dumps(
                 {
                     "candidates": self.CANDIDATES,
-                    "groups_from": ["Groen"],
+                    "groups_from": ["Groen", "Anders"],
                     "groups_to": {},
                 }
             ),
@@ -185,6 +267,14 @@ class TestRosterRedistributeAndForward:
         assert response.headers["Location"].endswith("/select_groups")
         roster = json.loads((proc_dir / "roster.json").read_text("utf-8"))
         assert {p["key"] for p in roster["participants"]} == {"s1", "s2"}
+
+    def test_get_shows_forward_navigation_labels(self, client, tmp_path):
+        """The third flow keeps its upload back route and new-groups next route."""
+        self._setup(client, tmp_path)
+        html = client.get("/roster").data.decode("utf-8")
+        assert "Leerlingen controleren" in html
+        assert "Terug naar Schoolinformatie" in html
+        assert "Verder naar Groepen controleren" in html
 
 
 class TestRosterNewStudentJaargroep:
@@ -233,7 +323,7 @@ class TestRosterNewStudentJaargroep:
             json.dumps(
                 {
                     "candidates": candidates,
-                    "groups_from": ["Groen"],
+                    "groups_from": ["Groen", "Anders"],
                     "jaargroepen": redistribute_jaargroepen or [],
                 }
             ),
@@ -286,9 +376,9 @@ class TestRosterNewStudentJaargroep:
                 "new_groep[]": "Groen",
             },
         )
-        assert response.status_code == 302
-        assert response.headers["Location"].endswith("/roster")
+        assert response.status_code == 200
         assert not (proc_dir / "roster.json").exists()
+        assert "Kies ook de huidige jaarlaag." in response.data.decode("utf-8")
 
     def test_redistribute_mode_new_student_with_jaargroep_is_saved(
         self, client, tmp_path

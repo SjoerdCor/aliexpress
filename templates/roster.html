@@ -1,12 +1,14 @@
 {% extends "base.html" %}
-{% set current_step = 2 %}
-{% block header %}Wie gaat mee?{% endblock %}
+{% block extra_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='roster.css') }}">{% endblock %}
+{% block header %}{{ current_step_label }}{% endblock %}
 
 {% block content %}
 
-{# Known names for the client-side collision check; the server validates too. #}
+{# The server validates the names too; this list only gives the browser immediate feedback. #}
 {% set known_names = [] %}
-{% for c in candidates %}{% if known_names.append(c.roepnaam ~ " " ~ c.achternaam) %}{% endif %}{% endfor %}
+{% for candidate in candidates %}
+  {% if known_names.append(candidate.roepnaam ~ " " ~ candidate.achternaam) %}{% endif %}
+{% endfor %}
 <script type="application/json" id="roster-data">
 {
   "groups_from": {{ groups_from | tojson }},
@@ -17,21 +19,25 @@
 }
 </script>
 
-<details class="instructions-box" open>
-  <summary>Vink aan wie ingedeeld moeten worden</summary>
-  <p>Vink uit wie blijft zitten (verlengers). Stroomt er iemand van buiten in of is er iemand die versneld
-    doorgaat? Voeg die onderaan toe.</p>
-</details>
+<section class="roster-instructions" aria-labelledby="roster-instructions-heading">
+  <h2 id="roster-instructions-heading" class="visually-hidden">Wat moet je controleren?</h2>
+  {% if mode == "redistribute" %}
+  <p>De leerlingen uit de gekozen groepen staan alvast aangevinkt. Laat het vinkje staan als een leerling opnieuw moet worden ingedeeld. Haal het vinkje weg als een leerling niet aan deze groepsindeling meedoet.</p>
+  {% elif mode == "redistribute_and_forward" %}
+  <p>De leerlingen uit de gekozen jaarlagen staan alvast aangevinkt. Laat het vinkje staan als een leerling meegaat naar de groepen in de nieuwe indeling. Haal het vinkje weg als een leerling niet aan deze groepsindeling meedoet.</p>
+  {% else %}
+  <p>De leerlingen uit de vorige stap staan alvast aangevinkt. Laat het vinkje staan als een leerling meegaat naar de groepen in de nieuwe indeling. Haal het vinkje weg als een leerling niet meegaat, bijvoorbeeld omdat die blijft zitten.</p>
+  {% endif %}
+</section>
 
 <form method="post" id="roster-form">
 
-  {# ── Existing students, grouped by origin group ──────────────────────────── #}
   {% set current_group = namespace(name=None) %}
   {% for candidate in candidates %}
   {% if candidate.groepsnaam != current_group.name %}
     {% if not loop.first %}</div>{% endif %}
     {% set current_group.name = candidate.groepsnaam %}
-    <h3 class="zone-heading">{{ candidate.groepsnaam }}</h3>
+    <h3 class="zone-heading">Huidige groep: {{ candidate.groepsnaam }}</h3>
     <div class="roster-group">
   {% endif %}
     <label class="candidate-label">
@@ -42,164 +48,234 @@
   {% endfor %}
   {% if candidates %}</div>{% endif %}
 
-  {# ── Incoming students added by hand ─────────────────────────────────────── #}
-  <h3 class="zone-heading">Extra leerlingen</h3>
-  <p class="help-example">Voeg hier leerlingen toe die nog niet aangevinkt zijn; bijvoorbeeld voor
-    versnelde leerlingen of zij-instromers. Meestal niet nodig.</p>
+  <section class="roster-add-section" aria-labelledby="roster-add-heading">
+    <h2 id="roster-add-heading" class="zone-heading">Ontbreekt er een leerling?</h2>
+    <p class="help-example">Voeg hier alleen een leerling toe die nog niet in de lijst staat, maar wel in deze groepsindeling moet worden meegenomen. Bijvoorbeeld een zij-instromer of, bij het doorzetten, een leerling die versneld doorgaat. Een leerling die al in de lijst staat, voeg je niet opnieuw toe.</p>
+  </section>
   <div id="new-students"></div>
-  <button type="button" class="button button--small" onclick="addNewStudentRow()">
+  <button id="add-student-button" type="button" class="button button--small">
     + Leerling toevoegen
   </button>
 
+  <div id="roster-client-message" class="flash-message error" role="alert" tabindex="-1" hidden>
+    <span class="closebtn" onclick="this.parentElement.style.display='none';">&times;</span>
+    <span class="roster-client-message-text"></span>
+  </div>
+
   <div class="step-navigation">
-    <a href="{{ prev_url }}" class="button previous-step">{{ prev_label }}</a>
+    <a href="{{ prev_url }}" class="button button--secondary previous-step">{{ prev_label }}</a>
     <button type="submit" class="button next-step">{{ next_label }}</button>
   </div>
 </form>
 
 <script>
-const _rd = JSON.parse(document.getElementById("roster-data").textContent);
-// groups_from already ends with "Anders" (the catch-all for an external origin); only add
-// it when an older payload is missing it, so the dropdown never shows it twice.
-const GROUPS_FROM = _rd.groups_from.includes("Anders")
-  ? _rd.groups_from
-  : [..._rd.groups_from, "Anders"];
-const KNOWN_NAMES = new Set(_rd.known_names.map(normalizeName));
-const MODE = _rd.mode;
-const JAARGROEP_OPTIONS = _rd.jaargroep_options;
+const rosterData = JSON.parse(document.getElementById("roster-data").textContent);
+const GROUPS_FROM = rosterData.groups_from;
+const KNOWN_NAMES = new Set(rosterData.known_names.map(normalizeName));
+const MODE = rosterData.mode;
+const JAARGROEP_OPTIONS = rosterData.jaargroep_options;
 let newStudentCount = 0;
 
+// Keep this equivalent to datareader.matching_key: remove unsafe punctuation, trim,
+// fold case, and remove ordinary spaces. The server remains the source of truth.
 function normalizeName(name) {
-  return name.trim().toLowerCase().replace(/\s+/g, " ");
+  return name
+    .replace(/[<>&"'`=\/\\]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/ /g, "");
 }
 
-// Names already taken by a confirmed new student, so two new rows can't clash either.
-function confirmedNewNames(exceptLi) {
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function confirmedNewNames(exceptRow) {
   const names = new Set();
-  document.querySelectorAll('.new-student-row[data-confirmed="1"]').forEach(li => {
-    if (li === exceptLi) return;
-    names.add(normalizeName(rowValues(li).name));
+  document.querySelectorAll('.new-student-row[data-confirmed="1"]').forEach(row => {
+    if (row === exceptRow) return;
+    names.add(normalizeName(rowValues(row).name));
   });
   return names;
 }
 
-function rowValues(li) {
-  const vn = li.querySelector('[name="new_voornaam[]"]').value.trim();
-  const an = li.querySelector('[name="new_achternaam[]"]').value.trim();
-  const sex = li.querySelector('[name="new_geslacht[]"]').value;
-  const groep = li.querySelector('[name="new_groep[]"]').value;
-  const jaargroepEl = li.querySelector('[name="new_jaargroep[]"]');
-  const jaargroep = jaargroepEl ? jaargroepEl.value : "";
-  return { vn, an, sex, groep, jaargroep, name: `${vn} ${an}`.trim() };
+function rowValues(row) {
+  const voornaam = row.querySelector('[name="new_voornaam[]"]').value.trim();
+  const achternaam = row.querySelector('[name="new_achternaam[]"]').value.trim();
+  const geslacht = row.querySelector('[name="new_geslacht[]"]').value;
+  const groep = row.querySelector('[name="new_groep[]"]').value;
+  const jaargroepElement = row.querySelector('[name="new_jaargroep[]"]');
+  const jaargroep = jaargroepElement ? jaargroepElement.value : "";
+  return {
+    voornaam,
+    achternaam,
+    geslacht,
+    groep,
+    jaargroep,
+    name: `${voornaam} ${achternaam}`.trim()
+  };
+}
+
+function groupOptionsHtml() {
+  return [
+    '<option value="">— kies huidige groep —</option>',
+    ...GROUPS_FROM.map(group =>
+      `<option value="${escapeHtml(group)}">${escapeHtml(group)}</option>`
+    )
+  ].join("");
 }
 
 function addNewStudentRow(prefill) {
   const list = document.getElementById("new-students");
   const key = `new_${newStudentCount++}`;
-  const groupOptions = GROUPS_FROM
-    .map(g => `<option value="${g}">${g}</option>`).join("");
-  // Herindelen spans several jaargroepen, so a new student must say which one; doorzetten
-  // has only one jaargroep for the whole process, so it is assumed server-side instead.
   const jaargroepField = MODE === "redistribute" ? `
-      <select name="new_jaargroep[]" title="Jaargroep">
-        <option value="">— jaarlaag —</option>
-        ${JAARGROEP_OPTIONS.map(j => `<option value="${j}">Jaarlaag ${j}</option>`).join("")}
+      <label for="${key}-jaargroep">Huidige jaarlaag</label>
+      <select id="${key}-jaargroep" name="new_jaargroep[]">
+        <option value="">— kies huidige jaarlaag —</option>
+        ${JAARGROEP_OPTIONS.map(year => `<option value="${escapeHtml(year)}">Jaarlaag ${escapeHtml(year)}</option>`).join("")}
       </select>` : "";
-  const li = document.createElement("div");
-  li.className = "new-student-row";
-  li.dataset.confirmed = "0";
-  li.innerHTML = `
-    <input type="hidden" name="new_key[]" value="${key}">
-    <input type="checkbox" name="gaat_over" value="${key}" checked hidden>
+  const row = document.createElement("div");
+  row.className = "new-student-row";
+  row.dataset.confirmed = "0";
+  row.innerHTML = `
+    <input type="hidden" name="new_key[]" value="${escapeHtml(key)}">
+    <input type="checkbox" name="gaat_over" value="${escapeHtml(key)}" checked hidden>
     <div class="ns-edit">
-      <input type="text" name="new_voornaam[]" placeholder="Voornaam">
-      <input type="text" name="new_achternaam[]" placeholder="Achternaam">
-      <select name="new_geslacht[]">
-        <option value="">— geslacht —</option>
+      <label for="${key}-voornaam">Voornaam</label>
+      <input id="${key}-voornaam" type="text" name="new_voornaam[]">
+      <label for="${key}-achternaam">Achternaam</label>
+      <input id="${key}-achternaam" type="text" name="new_achternaam[]">
+      <label for="${key}-geslacht">Geslacht</label>
+      <select id="${key}-geslacht" name="new_geslacht[]">
+        <option value="">— kies geslacht —</option>
         <option value="Jongen">Jongen</option>
         <option value="Meisje">Meisje</option>
       </select>
-      <select name="new_groep[]" title="Herkomstgroep">${groupOptions}</select>${jaargroepField}
-      <button type="button" class="button button--small ns-confirm">Toevoegen</button>
-      <button type="button" class="delete-btn ns-remove">✖</button>
-      <span class="field-error ns-error"></span>
+      <label for="${key}-groep">Huidige groep</label>
+      <select id="${key}-groep" name="new_groep[]" aria-describedby="${key}-groep-help">
+        ${groupOptionsHtml()}
+      </select>
+      <p id="${key}-groep-help">Kies ‘Anders’ als deze leerling niet uit een genoemde groep komt.</p>
+      ${jaargroepField}
+      <button type="button" class="button button--small ns-confirm">Leerling aan de lijst toevoegen</button>
+      <button type="button" class="delete-btn ns-remove" aria-label="Verwijder deze invoer">✖</button>
     </div>
     <span class="student-chip ns-chip" hidden>
       <span class="ns-chip-label"></span>
-      <button type="button" class="button button--small ns-edit-btn">Wijzig</button>
-      <button type="button" class="delete-btn ns-remove">✖</button>
+      <button type="button" class="button button--small ns-edit-btn">Wijzigen</button>
+      <button type="button" class="delete-btn ns-remove" aria-label="Verwijder deze invoer">✖</button>
     </span>`;
-  list.appendChild(li);
-  wireRow(li);
+  list.appendChild(row);
+  wireRow(row);
   if (prefill) {
-    li.querySelector('[name="new_voornaam[]"]').value = prefill.roepnaam || "";
-    li.querySelector('[name="new_achternaam[]"]').value = prefill.achternaam || "";
-    li.querySelector('[name="new_geslacht[]"]').value = prefill.geslacht || "";
-    setSelect(li.querySelector('[name="new_groep[]"]'), prefill.groepsnaam);
-    const jaargroepEl = li.querySelector('[name="new_jaargroep[]"]');
-    if (jaargroepEl && prefill.jaargroep != null) {
-      setSelect(jaargroepEl, String(prefill.jaargroep));
-    }
-    confirmRow(li);  // saved students come back confirmed
+    row.querySelector('[name="new_voornaam[]"]').value = prefill.roepnaam || "";
+    row.querySelector('[name="new_achternaam[]"]').value = prefill.achternaam || "";
+    row.querySelector('[name="new_geslacht[]"]').value = prefill.geslacht || "";
+    setSelect(row.querySelector('[name="new_groep[]"]'), prefill.groepsnaam || "");
+    const jaargroepElement = row.querySelector('[name="new_jaargroep[]"]');
+    if (jaargroepElement) setSelect(jaargroepElement, prefill.jaargroep || "");
+    if (prefill.confirmed !== false) confirmRow(row);
   }
-  return li;
+  return row;
 }
 
 function setSelect(select, value) {
-  if ([...select.options].some(o => o.value === value)) select.value = value;
+  const optionValue = value == null ? "" : String(value);
+  if ([...select.options].some(option => option.value === optionValue)) {
+    select.value = optionValue;
+  }
 }
 
-function wireRow(li) {
-  li.querySelector(".ns-confirm").onclick = () => confirmRow(li);
-  li.querySelector(".ns-edit-btn").onclick = () => editRow(li);
-  li.querySelectorAll(".ns-remove").forEach(b => (b.onclick = () => li.remove()));
+function wireRow(row) {
+  row.querySelector(".ns-confirm").addEventListener("click", () => confirmRow(row));
+  row.querySelector(".ns-edit-btn").addEventListener("click", () => editRow(row));
+  row.querySelectorAll(".ns-remove").forEach(button => {
+    button.addEventListener("click", () => row.remove());
+  });
 }
 
-// Confirm turns the editable row into a compact chip, after a quick name check.
-function confirmRow(li) {
-  const { vn, an, sex, groep, jaargroep, name } = rowValues(li);
-  const err = li.querySelector(".ns-error");
-  if (!vn || !an || !sex) {
-    err.textContent = "Vul voornaam, achternaam én geslacht in.";
+function setDeleteLabels(row, label) {
+  row.querySelectorAll(".ns-remove").forEach(button => button.setAttribute("aria-label", label));
+}
+
+function showRosterMessage(message) {
+  const target = document.getElementById("roster-client-message");
+  target.querySelector(".roster-client-message-text").textContent = message;
+  target.style.display = "";
+  target.hidden = false;
+  target.focus({ preventScroll: true });
+}
+
+function clearRosterMessage() {
+  const target = document.getElementById("roster-client-message");
+  target.querySelector(".roster-client-message-text").textContent = "";
+  target.style.display = "";
+  target.hidden = true;
+}
+
+function confirmRow(row) {
+  const { voornaam, achternaam, geslacht, groep, jaargroep, name } = rowValues(row);
+  if (!voornaam || !achternaam || !geslacht) {
+    showRosterMessage("Vul de voornaam, achternaam en het geslacht in.");
+    return;
+  }
+  if (!groep) {
+    showRosterMessage("Kies de huidige groep, of kies ‘Anders’.");
     return;
   }
   if (MODE === "redistribute" && !jaargroep) {
-    err.textContent = "Geef ook de jaarlaag aan.";
+    showRosterMessage("Kies ook de huidige jaarlaag.");
     return;
   }
-  const norm = normalizeName(name);
-  if (KNOWN_NAMES.has(norm) || confirmedNewNames(li).has(norm)) {
-    err.textContent = `Er bestaat al een leerling "${name}". Geef een onderscheidende naam.`;
+  const normalizedName = normalizeName(name);
+  if (KNOWN_NAMES.has(normalizedName) || confirmedNewNames(row).has(normalizedName)) {
+    showRosterMessage(`Er staat al een leerling met de naam ‘${name}’ in de lijst.`);
     return;
   }
-  err.textContent = "";
-  const extra = (groep && groep !== "Anders") ? ` · uit ${groep}` : "";
-  const jaarExtra = jaargroep ? ` · jaarlaag ${jaargroep}` : "";
-  li.querySelector(".ns-chip-label").textContent = `${name} · ${sex}${extra}${jaarExtra}`;
-  li.querySelector(".ns-edit").hidden = true;
-  li.querySelector(".ns-chip").hidden = false;
-  li.dataset.confirmed = "1";
+  clearRosterMessage();
+  const yearDescription = jaargroep ? ` · jaarlaag ${jaargroep}` : "";
+  row.querySelector(".ns-chip-label").textContent =
+    `${name} · ${geslacht} · ${groep}${yearDescription}`;
+  row.querySelector(".ns-edit").hidden = true;
+  row.querySelector(".ns-chip").hidden = false;
+  row.dataset.confirmed = "1";
+  setDeleteLabels(row, `Verwijder ${name}`);
 }
 
-function editRow(li) {
-  li.querySelector(".ns-chip").hidden = true;
-  li.querySelector(".ns-edit").hidden = false;
-  li.dataset.confirmed = "0";
+function editRow(row) {
+  row.querySelector(".ns-chip").hidden = true;
+  row.querySelector(".ns-edit").hidden = false;
+  row.dataset.confirmed = "0";
+  setDeleteLabels(row, "Verwijder deze invoer");
 }
 
-// Rebuild any saved new students as confirmed chips.
-(_rd.new_students || []).forEach(ns => addNewStudentRow(ns));
+// Herindelen spans several jaargroepen, so a new student must say which one; doorzetten
+// has only one jaargroep for the whole process, so it is assumed server-side instead.
+// Saved rows are confirmed; a rejected POST explicitly marks drafts as editable.
+(rosterData.new_students || []).forEach(student => addNewStudentRow(student));
 
-// Block submit while a started row is still unconfirmed; empty rows are ignored server-side.
-document.getElementById("roster-form").addEventListener("submit", e => {
+document.getElementById("add-student-button").addEventListener("click", () => addNewStudentRow());
+document.getElementById("roster-form").addEventListener("submit", event => {
   const unfinished = [...document.querySelectorAll('.new-student-row[data-confirmed="0"]')]
-    .filter(li => { const v = rowValues(li); return v.vn || v.an || v.sex; });
+  const selectedExisting = document.querySelectorAll(
+    'input[name="gaat_over"]:not([hidden]):checked'
+  ).length;
+  const confirmedNew = document.querySelectorAll('.new-student-row[data-confirmed="1"]').length;
   if (unfinished.length) {
-    e.preventDefault();
-    const li = unfinished[0];
-    li.querySelector(".ns-error").textContent =
-      'Klik "Toevoegen" om deze leerling te bevestigen, of verwijder de regel.';
-    li.scrollIntoView({ block: "center" });
+    event.preventDefault();
+    const row = unfinished[0];
+    showRosterMessage(
+      "Klik op ‘Leerling aan de lijst toevoegen’ om deze leerling te bevestigen, of verwijder de invoer."
+    );
+    row.scrollIntoView({ block: "center" });
+  } else if (!selectedExisting && !confirmedNew) {
+    event.preventDefault();
+    showRosterMessage("Selecteer ten minste één leerling die doorgaat.");
   }
 });
 </script>

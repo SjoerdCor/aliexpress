@@ -21,7 +21,8 @@ from ..solver.progress import InputSummary, PlateauOutcome, ProgressListener
 _PENDING_STEPS = ("floor", "balance", "satisfaction")
 
 _PHASE_A_TEXT = (
-    "Aan het rekenen… dit duurt meestal minder dan een minuut, soms enkele minuten."
+    "Meestal is de berekening binnen een minuut klaar. Bij grotere of ingewikkelde "
+    "verdelingen kan het langer duren."
 )
 
 # The post-performance measurements across all three modes put the ordinary
@@ -76,7 +77,7 @@ def _replace_snapshot(tmp_path: str, path: str) -> None:
 
 
 def _format_remaining(seconds: float) -> str:
-    """Render a remaining-time estimate as the user-facing "nog ~X" line.
+    """Render a remaining-time estimate as a short, approximate sentence.
 
     Rounds up (never down, so the estimate never looks worse than reality once revealed):
     under a minute to the nearest 10 seconds, from a minute on to whole minutes, with the
@@ -84,12 +85,12 @@ def _format_remaining(seconds: float) -> str:
     """
     if seconds < 60:
         rounded_seconds = math.ceil(seconds / 10) * 10
-        amount = f"~{rounded_seconds} seconden"
+        amount = f"{rounded_seconds} seconden"
     else:
         minutes = math.ceil(seconds / 60)
         unit = "minuut" if minutes == 1 else "minuten"
-        amount = f"~{minutes} {unit}"
-    return f"naar verwachting nog {amount} (ruwe schatting)"
+        amount = f"{minutes} {unit}"
+    return f"Naar verwachting nog ongeveer {amount}. Deze schatting kan veranderen."
 
 
 class ProgressWriter(ProgressListener):

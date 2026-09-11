@@ -1,10 +1,13 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="nl">
 
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}ALI-Express{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='shared-base.css') }}">
+    {% block extra_styles %}{% endblock %}
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='logo.ico') }}">
 </head>
 
@@ -65,42 +68,21 @@
             });
         </script>
         {% endif %}
-        {# A slim, quiet progress strip: all eight steps stay visible (so nothing is hidden
-           or surprising) but rendered small and unobtrusive — short labels (at most two
-           lines) in a light colour, so the row of text never feels heavy. Shown inside the
-           wizard (current_step 1-8) and, as a static overview, on the home page
-           (stepper_overzicht); the processes dashboard sets neither, so it stays hidden. #}
-        {% if current_step or stepper_overzicht %}
-        <div class="stepper">
-            <div class="step {% if current_step > 1 %}done{% elif current_step == 1 %}active{% endif %}">
-                <span>Schoolinformatie</span>
+        {# The route-specific context contains only the steps this process actually uses. #}
+        {% if wizard_steps %}
+        <div class="stepper" style="--step-count: {{ wizard_steps | length }}">
+            {% for step in wizard_steps %}
+            <div class="step {% if loop.index < current_step %}done{% elif loop.index == current_step %}active{% endif %}">
+                <span>{{ step.label }}</span>
             </div>
-            <div class="step {% if current_step > 2 %}done{% elif current_step == 2 %}active{% endif %}">
-                <span>Wie gaat mee</span>
-            </div>
-            <div class="step {% if current_step > 3 %}done{% elif current_step == 3 %}active{% endif %}">
-                <span>Groepen naartoe</span>
-            </div>
-            <div class="step {% if current_step > 4 %}done{% elif current_step == 4 %}active{% endif %}">
-                <span>Voorkeuren doorgeven</span>
-            </div>
-            <div class="step {% if current_step > 5 %}done{% elif current_step == 5 %}active{% endif %}">
-                <span>Niet samen</span>
-            </div>
-            <div class="step {% if current_step > 6 %}done{% elif current_step == 6 %}active{% endif %}">
-                <span>Leerlingen indelen</span>
-            </div>
-            <div class="step {% if current_step > 7 %}done{% elif current_step == 7 %}active{% endif %}">
-                <span>Resultaat bekijken</span>
-            </div>
-            <div class="step {% if current_step > 8 %}done{% elif current_step == 8 %}active{% endif %}">
-                <span>Klaar!</span>
-            </div>
+            {% endfor %}
         </div>
         {% endif %}
+        {% block pre_header %}{% endblock %}
         <h1>{% block header %}{% endblock %}</h1>
         {% block content %}{% endblock %}
     </div>
+    <script src="{{ url_for('static', filename='portable-identifiers.js') }}"></script>
 </body>
 
 </html>

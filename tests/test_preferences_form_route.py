@@ -9,6 +9,7 @@ preferences_form redesign. Only synthetic data is used here, never real student 
 import json
 
 import pandas as pd
+import pytest
 
 from tests.helpers import setup_process
 
@@ -66,6 +67,50 @@ class TestPreferencesForm:
         assert b"Bram" in response.data
         assert b"Klas A" in response.data
 
+    def test_get_exposes_page_actions_and_accessible_modal_semantics(
+        self, client, tmp_path
+    ):
+        """The page exposes the two form actions and labels the modal by its title."""
+        self._setup(client, tmp_path)
+        html = client.get("/preferences_form").data.decode("utf-8")
+
+        assert "Hoe gebruikt ALI Express de voorkeuren?" in html
+        assert "Graag bij" in html
+        assert "Liever niet bij" in html
+        assert "Mag niet naar" in html
+        assert "nog niet ingevuld" in html
+        assert "Bekijk deze voorkeuren in het sociogram ↗" in html
+        assert 'name="action" value="sociogram"' in html
+        assert 'formtarget="_blank"' in html
+        assert 'role="dialog" aria-modal="true"' in html
+        assert 'aria-labelledby="modal-title-s1"' in html
+        assert 'class="info-pop"' not in html
+
+    @pytest.mark.parametrize(
+        "case",
+        (
+            ("forward", "/groups_to", "← Terug naar Groepen controleren"),
+            ("redistribute", "/roster", "← Terug naar Leerlingen controleren"),
+            (
+                "redistribute_and_forward",
+                "/select_groups",
+                "← Terug naar Groepen controleren",
+            ),
+        ),
+    )
+    def test_get_uses_mode_specific_back_route(self, client, tmp_path, case):
+        """The back link goes to the immediately preceding visible screen."""
+        mode, href, label = case
+        proc_dir = self._setup(client, tmp_path)
+        (proc_dir / "mode.json").write_text(
+            json.dumps({"mode": mode}), encoding="utf-8"
+        )
+
+        html = client.get("/preferences_form").data.decode("utf-8")
+
+        assert f'href="{href}"' in html
+        assert label in html
+
     def test_post_writes_voorkeuren_json_for_all_participants_and_redirects(
         self, client, tmp_path
     ):
@@ -82,7 +127,7 @@ class TestPreferencesForm:
         assert "Bram Dijk" in display_names
 
     def test_get_redirects_to_roster_when_no_roster_yet(self, client, tmp_path):
-        """Without a settled roster the page sends the teacher to 'Wie gaat mee' first."""
+        """Without a settled roster the page sends the teacher to learner checking first."""
         proc_dir = self._setup(client, tmp_path)
         (proc_dir / "roster.json").unlink()
         response = client.get("/preferences_form")
@@ -107,6 +152,41 @@ class TestPreferencesForm:
             and r["Waarde"] == "bramdijk"
             for r in records
         )
+
+    def test_sociogram_post_replaces_canonical_preferences_and_redirects(
+        self, client, tmp_path
+    ):
+        """The sociogram action validates current input and replaces stale canonical data."""
+        proc_dir = self._setup(client, tmp_path)
+        client.post(
+            "/preferences_form",
+            data={
+                "preference_s1_graag_met_target": ["Klas A"],
+                "preference_s1_graag_met_gewicht": ["1"],
+            },
+        )
+
+        response = client.post(
+            "/preferences_form",
+            data={
+                "action": "sociogram",
+                "preference_s1_graag_met_target": ["Bram Dijk"],
+                "preference_s1_graag_met_gewicht": ["2"],
+            },
+        )
+
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/sociogram")
+        payload = json.loads((proc_dir / "voorkeuren.json").read_text("utf-8"))
+        records = payload["preferences"]["records"]
+        assert any(
+            r["Leerling"] == "annabos"
+            and r["TypeWens"] == "Graag met"
+            and r["Waarde"] == "bramdijk"
+            and r["Gewicht"] == 2.0
+            for r in records
+        )
+        assert not any(r["Waarde"] == "klas a" for r in records)
 
     def test_post_with_self_wish_flashes_and_persists_nothing(self, client, tmp_path):
         """A manually submitted self-target is rejected by the server-side guard."""

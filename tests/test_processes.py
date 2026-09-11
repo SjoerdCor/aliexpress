@@ -63,12 +63,18 @@ class TestCreateProcess:
         ]
 
     def test_existing_name_gives_bestaat_al(self, client):
-        """Bug 2: creating a duplicate must yield 'Proces bestaat al', not 'bestaat niet'."""
+        """Creating a duplicate explains that the group allocation already exists."""
         with flask_app.app_context():
             make_process_row(SCHOOL_ID, "mijnproces")
         response = client.post("/processes/create", data={"process_name": "mijnproces"})
         assert response.status_code == 302
-        assert flashes(client) == [("error", "Proces bestaat al")]
+        assert flashes(client) == [
+            (
+                "error",
+                "Er bestaat al een groepsindeling met deze naam.\n"
+                "        Kies een andere naam voor de nieuwe groepsindeling.",
+            )
+        ]
 
     def test_happy_path_creates_directory(self, client, tmp_path):
         """A valid new name creates the process directory and redirects to upload."""
@@ -84,10 +90,12 @@ class TestDeleteProcess:
     """Tests for POST /processes/delete/<process_name>."""
 
     def test_nonexistent_name_gives_bestaat_niet(self, client):
-        """Bug 2: deleting a missing process must yield 'Proces bestaat niet', not 'bestaat al'."""
+        """Deleting a missing process explains that no group allocation was found."""
         response = client.post("/processes/delete/spookproces")
         assert response.status_code == 302
-        assert flashes(client) == [("error", "Proces bestaat niet")]
+        assert flashes(client) == [
+            ("error", "Er is geen groepsindeling met deze naam.")
+        ]
 
     def test_invalid_chars_gives_format_error(self, client):
         """A name with a slash hits the router before validation; expect 302 or 404."""
@@ -113,13 +121,78 @@ class TestProcessesList:
         """An empty BASE_DIR produces an empty process list without errors."""
         assert client.get("/processes").status_code == 200
 
+    def test_empty_list_uses_new_grouping_copy(self, client):
+        """The empty overview names both routes and places the new route below the note."""
+        response = client.get("/processes")
+        page = response.get_data(as_text=True)
+        assert "Jouw groepsindelingen" in page
+        assert (
+            "Ga verder met een bestaande groepsindeling of begin een nieuwe groepsindeling."
+            in page
+        )
+        assert "Je hebt nog geen bestaande groepsindeling." in page
+        assert 'href="/processes?new=1"' in page
+        assert "Begin een nieuwe groepsindeling" in page
+        assert page.index("Je hebt nog geen bestaande groepsindeling.") < page.index(
+            "Begin een nieuwe groepsindeling"
+        )
+        assert 'id="processForm"' not in page
+        assert "Geen processen gevonden" not in page
+
+    def test_mode_options_show_human_descriptions_and_default(self, client):
+        """All three human mode descriptions are visible and the first is selected."""
+        response = client.get("/processes?new=1")
+        page = response.get_data(as_text=True)
+        assert "Leerlingen gaan naar de groepen in de nieuwe indeling" in page
+        assert (
+            "Bijvoorbeeld: jaarlaag 5 wordt verdeeld over de bestaande groepen 6/7/8."
+            in page
+        )
+        assert "Bestaande groepen worden opnieuw ingedeeld" in page
+        assert (
+            "Bijvoorbeeld: leerlingen uit 6A, 6B en 6C worden opnieuw verdeeld over "
+            "6A, 6B en 6C."
+        ) in page
+        assert "Leerlingen gaan verder en groepen worden opnieuw ingedeeld" in page
+        assert (
+            "Bijvoorbeeld: jaarlaag 5 gaat naar 6/7/8. Ook de leerlingen uit jaarlaag 6 "
+            "en 7 worden opnieuw verdeeld."
+        ) in page
+        assert page.count('class="process-mode-option"') == 3
+        assert page.count('class="process-mode-recommended"') == 1
+        assert 'name="mode" value="forward" checked' in page
+        assert 'class="info-pop"' not in page
+        assert 'd="M4 12h15m-6-6 6 6-6 6"' in page
+        assert 'd="M6 9a7 7 0 0 1 12.2 1.2' in page
+        assert 'd="M6.4 9.1A7 7 0 0 1 17 8.5' in page
+
+    def test_new_form_explains_name_once_and_delays_character_help(self, client):
+        """The new-state explanation is concise and character help starts hidden."""
+        page = client.get("/processes?new=1").get_data(as_text=True)
+
+        assert (
+            "Een herkenbare naam helpt je de groepsindeling later terug te vinden en "
+            "verder te gaan."
+        ) in page
+        assert page.count("Overgang jaarlaag 5 - 2026.") == 1
+        assert 'id="process-name-rules" class="process-field-help" hidden' in page
+        assert 'aria-describedby="process-name-example"' in page
+        assert 'title="Alleen letters, cijfers, spaties, - en _ toegestaan"' not in page
+
     def test_existing_process_is_shown(self, client):
         """A process that exists in the DB appears in the processes list."""
         with flask_app.app_context():
             make_process_row(SCHOOL_ID, "mijnklas")
         response = client.get("/processes")
         assert response.status_code == 200
-        assert b"mijnklas" in response.data
+        page = response.get_data(as_text=True)
+        assert "mijnklas" in page
+        assert "Verder →" in page
+        assert 'aria-label="Verder met mijnklas"' in page
+        assert 'aria-label="Groepsindeling mijnklas verwijderen"' in page
+        assert 'data-tooltip="Verwijderen"' in page
+        assert 'confirmDelete("mijnklas")' in page
+        assert page.index("mijnklas") < page.index("Begin een nieuwe groepsindeling")
 
 
 class TestSelectProcess:
@@ -158,7 +231,7 @@ class TestSelectProcess:
 
     def test_process_with_json_redirects_to_roster(self, client, tmp_path):
         """After the EDEXML upload (only the candidates JSON present) the process resumes at
-        the "Wie gaat mee" step (ADR 0006)."""
+        the "Leerlingen controleren" step (ADR 0006)."""
         proc_dir = tmp_path / SCHOOL_ID / "procesmetjson"
         proc_dir.mkdir(parents=True, exist_ok=True)
         (proc_dir / "relevant_students_and_groups.json").write_text(
@@ -171,7 +244,7 @@ class TestSelectProcess:
         assert response.headers["Location"].endswith("/roster")
 
     def test_process_with_roster_redirects_to_groups_to(self, client, tmp_path):
-        """A settled roster but no groups.xlsx yet resumes at "Groepen naartoe" (ADR 0006)."""
+        """A settled roster but no groups.xlsx yet resumes at "Groepen controleren" (ADR 0006)."""
         proc_dir = tmp_path / SCHOOL_ID / "procesmetroster2"
         proc_dir.mkdir(parents=True, exist_ok=True)
         (proc_dir / "roster.json").write_text(
@@ -442,11 +515,13 @@ class TestSchoolIsolation:
         ]
 
     def test_cannot_delete_other_schools_process(self, client):
-        """POST /processes/delete/<name> flashes 'bestaat niet' for another school's process."""
+        """Deleting another school's process uses the same not-found response."""
         self._create_other_school_process()
         response = client.post("/processes/delete/geheimproces")
         assert response.status_code == 302
-        assert flashes(client) == [("error", "Proces bestaat niet")]
+        assert flashes(client) == [
+            ("error", "Er is geen groepsindeling met deze naam.")
+        ]
 
     def test_cannot_see_other_schools_process_in_list(self, client):
         """GET /processes does not include processes from other schools."""

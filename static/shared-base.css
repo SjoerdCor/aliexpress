@@ -1,0 +1,232 @@
+/* Shared accessible foundation.
+   Page and wizard styling stays in the page stylesheets. */
+
+@font-face {
+  font-family: "Nunito Sans";
+  src: url("/static/fonts/NunitoSans-Variable.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 200 1000;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Noto Sans";
+  src: url("/static/fonts/NotoSans-Regular.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Noto Sans";
+  src: url("/static/fonts/NotoSans-Bold.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
+:root {
+  --font-body: "Nunito Sans", sans-serif;
+  --font-heading: "Noto Sans", sans-serif;
+
+  --color-page-background: #ffe6cc;
+  --color-surface: #ffffff;
+  --color-text: #2f241c;
+  --color-primary: #e36c00;
+  --color-primary-ink: #ffffff;
+  --color-primary-hover: #c45100;
+  --color-secondary: #c45100;
+  --color-secondary-hover: #fff0e3;
+  --color-focus: #2f241c;
+
+  --layout-content-max: 1120px;
+  --layout-gutter: clamp(16px, 4vw, 50px);
+  --layout-surface-radius: 20px;
+  --layout-control-radius: 8px;
+  --layout-control-min-size: 44px;
+}
+
+html {
+  min-width: 0;
+}
+
+body {
+  box-sizing: border-box;
+  min-height: 100vh;
+  margin: 0;
+  overflow-x: hidden;
+  background-color: var(--color-page-background);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  line-height: 1.5;
+}
+
+.container {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: min(var(--layout-content-max), 100%);
+  max-width: 100%;
+  min-height: calc(100vh - 48px);
+  margin: 24px auto;
+  padding: 32px var(--layout-gutter);
+  border-radius: var(--layout-surface-radius);
+  background-color: var(--color-surface);
+  box-shadow: 0 4px 20px rgb(0 0 0 / 20%);
+}
+
+.container img {
+  width: auto;
+  max-width: 100%;
+  height: auto;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+legend {
+  font-family: var(--font-heading);
+}
+
+h1,
+h2,
+h3,
+p,
+ul,
+ol {
+  max-width: 65ch;
+}
+
+h1 {
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+/* The approved primary basis: bright filled orange with large, bold white text. */
+.button,
+input[type="submit"] {
+  box-sizing: border-box;
+  display: inline-block;
+  min-height: var(--layout-control-min-size);
+  padding: 0.625rem 1rem;
+  border: 2px solid var(--color-primary);
+  border-radius: var(--layout-control-radius);
+  background-color: var(--color-primary);
+  color: var(--color-primary-ink);
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.button:hover,
+.button:active,
+input[type="submit"]:hover,
+input[type="submit"]:active {
+  border-color: var(--color-primary-hover);
+  background-color: var(--color-primary-hover);
+  color: var(--color-primary-ink);
+}
+
+/* Secondary actions remain quieter while keeping the orange identity visible. */
+.button--secondary {
+  border-color: var(--color-secondary);
+  background-color: var(--color-surface);
+  color: var(--color-secondary);
+  font-size: 1rem;
+}
+
+.button--secondary:hover,
+.button--secondary:active {
+  border-color: var(--color-secondary);
+  background-color: var(--color-secondary-hover);
+  color: var(--color-secondary);
+}
+
+.button--small {
+  min-height: var(--layout-control-min-size);
+  padding: 0.625rem 0.875rem;
+  border-radius: var(--layout-control-radius);
+}
+
+.button--cancel {
+  border-color: #8a8a8a;
+  background-color: #f3f3f3;
+  color: #2f2f2f;
+  font-size: 1rem;
+}
+
+.button--cancel:hover,
+.button--cancel:active {
+  border-color: #6f6f6f;
+  background-color: #e4e4e4;
+  color: #222222;
+}
+
+/* Keep the shared wizard progress strip reachable when the viewport is narrow. */
+.stepper {
+  display: grid;
+  grid-template-columns: repeat(var(--step-count, 6), minmax(0, 1fr));
+  width: 100%;
+  box-sizing: border-box;
+  gap: 0.25rem;
+}
+
+.step {
+  min-width: 0;
+}
+
+.step span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible,
+[role="button"]:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 3px;
+}
+
+/* The hidden attribute is authoritative and must not reserve layout space. */
+[hidden] {
+  display: none !important;
+}
+
+@media (max-width: 680px) {
+  .container {
+    margin: 0;
+    border-radius: 0;
+  }
+
+  .stepper {
+    grid-template-columns: repeat(min(var(--step-count, 6), 4), minmax(0, 1fr));
+    row-gap: 0.75rem;
+  }
+
+  .step:not(:last-child)::after {
+    display: none;
+  }
+}

@@ -6,7 +6,7 @@
 import json
 import logging
 import os
-from dataclasses import asdict
+from dataclasses import asdict, replace
 
 from flask import (
     Blueprint,
@@ -26,14 +26,79 @@ from ...main import build_input_summary
 from ...sociogram import build_sociogram_view
 from ...solver._balance import default_balance_maxima
 from ..models import Process
-from ..process_files import load_balance_maxima, load_groups, load_voorkeuren
-from ..storage import get_file_path
+from ..process_files import (
+    load_balance_maxima,
+    load_groups,
+    load_input_method,
+    load_not_together,
+    load_voorkeuren,
+)
+from ..result_view import build_result_page_view
+from ..storage import get_file_path, get_process_path
+from ..wizard_steps import wizard_context
 from .auth import effective_school_id
-from .processes import require_process
+from .processes import get_process_mode, require_process
 
 logger = logging.getLogger(__name__)
 
 results_bp = Blueprint("results", __name__)
+
+_PROCESSING_BALANCE_LABELS = {
+    "Groepsgrootte per jaarlaag": "Maximaal verschil in groepsgrootte per jaarlaag",
+    "Groepsgrootte totaal": "Maximaal verschil in groepsgrootte over de hele groep",
+    "Jongens/meisjes per jaarlaag": (
+        "Maximaal verschil tussen jongens en meisjes per jaarlaag"
+    ),
+    "Jongens/meisjes totaal": (
+        "Maximaal verschil tussen jongens en meisjes over de hele groep"
+    ),
+    "Zelfde stamgroep totaal": (
+        "Maximaal aantal leerlingen uit dezelfde huidige groep in één groep in de "
+        "nieuwe indeling"
+    ),
+    "Zelfde stamgroep per sekse": (
+        "Maximaal aantal jongens of meisjes uit dezelfde huidige groep in één groep in "
+        "de nieuwe indeling"
+    ),
+}
+
+
+def _n_students_with_preferences(preference_data) -> int:
+    """Count students with a positive or negative preference for the summary."""
+    preferences = preference_data.preferences
+    if preferences.empty:
+        return 0
+    kinds = preferences.index.get_level_values("TypeWens")
+    students = preferences.index.get_level_values("Leerling")
+    return len(
+        {
+            student
+            for student, kind in zip(students, kinds)
+            if kind in {"Graag met", "Liever niet met"}
+        }
+    )
+
+
+def _processing_summary(groups_to, preference_data, group_display):
+    """Build the page summary while keeping source groups in input order."""
+    summary = build_input_summary(
+        groups_to,
+        preference_data.students_info,
+        preference_data.stamgroep_display,
+    )
+    source_groups = {}
+    for student_info in preference_data.students_info.values():
+        group_key = student_info["Stamgroep"]
+        group_name = preference_data.stamgroep_display.get(group_key, group_key)
+        source_groups[group_name] = source_groups.get(group_name, 0) + 1
+    return replace(summary, source_groups=source_groups), list(group_display.values())
+
+
+def _processing_error_message(message: str) -> str:
+    """Expand abbreviated balance labels in the processing-page flash."""
+    for short_label, full_label in _PROCESSING_BALANCE_LABELS.items():
+        message = message.replace(f"‘{short_label}’", f"‘{full_label}’")
+    return message
 
 
 def _load_json_snapshot(path):
@@ -62,6 +127,7 @@ def processing():
     if school_id is None:
         return redirect(url_for("admin.dashboard"))
     process_id = session["process_id"]
+    process_mode = get_process_mode(get_process_path(school_id, process_id))
     proc = Process.by_name(school_id, process_id)
     run_status = proc.run.status if proc and proc.run else None
 
@@ -69,20 +135,25 @@ def processing():
         return redirect(url_for("results.result_page"))
 
     preference_data, _ = load_voorkeuren(school_id, process_id)
-    groups_to, _ = load_groups(school_id, process_id)
-    summary = build_input_summary(
-        groups_to,
-        preference_data.students_info,
-        preference_data.stamgroep_display,
+    groups_to, group_display = load_groups(school_id, process_id)
+    summary, target_group_names = _processing_summary(
+        groups_to, preference_data, group_display
     )
+    processing_data = {
+        "n_preferences": _n_students_with_preferences(preference_data),
+        "n_spread_rules": len(load_not_together(school_id, process_id)),
+    }
 
     if run_status in ("pending", "running"):
         return render_template(
             "processing.html",
             mode="running",
             summary=summary,
+            target_group_names=target_group_names,
+            processing_data=processing_data,
             recalculation=False,
             balance_limits_open=False,
+            **wizard_context(process_mode, "processing"),
         )
 
     maxima_path = get_file_path(school_id, process_id, "balance_limits.json")
@@ -90,13 +161,20 @@ def processing():
         maxima = load_balance_maxima(school_id, process_id)
     else:
         maxima = default_balance_maxima(preference_data.students_info, groups_to)
+    if run_status == "error" and proc.run.message:
+        flash(_processing_error_message(proc.run.message), "error")
     return render_template(
         "processing.html",
         mode="idle",
         summary=summary,
+        target_group_names=target_group_names,
+        processing_data=processing_data,
         maxima=maxima,
         recalculation=run_status == "done",
-        balance_limits_open=run_status == "error",
+        balance_limits_open=(
+            run_status == "error" or request.args.get("edit") == "differences"
+        ),
+        **wizard_context(process_mode, "processing"),
     )
 
 
@@ -120,17 +198,6 @@ def status():
     if run.status == "error" and run.message:
         payload["message"] = run.message
     return jsonify(payload)
-
-
-@results_bp.route("/handle-error", methods=["POST"])
-@login_required
-def handle_error():
-    """Show information about errors to user"""
-    data = request.get_json()
-    flash(data["message"], "error")
-
-    # By not redirecting here but in JS, this is more flexible
-    return "", 204
 
 
 @results_bp.route("/sociogram")
@@ -187,31 +254,34 @@ def interim_result():
 @login_required
 @require_process
 def result_page():
-    """Display the result: the group-card view-model plus the three analysis tables.
+    """Display the result: group cards plus transient native analysis view-models.
 
-    Loads the analysis tables from ``result_tables.json`` and the structured group cards +
-    klassenoverzicht from ``groepsindeling_view.json`` (when present); the template renders the
-    cards from the view-model and the three tables as tabs.
+    The native analyses are derived from the current structured group-card view in memory.
     """
     school_id = effective_school_id()
     if school_id is None:
         return redirect(url_for("admin.dashboard"))
     process_id = session["process_id"]
-    path = get_file_path(school_id, process_id, "result_tables.json")
-    if not os.path.exists(path):
+    view_path = get_file_path(school_id, process_id, "groepsindeling_view.json")
+    if not os.path.exists(view_path):
         flash("Resultaat niet beschikbaar.", "error")
         return redirect(url_for("processes.index"))
-    with open(path, encoding="utf-8") as fh:
-        dataframes = json.load(fh)
-    view_path = get_file_path(school_id, process_id, "groepsindeling_view.json")
-    groepsindeling_view = None
-    if os.path.exists(view_path):
-        with open(view_path, encoding="utf-8") as fh:
-            groepsindeling_view = json.load(fh)
+    with open(view_path, encoding="utf-8") as fh:
+        groepsindeling_view = json.load(fh)
+    process_mode = get_process_mode(get_process_path(school_id, process_id))
+    preference_endpoint = (
+        "wizard.preferences_excel"
+        if load_input_method(school_id, process_id) == "excel"
+        else "wizard.preferences_form"
+    )
     return render_template(
         "result.html",
-        dataframes=dataframes,
         groepsindeling_view=groepsindeling_view,
+        result_page_view=build_result_page_view(groepsindeling_view),
+        preferences_url=url_for(preference_endpoint),
+        spread_url=url_for("wizard.not_together_page"),
+        differences_url=url_for("results.processing", edit="differences"),
+        **wizard_context(process_mode, "result"),
     )
 
 
@@ -227,7 +297,7 @@ def download():
     path = get_file_path(school_id, process_id, "results.xlsx")
     if not os.path.exists(path):
         flash("Groepsindeling niet gevonden. Mogelijk nog aan het berekenen", "error")
-        return render_template("result.html", dataframes={})
+        return redirect(url_for("results.result_page"))
 
     return send_file(
         path,
@@ -239,9 +309,15 @@ def download():
 
 @results_bp.route("/done")
 @login_required
+@require_process
 def done():
     """Show done page"""
-    return render_template("done.html")
+    school_id = effective_school_id()
+    if school_id is None:
+        return redirect(url_for("admin.dashboard"))
+    process_id = session["process_id"]
+    process_mode = get_process_mode(get_process_path(school_id, process_id))
+    return render_template("done.html", **wizard_context(process_mode, "done"))
 
 
 @results_bp.route("/download_preferences")

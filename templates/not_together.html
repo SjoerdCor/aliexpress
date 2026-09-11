@@ -1,49 +1,61 @@
 {% extends "base.html" %}
-{% set current_step = 5 %}
-{% block header %}Wie gaan er niet samen?{% endblock %}
+{% block header %}{{ current_step_label }}{% endblock %}
+{% block extra_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='not-together.css') }}">{% endblock %}
 
 {% block content %}
-
-<datalist id="student-list">
-  {% for s in students %}<option value="{{ s }}">{% endfor %}
-</datalist>
-
-<div class="instructions-box">
-  Geef hier aan welke leerlingen niet (of niet te veel) bij elkaar mogen — denk aan
-  leerlingen die elkaar negatief versterken, of zorgleerlingen die je wilt spreiden.
-  <br><br>
-  Per groepje: voeg leerlingen toe via het invoerveld en klik op "+ Toevoegen". Stel daarna
-  het maximale aantal in per klas en klik "✓ Bevestig" om de groep af te ronden.
-  Om twee leerlingen te scheiden: voeg ze toe en zet max op 1.
-  Zonder regels: klik direct op "Opslaan &amp; door naar indelen →".
-</div>
-
-<form method="post" action="{{ url_for('wizard.not_together_page') }}"
-      onsubmit="return prepareAndValidate()">
-  <input type="hidden" name="n_rules" id="n_rules" value="0">
-
-  <div id="rules-container"></div>
-
-  <div style="margin: 1rem 0;">
-    <button type="button" class="button button--small" onclick="addRule()">
-      + Niet-samen-groep toevoegen
-    </button>
+<main class="not-together-page">
+  <div class="not-together-intro">
+    <p>Wil je voorkomen dat bepaalde leerlingen allemaal in dezelfde groep komen?
+      Maak hieronder een spreiding. Voeg de leerlingen toe en kies hoeveel van hen er maximaal
+      in één groep mogen komen. ALI Express houdt zich bij de groepsindeling altijd aan
+      dat maximum.</p>
+    <p>Geen spreiding nodig? Dan kun je meteen verder.</p>
   </div>
 
-  <div class="step-navigation">
-    <a href="{{ prev_preferences_url }}" class="button previous-step">
-      ← Naar Voorkeuren
-    </a>
-    <button type="submit" class="button next-step">
-      Opslaan &amp; door naar indelen →
-    </button>
-  </div>
-</form>
+  <section class="not-together-examples" aria-labelledby="not-together-examples-heading">
+    <h2 id="not-together-examples-heading">Voorbeelden</h2>
+    <article class="not-together-example">
+      <h3>Twee leerlingen uit elkaar houden</h3>
+      <p>Twee leerlingen leiden elkaar vaak af als ze samen zitten. Voeg hen toe en kies
+        maximaal 1. Ze komen dan niet samen in een groep.</p>
+    </article>
+    <article class="not-together-example">
+      <h3>Extra ondersteuning over de groepen verdelen</h3>
+      <p>Zes leerlingen hebben extra ondersteuning nodig. Voeg hen toe en kies maximaal 2.
+        Per groep komen dan maximaal twee van hen.</p>
+    </article>
+  </section>
+
+  <form method="post" action="{{ url_for('wizard.not_together_page') }}"
+        id="not-together-form" onsubmit="return prepareAndValidate()">
+    <input type="hidden" name="n_rules" id="n_rules" value="0">
+
+    <div id="rules-container"></div>
+
+    <div id="not-together-client-message" class="flash-message error"
+         role="alert" tabindex="-1" hidden>
+      <button type="button" class="closebtn" aria-label="Melding sluiten">&times;</button>
+      <span class="not-together-client-message-text"></span>
+    </div>
+
+    <div class="not-together-add-rule">
+      <button type="button" class="button button--small" id="add-rule-button">
+        Spreiding toevoegen
+      </button>
+    </div>
+
+    <div class="step-navigation not-together-navigation">
+      <a href="{{ prev_url }}" class="button button--secondary previous-step">{{ prev_label }}</a>
+      <button type="submit" class="button next-step">
+        {{ next_label }}
+      </button>
+    </div>
+  </form>
+</main>
 
 <script>
 const studentNames = new Set({{ students | tojson }});
 const nGroups = {{ n_groups }};
-let ruleCount = 0;
 
 function chipCount(card) {
   return card.querySelectorAll('.student-chip').length;
@@ -51,40 +63,141 @@ function chipCount(card) {
 
 function getChipNames(card) {
   return Array.from(card.querySelectorAll('.student-chip input[type="hidden"]'))
-    .map(h => h.value);
+    .map(hidden => hidden.value);
 }
 
-function updateMax(card) {
-  const n = chipCount(card);
-  const maxInput = card.querySelector('.rule-max-label input');
-  if (maxInput) maxInput.value = Math.max(1, Math.floor(n / nGroups) + 1);
+function clientMessage() {
+  return document.getElementById('not-together-client-message');
 }
 
-function updateConfirmButton(card) {
-  const btn = card.querySelector('.confirm-rule-btn');
-  if (btn) btn.disabled = chipCount(card) < 2;
+function clearClientError() {
+  const message = clientMessage();
+  message.hidden = true;
+  message.querySelector('.not-together-client-message-text').textContent = '';
+}
+
+function showClientError(text, focusTarget) {
+  const message = clientMessage();
+  message.querySelector('.not-together-client-message-text').textContent = text;
+  message.hidden = false;
+  message.focus();
+  if (focusTarget) window.setTimeout(() => focusTarget.focus(), 0);
+}
+
+function hideStudentOptions(card) {
+  const list = card.querySelector('.student-combobox-list');
+  const input = card.querySelector('.student-combobox-input');
+  if (list) list.hidden = true;
+  if (input) {
+    input.setAttribute('aria-expanded', 'false');
+    input.removeAttribute('aria-activedescendant');
+  }
+}
+
+function setActiveStudentOption(input, index) {
+  const card = input.closest('.rule-card');
+  const options = Array.from(card.querySelectorAll('.student-combobox-list .combobox-option'));
+  if (!options.length) {
+    input._activeIndex = -1;
+    input.removeAttribute('aria-activedescendant');
+    return;
+  }
+  input._activeIndex = Math.max(0, Math.min(index, options.length - 1));
+  options.forEach((option, optionIndex) => {
+    option.classList.toggle('active', optionIndex === input._activeIndex);
+  });
+  const active = options[input._activeIndex];
+  input.setAttribute('aria-activedescendant', active.id);
+  active.scrollIntoView({ block: 'nearest' });
+}
+
+function renderStudentOptions(input) {
+  const card = input.closest('.rule-card');
+  const list = card.querySelector('.student-combobox-list');
+  if (input._hideOptionsTimeout) {
+    window.clearTimeout(input._hideOptionsTimeout);
+    input._hideOptionsTimeout = null;
+  }
+  const query = input.value.trim().toLocaleLowerCase('nl');
+  const selected = new Set(getChipNames(card));
+  const options = Array.from(studentNames)
+    .filter(name => !selected.has(name))
+    .filter(name => name.toLocaleLowerCase('nl').includes(query))
+    .sort((a, b) => a.localeCompare(b, 'nl'));
+
+  list.innerHTML = '';
+  options.forEach((name, index) => {
+    const option = document.createElement('li');
+    option.className = 'combobox-option';
+    option.id = `${list.id}-option-${index}`;
+    option.setAttribute('role', 'option');
+    option.dataset.value = name;
+    option.textContent = name;
+    option.addEventListener('mousedown', event => {
+      event.preventDefault();
+      chooseStudent(input, name);
+    });
+    list.appendChild(option);
+  });
+  list.hidden = options.length === 0;
+  input.setAttribute('aria-expanded', options.length ? 'true' : 'false');
+  if (options.length) setActiveStudentOption(input, 0);
+  else input.removeAttribute('aria-activedescendant');
+}
+
+function chooseStudent(input, name) {
+  const card = input.closest('.rule-card');
+  if (!studentNames.has(name) || getChipNames(card).includes(name)) return;
+  clearClientError();
+  card.querySelector('.chips-area').appendChild(
+    makeChip(Number(card.dataset.index), name)
+  );
+  input.value = '';
+  updateMaxAfterStudentAdded(card);
+  updateConfirmButton(card);
+  renderStudentOptions(input);
+  input.focus();
+}
+
+function selectActiveStudent(input) {
+  const card = input.closest('.rule-card');
+  const list = card.querySelector('.student-combobox-list');
+  const options = Array.from(list.querySelectorAll('.combobox-option'));
+  if (!list.hidden && options[input._activeIndex] && studentNames.has(
+    options[input._activeIndex].dataset.value
+  )) {
+    chooseStudent(input, options[input._activeIndex].dataset.value);
+    return true;
+  }
+  showClientError(
+    input.value.trim()
+      ? 'Kies een leerling uit de deelnemers aan deze groepsindeling.'
+      : 'Kies eerst een leerling.',
+    input
+  );
+  return false;
 }
 
 function makeChip(ruleIndex, name) {
   const chip = document.createElement('span');
   chip.className = 'student-chip';
 
-  const lbl = document.createElement('span');
-  lbl.textContent = name;
+  const label = document.createElement('span');
+  label.className = 'chip-label';
+  label.textContent = name;
 
-  const del = document.createElement('button');
-  del.type = 'button';
-  del.className = 'delete-btn chip-del';
-  del.title = 'Verwijder leerling';
-  del.textContent = '✖';
-  del.onclick = () => {
+  const remove = document.createElement('button');
+  remove.type = 'button';
+  remove.className = 'delete-btn chip-del';
+  remove.title = `Verwijder ${name} uit deze spreiding`;
+  remove.setAttribute('aria-label', `Verwijder ${name} uit deze spreiding`);
+  remove.textContent = '×';
+  remove.onclick = () => {
     const card = chip.closest('.rule-card');
     chip.remove();
-    updateMax(card);
+    clearClientError();
     updateConfirmButton(card);
-    if (card.dataset.state === 'confirmed' && chipCount(card) < 2) {
-      setEditing(card);
-    }
+    if (card.dataset.state === 'confirmed' && chipCount(card) < 2) setEditing(card);
   };
 
   const hidden = document.createElement('input');
@@ -92,88 +205,167 @@ function makeChip(ruleIndex, name) {
   hidden.name = `rule_students[${ruleIndex}]`;
   hidden.value = name;
 
-  chip.append(lbl, del, hidden);
+  chip.append(label, remove, hidden);
   return chip;
+}
+
+function updateMaxAfterStudentAdded(card) {
+  const maxInput = card.querySelector('.rule-max-label input');
+  if (maxInput) maxInput.value = Math.max(1, Math.floor(chipCount(card) / nGroups) + 1);
+}
+
+function updateConfirmButton(card) {
+  const button = card.querySelector('.confirm-rule-btn');
+  if (button && card.dataset.state === 'editing') button.disabled = chipCount(card) < 2;
 }
 
 function setConfirmed(card) {
   card.dataset.state = 'confirmed';
-  card.querySelector('.rule-add-area').style.display = 'none';
-  card.querySelectorAll('.chip-del').forEach(b => { b.style.display = 'none'; });
-  const btn = card.querySelector('.confirm-rule-btn');
-  btn.textContent = '✎ Bewerk';
-  btn.disabled = false;
+  hideStudentOptions(card);
+  card.querySelector('.rule-add-area').hidden = true;
+  card.querySelectorAll('.chip-del').forEach(button => { button.hidden = true; });
+  const button = card.querySelector('.confirm-rule-btn');
+  button.textContent = 'Bewerken';
+  button.disabled = false;
+  button.setAttribute('aria-label', 'Bewerken');
   card.querySelector('.rule-max-label input').readOnly = true;
 }
 
 function setEditing(card) {
   card.dataset.state = 'editing';
-  card.querySelector('.rule-add-area').style.display = '';
-  card.querySelectorAll('.chip-del').forEach(b => { b.style.display = ''; });
-  const btn = card.querySelector('.confirm-rule-btn');
-  btn.textContent = '✓ Bevestig';
-  btn.disabled = chipCount(card) < 2;
+  card.querySelector('.rule-add-area').hidden = false;
+  card.querySelectorAll('.chip-del').forEach(button => { button.hidden = false; });
+  const button = card.querySelector('.confirm-rule-btn');
+  button.textContent = 'Bevestigen';
+  button.disabled = chipCount(card) < 2;
+  button.setAttribute('aria-label', 'Bevestigen');
   card.querySelector('.rule-max-label input').readOnly = false;
 }
 
-function addStudentToRule(card) {
-  const inp = card.querySelector('.rule-add-area input[type="text"]');
-  const errSpan = card.querySelector('.rule-add-error');
-  const name = inp.value.trim();
+function validateCard(card) {
+  const maxInput = card.querySelector('.rule-max-label input');
+  const maxValue = Number(maxInput.value);
+  if (!Number.isInteger(maxValue) || maxValue < 1) {
+    setEditing(card);
+    showClientError('Het maximum moet minimaal 1 zijn.', maxInput);
+    return false;
+  }
+  if (chipCount(card) > maxValue * nGroups) {
+    setEditing(card);
+    showClientError(
+      `Deze spreiding is niet uitvoerbaar: verdeel de leerlingen over ${nGroups} groepen of verhoog het maximum.`,
+      maxInput
+    );
+    return false;
+  }
+  return true;
+}
 
-  if (!name) {
-    errSpan.textContent = 'Voer een naam in.';
+function confirmRule(card) {
+  clearClientError();
+  if (chipCount(card) < 2) {
+    showClientError(
+      'Voeg minimaal twee leerlingen aan deze spreiding toe.',
+      card.querySelector('.student-combobox-input')
+    );
     return;
   }
-  if (!studentNames.has(name)) {
-    errSpan.textContent = `"${name}" is geen bekende leerling.`;
-    return;
-  }
-  if (getChipNames(card).includes(name)) {
-    errSpan.textContent = `${name} is al in deze groep.`;
-    return;
-  }
+  if (!validateCard(card)) return;
+  setConfirmed(card);
+}
 
-  errSpan.textContent = '';
-  inp.value = '';
-  card.querySelector('.chips-area').appendChild(makeChip(parseInt(card.dataset.index), name));
-  updateMax(card);
-  updateConfirmButton(card);
-  inp.focus();
+function renumberCards() {
+  document.querySelectorAll('.rule-card').forEach((card, index) => {
+    card.dataset.index = index;
+    const title = card.querySelector('.rule-title');
+    if (title) title.textContent = `Spreiding ${index + 1}`;
+    const input = card.querySelector('.student-combobox-input');
+    const label = card.querySelector('.student-choice-label');
+    const list = card.querySelector('.student-combobox-list');
+    if (input && label && list) {
+      const inputId = `student-choice-${index}`;
+      const listId = `student-choice-list-${index}`;
+      input.id = inputId;
+      label.htmlFor = inputId;
+      list.id = listId;
+      input.setAttribute('aria-controls', listId);
+    }
+    card.querySelectorAll('.student-chip input[type="hidden"]').forEach(hidden => {
+      hidden.name = `rule_students[${index}]`;
+    });
+    const maxInput = card.querySelector('.rule-max-label input');
+    if (maxInput) maxInput.name = `rule_max[${index}]`;
+  });
 }
 
 function addRule() {
-  const index = ruleCount++;
+  const index = document.querySelectorAll('.rule-card').length;
   const container = document.getElementById('rules-container');
-
-  const card = document.createElement('div');
+  const card = document.createElement('section');
   card.className = 'rule-card';
   card.dataset.state = 'editing';
   card.dataset.index = index;
 
-  const chipsArea = document.createElement('span');
+  const title = document.createElement('h2');
+  title.className = 'rule-title';
+  title.textContent = `Spreiding ${index + 1}`;
+
+  const chipsArea = document.createElement('div');
   chipsArea.className = 'chips-area';
 
-  const addArea = document.createElement('span');
+  const addArea = document.createElement('div');
   addArea.className = 'rule-add-area';
+  const inputId = `student-choice-${index}`;
+  const listId = `student-choice-list-${index}`;
 
-  const inp = document.createElement('input');
-  inp.type = 'text';
-  inp.setAttribute('list', 'student-list');
-  inp.placeholder = 'Leerlingnaam…';
-  inp.autocomplete = 'off';
-  inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); addStudentToRule(card); } };
+  const inputLabel = document.createElement('label');
+  inputLabel.className = 'student-choice-label';
+  inputLabel.htmlFor = inputId;
+  inputLabel.textContent = 'Leerling toevoegen';
 
-  const addBtn = document.createElement('button');
-  addBtn.type = 'button';
-  addBtn.className = 'button button--small';
-  addBtn.textContent = '+ Toevoegen';
-  addBtn.onclick = () => addStudentToRule(card);
+  const combobox = document.createElement('div');
+  combobox.className = 'combobox not-together-combobox';
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.id = inputId;
+  input.className = 'combobox-input student-combobox-input';
+  input.placeholder = 'Zoek een leerling…';
+  input.autocomplete = 'off';
+  input.setAttribute('role', 'combobox');
+  input.setAttribute('aria-autocomplete', 'list');
+  input.setAttribute('aria-controls', listId);
+  input.setAttribute('aria-expanded', 'false');
+  input.addEventListener('focus', () => renderStudentOptions(input));
+  input.addEventListener('input', () => renderStudentOptions(input));
+  input.addEventListener('blur', () => {
+    input._hideOptionsTimeout = window.setTimeout(() => {
+      hideStudentOptions(card);
+      input._hideOptionsTimeout = null;
+    }, 150);
+  });
+  input.addEventListener('keydown', event => {
+    const options = Array.from(card.querySelectorAll('.student-combobox-list .combobox-option'));
+    if (event.key === 'ArrowDown' && options.length) {
+      event.preventDefault();
+      setActiveStudentOption(input, (input._activeIndex ?? 0) + 1);
+    } else if (event.key === 'ArrowUp' && options.length) {
+      event.preventDefault();
+      setActiveStudentOption(input, (input._activeIndex ?? 0) - 1);
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      selectActiveStudent(input);
+    } else if (event.key === 'Escape') {
+      hideStudentOptions(card);
+    }
+  });
 
-  const errSpan = document.createElement('span');
-  errSpan.className = 'rule-add-error';
-
-  addArea.append(inp, addBtn, errSpan);
+  const list = document.createElement('ul');
+  list.id = listId;
+  list.className = 'combobox-list student-combobox-list';
+  list.setAttribute('role', 'listbox');
+  list.hidden = true;
+  combobox.append(input, list);
+  addArea.append(inputLabel, combobox);
 
   const maxLabel = document.createElement('label');
   maxLabel.className = 'rule-max-label';
@@ -181,32 +373,37 @@ function addRule() {
   maxInput.type = 'number';
   maxInput.name = `rule_max[${index}]`;
   maxInput.min = '1';
-  maxInput.value = 1;
-  maxLabel.append('Max samen: ', maxInput);
+  maxInput.step = '1';
+  maxInput.value = '1';
+  maxInput.setAttribute('aria-label', 'Maximumaantal van deze leerlingen per groep');
+  maxLabel.append('Maximaal ', maxInput, ' van deze leerlingen per groep');
 
-  const confirmBtn = document.createElement('button');
-  confirmBtn.type = 'button';
-  confirmBtn.className = 'button button--small confirm-rule-btn';
-  confirmBtn.textContent = '✓ Bevestig';
-  confirmBtn.disabled = true;
-  confirmBtn.onclick = () => {
-    if (card.dataset.state === 'editing') {
-      if (chipCount(card) >= 2) setConfirmed(card);
-    } else {
-      setEditing(card);
-    }
+  const confirmButton = document.createElement('button');
+  confirmButton.type = 'button';
+  confirmButton.className = 'button button--small confirm-rule-btn';
+  confirmButton.textContent = 'Bevestigen';
+  confirmButton.disabled = true;
+  confirmButton.setAttribute('aria-label', 'Bevestigen');
+  confirmButton.onclick = () => {
+    if (card.dataset.state === 'editing') confirmRule(card);
+    else setEditing(card);
   };
 
-  const delRule = document.createElement('button');
-  delRule.type = 'button';
-  delRule.className = 'delete-btn';
-  delRule.title = 'Verwijder regel';
-  delRule.textContent = '✖ Verwijder';
-  delRule.onclick = () => card.remove();
+  const deleteButton = document.createElement('button');
+  deleteButton.type = 'button';
+  deleteButton.className = 'delete-btn rule-delete-btn';
+  deleteButton.setAttribute('aria-label', 'Spreiding verwijderen');
+  deleteButton.textContent = 'Spreiding verwijderen';
+  deleteButton.onclick = () => {
+    card.remove();
+    clearClientError();
+    renumberCards();
+  };
 
-  card.append(chipsArea, addArea, maxLabel, confirmBtn, delRule);
+  card.append(title, chipsArea, addArea, maxLabel, confirmButton, deleteButton);
   container.appendChild(card);
-  inp.focus();
+  renumberCards();
+  input.focus();
 }
 
 function initRules(rules) {
@@ -216,64 +413,52 @@ function initRules(rules) {
     const card = cards[cards.length - 1];
     const chipsArea = card.querySelector('.chips-area');
     rule.group.forEach(name => {
-      chipsArea.appendChild(makeChip(parseInt(card.dataset.index), name));
+      chipsArea.appendChild(makeChip(Number(card.dataset.index), name));
     });
-    updateMax(card);
     card.querySelector('.rule-max-label input').value = rule.Max_aantal_samen;
     updateConfirmButton(card);
     if (chipCount(card) >= 2) setConfirmed(card);
   });
+  renumberCards();
 }
 
 function prepareAndValidate() {
-  // Drop rules with no chips (silently)
-  document.querySelectorAll('.rule-card').forEach(card => {
-    if (chipCount(card) === 0) card.remove();
-  });
+  clearClientError();
+  renumberCards();
+  const cards = Array.from(document.querySelectorAll('.rule-card'));
 
-  const remaining = Array.from(document.querySelectorAll('.rule-card'));
-
-  for (let i = 0; i < remaining.length; i++) {
-    const card = remaining[i];
-    const label = `Niet-samen-groep ${i + 1}`;
-
+  for (let index = 0; index < cards.length; index += 1) {
+    const card = cards[index];
+    const input = card.querySelector('.student-combobox-input');
+    const confirmButton = card.querySelector('.confirm-rule-btn');
+    if (chipCount(card) < 2) {
+      showClientError(
+        `Spreiding ${index + 1} is nog niet compleet. Voeg minimaal twee leerlingen toe, bevestig de spreiding of verwijder haar.`,
+        input
+      );
+      return false;
+    }
     if (card.dataset.state === 'editing') {
-      alert(`${label} is nog niet bevestigd. Klik op "✓ Bevestig" of verwijder de groep.`);
-      card.querySelector('.confirm-rule-btn').focus();
+      showClientError(
+        `Spreiding ${index + 1} is nog niet bevestigd. Bevestig de spreiding of verwijder haar.`,
+        confirmButton
+      );
       return false;
     }
-
-    const names = getChipNames(card);
-    const maxInput = card.querySelector('.rule-max-label input');
-    const maxVal = parseInt(maxInput.value, 10);
-
-    if (isNaN(maxVal) || maxVal < 1) {
-      setEditing(card);
-      alert(`${label}: "Max samen" moet minimaal 1 zijn.`);
-      maxInput.focus();
-      return false;
-    }
-    if (names.length / maxVal > nGroups) {
-      setEditing(card);
-      alert(`${label}: met ${nGroups} nieuwe klassen is het niet mogelijk ${names.length} leerlingen te verdelen met maximaal ${maxVal} per klas.`);
-      maxInput.focus();
-      return false;
-    }
-
-    // Renumber for sequential submission
-    card.querySelectorAll('.student-chip input[type="hidden"]').forEach(h => {
-      h.name = `rule_students[${i}]`;
-    });
-    maxInput.name = `rule_max[${i}]`;
+    if (!validateCard(card)) return false;
   }
 
-  document.getElementById('n_rules').value = remaining.length;
+  document.getElementById('n_rules').value = cards.length;
   return true;
 }
+
+document.getElementById('add-rule-button').addEventListener('click', addRule);
+document.querySelector('.not-together-client-message .closebtn').addEventListener(
+  'click', clearClientError
+);
 
 {% if existing_rules %}
 initRules({{ existing_rules | tojson }});
 {% endif %}
 </script>
-
 {% endblock %}

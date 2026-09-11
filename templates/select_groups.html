@@ -1,46 +1,35 @@
 {% extends "base.html" %}
-{% set current_step = 3 if mode == "redistribute_and_forward" else 1 %}
+{% block extra_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='select-groups.css') }}">{% endblock %}
+{% block header %}
+{{ current_step_label }}
+{% endblock %}
 {% block content %}
+<div class="select-groups-page">
 {% if mode == "redistribute_and_forward" %}
-<h2>In welke groepen komen deze jaarlagen volgend jaar?</h2>
-<div class="instructions-box">
-  <p>
-    Selecteer de bestemmingsgroepen waarover de gekozen jaarlagen volgend jaar worden
-    verdeeld. Deze groepen starten leeg — de leerlingen worden er door de indeling aan
-    toegevoegd.
-  </p>
-  <p>Selecteer minimaal twee groepen.</p>
-</div>
+<p class="select-groups-intro">Kies de groepen waarin de leerlingen terechtkomen. Binnen deze indeling beginnen de gekozen groepen leeg. We vullen ze met de leerlingen die je zojuist hebt gecontroleerd.</p>
 {% else %}
-<h2>Welke groepen wil je herindelen?</h2>
-<div class="instructions-box">
-  <p>
-    Selecteer de groepen waarvan de leerlingen opnieuw worden ingedeeld. Alle leerlingen uit
-    de geselecteerde groepen worden herverdeeld over diezelfde groepen — niemand gaat naar
-    een andere groep.
-  </p>
-  <p>Selecteer minimaal twee groepen.</p>
-</div>
+<p class="select-groups-intro">Kies de groepen die je opnieuw wilt indelen. Daarna controleer je welke leerlingen meedoen. We verdelen die leerlingen opnieuw over dezelfde groepen.</p>
 {% endif %}
 
-<form method="post">
-  <fieldset>
-    <legend>Beschikbare groepen</legend>
-    {% for group in groups %}
-    <label>
-      <input type="checkbox" name="groups" value="{{ group }}">
-      {{ group }}
-    </label><br>
-    {% endfor %}
+<form method="post" class="wizard-form">
+  <fieldset class="group-selection-fieldset">
+    <legend>Kies de groepen</legend>
+    <ul class="group-selection-list">
+      {% for group in groups %}
+      <li>
+        <label for="group-{{ loop.index }}">
+          <input id="group-{{ loop.index }}" type="checkbox" name="groups" value="{{ group }}">
+          <span>{{ group }}</span>
+        </label>
+      </li>
+      {% endfor %}
+    </ul>
   </fieldset>
-  <br>
-  <div class="button-row">
-    {% if mode == "redistribute_and_forward" %}
-    <a href="{{ url_for('roster.roster_page') }}" class="button previous-step">← Naar Wie gaat mee</a>
-    {% else %}
-    <a href="{{ url_for('wizard.upload_edexml') }}" class="button previous-step">← Terug naar upload</a>
-    {% endif %}
-    <button type="submit" class="button next-step">Bevestig groepskeuze →</button>
+
+  <div class="select-groups-navigation step-navigation">
+    <a href="{{ prev_url }}" class="button previous-step">{{ prev_label }}</a>
+    <button type="submit" class="button next-step">{{ next_label }}</button>
   </div>
 </form>
+</div>
 {% endblock %}

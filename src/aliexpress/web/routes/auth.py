@@ -55,7 +55,10 @@ def login():
     if request.method == "POST":
         schoolcode = request.form.get("schoolcode", "").strip()
         password = request.form.get("wachtwoord", "")
-        school = db.session.get(School, schoolcode)
+        try:
+            school = School.by_code(schoolcode)
+        except (TypeError, ValueError):
+            school = None
         if school is None or not check_password_hash(school.password_hash, password):
             flash("Ongeldige schoolcode of wachtwoord.", "error")
             return render_template("login.html")

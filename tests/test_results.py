@@ -6,7 +6,10 @@ import json
 import re
 from dataclasses import asdict
 
+import pandas as pd
+
 import aliexpress.web.routes.results as results_module
+from aliexpress.data.preferences_form import Preference, PreferenceKind, StudentEntry
 from aliexpress.solver._balance import BalanceMaxima
 from aliexpress.web.extensions import db
 from aliexpress.web.models import Process, Run
@@ -32,6 +35,13 @@ def _setup_process(client, tmp_path, process_id="testproces"):
     with client.session_transaction() as sess:
         sess["process_id"] = process_id
     return proc_dir
+
+
+def _write_result_view(proc_dir):
+    """Persist the shared minimal structured result fixture for result-route tests."""
+    (proc_dir / "groepsindeling_view.json").write_text(
+        json.dumps(asdict(make_interim_view())), encoding="utf-8"
+    )
 
 
 class TestDownloadPreferences:
@@ -72,8 +82,20 @@ class TestProcessingIdlePanel:  # pylint: disable=too-few-public-methods  # one 
         assert response.status_code == 200
         html = response.data.decode("utf-8")
         assert 'name="maxima_max_clique"' in html
-        assert "Start verdeling" in html
+        assert "Groepsindeling berekenen →" in html
         assert "leerlingen" in html
+
+    def test_difference_edit_query_opens_balance_fields(self, client, tmp_path):
+        """The adjustment link opens the existing balance-limit disclosure."""
+        proc_dir = _setup_process(client, tmp_path)
+        write_minimal_voorkeuren_json(proc_dir)
+        write_minimal_groups_xlsx(proc_dir)
+
+        html = client.get("/processing?edit=differences").data.decode("utf-8")
+
+        details_tag = re.search(r'<details class="instructions-box"[^>]*>', html)
+        assert details_tag is not None
+        assert " open" in details_tag.group()
 
 
 class TestProcessingRunStates:
@@ -115,9 +137,9 @@ class TestProcessingRunStates:
         html = response.data.decode("utf-8")
         assert re.search(r'name="maxima_max_diff_n_students_year"[^>]*value="6"', html)
         assert re.search(r'name="maxima_max_clique"[^>]*value="4"', html)
-        assert "Start nieuwe indeling" in html
-        assert "Start verdeling" not in html
-        assert "Een nieuwe indeling vervangt het huidige resultaat." in html
+        assert "Groepsindeling berekenen →" in html
+        assert "Groepsindeling opnieuw berekenen →" not in html
+        assert "Een nieuwe berekening vervangt de huidige groepsindeling." in html
         assert re.search(
             r'href="/download"[^>]*>Download huidige groepsindeling</a>', html
         )
@@ -150,10 +172,10 @@ class TestProcessingRunStates:
         assert response.status_code == 302
         assert response.headers["Location"].endswith("/result")
 
-    def test_pending_run_shows_progress_view_with_server_summary(
+    def test_pending_run_shows_progress_view_without_ready_summary(
         self, client, tmp_path
     ):
-        """A pending run is active already and must not show the Start button."""
+        """A pending run is active already and must not show the ready summary or Start button."""
         proc_dir = _setup_process(client, tmp_path)
         write_minimal_voorkeuren_json(proc_dir)
         write_minimal_groups_xlsx(proc_dir)
@@ -168,12 +190,9 @@ class TestProcessingRunStates:
 
         assert response.status_code == 200
         html = response.data.decode("utf-8")
-        assert "Groepsindeling aan het uitrekenen" in html
-        assert (
-            'id="input-overview" class="input-overview input-overview--visible"' in html
-        )
-        assert "2 leerlingen" in html
-        assert "Start verdeling" not in html
+        assert "Groepsindeling berekenen" in html
+        assert 'id="input-overview"' not in html
+        assert "Groepsindeling berekenen →" not in html
 
     def test_error_run_reuses_saved_balance_maxima(self, client, tmp_path):
         """An error page shows the limits chosen for the failed attempt."""
@@ -201,7 +220,11 @@ class TestProcessingRunStates:
         assert 'value="6"' in html
         assert 'value="7"' in html
         assert 'value="None"' not in html
-        assert re.search(r'name="maxima_max_clique_sex_unlimited"\s+checked', html)
+        assert re.search(r'name="maxima_max_clique_sex_unlimited"[^>]*\schecked', html)
+        assert "Mislukt" in html
+        assert 'class="flash-message error"' in html
+        assert "Dit kun je aanpassen" not in html
+        assert 'class="calculation-error"' not in html
         details_tag = re.search(
             r'<details class="instructions-box"[^>]*>', html
         ).group()
@@ -246,7 +269,7 @@ class TestStatus:
         assert data["steps"] == {"floor": "busy"}
 
     def test_error_run_includes_message(self, client, tmp_path):
-        """An errored run exposes its friendly message for the frontend to flash."""
+        """An errored run exposes its friendly message for the processing page."""
         _setup_process(client, tmp_path)
         with flask_app.app_context():
             proc = Process.query.filter_by(
@@ -259,6 +282,79 @@ class TestStatus:
         assert data["message"] == "Mislukt"
 
 
+class TestProcessingSummary:  # pylint: disable=too-few-public-methods
+    """The ready summary is complete, semantic, and does not start a run."""
+
+    def test_ready_get_is_read_only_and_renders_server_summary_once(
+        self, client, tmp_path
+    ):
+        """A ready GET renders the full summary once without starting a run."""
+        proc_dir = _setup_process(client, tmp_path)
+        students = [
+            StudentEntry(
+                "Alexandra van de Water",
+                "Meisje",
+                "Oude groep met een bijzonder lange naam",
+                None,
+                preferences=[
+                    Preference("Bram van den Berg", 1.0, PreferenceKind.TOGETHER)
+                ],
+            ),
+            StudentEntry(
+                "Bram van den Berg",
+                "Jongen",
+                "Oude groep met een bijzonder lange naam",
+                None,
+                preferences=[
+                    Preference("Alexandra van de Water", 1.0, PreferenceKind.APART)
+                ],
+            ),
+            StudentEntry(
+                "Cato de Vries",
+                "Meisje",
+                "Andere lange huidige groep",
+                0.5,
+                excluded_groups=["Een nieuwe groep met een lange naam"],
+            ),
+        ]
+        write_minimal_voorkeuren_json(
+            proc_dir,
+            students=students,
+            all_to_groups=[
+                "eennieuwegroepmeteenlangenaam",
+                "nogenieuwegroepmeteenlangenaam",
+            ],
+        )
+        write_minimal_groups_xlsx(proc_dir)
+
+        html = client.get("/processing").get_data(as_text=True)
+
+        assert "Groepsindeling berekenen" in html
+        assert "Oude groep met een bijzonder lange naam" in html
+        pd.DataFrame(
+            {"Jongens": [1, 1], "Meisjes": [1, 0]},
+            index=pd.Index(
+                [
+                    "Een nieuwe groep met een lange naam",
+                    "Nog een nieuwe groep met een lange naam",
+                ],
+                name="Groepen",
+            ),
+        ).to_excel(proc_dir / "groups.xlsx")
+        html = client.get("/processing").get_data(as_text=True)
+        assert "Groepen in deze indeling (2)" in html
+        assert "Een nieuwe groep met een lange naam" in html
+        assert "Nog een nieuwe groep met een lange naam" in html
+        assert "2 leerlingen met één of meer voorkeuren" in html
+        assert "Huidige jaarlaag" not in html
+        assert "voor 2 van 3" not in html
+        assert html.count('id="input-overview"') == 1
+        assert not (proc_dir / "progress.json").exists()
+        with flask_app.app_context():
+            proc = Process.by_name(SCHOOL_ID, "testproces")
+            assert proc.run is None
+
+
 class TestResultPage:
     """Tests for GET /result (process-scoped)."""
 
@@ -268,50 +364,272 @@ class TestResultPage:
         assert response.status_code == 302
         assert response.headers["Location"].endswith("/processes")
 
-    def test_missing_tables_flashes_and_redirects(self, client, tmp_path):
-        """Visiting /result before the tables file exists flashes an error and redirects."""
+    def test_missing_view_flashes_and_redirects(self, client, tmp_path):
+        """Visiting /result before the structured view exists flashes an error and redirects."""
         _setup_process(client, tmp_path)
         response = client.get("/result")
         assert response.status_code == 302
         assert response.headers["Location"].endswith("/processes")
         assert any(cat == "error" for cat, _ in flashes(client))
 
-    def test_renders_tables_from_file(self, client, tmp_path):
-        """The result page renders the stored HTML tables."""
-        proc_dir = _setup_process(client, tmp_path)
-        (proc_dir / "result_tables.json").write_text(
-            json.dumps({"Groepsindeling": "<table>indeling</table>"}),
-            encoding="utf-8",
-        )
-        html = client.get("/result").data.decode("utf-8")
-        assert "Groepsindeling" in html
-        assert "<table>indeling</table>" in html
-
     def test_result_page_shows_sociogram_link(self, client, tmp_path):
         """The completed-result page keeps the direct sociogram link."""
-        _setup_process(client, tmp_path)
-        (tmp_path / SCHOOL_ID / "testproces" / "result_tables.json").write_text(
-            "{}", encoding="utf-8"
-        )
+        proc_dir = _setup_process(client, tmp_path)
+        _write_result_view(proc_dir)
 
         html = client.get("/result").data.decode("utf-8")
 
         assert 'href="/sociogram"' in html
         assert 'target="_blank"' in html
 
-    def test_restart_link_opens_plain_processing_form(self, client, tmp_path):
-        """The existing retry link opens editable processing without watch mode."""
+    def test_adjustment_links_open_existing_input_steps(self, client, tmp_path):
+        """The result page links to existing input steps without a new route."""
         proc_dir = _setup_process(client, tmp_path)
-        (proc_dir / "result_tables.json").write_text("{}", encoding="utf-8")
+        _write_result_view(proc_dir)
 
         html = client.get("/result").data.decode("utf-8")
 
-        assert "\u2190 Nog niet helemaal... opnieuw invoeren" in html
+        assert "← Nog niet helemaal... opnieuw invoeren" in html
         assert re.search(
-            r'href="/processing"[^>]*>\u2190 Nog niet helemaal\.\.\. opnieuw invoeren</a>',
+            r'href="/preferences_form"[^>]*>Voorkeuren aanpassen</a>',
             html,
         )
-        assert "/processing?watch=" not in html
+        assert re.search(
+            r'href="/not_together"[^>]*>Leerlingen spreiden aanpassen</a>', html
+        )
+        assert re.search(
+            r'href="/processing\?edit=differences"[^>]*>'
+            r"Ruimte voor verschillen tussen groepen aanpassen</a>",
+            html,
+        )
+        adjustment = html.split("Nog niet helemaal... opnieuw invoeren", 1)[1]
+        assert "grotere verschillen" in adjustment
+        assert "toegestane verschillen tussen groepen kleiner" in adjustment
+        assert "Wil je juist gelijkere groepen" not in adjustment
+
+    def test_structured_view_renders_native_result_analyses(self, client, tmp_path):
+        """A structured result exposes sorted native student and origin analyses."""
+        proc_dir = _setup_process(client, tmp_path)
+        view = {
+            "group_order": ["Groep A", "Groep B"],
+            "groups": [
+                {
+                    "name": "Groep A",
+                    "total": 3,
+                    "boys_total": 2,
+                    "girls_total": 1,
+                    "year_sections": [
+                        {
+                            "year": 6,
+                            "label": "Jaarlaag 6",
+                            "size": 3,
+                            "boys": {
+                                "sex": "Jongen",
+                                "new_count": 2,
+                                "students": [
+                                    {
+                                        "chip_name": "Bob",
+                                        "full_name": "Bob Lange Naam",
+                                        "origin_abbrev": "Sta",
+                                        "origin_full": "Stam 1",
+                                        "year_group": 6,
+                                        "satisfaction": 0.5,
+                                        "preferences": [
+                                            {
+                                                "kind": "graag_met",
+                                                "target": "Cato",
+                                                "fulfilled": True,
+                                                "target_is_group": False,
+                                                "weight": 1.0,
+                                            }
+                                        ],
+                                        "not_in": [],
+                                        "min_satisfaction": None,
+                                    },
+                                    {
+                                        "chip_name": "Daan",
+                                        "full_name": "Daan",
+                                        "origin_abbrev": "Sta",
+                                        "origin_full": "Stam 2",
+                                        "year_group": 6,
+                                        "satisfaction": 1.0,
+                                        "preferences": [
+                                            {
+                                                "kind": "graag_met",
+                                                "target": "Groep B",
+                                                "fulfilled": True,
+                                                "target_is_group": True,
+                                                "weight": 5.0,
+                                            }
+                                        ],
+                                        "not_in": [],
+                                        "min_satisfaction": "full",
+                                    },
+                                ],
+                            },
+                            "girls": {
+                                "sex": "Meisje",
+                                "new_count": 1,
+                                "students": [
+                                    {
+                                        "chip_name": "Alice",
+                                        "full_name": "Alice",
+                                        "origin_abbrev": "Sta",
+                                        "origin_full": "Stam 1",
+                                        "year_group": 6,
+                                        "satisfaction": 0.25,
+                                        "preferences": [
+                                            {
+                                                "kind": "graag_met",
+                                                "target": "Bob",
+                                                "fulfilled": True,
+                                                "target_is_group": False,
+                                                "weight": 0.5,
+                                            },
+                                            {
+                                                "kind": "liever_niet_met",
+                                                "target": "Groep B",
+                                                "fulfilled": False,
+                                                "target_is_group": True,
+                                                "weight": 2.0,
+                                            },
+                                        ],
+                                        "not_in": [],
+                                        "min_satisfaction": "partial",
+                                    }
+                                ],
+                            },
+                        }
+                    ],
+                },
+                {
+                    "name": "Groep B",
+                    "total": 2,
+                    "boys_total": 1,
+                    "girls_total": 1,
+                    "year_sections": [
+                        {
+                            "year": 6,
+                            "label": "Jaarlaag 6",
+                            "size": 2,
+                            "boys": {
+                                "sex": "Jongen",
+                                "new_count": 1,
+                                "students": [
+                                    {
+                                        "chip_name": "Geen",
+                                        "full_name": "Geen Voorkeur",
+                                        "origin_abbrev": "Sta",
+                                        "origin_full": "Stam 2",
+                                        "year_group": 6,
+                                        "satisfaction": None,
+                                        "preferences": [],
+                                        "not_in": ["Groep A"],
+                                        "min_satisfaction": "partial",
+                                    }
+                                ],
+                            },
+                            "girls": {
+                                "sex": "Meisje",
+                                "new_count": 1,
+                                "students": [
+                                    {
+                                        "chip_name": "Cato",
+                                        "full_name": "Cato",
+                                        "origin_abbrev": "Sta",
+                                        "origin_full": "Stam 1",
+                                        "year_group": 6,
+                                        "satisfaction": 0.0,
+                                        "preferences": [
+                                            {
+                                                "kind": "liever_niet_met",
+                                                "target": "Alice",
+                                                "fulfilled": True,
+                                                "target_is_group": False,
+                                                "weight": 1.0,
+                                            },
+                                            {
+                                                "kind": "liever_niet_met",
+                                                "target": "Bob",
+                                                "fulfilled": False,
+                                                "target_is_group": False,
+                                                "weight": 1.0,
+                                            },
+                                        ],
+                                        "not_in": [],
+                                        "min_satisfaction": None,
+                                    }
+                                ],
+                            },
+                        }
+                    ],
+                },
+            ],
+            "balance_rows": [
+                {
+                    "label": "Totaal",
+                    "is_total": True,
+                    "per_group": {
+                        "Groep A": [3, 2, 1],
+                        "Groep B": [2, 1, 1],
+                    },
+                    "size_diff": 1,
+                    "sex_imbalance": 1,
+                },
+                {
+                    "label": "Jaarlaag 6",
+                    "is_total": False,
+                    "per_group": {
+                        "Groep A": [3, 2, 1],
+                        "Groep B": [2, 1, 1],
+                    },
+                    "size_diff": 1,
+                    "sex_imbalance": 1,
+                },
+            ],
+        }
+        (proc_dir / "groepsindeling_view.json").write_text(
+            json.dumps(view), encoding="utf-8"
+        )
+
+        html = client.get("/result").data.decode("utf-8")
+
+        assert "Je groepsindeling is klaar!" in html
+        assert "Tevredenheid en voorkeuren per leerling" in html
+        assert "Waar komen de leerlingen vandaan?" in html
+        assert "Maximaal 2 leerlingen uit dezelfde huidige groep" in html
+        assert "Hele groep of jaarlaag" in html
+        assert "Verschil tussen grootste en kleinste groep" in html
+        assert "Grootste verschil tussen jongens en meisjes binnen een groep" in html
+        assert html.count("Jaarlaag 6") >= 4
+        assert "1 leerling" in html
+        assert "1 leerlingen" not in html
+        assert "Het verschil in groepsgrootte is" not in html
+        student_analysis = html.split("Tevredenheid en voorkeuren per leerling", 1)[1]
+        assert student_analysis.index("Daan") < student_analysis.index("Bob Lange Naam")
+        assert "2 van 2" not in html
+        assert "1 van 2 voorkeuren" not in html
+        assert "Geen voorkeuren ingevuld" in html
+        student_rows = student_analysis.split("</details>", 1)[0]
+        assert ">Gehonoreerd<" not in student_rows
+        assert ">Niet gehonoreerd<" not in student_rows
+        assert "Graag bij Bob" in student_analysis
+        assert "Liever niet in Groep B" in student_analysis
+        assert student_analysis.index("Graag bij Bob") < student_analysis.index(
+            "Liever niet in Groep B"
+        )
+        assert student_analysis.index("Liever niet bij Alice") < student_analysis.index(
+            "Liever niet bij Bob"
+        )
+        assert "25%" in student_analysis
+        assert "25.00%" not in student_analysis
+        assert "♥" in student_analysis
+        assert "↑" in student_analysis
+        assert "~" in student_analysis
+        assert "Niet in" not in student_rows
+        assert "Extra zekerheid:" not in student_rows
+        assert "De verschillen zijn te groot." in html
+        assert html.count('href="/processing?edit=differences"') >= 2
 
 
 class TestInterimResult:
@@ -412,13 +730,16 @@ class TestDownload:
         assert response.status_code == 302
         assert response.headers["Location"].endswith("/processes")
 
-    def test_missing_file_renders_result_page_with_flash(self, client, tmp_path):
-        """Downloading before the result file exists renders the result page with a flash."""
-        _setup_process(client, tmp_path)
+    def test_missing_file_redirects_to_result_page_with_flash(self, client, tmp_path):
+        """A missing workbook returns to the normal result page with a flash."""
+        proc_dir = _setup_process(client, tmp_path)
+        _write_result_view(proc_dir)
         response = client.get("/download")
-        assert response.status_code == 200
-        # Flash is consumed by base.html during render; verify it appears in the HTML
-        assert b"Groepsindeling niet gevonden" in response.data
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/result")
+        result_response = client.get(response.headers["Location"])
+        assert result_response.status_code == 200
+        assert b"Groepsindeling niet gevonden" in result_response.data
 
     def test_existing_file_sends_attachment(self, client, tmp_path):
         """When results.xlsx exists it is sent as an attachment."""
@@ -427,25 +748,3 @@ class TestDownload:
         response = client.get("/download")
         assert response.status_code == 200
         assert "attachment" in response.headers.get("Content-Disposition", "")
-
-
-class TestHandleError:
-    """Tests for POST /handle-error."""
-
-    def test_valid_message_returns_204(self, client):
-        """A valid JSON POST to /handle-error returns HTTP 204 No Content."""
-        response = client.post(
-            "/handle-error",
-            json={"message": "Er ging iets mis"},
-            content_type="application/json",
-        )
-        assert response.status_code == 204
-
-    def test_valid_message_is_flashed(self, client):
-        """The message from /handle-error is stored as a flash for the next request."""
-        client.post(
-            "/handle-error",
-            json={"message": "Er ging iets mis"},
-            content_type="application/json",
-        )
-        assert any(msg == "Er ging iets mis" for _, msg in flashes(client))

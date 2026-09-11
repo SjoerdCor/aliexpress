@@ -63,6 +63,7 @@ from ..process_files import (
 from ..storage import get_process_path
 from ..tasks import ThreadContext, run_solve_thread
 from ..validation_messages import to_validation_message
+from ..wizard_steps import wizard_context
 from .auth import effective_school_id
 from .processes import get_process_mode, is_redistribute_mode, require_process
 
@@ -110,19 +111,16 @@ def _pref_form_post_data(school_id, process_id, form, participants, all_groups_t
 
 
 def _not_together_get_context(school_id, process_id):
-    """Return (existing_rules, prev_url) for a GET to /not_together."""
+    """Return the saved spreads for a GET to /not_together."""
     rules = load_not_together(school_id, process_id)
     existing_rules = [
-        {"group": list(r["group"]), "Max_aantal_samen": r["Max_aantal_samen"]}
+        {
+            "group": sorted(r["group"], key=str.casefold),
+            "Max_aantal_samen": r["Max_aantal_samen"],
+        }
         for r in rules
     ]
-    input_method = load_input_method(school_id, process_id)
-    prev_url = (
-        url_for("wizard.preferences_excel")
-        if input_method == "excel"
-        else url_for("wizard.preferences_form")
-    )
-    return existing_rules, prev_url
+    return existing_rules
 
 
 @wizard_bp.route("/input_templates/<path:filename>")
@@ -235,7 +233,9 @@ def upload_edexml():
                 mode = get_process_mode(get_process_path(school_id, process_id))
             except PermissionError:
                 pass
-        return render_template("upload_edexml.html", mode=mode)
+        return render_template(
+            "upload_edexml.html", mode=mode, **wizard_context(mode, "upload_edexml")
+        )
     # POST
     if not process_id:
         flash("Geen actief proces geselecteerd.", "error")
@@ -316,10 +316,12 @@ def _select_groups_post(df, school_id, process_id, mode):
     """Process a POST to /select_groups: validate the selection, then branch on mode."""
     selected = request.form.getlist("groups")
     if len(selected) < 2:
-        warn_and_flash(
-            "Selecteer minimaal twee groepen om te herindelen.",
-            log_detail="too_few_groups_redistribute",
+        message = (
+            "Kies minimaal twee groepen voor deze indeling."
+            if mode == "redistribute_and_forward"
+            else "Kies minimaal twee groepen om opnieuw in te delen."
         )
+        warn_and_flash(message, log_detail="too_few_groups_redistribute")
         return redirect(url_for("wizard.select_groups"))
     if mode == "redistribute_and_forward":
         return _select_groups_post_redistribute_and_forward(
@@ -345,6 +347,10 @@ def select_groups():
             log_detail="missing_edex_for_select_groups",
         )
         return redirect(url_for("wizard.upload_edexml"))
+    if mode == "forward":
+        # Doorzetten reaches the roster directly after the EDEXML upload; group
+        # selection is only part of the two herindelen routes.
+        return redirect(url_for("roster.roster_page"))
     try:
         edexml = load_edexml(school_id, process_id)
         df = datareader.EdexReader(edexml).get_full_df()
@@ -353,7 +359,12 @@ def select_groups():
         return redirect(url_for("wizard.upload_edexml"))
     if request.method == "GET":
         groups = sorted(df["groepsnaam"].unique().tolist())
-        return render_template("select_groups.html", groups=groups, mode=mode)
+        return render_template(
+            "select_groups.html",
+            groups=groups,
+            mode=mode,
+            **wizard_context(mode, "select_groups"),
+        )
     return _select_groups_post(df, school_id, process_id, mode)
 
 
@@ -368,6 +379,54 @@ def _groups_to_auto_redistribute(school_id, process_id, groups_to):
         len(distribution),
     )
     return redirect(url_for("wizard.preferences_form"))
+
+
+def _clean_groups_to_display_names(submission):
+    """Trim group display names before persisting a groups-to submission.
+
+    The raw names are still used while parsing the form, because they are also part of
+    the checkbox field names for existing groups.  Once the student selections have
+    been reconstructed, the names written to the draft and to Excel are display names
+    with surrounding whitespace removed.
+    """
+    submission.distribution = {
+        datareader.display_name(name): counts
+        for name, counts in submission.distribution.items()
+    }
+    submission.state["new_groups"] = [
+        datareader.display_name(name) for name in submission.state["new_groups"]
+    ]
+
+
+def _parse_groups_to_request(groups_to):
+    """Parse submitted existing and newly added groups while preserving draft state."""
+    original_group_names = request.form.getlist("group")
+    new_group_names = request.form.getlist("new_group")
+    submitted_names = original_group_names + new_group_names
+    seen, duplicates = set(), []
+    for name in submitted_names:
+        key = datareader.matching_key(name)
+        if not key:
+            continue
+        if key in seen:
+            duplicates.append(datareader.display_name(name))
+        seen.add(key)
+
+    parse_form = request.form.copy()
+    parse_form.setlist("group", submitted_names)
+    draft_submission = parse_groups_to_form(parse_form, groups_to)
+    if new_group_names:
+        draft_submission.state["new_groups"] = new_group_names
+        draft_submission.state["disabled_groups"] = [
+            name for name in groups_to if name not in original_group_names
+        ]
+    _clean_groups_to_display_names(draft_submission)
+
+    return (
+        draft_submission,
+        duplicates,
+        any(not datareader.matching_key(name) for name in submitted_names),
+    )
 
 
 @wizard_bp.route("/groups_to", methods=["GET", "POST"])
@@ -386,33 +445,39 @@ def groups_to_page():
         return _groups_to_auto_redistribute(school_id, process_id, groups_to)
 
     if request.method == "GET":
+        wizard = wizard_context(mode, "groups_to")
         return render_template(
             "groups_to.html",
             groups_to=groups_to,
             state=load_groups_to_state(school_id, process_id),
+            **wizard,
         )
 
-    submitted_names = request.form.getlist("group")
-    seen, duplicates = set(), []
-    for name in submitted_names:
-        if name in seen:
-            duplicates.append(name)
-        seen.add(name)
+    draft_submission, duplicates, missing_group_name = _parse_groups_to_request(
+        groups_to
+    )
+    validation = None
     if duplicates:
-        exc = ValidationError(
-            "duplicate_group_names", {"duplicates": ", ".join(duplicates)}
+        validation = (
+            "Iedere groep heeft een unieke naam nodig. "
+            f"Pas de dubbele groepsnaam ‘{duplicates[0]}’ aan.",
+            "duplicate_group_names",
         )
-        warn_and_flash(to_validation_message(exc), log_detail=exc.code)
+    elif missing_group_name:
+        validation = ("Geef iedere nieuwe groep een naam.", "missing_group_name")
+    elif len(draft_submission.distribution) < 2:
+        validation = (
+            "Kies minimaal twee groepen voor deze indeling.",
+            "too_few_groups",
+        )
+
+    if validation:
+        save_groups_to_state(school_id, process_id, draft_submission.state)
+        message, log_detail = validation
+        warn_and_flash(message, log_detail=log_detail)
         return redirect(url_for("wizard.groups_to_page"))
 
-    submission = parse_groups_to_form(request.form, groups_to)
-    if len(submission.distribution) < 2:
-        warn_and_flash(
-            "Er moeten minsten twee groepen zijn om de leerlingen over te verdelen",
-            log_detail="too_few_groups",
-        )
-        return redirect(url_for("wizard.groups_to_page"))
-
+    submission = draft_submission
     save_groups_excel(school_id, process_id, submission.distribution)
     save_groups_to_state(school_id, process_id, submission.state)
     logger.info(
@@ -448,15 +513,17 @@ def preferences_excel():
     process_id = session["process_id"]
     saved_roster = load_roster(school_id, process_id)
     if saved_roster is None:
-        # The population must be settled first; send the teacher to "Wie gaat mee".
+        # The population must be settled first; send the teacher to "Leerlingen controleren".
         return redirect(url_for("roster.roster_page"))
     participants = saved_roster["participants"]
 
     if request.method == "GET":
+        mode = get_process_mode(get_process_path(school_id, process_id))
         return render_template(
             "preferences_excel.html",
             preferences_uploaded=has_preferences_excel(school_id, process_id),
             sociogram_available=has_voorkeuren(school_id, process_id),
+            **wizard_context(mode, "preferences_form"),
         )
 
     if not participants:
@@ -556,11 +623,13 @@ def _handle_pref_form_post(school_id, process_id, participants, all_groups_to):
     """Process a POST to /preferences_form and return the response to send.
 
     Two actions: ``autosave`` saves only the draft (best effort, no validation — used by the
-    modal's "Opslaan"); otherwise (``volgende``) build and persist ``voorkeuren.json`` and
-    navigate. Validation errors are flashed and the form re-rendered — the draft is already
-    saved, so nothing is lost.
+    modal's "Voorkeuren opslaan") and ``sociogram`` persists canonical preferences before
+    opening the existing sociogram; otherwise (``volgende``) persists and navigates to the
+    next wizard step. Validation errors are flashed and the form re-rendered — the draft is
+    already saved, so nothing is lost.
     """
-    if request.form.get("action") == "autosave":
+    action = request.form.get("action")
+    if action == "autosave":
         # Best-effort background save of the draft only (never voorkeuren.json, never
         # validated): a reload then restores the work via the normal GET prefill.
         _write_pref_form_state(school_id, process_id, request.form, participants)
@@ -575,6 +644,8 @@ def _handle_pref_form_post(school_id, process_id, participants, all_groups_to):
         return redirect(url_for("wizard.preferences_form"))
     save_voorkeuren(school_id, process_id, preference_data, source="form")
     logger.info("Preferences form accepted: %d participants", len(participants))
+    if action == "sociogram":
+        return redirect(url_for("results.show_sociogram"))
     return redirect(url_for("wizard.not_together_page"))
 
 
@@ -590,7 +661,7 @@ def preferences_form():
 
     saved_roster = load_roster(school_id, process_id)
     if saved_roster is None:
-        # The population must be settled first; send the teacher to "Wie gaat mee".
+        # The population must be settled first; send the teacher to "Leerlingen controleren".
         return redirect(url_for("roster.roster_page"))
     try:
         groups_to, group_display = load_groups(school_id, process_id)
@@ -615,12 +686,7 @@ def preferences_form():
     ):
         flash(notice, "info")
 
-    if is_redistribute_mode(get_process_mode(get_process_path(school_id, process_id))):
-        prev_url = url_for("roster.roster_page")
-        prev_label = "← Naar Wie gaat mee"
-    else:
-        prev_url = url_for("wizard.groups_to_page")
-        prev_label = "← Naar Groepen naartoe"
+    mode = get_process_mode(get_process_path(school_id, process_id))
 
     return render_template(
         "preferences_form.html",
@@ -629,9 +695,7 @@ def preferences_form():
         group_display=group_display,
         draft_state=draft_state,
         short_names=candidatedetermination.unique_display_names(participants),
-        prev_url=prev_url,
-        prev_label=prev_label,
-        sociogram_available=has_voorkeuren(school_id, process_id),
+        **wizard_context(mode, "preferences_form"),
     )
 
 
@@ -644,23 +708,32 @@ def not_together_page():
     if school_id is None:
         return redirect(url_for("admin.dashboard"))
     process_id = session["process_id"]
+    mode = get_process_mode(get_process_path(school_id, process_id))
+    previous_preferences_endpoint = (
+        "wizard.preferences_excel"
+        if load_input_method(school_id, process_id) == "excel"
+        else "wizard.preferences_form"
+    )
+    previous_preferences_url = url_for(previous_preferences_endpoint)
 
     try:
         groups_to, _ = load_groups(school_id, process_id)
         students = load_student_names(school_id, process_id, groups_to)
     except Exception as exc:  # pylint: disable=broad-exception-caught
         _flash_upload_error(exc)
-        return redirect(url_for("wizard.preferences_excel"))
+        return redirect(previous_preferences_url)
     n_groups = len(groups_to)
 
     if request.method == "GET":
-        existing_rules, prev_url = _not_together_get_context(school_id, process_id)
+        existing_rules = _not_together_get_context(school_id, process_id)
         return render_template(
             "not_together.html",
             students=students,
             n_groups=n_groups,
             existing_rules=existing_rules,
-            prev_preferences_url=prev_url,
+            **wizard_context(
+                mode, "not_together", previous_endpoint=previous_preferences_endpoint
+            ),
         )
 
     n_rules = int(request.form.get("n_rules", 0))

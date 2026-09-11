@@ -1,0 +1,105 @@
+"""Browser acceptance checks for the homepage gallery and responsive layout."""
+
+import pytest
+from playwright.sync_api import expect
+
+
+@pytest.mark.parametrize("viewport", [(1366, 768), (390, 844)])
+def test_home_gallery_is_keyboard_and_touch_operable(live_server, page, viewport):
+    """The four homepage examples can be changed without hiding content offscreen."""
+    width, height = viewport
+    page.set_viewport_size({"width": width, "height": height})
+    page.goto(live_server)
+
+    gallery = page.locator("[data-home-gallery]")
+    status = gallery.locator("[data-home-gallery-status]")
+    slides = gallery.locator("[data-home-slide]")
+
+    expect(page.locator(".home-cta a")).to_have_attribute("href", "/processes")
+    expect(gallery).to_be_visible()
+    expect(slides).to_have_count(4)
+    if width == 1366:
+        assert page.locator(".container").bounding_box()["width"] <= 960
+    expect(status).to_have_text("1 van 4")
+    expect(slides.nth(0)).to_be_visible()
+    expect(slides.nth(1)).to_be_hidden()
+    expect(slides.nth(2)).to_be_hidden()
+
+    autoplay = gallery.locator("[data-home-gallery-toggle]")
+    expect(autoplay).to_have_text("Pauzeren")
+    autoplay.click()
+    expect(autoplay).to_have_text("Afspelen")
+
+    gallery.locator("[data-home-gallery-next]").click()
+    expect(status).to_have_text("2 van 4")
+    expect(slides.nth(1)).to_be_visible()
+
+    gallery.focus()
+    page.keyboard.press("ArrowRight")
+    expect(status).to_have_text("3 van 4")
+    page.keyboard.press("ArrowLeft")
+    expect(status).to_have_text("2 van 4")
+
+    viewport = gallery.locator(".home-gallery-viewport")
+    viewport.scroll_into_view_if_needed()
+    box = viewport.bounding_box()
+    assert box is not None
+    start_x = box["x"] + box["width"] * 0.75
+    end_x = box["x"] + box["width"] * 0.25
+    y = box["y"] + box["height"] / 2
+    page.mouse.move(start_x, y)
+    page.mouse.down()
+    page.mouse.move(end_x, y)
+    page.mouse.up()
+    expect(status).to_have_text("3 van 4")
+
+    overflow = page.evaluate(
+        """() => ({width: innerWidth, scroll: document.documentElement.scrollWidth})"""
+    )
+    assert overflow["scroll"] <= overflow["width"], overflow
+
+
+def test_home_gallery_automatically_advances(live_server, page):
+    """The gallery advances on its own over a mouseover with reduced motion enabled."""
+    page.emulate_media(reduced_motion="reduce")
+    page.goto(live_server)
+    gallery = page.locator("[data-home-gallery]")
+    status = gallery.locator("[data-home-gallery-status]")
+
+    expect(status).to_have_text("1 van 4")
+    gallery.scroll_into_view_if_needed()
+    box = gallery.bounding_box()
+    assert box is not None
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.wait_for_timeout(4500)
+    expect(status).to_have_text("2 van 4")
+
+    gallery.locator("[data-home-gallery-next]").click()
+    expect(status).to_have_text("3 van 4")
+
+
+@pytest.mark.usefixtures("login")
+def test_home_primary_cta_is_visible_and_starts_process(live_server, page):
+    """The primary call to action is visible in the opening laptop viewport and works."""
+    page.set_viewport_size({"width": 1366, "height": 768})
+    page.goto(live_server)
+
+    cta = page.locator(".home-cta a")
+    expect(cta).to_be_visible()
+    box = cta.bounding_box()
+    assert box is not None
+    assert box["y"] >= 0
+    assert box["y"] + box["height"] <= 768
+    assert page.evaluate("window.scrollY") == 0
+
+    cta.click()
+    assert page.url.rstrip("/").endswith("/processes")
+
+
+@pytest.mark.usefixtures("login")
+def test_home_renders_for_logged_in_school(live_server, page):
+    """The school navigation does not hide the homepage CTA or gallery."""
+    page.goto(live_server)
+    expect(page.locator("h1")).to_be_visible()
+    expect(page.locator(".home-cta a")).to_be_visible()
+    expect(page.locator("[data-home-gallery]")).to_be_visible()
