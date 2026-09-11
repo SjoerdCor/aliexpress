@@ -3,7 +3,7 @@
 Deze map bevat één zelfstandig implementatieplan per **beoordeelde** pagina. Lees in een
 werksessie alleen:
 
-1. het [appbrede ontwerpdocument](../../toegankelijke-app-ontwerp.md);
+1. de [appbrede ontwerpprincipes](../../design-principles.md);
 2. dit overzicht;
 3. het plan van de actieve pagina.
 
