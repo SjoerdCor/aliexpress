@@ -1,5 +1,7 @@
 # ALI Express
 
+[![CI](https://github.com/SjoerdCor/aliexpress/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/SjoerdCor/aliexpress/actions/workflows/ci.yml)
+
 **Smart and Fair Student Group Allocation**
 
 ## Why use ALI Express?
@@ -112,41 +114,16 @@ integration tests. The global pytest configuration uses `-m "not slow"` to exclu
 the marked slow test; it does not exclude browser or other integration tests. Use the
 explicit `--ignore` options above for the fast suite and run the slow suite separately.
 
-## Local merge checks
+## CI and merge workflow
 
-This repository has no automatic merge runner or CI workflow. For a local merge, prepare the
-merge without committing it first:
+Develop and commit changes on a feature branch. Push that branch and open a pull request
+to `master`; do not commit or push directly to `master`. GitHub Actions runs for pull requests
+targeting `master` and for pushes to `master`; the workflow is defined in
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
-```bash
-git merge --no-ff --no-commit <branch>
-```
-
-Then run the following lanes simultaneously in two terminals. The first lane starts the
-realistic slow test; the second lane runs the remaining suites sequentially. The slow test
-does not use coverage, so only the other lane writes the shared coverage report.
-
-Terminal 1 — slow lane:
-
-```bash
-uv run --locked pytest tests/integration/test_integration_herindelen.py::test_herindelen_realistic_scale -q --no-cov -m slow -n 0
-```
-
-Terminal 2 — remaining suites:
-
-```bash
-uv run --locked pytest tests --ignore=tests/integration --ignore=tests/browser -q -m "not slow" -n 6 --dist load
-uv run --locked pytest tests/browser -q -n 4 --dist load --cov-append
-uv run --locked pytest tests/integration -q -m "not slow" --cov-append
-```
-
-Run the following command only after both terminals have completed successfully:
-
-```bash
-git commit
-```
-
-If a check fails, abort the uncommitted merge with `git merge --abort`. This process is manual;
-both lanes must complete successfully before committing the merge.
+Run the local checks described in the [Testing](#testing) section before opening a pull
+request. Merge only after the required CI checks pass. Required-check and merge-policy
+settings are configured separately in GitHub branch protection or rulesets.
 
 `SECRET_KEY` signs the login session cookie. `ADMIN_PASSWORD` is the password for the
 single administrator account, which is created automatically on startup — there is no

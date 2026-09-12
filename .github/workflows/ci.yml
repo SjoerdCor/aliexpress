@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+      - name: Install development dependencies
+        run: uv sync --locked --extra dev
+      - name: Run pre-commit checks
+        run: uv run pre-commit run --all-files
+
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+      - name: Install development dependencies
+        run: uv sync --locked --extra dev
+      - name: Install Playwright browser dependencies
+        run: uv run --locked playwright install --with-deps chromium
+      - name: Run non-slow test suite
+        run: uv run pytest tests
+
+  slow-acceptance:
+    name: Slow acceptance test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+      - name: Install development dependencies
+        run: uv sync --locked --extra dev
+      - name: Run realistic-scale slow acceptance test
+        run: >-
+          uv run pytest
+          tests/integration/test_integration_herindelen.py::test_herindelen_realistic_scale
+          -q --no-cov -m slow -n 0
