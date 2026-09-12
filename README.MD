@@ -129,6 +129,8 @@ uses `-m "not slow"` to exclude only the marked slow test; it does not exclude b
 other integration tests. Use the explicit `--ignore` options and marker selections above
 for resource-aware local feedback. Do not combine all suites in one `pytest tests -n N`
 xdist pool: browser processes and real solver threads have different resource profiles.
+The worker counts above are measured baselines for the current suite and CI hardware, not
+universal defaults.
 
 In CI, Quality, Fast tests, Browser tests, Integration tests and the slow acceptance test
 run as separate jobs. The ordinary fast and browser selections may run in parallel on their

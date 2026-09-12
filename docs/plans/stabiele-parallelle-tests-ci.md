@@ -2,10 +2,11 @@
 
 ## Status
 
-Implementatiegereed. Voer iedere slice uit in een afzonderlijke sessie met een
-`gpt-5.6-luna`-agent op reasoning effort `xhigh`. Een sessie voert uitsluitend de aan haar
-toegewezen slice uit, rapporteert het resultaat en stopt vóór een commit. Commit pas na
-expliciete goedkeuring van de repository-eigenaar.
+Slices 1 tot en met 3 zijn geïmplementeerd op featurebranch `feature/github-actions-ci`.
+De praktische stabiliteitsproef uit Slice 4 is op 12 september 2026 afgerond met vier
+volledige groene CI-attempts en drie groene lokale herhalingen van zowel fast als browser.
+De onderbouwing en de bewuste afwijking van de oorspronkelijk voorgestelde tien CI-runs
+staan bij de uitkomst van Slice 4.
 
 ## Doel
 
@@ -493,22 +494,22 @@ Documenteer expliciet:
 
 - echte solvertests draaien per machine sequentieel;
 - fast en browser mogen onderling als CI-jobs tegelijk draaien;
-- `uv run pytest tests` blijft de volledige sequentiële niet-trage controle;
+- `uv run --locked pytest tests` blijft de volledige sequentiële niet-trage controle;
 - `uv run pytest tests -n N` is geen ondersteunde gezamenlijke parallelle opdracht;
 - workergetallen zijn hardware- en suiteafhankelijk.
 
 ### Lokale verificatie vóór push
 
 ```bash
-uv run pytest tests --ignore=tests/integration --ignore=tests/browser \
+uv run --locked pytest tests --ignore=tests/integration --ignore=tests/browser \
   -q --no-cov -m "not slow and not real_solver" -n 4 --dist load
-uv run pytest tests --ignore=tests/integration --ignore=tests/browser \
+uv run --locked pytest tests --ignore=tests/integration --ignore=tests/browser \
   -q --no-cov -m "not slow and real_solver" -n 0
-uv run pytest tests/browser -q --no-cov \
+uv run --locked pytest tests/browser -q --no-cov \
   -m "not slow and not real_solver" -n 2 --dist load
-uv run pytest tests/browser -q --no-cov \
+uv run --locked pytest tests/browser -q --no-cov \
   -m "not slow and real_solver" -n 0
-uv run pytest tests/integration -q --no-cov -m "not slow" -n 0
+uv run --locked pytest tests/integration -q --no-cov -m "not slow" -n 0
 ```
 
 Controleer de workflowsyntaxis met de bestaande pre-commit/lintmiddelen. Push na goedgekeurde
@@ -551,9 +552,9 @@ een verificatiesessie. Zij hoeft geen commit op te leveren.
 Bewijs dat de nieuwe indeling de flakiness werkelijk wegneemt en dat de snelheidswinst niet
 alleen uit toevallige groene runs bestaat.
 
-### Proef
+### Oorspronkelijk voorgestelde proef
 
-Voer uit:
+Voorgesteld was:
 
 1. tien opeenvolgende GitHub Actions-runs van de relevante featurebranch, zonder retries;
 2. drie lokale runs van de fast niet-solverselectie;
@@ -567,18 +568,76 @@ Voer uit:
 5. één expliciete slow-acceptancerun volgens de bestaande opdracht;
 6. controle van coverage.xml en de aggregatiecheck.
 
-Noteer per CI-job:
+### Uitkomst — 12 september 2026
+
+De proef is uitgevoerd op commit `fc20989` in PR #2. De eerste uitvoering en drie volledige
+handmatige workflow-heruitvoeringen waren groen. Iedere attempt startte alle jobs opnieuw op
+schone GitHub-hosted runners; pytest zelf gebruikte geen retries. Een eerste failure zou de
+proef hebben gestopt.
+
+De oorspronkelijk voorgestelde tien onafhankelijke runs bleken met de beschikbare triggers
+niet uitvoerbaar zonder negen extra commits of negen close/reopen-cycli op de pull request.
+Volledige workflow-heruitvoeringen blijven in GitHub bovendien attempts van dezelfde run.
+Na vier groene volledige attempts is in overleg gestopt: tien groene waarnemingen zouden
+nog steeds geen statistisch bewijs van afwezige flakiness vormen, terwijl iedere extra
+attempt hoofdzakelijk 7 tot 14 minuten slow-acceptancetijd zou verbruiken.
+
+Alle vier attempts selecteerden exact dezelfde tests:
+
+| Selectie | Tests | Pytest-mediaan | Langzaamste pytest-run |
+|---|---:|---:|---:|
+| Fast zonder echte solver | 565 passed, 1 skipped | 17,14 s | 20,78 s |
+| Fast met echte solver | 34 passed | 2,23 s | 2,25 s |
+| Browser zonder echte solver | 127 passed | 1m15,34s | 1m23,18s |
+| Browser met echte solver | 10 passed | 21,65 s | 24,08 s |
+| Integration non-slow | 22 passed | 18,16 s | 19,55 s |
+| Slow acceptance | 1 passed | 10m45,18s | 13m29,64s |
+
+De totale jobtijden omvatten checkout, installatie, artifactverwerking en testuitvoering:
+
+| CI-job | Mediaan | Langzaamste attempt |
+|---|---:|---:|
+| Quality | 48 s | 53 s |
+| Fast tests | 44 s | 45 s |
+| Browser tests | 2m20 | 2m37 |
+| Integration tests | 42 s | 42 s |
+| Slow acceptance test | 11m04 | 13m50 |
+| Coverage | 21 s | 47 s |
+| Tests | 3 s | 3 s |
+| Volledige workflow | 11m15 | 14m25 |
+
+De drie lokale fast-runs waren groen in 24,02 s, 21,24 s en 22,71 s: mediaan 22,71 s,
+langzaamste run 24,02 s. De drie lokale browserruns waren groen in 8m15,46, 6m15,07 en
+6m09,26: mediaan 6m15,07, langzaamste run 8m15,46. Er waren geen timeouts, workercrashes,
+SQLite-locks of achtergebleven pytest-, browser- of serverprocessen.
+
+De geplande volledige lokale sequentiële run is tijdens de kostenheroverweging afgebroken en
+wordt daarom niet als geslaagd resultaat opgevoerd. Een extra lokale slow-run is niet gedaan:
+dezelfde slow-test was al viermaal zonder retry groen op de doelomgeving. Samen selecteren de
+CI-lanes 759 non-slow tests en één slow-test, zodat geen test door de splitsing verloren ging.
+
+Alle verwachte JUnit- en coverage-artifacts zijn gepubliceerd. De coverage-job combineerde
+de drie databestanden succesvol tot 95% dekking; de stabiele aggregatiecheck `Tests` was in
+alle attempts groen. Playwright-failure-artifacts ontbraken zoals verwacht, omdat geen
+browsertest faalde.
+
+Twee niet-blokkerende onderhoudspunten zijn waargenomen maar vallen buiten deze stabiliteits-
+slice: bestaande `ResourceWarning`-meldingen voor niet-gesloten SQLite-connecties in enkele
+fast-tests, en de GitHub-waarschuwing dat `actions/checkout@v4` nog Node.js 20 target. Geen
+van beide veroorzaakte in deze proef een failure of timingprobleem.
+
+De rapportage hierboven legt per CI-job vast:
 
 - aantal tests;
 - pytest-runtime;
 - totale jobruntime;
-- mediaan over de tien runs;
+- mediaan over de uitgevoerde attempts;
 - langzaamste run;
 - eventuele timeout, workercrash of achtergebleven subprocessmelding.
 
 ### Beslisregels
 
-- Eén failure in tien runs is geen acceptabele uitkomst zolang die niet als echte regressie
+- Eén failure in de meetreeks is geen acceptabele uitkomst zolang die niet als echte regressie
   is verklaard en opgelost.
 - Een timeout wordt niet opgelost met retry of algemene timeoutverhoging.
 - Als de niet-solverselectie flaky blijft, verlaag eerst alleen haar workergetal en herhaal de
@@ -606,7 +665,8 @@ ci: tune test workers for hosted runners
 - Gewone fast- en browsertests draaien aantoonbaar parallel.
 - Binnen één runner is nooit meer dan één echte CP-SAT-solve tegelijk actief.
 - Integration en slow draaien sequentieel.
-- Tien opeenvolgende CI-runs zijn zonder retry groen.
+- Vier volledige CI-attempts op dezelfde commit zijn zonder pytest-retry groen; de afwijking
+  van de oorspronkelijk voorgestelde tien runs is hierboven gemotiveerd.
 - SQLite, Flask-serverpoort, browsercontext en storage blijven geïsoleerd.
 - De CLI-subprocespoort heeft geen close/rebind-race meer.
 - De autoplaytest wacht op gedrag, niet op een vaste slaap.
@@ -615,7 +675,8 @@ ci: tune test workers for hosted runners
 - Branch protection kan één stabiele `Tests`-aggregatiecheck gebruiken.
 - README, AGENTS.md, CI en het oude versnellingsplan spreken elkaar niet meer tegen.
 - Productie-`NUM_WORKERS`, solveruitkomsten en gebruikersgedrag zijn ongewijzigd.
-- Er zijn geen retries, globale timeoutverhogingen of custom schedulers toegevoegd.
+- Er zijn geen automatische testretries, globale timeoutverhogingen of custom schedulers
+  toegevoegd.
 
 ## Korte startprompts per sessie
 
