@@ -88,17 +88,31 @@ uv run --locked pytest tests/test_betreffend_bestand.py -q --no-cov -x
 uv run --locked pytest tests --ignore=tests/integration --ignore=tests/browser -q --no-cov --lf
 ```
 
-The fast Python/Flask suite explicitly excludes browser and integration tests. The measured
-configuration uses six pytest workers with the `load` scheduler:
+The fast Python/Flask suite explicitly excludes browser and integration tests. Tests that
+start the real CP-SAT solver are kept in a separate sequential lane; the remaining tests use
+four pytest workers with the `load` scheduler:
 
 ```bash
-uv run --locked pytest tests --ignore=tests/integration --ignore=tests/browser -q --no-cov -n 6 --dist load
+uv run --locked pytest tests --ignore=tests/integration --ignore=tests/browser \
+  -q --no-cov -m "not slow and not real_solver" -n 4 --dist load
+uv run --locked pytest tests --ignore=tests/integration --ignore=tests/browser \
+  -q --no-cov -m "not slow and real_solver" -n 0
 ```
 
-Run the browser suite separately with four workers:
+Run the browser suite separately. Only its non-solver selection uses xdist; real-solver
+browser tests run sequentially:
 
 ```bash
-uv run --locked pytest tests/browser -q --no-cov -n 4 --dist load
+uv run --locked pytest tests/browser -q --no-cov \
+  -m "not slow and not real_solver" -n 2 --dist load
+uv run --locked pytest tests/browser -q --no-cov \
+  -m "not slow and real_solver" -n 0
+```
+
+Run non-slow integration tests in their own sequential lane:
+
+```bash
+uv run --locked pytest tests/integration -q --no-cov -m "not slow" -n 0
 ```
 
 For full checks, coverage and the default test selection are enabled:
@@ -110,9 +124,17 @@ uv run --locked pytest tests -m slow
 ```
 
 `uv run --locked pytest tests` is the complete non-slow suite, including browser and
-integration tests. The global pytest configuration uses `-m "not slow"` to exclude only
-the marked slow test; it does not exclude browser or other integration tests. Use the
-explicit `--ignore` options above for the fast suite and run the slow suite separately.
+integration tests, and is the full sequential control run. The global pytest configuration
+uses `-m "not slow"` to exclude only the marked slow test; it does not exclude browser or
+other integration tests. Use the explicit `--ignore` options and marker selections above
+for resource-aware local feedback. Do not combine all suites in one `pytest tests -n N`
+xdist pool: browser processes and real solver threads have different resource profiles.
+
+In CI, Quality, Fast tests, Browser tests, Integration tests and the slow acceptance test
+run as separate jobs. The ordinary fast and browser selections may run in parallel on their
+own runners, while each real-solver selection remains sequential within its runner. CI
+combines coverage from the fast, browser and integration jobs and publishes JUnit reports;
+the `Tests` job is the stable aggregate gate for the required test jobs.
 
 ## CI and merge workflow
 

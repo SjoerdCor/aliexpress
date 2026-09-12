@@ -25,9 +25,67 @@ jobs:
       - name: Run pre-commit checks
         run: uv run pre-commit run --all-files
 
-  tests:
-    name: Tests
+  fast_tests:
+    name: Fast tests
     runs-on: ubuntu-latest
+    env:
+      COVERAGE_FILE: .coverage.fast
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.1.0
+        with:
+          enable-cache: true
+      - name: Install development dependencies
+        run: uv sync --locked --extra dev
+      - name: Run fast tests without real solver
+        id: fast_non_solver
+        continue-on-error: true
+        run: >-
+          uv run --locked pytest tests
+          --ignore=tests/integration --ignore=tests/browser
+          -q -m "not slow and not real_solver" -n 4 --dist load
+          --junitxml=junit-fast-non-solver.xml
+      - name: Run fast tests with real solver
+        id: fast_real_solver
+        continue-on-error: true
+        run: >-
+          uv run --locked pytest tests
+          --ignore=tests/integration --ignore=tests/browser
+          -q -m "not slow and real_solver" -n 0 --cov-append
+          --junitxml=junit-fast-real-solver.xml
+      - name: Upload fast JUnit reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: junit-fast-tests
+          path: junit-fast-*.xml
+          if-no-files-found: error
+      - name: Upload fast coverage data
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-fast-tests
+          path: .coverage.fast
+          include-hidden-files: true
+          if-no-files-found: error
+      - name: Check fast test results
+        if: always()
+        env:
+          NON_SOLVER_RESULT: ${{ steps.fast_non_solver.outcome }}
+          REAL_SOLVER_RESULT: ${{ steps.fast_real_solver.outcome }}
+        run: |
+          if [ "$NON_SOLVER_RESULT" != success ] || [ "$REAL_SOLVER_RESULT" != success ]; then
+            echo "At least one fast test selection failed."
+            exit 1
+          fi
+
+  browser_tests:
+    name: Browser tests
+    runs-on: ubuntu-latest
+    env:
+      COVERAGE_FILE: .coverage.browser
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -39,10 +97,111 @@ jobs:
         run: uv sync --locked --extra dev
       - name: Install Playwright browser dependencies
         run: uv run --locked playwright install --with-deps chromium
-      - name: Run non-slow test suite
-        run: uv run pytest tests
+      - name: Run browser tests without real solver
+        id: browser_non_solver
+        continue-on-error: true
+        run: >-
+          uv run --locked pytest tests/browser
+          -q -m "not slow and not real_solver" -n 2 --dist load
+          --junitxml=junit-browser-non-solver.xml
+          --tracing=retain-on-failure --screenshot=only-on-failure
+          --output=test-results/browser-non-solver
+      - name: Run browser tests with real solver
+        id: browser_real_solver
+        continue-on-error: true
+        run: >-
+          uv run --locked pytest tests/browser
+          -q -m "not slow and real_solver" -n 0 --cov-append
+          --junitxml=junit-browser-real-solver.xml
+          --tracing=retain-on-failure --screenshot=only-on-failure
+          --output=test-results/browser-real-solver
+      - name: Upload browser JUnit reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: junit-browser-tests
+          path: junit-browser-*.xml
+          if-no-files-found: error
+      - name: Upload browser failure diagnostics
+        if: always() && steps.browser_non_solver.outcome != 'success'
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-browser-non-solver
+          path: test-results/browser-non-solver
+          if-no-files-found: warn
+      - name: Upload browser failure diagnostics
+        if: always() && steps.browser_real_solver.outcome != 'success'
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-browser-real-solver
+          path: test-results/browser-real-solver
+          if-no-files-found: warn
+      - name: Upload browser coverage data
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-browser-tests
+          path: .coverage.browser
+          include-hidden-files: true
+          if-no-files-found: error
+      - name: Check browser test results
+        if: always()
+        env:
+          NON_SOLVER_RESULT: ${{ steps.browser_non_solver.outcome }}
+          REAL_SOLVER_RESULT: ${{ steps.browser_real_solver.outcome }}
+        run: |
+          if [ "$NON_SOLVER_RESULT" != success ] || [ "$REAL_SOLVER_RESULT" != success ]; then
+            echo "At least one browser test selection failed."
+            exit 1
+          fi
 
-  slow-acceptance:
+  integration_tests:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    env:
+      COVERAGE_FILE: .coverage.integration
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.1.0
+        with:
+          enable-cache: true
+      - name: Install development dependencies
+        run: uv sync --locked --extra dev
+      - name: Run non-slow integration tests
+        id: integration
+        continue-on-error: true
+        run: >-
+          uv run --locked pytest tests/integration
+          -q -m "not slow" -n 0
+          --junitxml=junit-integration.xml
+      - name: Upload integration JUnit report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: junit-integration-tests
+          path: junit-integration.xml
+          if-no-files-found: error
+      - name: Upload integration coverage data
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-integration-tests
+          path: .coverage.integration
+          include-hidden-files: true
+          if-no-files-found: error
+      - name: Check integration test results
+        if: always()
+        env:
+          TEST_RESULT: ${{ steps.integration.outcome }}
+        run: |
+          if [ "$TEST_RESULT" != success ]; then
+            echo "The integration test selection failed."
+            exit 1
+          fi
+
+  slow_acceptance:
     name: Slow acceptance test
     runs-on: ubuntu-latest
     steps:
@@ -56,6 +215,107 @@ jobs:
         run: uv sync --locked --extra dev
       - name: Run realistic-scale slow acceptance test
         run: >-
-          uv run pytest
+          uv run --locked pytest
           tests/integration/test_integration_herindelen.py::test_herindelen_realistic_scale
           -q --no-cov -m slow -n 0
+          --junitxml=junit-slow-acceptance.xml
+      - name: Upload slow acceptance JUnit report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: junit-slow-acceptance
+          path: junit-slow-acceptance.xml
+          if-no-files-found: error
+
+  coverage:
+    name: Coverage
+    if: always()
+    needs: [fast_tests, browser_tests, integration_tests]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.1.0
+        with:
+          enable-cache: true
+      - name: Install development dependencies
+        run: uv sync --locked --extra dev
+      - name: Download fast coverage data
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: coverage-fast-tests
+          path: coverage-input/fast
+      - name: Download browser coverage data
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: coverage-browser-tests
+          path: coverage-input/browser
+      - name: Download integration coverage data
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: coverage-integration-tests
+          path: coverage-input/integration
+      - name: Verify coverage inputs
+        if: always()
+        run: |
+          for directory in coverage-input/fast coverage-input/browser coverage-input/integration; do
+            if ! find "$directory" -maxdepth 1 -type f -name '.coverage*' -print -quit | grep -q .; then
+              echo "Missing coverage data in $directory."
+              exit 1
+            fi
+          done
+      - name: Combine coverage data
+        if: always()
+        run: >-
+          uv run --locked coverage combine
+          coverage-input/fast coverage-input/browser coverage-input/integration
+      - name: Report combined coverage
+        if: always()
+        run: |
+          uv run --locked coverage report
+          uv run --locked coverage xml -o coverage.xml
+      - name: Upload combined coverage report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-combined
+          path: |
+            .coverage
+            coverage.xml
+          include-hidden-files: true
+          if-no-files-found: error
+
+  tests:
+    name: Tests
+    if: always()
+    needs: [fast_tests, browser_tests, integration_tests, slow_acceptance, coverage]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify required test jobs passed
+        env:
+          FAST_RESULT: ${{ needs.fast_tests.result }}
+          BROWSER_RESULT: ${{ needs.browser_tests.result }}
+          INTEGRATION_RESULT: ${{ needs.integration_tests.result }}
+          SLOW_RESULT: ${{ needs.slow_acceptance.result }}
+          COVERAGE_RESULT: ${{ needs.coverage.result }}
+        run: |
+          failed=0
+          for result in \
+            "$FAST_RESULT" \
+            "$BROWSER_RESULT" \
+            "$INTEGRATION_RESULT" \
+            "$SLOW_RESULT" \
+            "$COVERAGE_RESULT"; do
+            if [ "$result" != success ]; then
+              failed=1
+            fi
+          done
+
+          if [ "$failed" -ne 0 ]; then
+            echo "At least one required test job did not succeed."
+            exit 1
+          fi

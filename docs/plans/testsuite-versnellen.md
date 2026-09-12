@@ -39,6 +39,26 @@ alle workers kunnen verspreiden, waardoor iedere betrokken worker een Chromiumpr
 terwijl andere workers tegelijk OR-Tools met acht threads uitvoeren. Afzonderlijk tunen is
 voorspelbaarder en voorkomt CPU- en geheugensurprises.
 
+## Correctie voor hosted CI — 12 september 2026
+
+De metingen en de gekozen waarden `-n 6` voor fast en `-n 4` voor browser hieronder waren
+afkomstig van een ontwikkelmachine met 20 logische CPU's en een kleinere suite. Ze zijn geen
+algemeen geschikt CI-profiel voor een publieke `ubuntu-latest`-runner met vier vCPU's.
+
+De actuele CI-configuratie staat in [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)
+en gebruikt daarom:
+
+- fast zonder echte solver: `-n 4 --dist load`;
+- browser zonder echte solver: `-n 2 --dist load`;
+- fast- en browsertests met `real_solver`: `-n 0`;
+- non-slow integration: `-n 0`;
+- de slow acceptance-test in haar eigen sequentiële job.
+
+Fast, browser en integration draaien op afzonderlijke runners. Coverage wordt uit die drie
+jobs gecombineerd en de `Tests`-job bewaakt hun gezamenlijke uitkomst. De oudere lokale
+metingen blijven nuttig als historische context, maar de CI-jobselecties en markercommando's
+in de actuele stabiele-testenplanning zijn leidend.
+
 ## Gemeten uitgangssituatie
 
 Metingen op 4 september 2026, op de toenmalige worktree en zonder coverage:
@@ -116,9 +136,8 @@ Alleen indien na meting nodig:
 - `templates/processing.html` en de bijbehorende Flaskroute/config — uitsluitend om de
   pollinginterval onder tests configureerbaar te maken en vaste sleeps te vervangen door
   wachten op een echt `/status`-response.
-- een klein PowerShell- of CI-runnerbestand voor twee gelijktijdige merge-lanes, zodra bekend
-  is waar de merge-run werkelijk wordt uitgevoerd. Er staat nu geen CI-configuratie in de
-  repository.
+- een klein PowerShell-runnerbestand voor twee gelijktijdige merge-lanes; de GitHub Actions-
+  workflow is inmiddels de ondersteunde CI-runner.
 
 Solverproductiecode en productiehashinstellingen horen niet te veranderen.
 
@@ -509,10 +528,11 @@ coverage-rapport. Als dekking die uitsluitend door de slow-test ontstaat later v
 wordt, gebruik dan unieke coverage-datafiles en combineer die expliciet; voeg dat niet vooraf
 toe.
 
-Er staat momenteel geen CI-configuratie in deze repository. Deze slice blijft daarom
-nice-to-have totdat in de implementatiesessie bekend is welk merge-systeem de tests start.
-Een eigen xdist-scheduler schrijven is nadrukkelijk niet de fallback; dat is te veel
-complexiteit voor één speciale test.
+De GitHub Actions-workflow voert deze planning inmiddels uit. Deze oudere slice-beschrijving
+blijft als historische ontwerpcontext staan; de actuele jobindeling en coverage-afhandeling
+staan in `docs/plans/stabiele-parallelle-tests-ci.md` en `.github/workflows/ci.yml`. Een eigen
+xdist-scheduler schrijven is nadrukkelijk niet de fallback; dat is te veel complexiteit voor
+één speciale test.
 
 **Optionele commit:** `test: start merge slow test in a parallel lane`
 
