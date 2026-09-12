@@ -17,7 +17,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
       - name: Set up uv
-        uses: astral-sh/setup-uv@v10
+        uses: astral-sh/setup-uv@v10.1.0
         with:
           enable-cache: true
       - name: Install development dependencies
@@ -32,7 +32,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
       - name: Set up uv
-        uses: astral-sh/setup-uv@v10
+        uses: astral-sh/setup-uv@v10.1.0
         with:
           enable-cache: true
       - name: Install development dependencies
@@ -49,7 +49,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
       - name: Set up uv
-        uses: astral-sh/setup-uv@v10
+        uses: astral-sh/setup-uv@v10.1.0
         with:
           enable-cache: true
       - name: Install development dependencies
