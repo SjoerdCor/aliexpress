@@ -130,7 +130,6 @@ def test_balance_limit_without_number_stays_on_form(live_server, tmp_path, page)
     assert number.evaluate("element => element.validity.valueMissing") is True
 
     page.get_by_test_id(START_DISTRIBUTION_TEST_ID).click()
-    page.wait_for_timeout(250)
 
     assert page.url == f"{live_server}/processing"
     expect(number).to_be_visible()

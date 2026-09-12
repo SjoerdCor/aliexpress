@@ -222,9 +222,13 @@ def test_unconfirmed_row_blocks_submit(live_server, tmp_path, page):
     _open_roster(live_server, tmp_path, page)
     _add_student(page, "Emma", "Jansen", geslacht="", confirm=False)
     page.locator("button[type=submit]").click()
-    page.wait_for_timeout(300)
     assert "/roster" in page.url
-    assert page.locator("#roster-client-message").inner_text() != ""
+    assert page.locator(
+        "#roster-client-message .roster-client-message-text"
+    ).inner_text() == (
+        "Klik op ‘Leerling aan de lijst toevoegen’ om deze leerling te bevestigen, "
+        "of verwijder de invoer."
+    )
 
 
 @pytest.mark.usefixtures("login")

@@ -252,7 +252,8 @@ mag geen ruimere algemene timeout of retry introduceren.
 
 ### Bestanden
 
-- `tests/test_console_cli.py`
+- `tests/test_console_cli.py` (lichte CLI-unittests)
+- `tests/integration/test_console_server_subprocess.py` (subprocess-smoketest)
 - `tests/browser/test_home_browser.py`
 - alleen indien een gerichte audit dezelfde foutvorm aantreft:
   `tests/browser/test_distribution_browser.py` en
@@ -306,11 +307,15 @@ gericht verifieerbaar blijft. Maak van deze slice geen algemene browserrefactor.
 ### Verificatie
 
 ```bash
-uv run pytest tests/test_console_cli.py -q --no-cov -n 4 --dist load
+uv run pytest tests/test_console_cli.py -q --no-cov -n 0
+uv run pytest tests/integration/test_console_server_subprocess.py -q --no-cov -n 0
 uv run pytest tests/browser/test_home_browser.py -q --no-cov -n 2 --dist load
 ```
 
-Herhaal beide gerichte opdrachten minimaal tien keer. Een shell-loop mag hiervoor in de
+De subprocess-smoketest staat bewust onder `tests/integration`, zodat de fast-selectie met
+`--ignore=tests/integration` uitsluitend de lichte CLI-unittests verzamelt.
+
+Herhaal de drie gerichte opdrachten minimaal tien keer. Een shell-loop mag hiervoor in de
 uitvoeringssessie worden gebruikt, maar hoort niet in de repository. Draai daarna eenmaal de
 parallel bedoelde browserselectie:
 
