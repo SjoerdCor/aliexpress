@@ -32,6 +32,8 @@ from aliexpress.solver.conflicts import (
     NotTogetherRule,
 )
 
+pytestmark = pytest.mark.real_solver
+
 
 def _target_groups(*names: str) -> GroupCounts:
     """A ``GroupCounts`` with all-empty occupancy for the given group names."""

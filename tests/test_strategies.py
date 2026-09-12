@@ -14,6 +14,8 @@ import pytest
 from aliexpress.solver import engine
 from aliexpress.solver._balance import GroupBalance
 
+pytestmark = pytest.mark.real_solver
+
 # A single target group: every student is forced into it, so the assignment
 # is fixed regardless of the balance limits.
 _GROUPS_TO = {"only": {"Jongens": 0, "Meisjes": 0}}

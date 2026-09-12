@@ -72,6 +72,7 @@ def test_conflict_conditions_are_immutable_and_serializable():
         minimum.floor = 0.5
 
 
+@pytest.mark.real_solver
 def test_diagnostic_builder_has_one_assumption_per_user_condition():
     """All diagnostic assumptions reproduce the existing hard feasibility result."""
     preferences = pd.DataFrame(
@@ -135,6 +136,7 @@ def test_diagnostic_builder_has_one_assumption_per_user_condition():
     assert existing_solver.Solve(existing) == cp_model.INFEASIBLE
 
 
+@pytest.mark.real_solver
 def test_diagnostic_builder_matches_feasible_hard_feasibility_model():
     """With no conflicting conditions, both model builders prove feasibility."""
     preferences = pd.DataFrame(

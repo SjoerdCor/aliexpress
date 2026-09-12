@@ -170,6 +170,7 @@ def test_forward_keeps_existing_students_in_roster(live_server, tmp_path, page):
 
 
 @pytest.mark.usefixtures("login")
+@pytest.mark.real_solver
 def test_forward_route_steps_and_navigation_labels(live_server, page):
     """Doorzetten follows every step from Schoolinformatie through Klaar!."""
     _create_forward_process(live_server, page, "full-forward-flow")

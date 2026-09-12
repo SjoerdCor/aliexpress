@@ -302,6 +302,7 @@ def test_preferences_form_back_button_points_to_roster(live_server, page):
 
 
 @pytest.mark.usefixtures("login")
+@pytest.mark.real_solver
 def test_full_redistribute_flow_to_result(live_server, page):
     """End-to-end herindelen run: process creation through Klaar!, on a mini
     instance (3 groups, 12 students, 2 jaargroepen). Mirrors
@@ -372,6 +373,7 @@ def test_full_redistribute_flow_to_result(live_server, page):
 
 
 @pytest.mark.usefixtures("login")
+@pytest.mark.real_solver
 def test_redistribute_and_forward_flow_reaches_select_groups_then_next_step(
     live_server, page
 ):
