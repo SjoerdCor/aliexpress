@@ -1,3 +1,5 @@
+# pylint: disable=duplicate-code  # shared solver setup mirrors feasibility regression cases
+
 """Regression tests for the relaxation floor: strictly positive satisfaction.
 
 Before ADR-0014 (negative satisfaction), the adaptive class-balance

@@ -1,3 +1,5 @@
+# pylint: disable=duplicate-code  # balance-form cases intentionally share test setup
+
 """Tests for data/form_parsers.py (pure form-to-dataclass conversions)."""
 
 import pytest

@@ -1,4 +1,4 @@
-# pylint: disable=redefined-outer-name  # standard pytest fixture pattern
+# pylint: disable=redefined-outer-name,duplicate-code  # standard pytest fixture pattern and shared browser fixture setup
 
 """Browser tests for the roster page ("Leerlingen controleren"): visible roster behavior —
 confirming a new student, editing/removing it, and continuing the wizard.

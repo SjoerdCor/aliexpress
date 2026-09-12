@@ -1,3 +1,5 @@
+# pylint: disable=duplicate-code  # shared XML setup mirrors the browser flow test
+
 """Full-flow integration test: chained handoff through the real wizard routes (form path).
 
 WHY THIS TEST EXISTS

@@ -1,6 +1,6 @@
 """Tests for web/process_files.py (typed load/save helpers for process artifacts)."""
 
-# pylint: disable=unused-argument  # client fixture used only for its STORAGE_DIR side effect
+# pylint: disable=unused-argument,duplicate-code  # fixture and artifact names mirror route coverage
 
 import os
 

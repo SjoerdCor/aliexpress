@@ -9,7 +9,7 @@ exercise the commands against an isolated in-memory DB and a temporary
 filesystem, so no real data is touched.
 """
 
-# pylint: disable=redefined-outer-name  # standard pytest fixture pattern
+# pylint: disable=redefined-outer-name,duplicate-code  # standard fixture and shared app setup
 
 import pytest
 from werkzeug.security import generate_password_hash

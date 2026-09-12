@@ -1,3 +1,5 @@
+# pylint: disable=duplicate-code  # pinned cases intentionally use the same solver call
+
 """Meetpoort: the solver must reproduce the pinned satisfaction optimum.
 
 The per-student satisfaction values in ``test_integration_main`` are the uniquely

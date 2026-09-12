@@ -1,3 +1,5 @@
+# pylint: disable=duplicate-code  # scenarios share the canonical solver invocation
+
 """Tests for the CP-SAT infeasibility diagnosis (solver/feasibility.py).
 
 Each scenario is deliberately infeasible through one hard preference family;

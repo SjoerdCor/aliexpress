@@ -1,4 +1,4 @@
-# pylint: disable=redefined-outer-name  # standard pytest fixture pattern
+# pylint: disable=redefined-outer-name,duplicate-code  # standard fixture and shared upload setup
 
 """Focused browser acceptance tests for the group-selection page."""
 
