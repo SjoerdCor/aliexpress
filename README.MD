@@ -134,10 +134,16 @@ xdist pool: browser processes and real solver threads have different resource pr
 The worker counts above are measured baselines for the current suite and CI hardware, not
 universal defaults.
 
-The pre-push hook runs this full control suite with the 90% coverage gate before a branch is
-pushed. Install it with `uv run --locked pre-commit install --hook-type pre-push` as shown
-above. The hook needs the same local browser and loopback-server prerequisites as the full
-test suite.
+The pre-push hook runs the five resource-aware non-slow selections above and combines their
+coverage for `aliexpress` and `app`. It clears stale coverage data first, appends coverage
+from the second selection onward, suppresses intermediate reports and enforces the local
+90% gate with `coverage report --fail-under=90`. The fast non-solver and browser
+non-solver selections use four and two workers respectively; both real-solver selections
+and integration tests run with zero workers. A failing selection stops the hook before the
+next one starts. The slow acceptance test remains a separate, no-coverage check. Install
+the hook with `uv run --locked pre-commit install --hook-type pre-push` as shown above. It
+needs the same local browser and loopback-server prerequisites as the full test suite; the
+coverage gate runs when `git push` is invoked, before anything is pushed.
 
 CI requires at least 90% combined line coverage. Codecov also checks that project coverage
 does not decrease by more than 0.5 percentage points compared with the pull request's base

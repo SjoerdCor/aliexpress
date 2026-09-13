@@ -33,10 +33,10 @@ repos:
         types: [jupyter]
 
       - id: coverage
-        name: Run full test suite with coverage gate
+        name: Run resource-aware tests with coverage gate
         stages: [pre-push]
         language: system
-        entry: uv run --locked pytest tests -n 0 --cov-fail-under=90
+        entry: uv run --locked python scripts/pre_push_coverage.py
         pass_filenames: false
         always_run: true
 
