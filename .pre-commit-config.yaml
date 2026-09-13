@@ -32,6 +32,14 @@ repos:
         entry: jupyter nbconvert --ClearOutputPreprocessor.enabled=True --inplace
         types: [jupyter]
 
+      - id: coverage
+        name: Run full test suite with coverage gate
+        stages: [pre-push]
+        language: system
+        entry: uv run --locked pytest tests -n 0 --cov-fail-under=90
+        pass_filenames: false
+        always_run: true
+
       # Sort imports in scripts.
       - id: isort
         name: Sort import statements

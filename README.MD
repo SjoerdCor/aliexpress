@@ -28,6 +28,7 @@ should install the development tools as well:
 ```bash
 uv sync --locked --extra dev
 uv run --locked pre-commit install
+uv run --locked pre-commit install --hook-type pre-push
 ```
 
 Create `.env` in the checkout root before starting the application:
@@ -132,6 +133,11 @@ for resource-aware local feedback. Do not combine all suites in one `pytest test
 xdist pool: browser processes and real solver threads have different resource profiles.
 The worker counts above are measured baselines for the current suite and CI hardware, not
 universal defaults.
+
+The pre-push hook runs this full control suite with the 90% coverage gate before a branch is
+pushed. Install it with `uv run --locked pre-commit install --hook-type pre-push` as shown
+above. The hook needs the same local browser and loopback-server prerequisites as the full
+test suite.
 
 CI requires at least 90% combined line coverage. Codecov also checks that project coverage
 does not decrease by more than 0.5 percentage points compared with the pull request's base
