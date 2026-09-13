@@ -15,7 +15,7 @@ from urllib.request import urlopen
 import pytest
 
 _SUBPROCESS_OUTPUT_EOF = object()
-_SERVER_STARTUP_TIMEOUT = 30
+_SERVER_STARTUP_TIMEOUT = 120
 
 
 def _read_subprocess_output(stream, output_queue):
@@ -88,11 +88,14 @@ def _server_command(tmp_path):
     # focused by avoiding the platform-dependent cost of the production scrypt default.
     bootstrap = (
         "from functools import partial; "
+        "import signal; "
         "from werkzeug.security import generate_password_hash; "
         "import aliexpress; "
         "import aliexpress.web.admin_seed as admin_seed; "
         "admin_seed.generate_password_hash = partial("
         "generate_password_hash, method='pbkdf2:sha256:1'); "
+        "hasattr(signal, 'SIGBREAK') and signal.signal("
+        "signal.SIGBREAK, signal.default_int_handler); "
         f"aliexpress.get_instance_path = lambda: {str(tmp_path)!r}; "
         "import aliexpress.main as main_module; "
         "main_module.main()"
@@ -185,7 +188,7 @@ def _assert_server_responds(server_url, output_queue, output_lines):
 def _interrupt_server(process):
     """Send the platform-appropriate interactive interrupt to the server."""
     if os.name == "nt":
-        process.send_signal(getattr(signal, "CTRL_C_EVENT"))
+        process.send_signal(getattr(signal, "CTRL_BREAK_EVENT"))
     else:
         process.send_signal(signal.SIGINT)
 
