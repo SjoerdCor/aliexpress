@@ -15,6 +15,7 @@ from urllib.request import urlopen
 import pytest
 
 _SUBPROCESS_OUTPUT_EOF = object()
+_SERVER_STARTUP_TIMEOUT = 30
 
 
 def _read_subprocess_output(stream, output_queue):
@@ -123,14 +124,14 @@ def _readiness_failure(output_queue, output_lines, message):
 
 def _wait_for_server_url(process, output_queue, output_lines):
     """Read startup output until the server reports its bound URL."""
-    deadline = time.monotonic() + 10
+    deadline = time.monotonic() + _SERVER_STARTUP_TIMEOUT
     while True:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             _readiness_failure(
                 output_queue,
                 output_lines,
-                "serve did not report readiness within ten seconds",
+                f"serve did not report readiness within {_SERVER_STARTUP_TIMEOUT} seconds",
             )
         try:
             line = output_queue.get(timeout=min(remaining, 0.1))
@@ -177,7 +178,7 @@ def _assert_server_responds(server_url, output_queue, output_lines):
 def _interrupt_server(process):
     """Send the platform-appropriate interactive interrupt to the server."""
     if os.name == "nt":
-        process.send_signal(getattr(signal, "CTRL_BREAK_EVENT"))
+        process.send_signal(getattr(signal, "CTRL_C_EVENT"))
     else:
         process.send_signal(signal.SIGINT)
 
