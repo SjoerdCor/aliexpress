@@ -1,6 +1,7 @@
 # ALI Express
 
 [![CI](https://github.com/SjoerdCor/aliexpress/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/SjoerdCor/aliexpress/actions/workflows/ci.yml)
+[![Coverage](https://codecov.io/gh/SjoerdCor/aliexpress/branch/master/graph/badge.svg)](https://codecov.io/gh/SjoerdCor/aliexpress)
 
 **Smart and Fair Student Group Allocation**
 
@@ -131,6 +132,10 @@ for resource-aware local feedback. Do not combine all suites in one `pytest test
 xdist pool: browser processes and real solver threads have different resource profiles.
 The worker counts above are measured baselines for the current suite and CI hardware, not
 universal defaults.
+
+CI requires at least 90% combined line coverage. Codecov also checks that project coverage
+does not decrease by more than 0.5 percentage points compared with the pull request's base
+commit.
 
 In CI, Quality, Fast tests, Browser tests, Integration tests and the slow acceptance test
 run as separate jobs on the primary Python version. The ordinary fast and browser selections
