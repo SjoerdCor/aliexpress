@@ -84,8 +84,15 @@ def _server_environment(project_root, tmp_path):
 
 def _server_command(tmp_path):
     """Return the command that starts the CLI through its installed module."""
+    # Admin password hashing is covered separately. Keep this process-lifecycle smoke test
+    # focused by avoiding the platform-dependent cost of the production scrypt default.
     bootstrap = (
+        "from functools import partial; "
+        "from werkzeug.security import generate_password_hash; "
         "import aliexpress; "
+        "import aliexpress.web.admin_seed as admin_seed; "
+        "admin_seed.generate_password_hash = partial("
+        "generate_password_hash, method='pbkdf2:sha256:1'); "
         f"aliexpress.get_instance_path = lambda: {str(tmp_path)!r}; "
         "import aliexpress.main as main_module; "
         "main_module.main()"
