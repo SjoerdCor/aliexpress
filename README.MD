@@ -133,8 +133,11 @@ The worker counts above are measured baselines for the current suite and CI hard
 universal defaults.
 
 In CI, Quality, Fast tests, Browser tests, Integration tests and the slow acceptance test
-run as separate jobs. The ordinary fast and browser selections may run in parallel on their
-own runners, while each real-solver selection remains sequential within its runner. CI
+run as separate jobs on the primary Python version. The ordinary fast and browser selections
+may run in parallel on their own runners, while each real-solver selection remains sequential
+within its runner. A small compatibility matrix additionally validates Windows x64, Ubuntu
+26.04 x64, macOS x64 and macOS ARM64 on Python 3.13, plus CPython 3.11 and 3.12 on Ubuntu.
+This is intentional dimensional coverage, not a full OS-by-Python Cartesian product. CI
 combines coverage from the fast, browser and integration jobs and publishes JUnit reports;
 the `Tests` job is the stable aggregate gate for the required test jobs.
 

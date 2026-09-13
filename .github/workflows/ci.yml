@@ -83,7 +83,7 @@ jobs:
 
   browser_tests:
     name: Browser tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     env:
       COVERAGE_FILE: .coverage.browser
     steps:
@@ -201,6 +201,85 @@ jobs:
             exit 1
           fi
 
+  compatibility:
+    name: Compatibility (${{ matrix.label }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: ubuntu-2604-py313
+            label: Ubuntu 26.04 x64 / Python 3.13
+            os: ubuntu-26.04
+            python: "3.13"
+          - id: windows-py313
+            label: Windows x64 / Python 3.13
+            os: windows-latest
+            python: "3.13"
+          - id: macos-intel-py313
+            label: macOS 15 x64 / Python 3.13
+            os: macos-15-intel
+            python: "3.13"
+          - id: macos-arm-py313
+            label: macOS 15 ARM64 / Python 3.13
+            os: macos-15
+            python: "3.13"
+          - id: ubuntu-py311
+            label: Ubuntu latest x64 / Python 3.11
+            os: ubuntu-latest
+            python: "3.11"
+          - id: ubuntu-py312
+            label: Ubuntu latest x64 / Python 3.12
+            os: ubuntu-latest
+            python: "3.12"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up uv and Python
+        uses: astral-sh/setup-uv@v10.1.0
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python }}
+      - name: Install development dependencies
+        run: uv sync --locked --extra dev
+      - name: Run fast tests without real solver
+        id: fast_non_solver
+        if: always()
+        run: >-
+          uv run --locked pytest tests
+          --ignore=tests/integration --ignore=tests/browser
+          -q --no-cov -m "not slow and not real_solver" -n 2 --dist load
+          --junitxml=junit-compatibility-fast-non-solver.xml
+      - name: Run fast tests with real solver
+        id: fast_real_solver
+        if: always()
+        run: >-
+          uv run --locked pytest tests
+          --ignore=tests/integration --ignore=tests/browser
+          -q --no-cov -m "not slow and real_solver" -n 0
+          --junitxml=junit-compatibility-fast-real-solver.xml
+      - name: Run integration tests
+        id: integration
+        if: always()
+        run: >-
+          uv run --locked pytest tests/integration
+          -q --no-cov -m "not slow" -n 0
+          --junitxml=junit-compatibility-integration.xml
+      - name: Upload compatibility JUnit reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: junit-compatibility-${{ matrix.id }}
+          path: junit-compatibility-*.xml
+          if-no-files-found: error
+      - name: Check compatibility test results
+        if: >-
+          always() &&
+          (steps.fast_non_solver.outcome != 'success' ||
+           steps.fast_real_solver.outcome != 'success' ||
+           steps.integration.outcome != 'success')
+        run: exit 1
+
   slow_acceptance:
     name: Slow acceptance test
     runs-on: ubuntu-latest
@@ -292,7 +371,7 @@ jobs:
   tests:
     name: Tests
     if: always()
-    needs: [fast_tests, browser_tests, integration_tests, slow_acceptance, coverage]
+    needs: [fast_tests, browser_tests, integration_tests, compatibility, slow_acceptance, coverage]
     runs-on: ubuntu-latest
     steps:
       - name: Verify required test jobs passed
@@ -300,6 +379,7 @@ jobs:
           FAST_RESULT: ${{ needs.fast_tests.result }}
           BROWSER_RESULT: ${{ needs.browser_tests.result }}
           INTEGRATION_RESULT: ${{ needs.integration_tests.result }}
+          COMPATIBILITY_RESULT: ${{ needs.compatibility.result }}
           SLOW_RESULT: ${{ needs.slow_acceptance.result }}
           COVERAGE_RESULT: ${{ needs.coverage.result }}
         run: |
@@ -308,6 +388,7 @@ jobs:
             "$FAST_RESULT" \
             "$BROWSER_RESULT" \
             "$INTEGRATION_RESULT" \
+            "$COMPATIBILITY_RESULT" \
             "$SLOW_RESULT" \
             "$COVERAGE_RESULT"; do
             if [ "$result" != success ]; then
