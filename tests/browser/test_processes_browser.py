@@ -76,6 +76,8 @@ def test_processes_mobile_long_name_and_keyboard_focus(live_server, page):
     )
     delete_button.focus()
     assert delete_button.evaluate("element => document.activeElement === element")
+    # Let the 100ms opacity transition settle before inspecting the pseudo-element.
+    page.wait_for_timeout(150)
     tooltip_style = delete_button.evaluate(
         "element => { const style = getComputedStyle(element, '::after'); "
         "return {opacity: style.opacity, content: style.content}; }"

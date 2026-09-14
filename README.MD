@@ -1,5 +1,8 @@
 # ALI Express
 
+[![CI](https://github.com/SjoerdCor/aliexpress/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/SjoerdCor/aliexpress/actions/workflows/ci.yml)
+[![Coverage](https://codecov.io/gh/SjoerdCor/aliexpress/branch/master/graph/badge.svg)](https://codecov.io/gh/SjoerdCor/aliexpress)
+
 **Smart and Fair Student Group Allocation**
 
 ## Why use ALI Express?
@@ -25,6 +28,7 @@ should install the development tools as well:
 ```bash
 uv sync --locked --extra dev
 uv run --locked pre-commit install
+uv run --locked pre-commit install --hook-type pre-push
 ```
 
 Create `.env` in the checkout root before starting the application:
@@ -86,17 +90,31 @@ uv run --locked pytest tests/test_betreffend_bestand.py -q --no-cov -x
 uv run --locked pytest tests --ignore=tests/integration --ignore=tests/browser -q --no-cov --lf
 ```
 
-The fast Python/Flask suite explicitly excludes browser and integration tests. The measured
-configuration uses six pytest workers with the `load` scheduler:
+The fast Python/Flask suite explicitly excludes browser and integration tests. Tests that
+start the real CP-SAT solver are kept in a separate sequential lane; the remaining tests use
+four pytest workers with the `load` scheduler:
 
 ```bash
-uv run --locked pytest tests --ignore=tests/integration --ignore=tests/browser -q --no-cov -n 6 --dist load
+uv run --locked pytest tests --ignore=tests/integration --ignore=tests/browser \
+  -q --no-cov -m "not slow and not real_solver" -n 4 --dist load
+uv run --locked pytest tests --ignore=tests/integration --ignore=tests/browser \
+  -q --no-cov -m "not slow and real_solver" -n 0
 ```
 
-Run the browser suite separately with four workers:
+Run the browser suite separately. Only its non-solver selection uses xdist; real-solver
+browser tests run sequentially:
 
 ```bash
-uv run --locked pytest tests/browser -q --no-cov -n 4 --dist load
+uv run --locked pytest tests/browser -q --no-cov \
+  -m "not slow and not real_solver" -n 2 --dist load
+uv run --locked pytest tests/browser -q --no-cov \
+  -m "not slow and real_solver" -n 0
+```
+
+Run non-slow integration tests in their own sequential lane:
+
+```bash
+uv run --locked pytest tests/integration -q --no-cov -m "not slow" -n 0
 ```
 
 For full checks, coverage and the default test selection are enabled:
@@ -108,45 +126,48 @@ uv run --locked pytest tests -m slow
 ```
 
 `uv run --locked pytest tests` is the complete non-slow suite, including browser and
-integration tests. The global pytest configuration uses `-m "not slow"` to exclude only
-the marked slow test; it does not exclude browser or other integration tests. Use the
-explicit `--ignore` options above for the fast suite and run the slow suite separately.
+integration tests, and is the full sequential control run. The global pytest configuration
+uses `-m "not slow"` to exclude only the marked slow test; it does not exclude browser or
+other integration tests. Use the explicit `--ignore` options and marker selections above
+for resource-aware local feedback. Do not combine all suites in one `pytest tests -n N`
+xdist pool: browser processes and real solver threads have different resource profiles.
+The worker counts above are measured baselines for the current suite and CI hardware, not
+universal defaults.
 
-## Local merge checks
+The pre-push hook runs the five resource-aware non-slow selections above and combines their
+coverage for `aliexpress` and `app`. It clears stale coverage data first, appends coverage
+from the second selection onward, suppresses intermediate reports and enforces the local
+90% gate with `coverage report --fail-under=90`. The fast non-solver and browser
+non-solver selections use four and two workers respectively; both real-solver selections
+and integration tests run with zero workers. A failing selection stops the hook before the
+next one starts. The slow acceptance test remains a separate, no-coverage check. Install
+the hook with `uv run --locked pre-commit install --hook-type pre-push` as shown above. It
+needs the same local browser and loopback-server prerequisites as the full test suite; the
+coverage gate runs when `git push` is invoked, before anything is pushed.
 
-This repository has no automatic merge runner or CI workflow. For a local merge, prepare the
-merge without committing it first:
+CI requires at least 90% combined line coverage. Codecov also checks that project coverage
+does not decrease by more than 0.5 percentage points compared with the pull request's base
+commit.
 
-```bash
-git merge --no-ff --no-commit <branch>
-```
+In CI, Quality, Fast tests, Browser tests, Integration tests and the slow acceptance test
+run as separate jobs on the primary Python version. The ordinary fast and browser selections
+may run in parallel on their own runners, while each real-solver selection remains sequential
+within its runner. A small compatibility matrix additionally validates Windows x64, Ubuntu
+26.04 x64, macOS x64 and macOS ARM64 on Python 3.13, plus CPython 3.11 and 3.12 on Ubuntu.
+This is intentional dimensional coverage, not a full OS-by-Python Cartesian product. CI
+combines coverage from the fast, browser and integration jobs and publishes JUnit reports;
+the `Tests` job is the stable aggregate gate for the required test jobs.
 
-Then run the following lanes simultaneously in two terminals. The first lane starts the
-realistic slow test; the second lane runs the remaining suites sequentially. The slow test
-does not use coverage, so only the other lane writes the shared coverage report.
+## CI and merge workflow
 
-Terminal 1 — slow lane:
+Develop and commit changes on a feature branch. Push that branch and open a pull request
+to `master`; do not commit or push directly to `master`. GitHub Actions runs for pull requests
+targeting `master` and for pushes to `master`; the workflow is defined in
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
-```bash
-uv run --locked pytest tests/integration/test_integration_herindelen.py::test_herindelen_realistic_scale -q --no-cov -m slow -n 0
-```
-
-Terminal 2 — remaining suites:
-
-```bash
-uv run --locked pytest tests --ignore=tests/integration --ignore=tests/browser -q -m "not slow" -n 6 --dist load
-uv run --locked pytest tests/browser -q -n 4 --dist load --cov-append
-uv run --locked pytest tests/integration -q -m "not slow" --cov-append
-```
-
-Run the following command only after both terminals have completed successfully:
-
-```bash
-git commit
-```
-
-If a check fails, abort the uncommitted merge with `git merge --abort`. This process is manual;
-both lanes must complete successfully before committing the merge.
+Run the local checks described in the [Testing](#testing) section before opening a pull
+request. Merge only after the required CI checks pass. Required-check and merge-policy
+settings are configured separately in GitHub branch protection or rulesets.
 
 `SECRET_KEY` signs the login session cookie. `ADMIN_PASSWORD` is the password for the
 single administrator account, which is created automatically on startup — there is no
@@ -230,7 +251,10 @@ uv run --locked python -m tests.testdata testschool herdoor-2 herindelen_met_doo
 The optional final argument is the number of students: these examples use `35` and `72`; the
 default is `35` when the argument is omitted. The processes already include the **Niet-samen**
 constraints and can be run directly through **Opslaan & door naar indelen** and
-**Start verdeling**.
+**Start verdeling**. In all three modes, generated preferences mostly target classmates from
+the same current group, with occasional cross-group and destination-group preferences.
+Positive preferences are more likely to be reciprocal at higher intensities. All generated
+weights use the fixed intensity levels available in the web form.
 
 ## Local commands
 

@@ -56,6 +56,7 @@ aliexpress = "aliexpress.main:main"
 addopts = "--cov=aliexpress --cov=app --cov-report=term-missing --cov-report=xml -m 'not slow'"
 markers = [
     "slow: long-running solver acceptance tests; skipped by default, pre-merge only",
+    "real_solver: starts the real CP-SAT solver and must not overlap another solve on one runner",
 ]
 pythonpath = ["."]
 

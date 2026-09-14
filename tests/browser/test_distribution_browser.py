@@ -77,6 +77,7 @@ def _goto_processing_and_wait_for_next_status(live_server, page):
 
 
 @pytest.mark.usefixtures("login")
+@pytest.mark.real_solver
 def test_balance_limits_can_be_changed_unlimited_and_submitted(
     live_server, tmp_path, page
 ):
@@ -129,7 +130,6 @@ def test_balance_limit_without_number_stays_on_form(live_server, tmp_path, page)
     assert number.evaluate("element => element.validity.valueMissing") is True
 
     page.get_by_test_id(START_DISTRIBUTION_TEST_ID).click()
-    page.wait_for_timeout(250)
 
     assert page.url == f"{live_server}/processing"
     expect(number).to_be_visible()
@@ -150,6 +150,7 @@ def test_processing_idle_links_back_to_not_together(live_server, tmp_path, page)
 
 
 @pytest.mark.usefixtures("login")
+@pytest.mark.real_solver
 def test_processing_to_result_to_download(live_server, tmp_path, page):
     """Starting a distribution lands on the result page and the workbook downloads."""
     proc = _make_process(live_server, tmp_path, page, running=False)
@@ -169,6 +170,7 @@ def test_processing_to_result_to_download(live_server, tmp_path, page):
 
 
 @pytest.mark.usefixtures("login")
+@pytest.mark.real_solver
 def test_completed_distribution_can_be_adjusted_and_run_again(
     live_server, tmp_path, page
 ):
@@ -620,6 +622,7 @@ def test_processing_stays_gated_when_estimate_predicts_a_short_run(
 
 
 @pytest.mark.usefixtures("login")
+@pytest.mark.real_solver
 def test_processing_stepper_completes(live_server, tmp_path, page):
     """A live processing page shows its three stages and the run ends successfully."""
     proc = _make_process(live_server, tmp_path, page, name="stepperrun", running=False)
@@ -653,6 +656,7 @@ def test_processing_stepper_completes(live_server, tmp_path, page):
 
 
 @pytest.mark.usefixtures("login")
+@pytest.mark.real_solver
 def test_result_group_cards_and_popover(live_server, tmp_path, page):
     """The structured group-card view renders: cards, click-popover, legend, overview."""
     _make_process(live_server, tmp_path, page, name="cardsrun", running=False)

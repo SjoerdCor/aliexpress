@@ -19,6 +19,7 @@ class _SlackTupleCollector(cp_model.CpSolverSolutionCallback):
         self.rows.add(tuple(self.Value(self.slacks[name]) for name in FAMILY_NAMES))
 
 
+@pytest.mark.real_solver
 def test_exact_sorted_weighted_slacks_keeps_every_valid_family_mapping():
     """Pin sorted weighted slacks, not one incidental family assignment.
 
@@ -74,6 +75,7 @@ def test_rejects_invalid_sorted_weighted_slacks_table_values(
         )
 
 
+@pytest.mark.real_solver
 def test_sorting_network_orders_values_descending():
     """The compare-swap network exposes the input values in descending order."""
     model = cp_model.CpModel()

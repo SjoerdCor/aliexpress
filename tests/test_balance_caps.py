@@ -6,6 +6,7 @@ through to the actual slack domains.
 """
 
 import pandas as pd
+import pytest
 from ortools.sat.python import cp_model
 
 from aliexpress.solver._balance import BalanceMaxima
@@ -96,6 +97,7 @@ def _max_reachable_slack(problem, family) -> int:
     return solver.Value(problem.slacks[family])
 
 
+@pytest.mark.real_solver
 def test_build_soft_problem_caps_only_the_named_family():
     """build_soft_problem caps the named family's slack, leaving others uncapped."""
     preferences, students, groups_to = _wiring_scenario()
@@ -112,6 +114,7 @@ def test_build_soft_problem_caps_only_the_named_family():
     )
 
 
+@pytest.mark.real_solver
 def test_build_soft_problem_without_maxima_leaves_family_uncapped():
     """Without a maxima, every family keeps its uncapped slack bound."""
     preferences, students, groups_to = _wiring_scenario()

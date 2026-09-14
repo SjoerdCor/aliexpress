@@ -71,8 +71,7 @@ def test_home_gallery_automatically_advances(live_server, page):
     box = gallery.bounding_box()
     assert box is not None
     page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-    page.wait_for_timeout(4500)
-    expect(status).to_have_text("2 van 4")
+    expect(status).to_have_text("2 van 4", timeout=6_000)
 
     gallery.locator("[data-home-gallery-next]").click()
     expect(status).to_have_text("3 van 4")

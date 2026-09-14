@@ -22,6 +22,9 @@ The optional trailing integer sets the number of students (e.g. ``70``); it defa
 to ``ScenarioSize``'s 35.
 """
 
+# The generator includes its fixed pool of realistic student names in this module.
+# pylint: disable=too-many-lines
+
 import json
 import math
 import os
@@ -47,6 +50,32 @@ from tests.testedexmlgeneration import SAMPLE_GROUP_NAMES
 random.seed(42)
 
 FOLDER = "testdata"
+
+# Calibration for synthetic preferences. The realistic integration fixture has 49 of
+# 52 student-to-student preferences within the origin group. We deliberately use a
+# milder 80% chance so generated data keeps a meaningful minority of cross-group links.
+_SAME_ORIGIN_TARGET_CHANCE = 0.8
+
+# Preserve the old generator's approximate frequency of destination-group targets:
+# with its default 35 students and 4 groups, groups formed about 10% of all candidates.
+_DESTINATION_GROUP_TARGET_CHANCE = 0.1
+
+# These are exactly the web-form levels from ADR-0003. "Normaal" is the default and is
+# expected to cover roughly 80% of choices; the remaining relative frequencies keep all
+# three non-default levels present without making strong preferences commonplace.
+_TOGETHER_WEIGHTS = (0.5, 1.0, 2.0, 5.0)
+_TOGETHER_WEIGHT_FREQUENCIES = (1, 16, 2, 1)
+_APART_WEIGHTS = (1.0, 2.0)
+_APART_WEIGHT_FREQUENCIES = (4, 1)
+
+# Negative preferences are exceptional: target roughly 15% of students, with at most
+# one generated negative preference per student.
+_APART_PREFERENCE_CHANCE = 0.15
+
+# Smoothed from the realistic integration fixture: observed reciprocal shares rise from
+# 0% at 0.5, through 43% at 1 and about 70% around the now-supported weight 2, to 100%
+# at 5. Keeping the endpoints away from 0 and 1 prevents fully deterministic clusters.
+_RECIPROCAL_CHANCE_BY_WEIGHT = {0.5: 0.15, 1.0: 0.4, 2.0: 0.7, 5.0: 0.9}
 
 # Names for the "achterblijvers" (staying students) shown on the Groepen page.
 # Kept separate from NativePreferenceGenerator.possible_students to avoid name collisions.
@@ -260,26 +289,134 @@ class NativePreferenceGenerator:
             return None
         return round(random.uniform(0.2, 0.8), 1)
 
-    def _generate_preferences(self, name: str, options: list[str]) -> list[Preference]:
-        """Random TOGETHER preferences (0–5) and optionally one APART preference."""
-        candidates = [o for o in options if o != name]
-        n_together = random.randint(0, min(5, len(candidates)))
-        together_targets = random.sample(candidates, k=n_together)
-        prefs = [
-            Preference(target, float(random.randint(1, 3)), PreferenceKind.TOGETHER)
-            for target in together_targets
+    @staticmethod
+    def _pick_student_target(
+        student: StudentEntry,
+        students: list[StudentEntry],
+        already_preferred_targets: set[str],
+    ) -> str | None:
+        """Pick mostly from the student's origin group, but sometimes outside it."""
+        same_group = [
+            candidate.student
+            for candidate in students
+            if candidate.student != student.student
+            and candidate.student not in already_preferred_targets
+            and candidate.origin_group == student.origin_group
         ]
-        if random.random() < 0.5:
-            remaining = [o for o in candidates if o not in together_targets]
-            if remaining:
-                prefs.append(
+        other_groups = [
+            candidate.student
+            for candidate in students
+            if candidate.student != student.student
+            and candidate.student not in already_preferred_targets
+            and candidate.origin_group != student.origin_group
+        ]
+        if same_group and other_groups:
+            candidates = (
+                same_group
+                if random.random() < _SAME_ORIGIN_TARGET_CHANCE
+                else other_groups
+            )
+        else:
+            candidates = same_group or other_groups
+        return random.choice(candidates) if candidates else None
+
+    def _pick_target(
+        self,
+        student: StudentEntry,
+        students: list[StudentEntry],
+        already_preferred_targets: set[str],
+    ) -> str | None:
+        """Pick a clustered student target, with an occasional destination-group target."""
+        available_groups = [
+            group for group in self.groups_to if group not in already_preferred_targets
+        ]
+        if available_groups and random.random() < _DESTINATION_GROUP_TARGET_CHANCE:
+            return random.choice(available_groups)
+        student_target = self._pick_student_target(
+            student, students, already_preferred_targets
+        )
+        return student_target or (
+            random.choice(available_groups) if available_groups else None
+        )
+
+    @staticmethod
+    def _together_weight() -> float:
+        """Use one of the four intensity levels offered by the web form."""
+        return random.choices(
+            _TOGETHER_WEIGHTS,
+            weights=_TOGETHER_WEIGHT_FREQUENCIES,
+            k=1,
+        )[0]
+
+    @staticmethod
+    def _apart_weight() -> float:
+        """Use one of the two importance levels offered by the web form."""
+        return random.choices(
+            _APART_WEIGHTS,
+            weights=_APART_WEIGHT_FREQUENCIES,
+            k=1,
+        )[0]
+
+    @staticmethod
+    def _add_reciprocal_preferences(students: list[StudentEntry]) -> None:
+        """Sometimes add B→A for an existing A→B positive preference."""
+        students_by_name = {student.student: student for student in students}
+        original_preferences = [
+            (student, preference)
+            for student in students
+            for preference in student.preferences
+            if preference.target in students_by_name
+        ]
+        for student, preference in original_preferences:
+            target_student = students_by_name[preference.target]
+            target_names = {p.target for p in target_student.preferences}
+            if (
+                student.student not in target_names
+                and random.random() < _RECIPROCAL_CHANCE_BY_WEIGHT[preference.weight]
+            ):
+                target_student.preferences.append(
                     Preference(
-                        random.choice(remaining),
-                        float(random.randint(1, 3)),
-                        PreferenceKind.APART,
+                        student.student,
+                        preference.weight,
+                        PreferenceKind.TOGETHER,
                     )
                 )
-        return prefs
+
+    def populate_preferences(self, students: list[StudentEntry]) -> None:
+        """Populate preferences with origin-group clusters and weighted reciprocity.
+
+        Every student starts with 0–5 positive preferences. Student targets come from the
+        same origin group roughly 80% of the time; destination groups remain occasional
+        valid targets. A second pass may mirror positive student preferences, with a chance
+        that rises with the original preference's web-form intensity.
+        """
+        for student in students:
+            max_targets = len(students) - 1 + len(self.groups_to)
+            n_together = random.randint(0, min(5, max_targets))
+            for _ in range(n_together):
+                already_preferred_targets = {
+                    preference.target for preference in student.preferences
+                }
+                target = self._pick_target(student, students, already_preferred_targets)
+                if target is None:
+                    break
+                student.preferences.append(
+                    Preference(target, self._together_weight(), PreferenceKind.TOGETHER)
+                )
+
+        self._add_reciprocal_preferences(students)
+
+        for student in students:
+            if random.random() >= _APART_PREFERENCE_CHANCE:
+                continue
+            already_preferred_targets = {
+                preference.target for preference in student.preferences
+            }
+            target = self._pick_target(student, students, already_preferred_targets)
+            if target is not None:
+                student.preferences.append(
+                    Preference(target, self._apart_weight(), PreferenceKind.APART)
+                )
 
     def _generate_excluded_groups(self, preferences: list[Preference]) -> list[str]:
         """0–2 groups the student may not be placed in (never all groups)."""
@@ -288,11 +425,8 @@ class NativePreferenceGenerator:
         max_excl = max(min(2, len(possible) - 1), 0)
         return random.sample(possible, random.randint(0, max_excl))
 
-    def _build_entry(
-        self, index: int, name: str, sex: str, options: list[str]
-    ) -> StudentEntry:
-        """Build one StudentEntry: origin group, preferences, exclusions and jaargroep."""
-        prefs = self._generate_preferences(name, options)
+    def _build_entry(self, index: int, name: str, sex: str) -> StudentEntry:
+        """Build one StudentEntry with identity, origin group and jaargroep."""
         year_group = (
             self.jaargroepen[index % len(self.jaargroepen)]
             if self.jaargroepen
@@ -304,8 +438,6 @@ class NativePreferenceGenerator:
             origin_group=random.choice(self.groups_from),
             min_satisfaction=self.generate_minimale_tevredenheid(),
             year_group=year_group,
-            preferences=prefs,
-            excluded_groups=self._generate_excluded_groups(prefs),
         )
 
     def generate(
@@ -329,13 +461,12 @@ class NativePreferenceGenerator:
         """
         assert 1 <= num_students <= len(self.possible_students)
         selected = self.possible_students[:num_students]
-        all_names = [name for name, _ in selected]
-        options = all_names + self.groups_to
-
         entries = [
-            self._build_entry(i, name, sex, options)
-            for i, (name, sex) in enumerate(selected)
+            self._build_entry(i, name, sex) for i, (name, sex) in enumerate(selected)
         ]
+        self.populate_preferences(entries)
+        for entry in entries:
+            entry.excluded_groups = self._generate_excluded_groups(entry.preferences)
 
         if fname is not None:
             all_to_groups = [matching_key(g) for g in self.groups_to]
@@ -648,18 +779,16 @@ def main_herindelen(
 
 
 # ---------------------------------------------------------------------------
-# Realistic hard redistribute_and_forward scenario
+# Structured redistribute_and_forward scenario
 # ---------------------------------------------------------------------------
 #
-# Unlike the random NativePreferenceGenerator (trivial instances), this structured variant
-# mirrors the realistic integration test — cohorts of equal boy/girl stamgroepen plus a
-# fixed cross-stamgroep Niet-samen coupling — so the browser solve takes a stable ~30 s.
-# See ``_forward_hard_rules`` for why Max=2 (stable) beats the Max=1 cliff.
+# This variant combines the shared realistic preference generator with equal boy/girl
+# cohorts and a fixed cross-stamgroep Niet-samen coupling. The larger, structured scenario
+# remains useful for watching the solver's progress page.
 
 _FORWARD_STAMGROEP_LETTERS = ("A", "B")
 
-# Default cohort size: 6 stamgroepen (3 jaargroepen × 2) of 6 boys + 6 girls, benchmarked
-# at a stable ~30 second solve (see ``_forward_hard_rules`` for the coupling choice).
+# Default cohort size: 6 stamgroepen (3 jaargroepen × 2) of 6 boys + 6 girls.
 _FORWARD_DEFAULT_STUDENTS = 72
 
 
@@ -696,23 +825,12 @@ def _forward_anchors(roster: list[tuple]) -> dict:
 def _forward_entries(roster: list[tuple], group_names: list[str]) -> list[StudentEntry]:
     """Build StudentEntry objects with realistic preferences over the roster.
 
-    Mirrors ``_build_realistic_prefs``: each student gets 1–5 "graag met" wishes on nearby
-    roster neighbours, ~20% a "liever niet met", ~12% a "niet in" for one destination group.
+    Uses the same clustered, partly reciprocal preference generation as the other two
+    modes, while retaining this scenario's fixed balanced roster. Roughly one eighth of
+    the students also gets a ``niet in`` exclusion for one destination group.
     """
-    names = [r[0] for r in roster]
-    n = len(names)
     entries = []
-    for idx, (name, sex, stamgroep, year) in enumerate(roster):
-        n_pos = (idx % 5) + 1
-        prefs = [
-            Preference(names[(idx + k + 1) % n], 1.0, PreferenceKind.TOGETHER)
-            for k in range(n_pos)
-        ]
-        if idx % 5 == 2:
-            apart = names[(idx + n // 3) % n]
-            if apart != name and apart not in {p.target for p in prefs}:
-                prefs.append(Preference(apart, 1.0, PreferenceKind.APART))
-        excluded = [group_names[idx % len(group_names)]] if not idx % 8 else []
+    for name, sex, stamgroep, year in roster:
         entries.append(
             StudentEntry(
                 student=name,
@@ -720,10 +838,19 @@ def _forward_entries(roster: list[tuple], group_names: list[str]) -> list[Studen
                 origin_group=stamgroep,
                 min_satisfaction=None,
                 year_group=year,
-                preferences=prefs,
-                excluded_groups=excluded,
             )
         )
+    generator = NativePreferenceGenerator(groups_to=group_names)
+    generator.populate_preferences(entries)
+    for idx, entry in enumerate(entries):
+        if not idx % 8:
+            available_groups = [
+                group
+                for group in group_names
+                if group not in {preference.target for preference in entry.preferences}
+            ]
+            if available_groups:
+                entry.excluded_groups = [random.choice(available_groups)]
     return entries
 
 
@@ -773,11 +900,10 @@ def main_redistribute_and_forward(
 ):
     """Generate a redistribute_and_forward ("Herindelen met doorzetten") process.
 
-    Unlike ``main()`` and ``main_herindelen()``, this uses the structured builder above
-    (real-name cohorts + fixed cross-stamgroep Niet-samen coupling) so the browser solve
-    takes ~30 seconds — long enough to watch the progress page, and stable across runs.
-    Mirrors ``handle_edexml_upload_redistribute_and_forward``: origin groups are the
-    students' own stamgroepen (``6A``, ``6B``, …), distinct from the separately named
+    Unlike ``main()`` and ``main_herindelen()``, this uses the structured roster and fixed
+    cross-stamgroep Niet-samen coupling above. It shares their realistic preference
+    generator. Mirrors ``handle_edexml_upload_redistribute_and_forward``: origin groups are
+    the students' own stamgroepen (``6A``, ``6B``, …), distinct from the separately named
     destination groups; ``groups.xlsx`` has zero occupancy; ``mode.json`` records the mode.
 
     Parameters
@@ -787,7 +913,7 @@ def main_redistribute_and_forward(
     n_students : int
         Target number of students; rounded to a whole ``per_gender`` per stamgroep
         (``2 × len(jaargroepen)`` stamgroepen, boys + girls each). The default 72 gives a
-        stable ~30 second solve; lower it for a faster one.
+        full structured scenario; lower it for a smaller one.
     n_rules : int
         Unused here (the not-together rules are fixed); kept for signature parity.
     folder : str or None
@@ -980,8 +1106,8 @@ def _run_cli(argv: list[str]) -> None:
         mode = _mode_from_cli_args(argv[3:])
         n_students = _student_count_from_cli_args(argv[3:])
         if n_students is None and mode == "redistribute_and_forward":
-            # This mode ships a fixed hard scenario tuned at its full cohort size; the
-            # generic ScenarioSize default (35) would scale it down to a trivial solve.
+            # Preserve this mode's full structured cohort instead of scaling it down to
+            # the generic ScenarioSize default of 35 students.
             n_students = _FORWARD_DEFAULT_STUDENTS
         size = (
             ScenarioSize()

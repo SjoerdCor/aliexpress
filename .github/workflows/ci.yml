@@ -1,0 +1,408 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.1.0
+        with:
+          enable-cache: true
+      - name: Install development dependencies
+        run: uv sync --locked --extra dev
+      - name: Run pre-commit checks
+        run: uv run pre-commit run --all-files
+
+  fast_tests:
+    name: Fast tests
+    runs-on: ubuntu-latest
+    env:
+      COVERAGE_FILE: .coverage.fast
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.1.0
+        with:
+          enable-cache: true
+      - name: Install development dependencies
+        run: uv sync --locked --extra dev
+      - name: Run fast tests without real solver
+        id: fast_non_solver
+        continue-on-error: true
+        run: >-
+          uv run --locked pytest tests
+          --ignore=tests/integration --ignore=tests/browser
+          -q -m "not slow and not real_solver" -n 4 --dist load
+          --junitxml=junit-fast-non-solver.xml
+      - name: Run fast tests with real solver
+        id: fast_real_solver
+        continue-on-error: true
+        run: >-
+          uv run --locked pytest tests
+          --ignore=tests/integration --ignore=tests/browser
+          -q -m "not slow and real_solver" -n 0 --cov-append
+          --junitxml=junit-fast-real-solver.xml
+      - name: Upload fast JUnit reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: junit-fast-tests
+          path: junit-fast-*.xml
+          if-no-files-found: error
+      - name: Upload fast coverage data
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-fast-tests
+          path: .coverage.fast
+          include-hidden-files: true
+          if-no-files-found: error
+      - name: Check fast test results
+        if: always()
+        env:
+          NON_SOLVER_RESULT: ${{ steps.fast_non_solver.outcome }}
+          REAL_SOLVER_RESULT: ${{ steps.fast_real_solver.outcome }}
+        run: |
+          if [ "$NON_SOLVER_RESULT" != success ] || [ "$REAL_SOLVER_RESULT" != success ]; then
+            echo "At least one fast test selection failed."
+            exit 1
+          fi
+
+  browser_tests:
+    name: Browser tests
+    runs-on: ubuntu-26.04
+    env:
+      COVERAGE_FILE: .coverage.browser
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.1.0
+        with:
+          enable-cache: true
+      - name: Install development dependencies
+        run: uv sync --locked --extra dev
+      - name: Install Playwright browser dependencies
+        run: uv run --locked playwright install --with-deps chromium
+      - name: Run browser tests without real solver
+        id: browser_non_solver
+        continue-on-error: true
+        run: >-
+          uv run --locked pytest tests/browser
+          -q -m "not slow and not real_solver" -n 2 --dist load
+          --junitxml=junit-browser-non-solver.xml
+          --tracing=retain-on-failure --screenshot=only-on-failure
+          --output=test-results/browser-non-solver
+      - name: Run browser tests with real solver
+        id: browser_real_solver
+        continue-on-error: true
+        run: >-
+          uv run --locked pytest tests/browser
+          -q -m "not slow and real_solver" -n 0 --cov-append
+          --junitxml=junit-browser-real-solver.xml
+          --tracing=retain-on-failure --screenshot=only-on-failure
+          --output=test-results/browser-real-solver
+      - name: Upload browser JUnit reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: junit-browser-tests
+          path: junit-browser-*.xml
+          if-no-files-found: error
+      - name: Upload browser failure diagnostics
+        if: always() && steps.browser_non_solver.outcome != 'success'
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-browser-non-solver
+          path: test-results/browser-non-solver
+          if-no-files-found: warn
+      - name: Upload browser failure diagnostics
+        if: always() && steps.browser_real_solver.outcome != 'success'
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-browser-real-solver
+          path: test-results/browser-real-solver
+          if-no-files-found: warn
+      - name: Upload browser coverage data
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-browser-tests
+          path: .coverage.browser
+          include-hidden-files: true
+          if-no-files-found: error
+      - name: Check browser test results
+        if: always()
+        env:
+          NON_SOLVER_RESULT: ${{ steps.browser_non_solver.outcome }}
+          REAL_SOLVER_RESULT: ${{ steps.browser_real_solver.outcome }}
+        run: |
+          if [ "$NON_SOLVER_RESULT" != success ] || [ "$REAL_SOLVER_RESULT" != success ]; then
+            echo "At least one browser test selection failed."
+            exit 1
+          fi
+
+  integration_tests:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    env:
+      COVERAGE_FILE: .coverage.integration
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.1.0
+        with:
+          enable-cache: true
+      - name: Install development dependencies
+        run: uv sync --locked --extra dev
+      - name: Run non-slow integration tests
+        id: integration
+        continue-on-error: true
+        run: >-
+          uv run --locked pytest tests/integration
+          -q -m "not slow" -n 0
+          --junitxml=junit-integration.xml
+      - name: Upload integration JUnit report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: junit-integration-tests
+          path: junit-integration.xml
+          if-no-files-found: error
+      - name: Upload integration coverage data
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-integration-tests
+          path: .coverage.integration
+          include-hidden-files: true
+          if-no-files-found: error
+      - name: Check integration test results
+        if: always()
+        env:
+          TEST_RESULT: ${{ steps.integration.outcome }}
+        run: |
+          if [ "$TEST_RESULT" != success ]; then
+            echo "The integration test selection failed."
+            exit 1
+          fi
+
+  compatibility:
+    name: Compatibility (${{ matrix.label }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: ubuntu-2604-py313
+            label: Ubuntu 26.04 x64 / Python 3.13
+            os: ubuntu-26.04
+            python: "3.13"
+          - id: windows-py313
+            label: Windows x64 / Python 3.13
+            os: windows-latest
+            python: "3.13"
+          - id: macos-intel-py313
+            label: macOS 15 x64 / Python 3.13
+            os: macos-15-intel
+            python: "3.13"
+          - id: macos-arm-py313
+            label: macOS 15 ARM64 / Python 3.13
+            os: macos-15
+            python: "3.13"
+          - id: ubuntu-py311
+            label: Ubuntu latest x64 / Python 3.11
+            os: ubuntu-latest
+            python: "3.11"
+          - id: ubuntu-py312
+            label: Ubuntu latest x64 / Python 3.12
+            os: ubuntu-latest
+            python: "3.12"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up uv and Python
+        uses: astral-sh/setup-uv@v10.1.0
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python }}
+      - name: Install development dependencies
+        run: uv sync --locked --extra dev
+      - name: Run fast tests without real solver
+        id: fast_non_solver
+        if: always()
+        run: >-
+          uv run --locked pytest tests
+          --ignore=tests/integration --ignore=tests/browser
+          -q --no-cov -m "not slow and not real_solver" -n 2 --dist load
+          --junitxml=junit-compatibility-fast-non-solver.xml
+      - name: Run fast tests with real solver
+        id: fast_real_solver
+        if: always()
+        run: >-
+          uv run --locked pytest tests
+          --ignore=tests/integration --ignore=tests/browser
+          -q --no-cov -m "not slow and real_solver" -n 0
+          --junitxml=junit-compatibility-fast-real-solver.xml
+      - name: Run integration tests
+        id: integration
+        if: always()
+        run: >-
+          uv run --locked pytest tests/integration
+          -q --no-cov -m "not slow" -n 0
+          --junitxml=junit-compatibility-integration.xml
+      - name: Upload compatibility JUnit reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: junit-compatibility-${{ matrix.id }}
+          path: junit-compatibility-*.xml
+          if-no-files-found: error
+      - name: Check compatibility test results
+        if: >-
+          always() &&
+          (steps.fast_non_solver.outcome != 'success' ||
+           steps.fast_real_solver.outcome != 'success' ||
+           steps.integration.outcome != 'success')
+        run: exit 1
+
+  slow_acceptance:
+    name: Slow acceptance test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.1.0
+        with:
+          enable-cache: true
+      - name: Install development dependencies
+        run: uv sync --locked --extra dev
+      - name: Run realistic-scale slow acceptance test
+        run: >-
+          uv run --locked pytest
+          tests/integration/test_integration_herindelen.py::test_herindelen_realistic_scale
+          -q --no-cov -m slow -n 0
+          --junitxml=junit-slow-acceptance.xml
+      - name: Upload slow acceptance JUnit report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: junit-slow-acceptance
+          path: junit-slow-acceptance.xml
+          if-no-files-found: error
+
+  coverage:
+    name: Coverage
+    if: always()
+    needs: [fast_tests, browser_tests, integration_tests]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.1.0
+        with:
+          enable-cache: true
+      - name: Install development dependencies
+        run: uv sync --locked --extra dev
+      - name: Download fast coverage data
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: coverage-fast-tests
+          path: coverage-input/fast
+      - name: Download browser coverage data
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: coverage-browser-tests
+          path: coverage-input/browser
+      - name: Download integration coverage data
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: coverage-integration-tests
+          path: coverage-input/integration
+      - name: Verify coverage inputs
+        if: always()
+        run: |
+          for directory in coverage-input/fast coverage-input/browser coverage-input/integration; do
+            if ! find "$directory" -maxdepth 1 -type f -name '.coverage*' -print -quit | grep -q .; then
+              echo "Missing coverage data in $directory."
+              exit 1
+            fi
+          done
+      - name: Combine coverage data
+        if: always()
+        run: >-
+          uv run --locked coverage combine
+          coverage-input/fast coverage-input/browser coverage-input/integration
+      - name: Report combined coverage
+        if: always()
+        run: |
+          uv run --locked coverage report --fail-under=90
+          uv run --locked coverage xml -o coverage.xml
+      - name: Upload combined coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage.xml
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true
+      - name: Upload combined coverage report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-combined
+          path: |
+            .coverage
+            coverage.xml
+          include-hidden-files: true
+          if-no-files-found: error
+
+  tests:
+    name: Tests
+    if: always()
+    needs: [fast_tests, browser_tests, integration_tests, compatibility, slow_acceptance, coverage]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify required test jobs passed
+        env:
+          FAST_RESULT: ${{ needs.fast_tests.result }}
+          BROWSER_RESULT: ${{ needs.browser_tests.result }}
+          INTEGRATION_RESULT: ${{ needs.integration_tests.result }}
+          COMPATIBILITY_RESULT: ${{ needs.compatibility.result }}
+          SLOW_RESULT: ${{ needs.slow_acceptance.result }}
+          COVERAGE_RESULT: ${{ needs.coverage.result }}
+        run: |
+          failed=0
+          for result in \
+            "$FAST_RESULT" \
+            "$BROWSER_RESULT" \
+            "$INTEGRATION_RESULT" \
+            "$COMPATIBILITY_RESULT" \
+            "$SLOW_RESULT" \
+            "$COVERAGE_RESULT"; do
+            if [ "$result" != success ]; then
+              failed=1
+            fi
+          done
+
+          if [ "$failed" -ne 0 ]; then
+            echo "At least one required test job did not succeed."
+            exit 1
+          fi

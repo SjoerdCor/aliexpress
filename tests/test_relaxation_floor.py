@@ -1,3 +1,5 @@
+# pylint: disable=duplicate-code  # shared solver setup mirrors feasibility regression cases
+
 """Regression tests for the relaxation floor: strictly positive satisfaction.
 
 Before ADR-0014 (negative satisfaction), the adaptive class-balance
@@ -23,6 +25,8 @@ import pytest
 
 from aliexpress.solver import engine
 from aliexpress.solver._balance_families import SLACK_WEIGHTS
+
+pytestmark = pytest.mark.real_solver
 
 # Two empty target groups: occupancy is entirely determined by "Niet in"
 # placements below, so the balance geometry is exact and known.

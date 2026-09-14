@@ -4,7 +4,7 @@ leerlingen that take part in this verdeling, shared by both input routes (ADR 00
 Only synthetic data is used here, never real student data.
 """
 
-# pylint: disable=redefined-outer-name  # standard pytest fixture pattern
+# pylint: disable=redefined-outer-name,duplicate-code  # standard fixture and shared student setup
 
 import json
 import re

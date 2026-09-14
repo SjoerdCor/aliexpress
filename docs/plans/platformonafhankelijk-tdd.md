@@ -329,41 +329,10 @@ Verificatie:
 
 ### Slice 9 — Cross-platform CI als regressiepoort
 
-Voorgestelde commit: `ci: test supported operating systems and Python versions`
-
-Probleem dat deze slice oplost: platformondersteuning is nu alleen een aanname.
-
-Matrix:
-
-- OS-lane op Python 3.13: `ubuntu-26.04`, `windows-latest`, `macos-latest`;
-- Python-lane op Ubuntu: 3.11, 3.12 en 3.13;
-- browserlane op `ubuntu-26.04` met Playwright Chromium;
-- de realistische slow test alleen handmatig, gepland of vóór een release/merge.
-
-Per normale OS-run:
-
-```text
-uv sync --locked --extra dev
-uv run --locked pytest tests --ignore=tests/integration --ignore=tests/browser ...
-uv run --locked pytest tests/integration -m "not slow" ...
-```
-
-Browserlane:
-
-```text
-uv run playwright install --with-deps chromium
-uv run --locked pytest tests/browser ...
-```
-
-De platform-smoketest en de Windows-filelocktest moeten daadwerkelijk op hun eigen OS
-draaien. De matrix wordt pas na een groene run als verplichte mergecheck ingesteld.
-
-Ubuntu 26.04 is bij het schrijven van dit plan nog als preview runner beschikbaar;
-queue- of image-instabiliteit wordt apart gehouden van applicatiefouten.
-
-Bron:
-
-- [GitHub-hosted Ubuntu 26.04 runner](https://github.com/actions/runner-images/issues/14226)
+De actuele implementatie- en verificatieafspraken voor deze regressiepoort staan in
+[`docs/plans/platformcompatibiliteit-in-ci.md`](platformcompatibiliteit-in-ci.md). Dat plan
+vervangt deze verouderde beschrijving door een include-only matrix met zes expliciete
+combinaties, Ubuntu 26.04 voor de bestaande browserjob en de stabiele `Tests`-aggregatiecheck.
 
 ## PII uit de Git-geschiedenis verwijderen
 

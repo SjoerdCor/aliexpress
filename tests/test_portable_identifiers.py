@@ -1,6 +1,6 @@
 """Acceptance tests for platform-independent identifiers and storage paths."""
 
-# pylint: disable=redefined-outer-name,import-outside-toplevel
+# pylint: disable=redefined-outer-name,import-outside-toplevel,duplicate-code
 
 import unicodedata
 

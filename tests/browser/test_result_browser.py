@@ -67,6 +67,7 @@ def _capture_result_review_images(page):
 
 
 @pytest.mark.usefixtures("login")
+@pytest.mark.real_solver
 def test_result_page_is_native_and_stays_inside_narrow_viewports(
     live_server, tmp_path, page
 ):
@@ -115,6 +116,7 @@ def test_result_page_is_native_and_stays_inside_narrow_viewports(
 
 
 @pytest.mark.usefixtures("login")
+@pytest.mark.real_solver
 def test_result_adjustment_links_follow_saved_input_method_and_open_limits(
     live_server, tmp_path, page
 ):

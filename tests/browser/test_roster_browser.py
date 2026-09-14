@@ -1,4 +1,4 @@
-# pylint: disable=redefined-outer-name  # standard pytest fixture pattern
+# pylint: disable=redefined-outer-name,duplicate-code  # standard pytest fixture pattern and shared browser fixture setup
 
 """Browser tests for the roster page ("Leerlingen controleren"): visible roster behavior —
 confirming a new student, editing/removing it, and continuing the wizard.
@@ -170,6 +170,7 @@ def test_forward_keeps_existing_students_in_roster(live_server, tmp_path, page):
 
 
 @pytest.mark.usefixtures("login")
+@pytest.mark.real_solver
 def test_forward_route_steps_and_navigation_labels(live_server, page):
     """Doorzetten follows every step from Schoolinformatie through Klaar!."""
     _create_forward_process(live_server, page, "full-forward-flow")
@@ -221,9 +222,13 @@ def test_unconfirmed_row_blocks_submit(live_server, tmp_path, page):
     _open_roster(live_server, tmp_path, page)
     _add_student(page, "Emma", "Jansen", geslacht="", confirm=False)
     page.locator("button[type=submit]").click()
-    page.wait_for_timeout(300)
     assert "/roster" in page.url
-    assert page.locator("#roster-client-message").inner_text() != ""
+    assert page.locator(
+        "#roster-client-message .roster-client-message-text"
+    ).inner_text() == (
+        "Klik op ‘Leerling aan de lijst toevoegen’ om deze leerling te bevestigen, "
+        "of verwijder de invoer."
+    )
 
 
 @pytest.mark.usefixtures("login")

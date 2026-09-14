@@ -1,17 +1,8 @@
 """Tests for the platform-neutral ``ali-express`` console command."""
 
 import importlib.metadata
-import os
-import signal
-import socket
-import subprocess
-import sys
 import threading
-import time
-from pathlib import Path
 from types import SimpleNamespace
-from urllib.error import URLError
-from urllib.request import urlopen
 
 import pytest
 from click.testing import CliRunner
@@ -186,74 +177,3 @@ def test_serve_reports_a_busy_port_without_touching_browser(monkeypatch, tmp_pat
     assert "poort" in result.output.lower()
     assert "bezet" in result.output.lower()
     assert not browser_calls
-
-
-def test_serve_subprocess_smoke_and_clean_stop(tmp_path):
-    """The installed module serves HTTP from another working directory and stops cleanly."""
-    with socket.socket() as probe:
-        probe.bind(("127.0.0.1", 0))
-        port = probe.getsockname()[1]
-
-    project_root = Path(__file__).resolve().parents[1]
-    environment = os.environ.copy()
-    environment.update(
-        {
-            "DATABASE_URL": f"sqlite:///{tmp_path / 'app.db'}",
-            "ALIEXPRESS_ENV": "local",
-            "SECRET_KEY": "slice-three-secret",
-            "ADMIN_PASSWORD": "A-long-random-slice-three-admin-password-42!",
-            "PYTHONPATH": os.pathsep.join(
-                [str(project_root / "src"), str(project_root)]
-            ),
-        }
-    )
-    bootstrap = (
-        "import aliexpress; "
-        f"aliexpress.get_instance_path = lambda: {str(tmp_path)!r}; "
-        "import aliexpress.main as main_module; "
-        "main_module.main()"
-    )
-    with subprocess.Popen(
-        [
-            sys.executable,
-            "-c",
-            bootstrap,
-            "serve",
-            "--host",
-            "127.0.0.1",
-            "--port",
-            str(port),
-            "--no-browser",
-        ],
-        cwd=tmp_path,
-        env=environment,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0),
-    ) as process:
-        try:
-            deadline = time.monotonic() + 10
-            while time.monotonic() < deadline:
-                if process.poll() is not None:
-                    output = process.stdout.read()
-                    pytest.fail(f"serve exited before becoming ready: {output}")
-                try:
-                    with urlopen(f"http://127.0.0.1:{port}/", timeout=0.5) as response:
-                        assert response.status == 200
-                        break
-                except (URLError, TimeoutError, OSError):
-                    time.sleep(0.05)
-            else:
-                pytest.fail("serve did not become ready within ten seconds")
-
-            if os.name == "nt":
-                process.send_signal(getattr(signal, "CTRL_BREAK_EVENT"))
-            else:
-                process.send_signal(signal.SIGINT)
-            output, _ = process.communicate(timeout=5)
-            assert process.returncode == 0, output
-            assert "Server wordt gestopt" in output
-        finally:
-            if process.poll() is None:
-                process.terminate()
